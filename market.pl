@@ -1,74 +1,104 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use Data::Dumper; # Librería nativa para imprimir arreglos de forma legible
 use Tk;
 
-# Añade el directorio actual a las rutas de búsqueda de librerías
 use lib '.';
 use Market::MarketData;
 use Market::IndicatorManager;
 use Market::Indicators::ATR;
 use Market::ChartEngine;
 
-print "========== INICIANDO MOTOR DE DATOS ==========\n";
+print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
 
-# 1. Instanciar la clase
+# ==========================================
+# 1. INICIALIZAR GESTOR DE DATOS E INDICADORES
+# ==========================================
 my $market_data = Market::MarketData->new();
+my $indicator_manager = Market::IndicatorManager->new();
+my $atr_indicator = Market::Indicators::ATR->new(14); # ATR de 14 periodos clásico
 
-# 2. Cargar el archivo CSV
+$indicator_manager->register('ATR', $atr_indicator);
+
+# ==========================================
+# 2. CARGAR HISTÓRICO Y SIMULAR STREAMING PARA ATR
+# ==========================================
 my $archivo_csv = 'Data/2026_03.csv';
+print "[*] Leyendo base de datos histórica y calculando indicadores...\n";
 open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
+my $header = <$fh>;
 
-my $header = <$fh>; # Leemos y descartamos la primera línea (encabezados)
-
-print "[*] Ingiriendo datos de 1 minuto en streaming simulado...\n";
 while (my $linea = <$fh>) {
     chomp $linea;
-    # Dividimos la línea por comas y la pasamos como referencia de arreglo
     my @columnas = split /,/, $linea;
+    
+    # Añadimos la vela al gestor de datos
     $market_data->add_candle(\@columnas);
+    
+    # Calculamos el ATR incrementalmente vela por vela simulando el mercado en vivo
+    $indicator_manager->update_last($market_data);
 }
 close $fh;
 
-# 3. Pruebas de la temporalidad Base (1m)
-print "\n========== RESULTADOS: TIMEFRAME 1m ==========\n";
-print "Total de velas procesadas : " . $market_data->size() . "\n";
-print "Índice de la última vela  : " . $market_data->last_index() . "\n";
-print "Timestamp índice 10       : " . $market_data->get_timestamp(10) . "\n";
-
-print "\n[*] Inspeccionando la última vela de 1m:\n";
-print Dumper($market_data->last_candle());
-
-# 4. Pruebas de Agrupación Matemática (5m y 15m)
-print "\n========== CONSTRUYENDO TIMEFRAMES ==========\n";
-print "[*] Ejecutando build_timeframes()...\n";
+print "[*] Construyendo temporalidades de 5m y 15m...\n";
 $market_data->build_timeframes();
-
-# Cambiamos el estado global a 5 minutos
-$market_data->set_timeframe('5m');
-print "\n========== RESULTADOS: TIMEFRAME 5m ==========\n";
-print "Total de velas generadas  : " . $market_data->size() . "\n";
-print "[*] Inspeccionando la primera vela de 5m (agrupación de las primeras 5 de 1m):\n";
-print Dumper($market_data->get_candle(0));
-
-# Cambiamos el estado global a 15 minutos
-$market_data->set_timeframe('15m');
-print "\n========== RESULTADOS: TIMEFRAME 15m ==========\n";
-print "Total de velas generadas  : " . $market_data->size() . "\n";
-
-# 5. Prueba de Slicing (Simulando la vista del ChartEngine)
-$market_data->set_timeframe('5m');
-print "\n========== PRUEBA DE SLICING (5m) ==========\n";
-print "[*] Extrayendo velas visibles (índices del 0 al 2)...\n";
-my $slice = $market_data->get_slice(0, 2);
-print Dumper($slice);
-
-# 6. Prueba de Time Anchors
 $market_data->set_timeframe('1m');
-print "\n========== PRUEBA DE TIME ANCHORS ==========\n";
-my $anchors = $market_data->compute_time_anchors();
-print "[*] Índices donde se detectó un salto de hora (para dibujar el grid vertical):\n";
-print join(" | ", @$anchors) . "\n";
 
-print "\n========== PRUEBAS FINALIZADAS ==========\n";
+# ==========================================
+# 3. CONSTRUCCIÓN DE LA INTERFAZ GRÁFICA (PERL-TK)
+# ==========================================
+my $mw = MainWindow->new;
+$mw->title("Plataforma de Gráficos Financieros - Motor de Charting Tk");
+$mw->geometry("1024x768"); # Forzamos una resolución inicial fija
+
+# ORDEN CORRECTO: De abajo hacia arriba.
+
+# 1. Controles (Se anclan al fondo)
+my $frame_controles = $mw->Frame()->pack(-side => 'bottom', -fill => 'x', -pady => 5);
+$frame_controles->Label(-text => "Temporalidades: ")->pack(-side => 'left', -padx => 10);
+
+# 2. Panel inferior ATR (Se ancla justo encima de los controles)
+my $atr_canvas = $mw->Canvas(
+    -height     => 150,
+    -background => '#131722',
+    -relief     => 'sunken',
+    -bd         => 1
+)->pack(-side => 'bottom', -fill => 'x');
+
+# 3. Panel superior de Velas (Toma todo el espacio que sobra arriba)
+my $price_canvas = $mw->Canvas(
+    -background => '#131722', 
+    -relief     => 'sunken',
+    -bd         => 1
+)->pack(-side => 'top', -expand => 1, -fill => 'both');
+
+# ==========================================
+# 4. INSTANCIAR EL MOTOR ORQUESTADOR (CHART ENGINE)
+# ==========================================
+my $chart_engine = Market::ChartEngine->new(
+    market_data       => $market_data,
+    indicator_manager => $indicator_manager,
+    price_canvas      => $price_canvas,
+    atr_canvas        => $atr_canvas
+);
+
+# Conectar botones al motor usando los sufijos 'm' para coincidir con MarketData.pm
+$frame_controles->Button(-text => "1 Minuto",   -command => sub { $chart_engine->set_timeframe('1m') })->pack(-side => 'left', -padx => 2);
+$frame_controles->Button(-text => "5 Minutos",  -command => sub { $chart_engine->set_timeframe('5m') })->pack(-side => 'left', -padx => 2);
+$frame_controles->Button(-text => "15 Minutos", -command => sub { $chart_engine->set_timeframe('15m') })->pack(-side => 'left', -padx => 2);
+$frame_controles->Button(-text => "Reset Vista",-command => sub { $chart_engine->reset_view() })->pack(-side => 'right', -padx => 20);
+
+# ==========================================
+# 5. DISPARAR RENDER Y LOOP GRÁFICO (CON ESTABILIDAD PARA WAYLAND)
+# ==========================================
+print "[*] Abriendo ventana nativa y delegando control a Tk...\n";
+
+# Le decimos a Tk: "Abre la ventana ya mismo, y 100 milisegundos 
+# después de que estés listo, ejecuta el renderizado".
+$mw->after(100, sub {
+    print "[*] Ejecutando renderizado inicial en los Canvas...\n";
+    $chart_engine->render();
+});
+
+# Entregamos el control absoluto sin forzar updates previos
+MainLoop;

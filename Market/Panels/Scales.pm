@@ -24,7 +24,7 @@ sub index_to_x {
     my $bars  = $self->{bars} || 1;
     my $bar_w = $self->{width} / $bars;
     return $index * $bar_w;
-}PM 
+}
 
 # Convierte una coordenada X en píxeles al índice de barra más cercano (entero).
 sub x_to_index {

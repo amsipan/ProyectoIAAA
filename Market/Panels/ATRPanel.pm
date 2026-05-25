@@ -4,7 +4,7 @@ use warnings;
 
 sub new {
     my ($class, %args) = @_;
-l
+
     my $self = {
         %args,
         crosshair_objects => []

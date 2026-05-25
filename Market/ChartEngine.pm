@@ -220,7 +220,8 @@ sub _draw_crosshair_all {
 sub set_timeframe {
     my ($self, $tf) = @_;
 
-    if ($tf ne '1' && $tf ne '5' && $tf ne '15') {
+    # CORRECCIÓN: Agregamos la 'm' para que coincida con MarketData.pm
+    if ($tf ne '1m' && $tf ne '5m' && $tf ne '15m') {
             warn "Temporalidad '$tf' no soportada por el sistema.";
             return;
     }
