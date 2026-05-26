@@ -35,14 +35,15 @@ while (my $linea = <$fh>) {
     # Añadimos la vela al gestor de datos
     $market_data->add_candle(\@columnas);
     
-    # Calculamos el ATR incrementalmente vela por vela simulando el mercado en vivo
-    $indicator_manager->update_last($market_data);
 }
 close $fh;
 
 print "[*] Construyendo temporalidades de 5m y 15m...\n";
 $market_data->build_timeframes();
 $market_data->set_timeframe('1m');
+for (my $i = 0; $i < $market_data->size(); $i++) {
+    $indicator_manager->update_last($market_data, $i);
+}
 
 # ==========================================
 # 3. CONSTRUCCIÓN DE LA INTERFAZ GRÁFICA (PERL-TK)

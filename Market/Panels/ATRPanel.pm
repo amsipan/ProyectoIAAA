@@ -72,7 +72,7 @@ sub render {
         my $val = $visible_values->[$i];
         next if !defined $val;
 
-        my $x = $scale->index_to_x($i);
+        my $x = $scale->index_to_center_x($i);
         my $y = $scale->value_to_y($val);
 
         push @points, ($x, $y);
@@ -127,15 +127,18 @@ sub draw_crosshair {
 
     $canvas->delete('atr_crosshair');
 
+    my $width = $canvas->width();
+    my $height = $canvas->height();
+
     $canvas->createLine(
-        $x, 0, $x, $self->{height},
+        $x, 0, $x, $height,
         -fill => 'gray',
         -dash => '.',
         -tags => 'atr_crosshair',
     ) if defined $x;
 
     $canvas->createLine(
-        0, $y, $self->{width}, $y,
+        0, $y, $width, $y,
         -fill => 'gray',
         -dash => '.',
         -tags => 'atr_crosshair',

@@ -106,7 +106,7 @@ sub _draw_y_scale {
 
         # Línea de cuadrícula horizontal
         $canvas->createLine(
-            0, $y, $width, $y,
+            0, $y, $self->{width}, $y,
             -fill => '#2a2a2a',
             -tags => 'y_scale',
         );

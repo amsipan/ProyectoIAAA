@@ -25,11 +25,11 @@ sub register {
 }
 
 sub update_last {
-    my ($self, $market_data) = @_;
+    my ($self, $market_data, $index) = @_;
     return unless defined $market_data;
 
     for my $name (keys %{ $self->{indicators} }) {
-        $self->{indicators}->{$name}->update_last($market_data);
+        $self->{indicators}->{$name}->update_last($market_data, $index);
     }
     return;
 }

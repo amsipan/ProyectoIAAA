@@ -162,6 +162,7 @@ sub draw_crosshair {
 
     my $w = $canvas->width();
     my $h = $canvas->height();
+    my $scale = $self->{scale};
 
     # Línea vertical (sincronizada con ATRPanel)
     $canvas->createLine(
@@ -182,7 +183,6 @@ sub draw_crosshair {
             -tags  => 'price_crosshair',
         );
 
-        my $scale = $self->{scale};
         if (defined $scale) {
             my $value = $scale->y_to_value($y);
             my $label = sprintf("%.2f", $value);

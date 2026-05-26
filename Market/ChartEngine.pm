@@ -2,6 +2,7 @@ package Market::ChartEngine;
 use strict;
 use warnings;
 
+use Time::Moment;
 use Market::Panels::Scales;
 use Market::Panels::PricePanel;
 use Market::Panels::ATRPanel; 
@@ -15,9 +16,16 @@ sub new {
         price_canvas     => $args{price_canvas},     
         atr_canvas       => $args{atr_canvas},       
         
-        visible_bars     => 60,    
-        offset           => 0,    
-        is_auto_scale    => 1,    
+        visible_bars     => 60,
+        offset           => 0,
+        is_auto_scale    => 1,
+        manual_min_y     => undef,
+        manual_max_y     => undef,
+        render_pending   => 0,
+        drag_start_x     => undef,
+        drag_start_y     => undef,
+        drag_start_offset=> 0,
+        vertical_drag_y  => undef,
         
         %args,
     };
@@ -55,7 +63,19 @@ sub round {
 sub request_render {
     my ($self) = @_;
 
-    $self->render();
+    return if $self->{render_pending};
+    $self->{render_pending} = 1;
+
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+    if ($canvas) {
+        $canvas->afterIdle(sub {
+            $self->{render_pending} = 0;
+            $self->render();
+        });
+    } else {
+        $self->{render_pending} = 0;
+        $self->render();
+    }
 }
 
 sub render {
@@ -72,9 +92,12 @@ sub render {
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
     my ($min_a, $max_a) = $self->{atr_panel}->get_y_range($visible_atr);
     
-    # --- PARCHE DE SEGURIDAD PARA EVITAR VENTANA EN BLANCO ---
-    # Si los rangos son nulos, indefinidos o iguales, asignamos límites por defecto
-    # para que las transformaciones lineales de Scales.pm no dividan por cero.
+    if (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+        ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
+    } else {
+        ($self->{manual_min_y}, $self->{manual_max_y}) = ($min_p, $max_p);
+    }
+
     if (!defined $min_p || !defined $max_p || $min_p == $max_p) {
         $min_p = 20000;
         $max_p = 30000;
@@ -83,7 +106,6 @@ sub render {
         $min_a = 0;
         $max_a = 100;
     }
-    # ---------------------------------------------------------
     
     # 4. Instanciar los sistemas de coordenadas independientes para píxeles
     my $price_scale = Market::Panels::Scales->new(min_y => $min_p, max_y => $max_p, bars => scalar(@$visible_candles));
@@ -95,6 +117,7 @@ sub render {
     # 5. Ejecutar render en cada sub-canvas
     $self->{price_panel}->render($self->{price_canvas}, $visible_candles, $price_scale);
     $self->{atr_panel}->render($self->{atr_canvas}, $visible_atr, $atr_scale);
+    $self->{price_panel}->draw_time_axis($self->{price_canvas}, $self->compute_intraday_labels());
 }
 
 sub _bind_all_canvas {
@@ -106,27 +129,67 @@ sub _bind_all_canvas {
     
     # 1. Binding nativo para el panel de Precios usando la sintaxis clásica 'bind'
     if (defined $p_canvas) {
-        $p_canvas->bind('<Motion>', [sub {
+        $p_canvas->Tk::bind('<Motion>', [sub {
             my ($widget, $x, $y) = @_;
-            $self->on_mouse_move($x, $y);
+            $self->_on_mouse_move($widget, $x, $y);
         }, Tk::Ev('x'), Tk::Ev('y')]);
-        
-        $p_canvas->bind('<Leave>', sub {
-            $self->{price_panel}->draw_crosshair(undef, undef);
-            $self->{atr_panel}->draw_crosshair(undef, undef);
+        $p_canvas->Tk::bind('<ButtonPress-1>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_start_horizontal_drag($widget, $x, $y);
+        }, Tk::Ev('x'), Tk::Ev('y')]);
+        $p_canvas->Tk::bind('<B1-Motion>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_on_horizontal_drag($widget, $x, $y);
+        }, Tk::Ev('x'), Tk::Ev('y')]);
+        $p_canvas->Tk::bind('<ButtonRelease-1>', sub { $self->_end_drag(); });
+        $p_canvas->Tk::bind('<MouseWheel>', [sub {
+            my ($widget, $delta) = @_;
+            $self->_horizontal_zoom($delta > 0 ? -5 : 5);
+        }, Tk::Ev('D')]);
+        $p_canvas->Tk::bind('<Button-4>', sub { $self->_horizontal_zoom(-5); });
+        $p_canvas->Tk::bind('<Button-5>', sub { $self->_horizontal_zoom(5); });
+        $p_canvas->Tk::bind('<Double-Button-1>', sub { $self->reset_view(); });
+        $p_canvas->Tk::bind('<Key-a>', sub { $self->{is_auto_scale} = 1; $self->request_render(); });
+        $p_canvas->Tk::bind('<Key-m>', sub { $self->{is_auto_scale} = 0; $self->request_render(); });
+        $p_canvas->Tk::bind('<Key-plus>', sub { $self->{is_auto_scale} = 0; $self->_vertical_zoom(0.9); });
+        $p_canvas->Tk::bind('<Key-minus>', sub { $self->{is_auto_scale} = 0; $self->_vertical_zoom(1.1); });
+        $p_canvas->Tk::bind('<Up>', sub { $self->{is_auto_scale} = 0; $self->_vertical_drag(-10); });
+        $p_canvas->Tk::bind('<Down>', sub { $self->{is_auto_scale} = 0; $self->_vertical_drag(10); });
+        $p_canvas->Tk::bind('<Enter>', sub { $p_canvas->focus; });
+        $p_canvas->Tk::bind('<Leave>', sub {
+            $self->{last_mouse_x} = undef;
+            $self->{last_mouse_y} = undef;
+            $self->{active_canvas} = undef;
+            $self->_draw_crosshair_all();
         });
     }
     
     # 2. Binding nativo idéntico para el panel del ATR
     if (defined $a_canvas) {
-        $a_canvas->bind('<Motion>', [sub {
+        $a_canvas->Tk::bind('<Motion>', [sub {
             my ($widget, $x, $y) = @_;
-            $self->on_mouse_move($x, $y);
+            $self->_on_mouse_move($widget, $x, $y);
         }, Tk::Ev('x'), Tk::Ev('y')]);
-        
-        $a_canvas->bind('<Leave>', sub {
-            $self->{price_panel}->draw_crosshair(undef, undef);
-            $self->{atr_panel}->draw_crosshair(undef, undef);
+        $a_canvas->Tk::bind('<ButtonPress-1>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_start_horizontal_drag($widget, $x, $y);
+        }, Tk::Ev('x'), Tk::Ev('y')]);
+        $a_canvas->Tk::bind('<B1-Motion>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_on_horizontal_drag($widget, $x, $y);
+        }, Tk::Ev('x'), Tk::Ev('y')]);
+        $a_canvas->Tk::bind('<ButtonRelease-1>', sub { $self->_end_drag(); });
+        $a_canvas->Tk::bind('<MouseWheel>', [sub {
+            my ($widget, $delta) = @_;
+            $self->_horizontal_zoom($delta > 0 ? -5 : 5);
+        }, Tk::Ev('D')]);
+        $a_canvas->Tk::bind('<Button-4>', sub { $self->_horizontal_zoom(-5); });
+        $a_canvas->Tk::bind('<Button-5>', sub { $self->_horizontal_zoom(5); });
+        $a_canvas->Tk::bind('<Leave>', sub {
+            $self->{last_mouse_x} = undef;
+            $self->{last_mouse_y} = undef;
+            $self->{active_canvas} = undef;
+            $self->_draw_crosshair_all();
         });
     }
 }
@@ -139,10 +202,51 @@ sub bind_events {
 sub _horizontal_zoom {
     my ($self, $delta) = @_;
 
+    my $total = $self->{market_data}->size();
     $self->{visible_bars} += $delta;
     $self->{visible_bars} = 10 if $self->{visible_bars} < 10;
+    $self->{visible_bars} = $total if $total && $self->{visible_bars} > $total;
     $self->request_render();
+}
 
+sub _start_horizontal_drag {
+    my ($self, $widget, $x, $y) = @_;
+
+    my $root_x = $widget->pointerx();
+    $self->{drag_start_x} = defined $root_x ? $root_x : $x;
+    $self->{drag_start_y} = $y;
+    $self->{drag_start_offset} = $self->{offset};
+}
+
+sub _on_horizontal_drag {
+    my ($self, $widget, $x, $y) = @_;
+
+    $self->_on_mouse_move($widget, $x, $y);
+    return unless defined $self->{drag_start_x};
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+
+    my $root_x = $widget->pointerx();
+    my $current_x = defined $root_x ? $root_x : $x;
+    my $width = $canvas->width() || 1;
+    my $bar_w = $width / ($self->{visible_bars} || 1);
+    return if $bar_w <= 0;
+
+    my $delta_bars = int(($current_x - $self->{drag_start_x}) / $bar_w);
+    my $max_offset = $self->{market_data}->size() - $self->{visible_bars};
+    $max_offset = 0 if $max_offset < 0;
+
+    $self->{offset} = $self->{drag_start_offset} + $delta_bars;
+    $self->{offset} = 0 if $self->{offset} < 0;
+    $self->{offset} = $max_offset if $self->{offset} > $max_offset;
+    $self->request_render();
+}
+
+sub _end_drag {
+    my ($self) = @_;
+
+    $self->{drag_start_x} = undef;
+    $self->{drag_start_y} = undef;
 }
 
 sub _vertical_drag {
@@ -188,7 +292,7 @@ sub _vertical_zoom {
 }
 
 sub _on_mouse_move {
-    my ($self, $raw_x, $raw_y) = @_;
+    my ($self, $widget, $raw_x, $raw_y) = @_;
     
     return if !defined $raw_x || !defined $raw_y;
     
@@ -197,6 +301,7 @@ sub _on_mouse_move {
     
     $self->{last_mouse_x} = $pixel_x;
     $self->{last_mouse_y} = $pixel_y;
+    $self->{active_canvas} = $widget;
     
     $self->_draw_crosshair_all();
 }
@@ -213,23 +318,36 @@ sub _draw_crosshair_all {
         return;
     }
 
-    $self->{price_panel}->draw_crosshair($last_x, $last_y);
-    $self->{atr_panel}->draw_crosshair($last_x, $last_y);
+    my $price_y = undef;
+    my $atr_y = undef;
+
+    if (defined $self->{active_canvas} && $self->{active_canvas} == $self->{atr_canvas}) {
+        $atr_y = $last_y;
+    } else {
+        $price_y = $last_y;
+    }
+
+    $self->{price_panel}->draw_crosshair($last_x, $price_y);
+    $self->{atr_panel}->draw_crosshair($last_x, $atr_y);
 }
 
 sub set_timeframe {
     my ($self, $tf) = @_;
 
-    # CORRECCIÓN: Agregamos la 'm' para que coincida con MarketData.pm
     if ($tf ne '1m' && $tf ne '5m' && $tf ne '15m') {
             warn "Temporalidad '$tf' no soportada por el sistema.";
             return;
     }
 
+    $self->{market_data}->build_tf_candles($tf) if $tf ne '1m';
     $self->{market_data}->set_timeframe($tf);
-    $self->{market_data}->build_tf_candles($tf);
     $self->{indicator_manager}->reset_all();
-    $self->{indicator_manager}->update_last($self->{market_data});
+    for (my $i = 0; $i < $self->{market_data}->size(); $i++) {
+        $self->{indicator_manager}->update_last($self->{market_data}, $i);
+    }
+    $self->{is_auto_scale} = 1;
+    $self->{manual_min_y} = undef;
+    $self->{manual_max_y} = undef;
     $self->reset_view();
 }
 
@@ -238,6 +356,9 @@ sub reset_view {
 
     $self->{visible_bars} = 60;
     $self->{offset} = 0;
+    $self->{is_auto_scale} = 1;
+    $self->{manual_min_y} = undef;
+    $self->{manual_max_y} = undef;
     $self->request_render();
 }
 
@@ -259,14 +380,14 @@ sub compute_intraday_labels {
         if ($i % $step == 0) {
             my $item = $visible_elements->[$i];
             my $ts   = $item->{ts};
-            my $idx  = $item->{index}; 
+            my $idx  = $i;
             
             my $time_str = sprintf("%02d:%02d", $ts->hour, $ts->minute);
             push @labels, { index => $idx, text => $time_str };
         }
     }
 
-    return \@labels;;
+    return \@labels;
 }
 
 sub get_all_timestamps {
@@ -278,7 +399,8 @@ sub get_all_timestamps {
     for (my $i = $start; $i <= $end; $i++) {
         my $ts = $self->{market_data}->get_timestamp($i);
         if (defined $ts) {
-            push @timestamps, { index => $i, ts => $ts };
+            my $parsed = eval { Time::Moment->from_string($ts) };
+            push @timestamps, { index => $i, ts => $parsed } if $parsed;
         }
     }
     

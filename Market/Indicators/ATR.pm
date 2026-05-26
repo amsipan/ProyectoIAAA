@@ -20,8 +20,8 @@ sub new {
 }
 
 sub update_last {
-    my ($self, $market_data) = @_;
-    my $candle = $market_data->last_candle();
+    my ($self, $market_data, $index) = @_;
+    my $candle = defined $index ? $market_data->get_candle($index) : $market_data->last_candle();
     return unless $candle;
 
     my $high  = $candle->[2];
