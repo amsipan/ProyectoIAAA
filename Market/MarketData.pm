@@ -118,19 +118,61 @@ sub merge_delta_row {
     }
 }
 
+# compute_time_anchors — puntos clave de tiempo para el eje/etiquetas (capa de datos).
+#
+# Detecta dos tipos de ancla temporal recorriendo el array de velas activo:
+#   * Cambio de HORA dentro del mismo día (etiqueta de tiempo regular).
+#   * Cambio de DÍA calendario (marcador de fecha) usando Time::Moment
+#     (->year, ->month, ->day_of_month). Un cambio de día es ancla aunque la
+#     hora coincida con la de la vela anterior (p.ej. gaps de datos entre jornadas).
+#
+# CAMBIO DE CONTRATO (tradingview-parity, tarea 4.1):
+#   Antes devolvía un arrayref de ENTEROS (índices donde cambiaba la hora).
+#   Ahora devuelve un arrayref de HASHES enriquecidos:
+#       [ { index => N, is_date => 0|1 }, ... ]
+#   donde is_date == 1 marca un cambio de DÍA (cambio de fecha) e is_date == 0
+#   marca un cambio de HORA dentro del mismo día. La primera vela del array no
+#   se considera cambio de fecha (no tiene vela anterior con la cual comparar),
+#   por lo que se marca como ancla de hora (is_date => 0).
+#   No hay consumidores previos que dependan del formato antiguo; ChartEngine
+#   usará la marca is_date para resaltar los cambios de fecha en el eje de tiempo.
+#
+# Responsabilidad: SOLO capa de datos. No conoce render ni coordenadas; usa
+# exclusivamente Time::Moment (ya importado). Las velas con timestamp no
+# parseable se omiten sin abortar.
 sub compute_time_anchors {
     my ($self) = @_;
     my $arr = $self->_active_array();
     my @anchors;
-    my $last_hour = -1;
-    
+
+    my ($last_year, $last_month, $last_day, $last_hour) = (-1, -1, -1, -1);
+    my $have_prev = 0;
+
     for my $i (0 .. $#$arr) {
-        my $tm = Time::Moment->from_string($arr->[$i]->[0]);
-        if ($tm->hour != $last_hour) {
-            push @anchors, $i;
-            $last_hour = $tm->hour;
+        my $tm = eval { Time::Moment->from_string($arr->[$i]->[0]) };
+        next unless $tm;
+
+        my $year  = $tm->year;
+        my $month = $tm->month;
+        my $day   = $tm->day_of_month;
+        my $hour  = $tm->hour;
+
+        my $day_changed  = ($year != $last_year)
+                        || ($month != $last_month)
+                        || ($day != $last_day);
+        my $hour_changed = ($hour != $last_hour);
+
+        if ($day_changed || $hour_changed) {
+            # is_date solo cuando hay una vela anterior real con la que comparar.
+            my $is_date = ($day_changed && $have_prev) ? 1 : 0;
+            push @anchors, { index => $i, is_date => $is_date };
         }
+
+        ($last_year, $last_month, $last_day, $last_hour) =
+            ($year, $month, $day, $hour);
+        $have_prev = 1;
     }
+
     return \@anchors;
 }
 

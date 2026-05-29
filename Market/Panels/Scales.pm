@@ -4,9 +4,11 @@ use warnings;
 
 # Inicializa el sistema de coordenadas para un panel.
 # Argumentos que llegan desde ChartEngine::render():
-#   min_y  => valor mínimo del eje Y (precio o indicador)
-#   max_y  => valor máximo del eje Y
-#   bars   => cantidad de barras visibles en la ventana
+#   min_y        => valor mínimo del eje Y (precio o indicador)
+#   max_y        => valor máximo del eje Y
+#   bars         => cantidad de barras visibles en la ventana
+#   right_margin => píxeles reservados a la derecha donde NO se dibuja ninguna
+#                   vela ni mecha (default 68). El margen es solo horizontal.
 # Los atributos width y height son inyectados por los paneles en render()
 # al llamar: $scale->{width} = $canvas->width(); $scale->{height} = $canvas->height();
 sub new {
@@ -14,45 +16,70 @@ sub new {
     my $self = {
         %args,
     };
+    # Margen derecho reservado (Req. 2). Solo afecta al eje X (ploteo horizontal).
+    $self->{right_margin} = 68 unless defined $self->{right_margin};
     bless $self, $class;
     return $self;
 }
 
+# Ancho del área de ploteo horizontal: el ancho del canvas menos el margen derecho
+# reservado. Toda conversión X de barras se deriva de aquí (no del width completo),
+# de modo que el borde derecho de la última vela nunca invade el margen de precios.
+# Se garantiza un mínimo de 1 px para evitar divisiones por cero o anchos negativos.
+sub plot_width {
+    my ($self) = @_;
+    my $w = ($self->{width} // 0) - ($self->{right_margin} // 68);
+    return $w > 1 ? $w : 1;
+}
+
 # Convierte un índice de barra (0-based) al borde izquierdo de esa barra en píxeles X.
+# bar_w se deriva de plot_width (no de width) para respetar el margen derecho.
 sub index_to_x {
     my ($self, $index) = @_;
     my $bars  = $self->{bars} || 1;
-    my $bar_w = $self->{width} / $bars;
+    my $bar_w = $self->plot_width / $bars;
     return $index * $bar_w;
 }
 
-# Convierte una coordenada X en píxeles al índice de barra más cercano (entero).
+# Convierte una coordenada X en píxeles al índice de barra entero.
+#
+# Regla de redondeo: floor(x / bar_w) (es decir int() para x >= 0). Este es el único
+# redondeo que satisface SIMULTÁNEAMENTE los dos round-trips exigidos por Req. 12.1/12.2:
+#   - index_to_x(i)        = i*bar_w        => cociente i.0  => floor = i   ✓
+#   - index_to_center_x(i) = i*bar_w+bar_w/2 => cociente i.5 => floor = i   ✓
+# (El redondeo al entero más cercano int(x/bar_w + 0.5) mapearía el centro i.5 a i+1 y
+#  rompería el round-trip de index_to_center_x; por eso NO se usa.)
+# Se suma un epsilon mínimo (1e-9) para blindar el borde izquierdo i.0 frente al error
+# de coma flotante de (i*bar_w)/bar_w, sin alterar el caso del centro i.5.
+# El resultado se acota (clamp) a [0, bars-1].
 sub x_to_index {
     my ($self, $x) = @_;
     my $bars  = $self->{bars} || 1;
-    my $bar_w = $self->{width} / $bars;
+    my $bar_w = $self->plot_width / $bars;
     return 0 if $bar_w <= 0;
-    my $idx = int($x / $bar_w);
+    my $idx = int($x / $bar_w + 1e-9);
     $idx = 0         if $idx < 0;
     $idx = $bars - 1 if $idx >= $bars;
     return $idx;
 }
 
 # Convierte X a índice en punto flotante (mayor precisión para el crosshair).
+# bar_w se deriva de plot_width para mantener coherencia con index_to_x.
 sub x_to_index_float {
     my ($self, $x) = @_;
     my $bars  = $self->{bars} || 1;
-    my $bar_w = $self->{width} / $bars;
+    my $bar_w = $self->plot_width / $bars;
     return 0 if $bar_w <= 0;
     return $x / $bar_w;
 }
 
 # Devuelve la coordenada X del centro horizontal de una barra.
 # Usado para dibujar mechas de velas y puntos de la línea ATR.
+# bar_w se deriva de plot_width (no de width) para respetar el margen derecho.
 sub index_to_center_x {
     my ($self, $index) = @_;
     my $bars  = $self->{bars} || 1;
-    my $bar_w = $self->{width} / $bars;
+    my $bar_w = $self->plot_width / $bars;
     return $index * $bar_w + $bar_w / 2;
 }
 
@@ -76,54 +103,156 @@ sub y_to_value {
 
 # Dibuja el eje Y: líneas de cuadrícula horizontales y etiquetas de valor
 # en el margen derecho del canvas.
+#
+# Garantías (Req. 4.2, 4.3, 4.4, 4.6, 3.4):
+#   - Entre 4 y 8 etiquetas, todas múltiplos enteros de un único paso "limpio"
+#     (potencias de 10 escaladas por 1, 2, 2.5 ó 5), contenidas en [min_y, max_y]
+#     y uniformemente espaciadas por ese paso.
+#   - El paso se recalcula para que la separación vertical entre dos etiquetas
+#     adyacentes sea >= 20 px (medida en píxeles reales vía value_to_y).
+#   - Si el rango es 0 no se dibuja ninguna etiqueta ni grid y se retorna sin
+#     error, preservando el contenido previo del canvas.
+#   - Color de grid y de texto parametrizables vía atributos de instancia
+#     grid_color (default '#e0e0e0') y axis_text_color (default '#363a45').
+#   - Exactamente 1 línea de grid horizontal a ancho completo por etiqueta.
 sub _draw_y_scale {
     my ($self, $canvas) = @_;
     return unless defined $canvas;
 
-    $canvas->delete('y_scale');
-
-    my $width  = $self->{width};
-    my $height = $self->{height};
+    my $width  = $self->{width}  // 0;
+    my $height = $self->{height} // 0;
     my $min    = $self->{min_y};
     my $max    = $self->{max_y};
-    my $range  = $max - $min;
+    return unless defined $min && defined $max;
+
+    my $range = $max - $min;
+
+    # Req. 4.6: rango cero => no se dibuja nada, se preserva el contenido previo
+    # (no se borran las marcas anteriores) y se retorna sin error.
     return if $range == 0;
 
-    # Calcular paso "limpio" para que las etiquetas no se solapen
-    my $raw_step   = $range / 5;
-    my $exp        = int(log($raw_step + 1e-10) / log(10));
-    my $magnitude  = 10 ** $exp;
-    my $nice_step  = $magnitude * int($raw_step / $magnitude + 0.5);
-    $nice_step     = $magnitude if $nice_step <= 0;
+    # A partir de aquí sí refrescamos las marcas del eje.
+    $canvas->delete('y_scale');
 
-    # Primer valor por encima de min_y que sea múltiplo del paso
-    my $start_val = $nice_step * int($min / $nice_step + 1e-10);
-    $start_val += $nice_step if $start_val < $min - 1e-10;
+    # Colores del tema claro inyectados por el panel; defaults claros si no llegan.
+    my $grid_color = $self->{grid_color}      // '#e0e0e0';
+    my $text_color = $self->{axis_text_color} // '#363a45';
 
-    my $val = $start_val;
-    while ($val <= $max + 1e-10) {
-        my $y = $self->value_to_y($val);
+    # Paso "limpio": se elige el mejor candidato que produzca entre 4 y 8
+    # etiquetas y separación vertical >= 20 px (partiendo de ~range/5).
+    my $step = _clean_step($min, $max, $range, $height);
+    return if !defined $step || $step <= 0;
 
-        # Línea de cuadrícula horizontal
+    # Primer múltiplo del paso que sea >= min_y, y recorrido hasta max_y.
+    my $first_k = _ceil_div($min, $step);
+    for (my $k = $first_k; $k * $step <= $max + $step * 1e-9; $k++) {
+        my $val = $k * $step;
+        my $y   = $self->value_to_y($val);
+
+        # Exactamente 1 línea de cuadrícula horizontal a ancho completo por etiqueta.
         $canvas->createLine(
-            0, $y, $self->{width}, $y,
-            -fill => '#2a2a2a',
+            0, $y, $width, $y,
+            -fill => $grid_color,
             -tags => 'y_scale',
         );
 
-        # Etiqueta numérica en el margen derecho
-        my $label = ($val >= 100) ? sprintf("%.2f", $val) : sprintf("%.4f", $val);
+        # Etiqueta numérica alineada a la derecha (anchor 'e') en el margen.
+        my $label = (abs($val) >= 100) ? sprintf("%.2f", $val) : sprintf("%.4f", $val);
         $canvas->createText(
             $width - 2, $y,
             -text   => $label,
             -anchor => 'e',
             -font   => 'Helvetica 8',
-            -fill   => '#888888',
+            -fill   => $text_color,
             -tags   => 'y_scale',
         );
-
-        $val += $nice_step;
     }
+}
+
+# --- Helpers internos del eje Y (sin estado; no son métodos de instancia) -----
+
+# floor de x sin depender de POSIX (int() trunca hacia 0, no hacia -inf).
+sub _floor {
+    my ($x) = @_;
+    my $i = int($x);
+    return ($x < 0 && $x != $i) ? $i - 1 : $i;
+}
+
+# ceil de x sin depender de POSIX.
+sub _ceil {
+    my ($x) = @_;
+    my $i = int($x);
+    return ($x > 0 && $x != $i) ? $i + 1 : $i;
+}
+
+# Menor entero k tal que k*step >= value (con epsilon para tolerar coma flotante).
+sub _ceil_div {
+    my ($value, $step) = @_;
+    return _ceil($value / $step - 1e-9);
+}
+
+# Cantidad de múltiplos enteros de $step contenidos en [$min, $max].
+sub _label_count {
+    my ($min, $max, $step) = @_;
+    return 0 if $step <= 0;
+    my $first = _ceil($min / $step - 1e-9);
+    my $last  = _floor($max / $step + 1e-9);
+    my $n = $last - $first + 1;
+    return $n < 0 ? 0 : $n;
+}
+
+# Elige un paso "limpio" para el eje:
+#   - múltiplos de 1, 2, 2.5 ó 5 por una potencia de 10 (números redondos);
+#   - prioriza producir entre 4 y 8 etiquetas dentro de [min,max];
+#   - dentro de esos, prioriza separación vertical >= 20 px y cantidad ~6.
+# Si ningún candidato cae en [4,8] (rangos degenerados), devuelve el que más se
+# acerque a ese intervalo.
+sub _clean_step {
+    my ($min, $max, $range, $height) = @_;
+    my $abs_range = abs($range);
+    return $range if $abs_range == 0;   # salvaguarda (no debería llegar aquí)
+
+    # Exponente base del rango para generar candidatos alrededor de range/5.
+    my $exp = _floor(log($abs_range) / log(10));
+
+    my @mult = (1, 2, 2.5, 5);
+    my @cands;
+    for my $e ($exp - 2 .. $exp + 1) {
+        my $mag = 10 ** $e;
+        push @cands, $_ * $mag for @mult;
+    }
+    @cands = sort { $a <=> $b } grep { $_ > 0 } @cands;
+
+    # Candidatos que producen entre 4 y 8 etiquetas.
+    my @valid;
+    for my $s (@cands) {
+        my $c = _label_count($min, $max, $s);
+        next unless $c >= 4 && $c <= 8;
+        my $sep = $height > 0 ? ($s / $abs_range) * $height : 0;
+        push @valid, { step => $s, count => $c, sep => $sep };
+    }
+
+    if (@valid) {
+        # Preferir separación vertical >= 20 px (Req. 4.4); si ninguno la cumple,
+        # usar todos los válidos. Luego, cantidad de etiquetas más cercana a 6.
+        my @ok   = grep { $height <= 0 || $_->{sep} >= 20 } @valid;
+        my @pool = @ok ? @ok : @valid;
+        @pool = sort {
+            abs($a->{count} - 6) <=> abs($b->{count} - 6)
+                || $b->{sep} <=> $a->{sep}
+                || $a->{step} <=> $b->{step}
+        } @pool;
+        return $pool[0]{step};
+    }
+
+    # Fallback: el candidato cuya cantidad de etiquetas más se acerque a [4,8].
+    my @scored = map {
+        my $c    = _label_count($min, $max, $_);
+        my $dist = $c < 4 ? (4 - $c) : ($c > 8 ? ($c - 8) : 0);
+        { step => $_, dist => $dist, count => $c };
+    } @cands;
+    @scored = sort { $a->{dist} <=> $b->{dist} || $b->{count} <=> $a->{count} } @scored;
+    return @scored ? $scored[0]{step} : ($abs_range / 5);
 }
 
 1;

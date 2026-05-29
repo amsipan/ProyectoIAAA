@@ -9,6 +9,10 @@ sub new {
         %args,
         crosshair_objects => []
     };
+    # El tema (paleta clara) se inyecta vía `theme => \%theme` desde ChartEngine.
+    # Garantizar robustez: si no llega, dejar un hashref vacío para que las lecturas
+    # posteriores (con defaults //) sean seguras.
+    $self->{theme} = {} unless defined $self->{theme};
     bless $self, $class;
     return $self;
 }
@@ -17,6 +21,20 @@ sub new {
 sub _init_crosshair {
     my ($self) = @_;
     $self->{crosshair_objects} = [];
+}
+
+sub _canvas_size {
+    my ($self, $canvas) = @_;
+    my ($w, $h) = (0, 0);
+    my $geom = eval { $canvas->geometry() };
+    if (defined $geom && $geom =~ /^(\d+)x(\d+)/) {
+        ($w, $h) = ($1, $2);
+    }
+    $w ||= eval { $canvas->Width() }  || eval { $canvas->width() }  || 1;
+    $h ||= eval { $canvas->Height() } || eval { $canvas->height() } || 1;
+    $w = 1 if $w < 1;
+    $h = 1 if $h < 1;
+    return ($w, $h);
 }
 
 # Calcula el rango de valores del ATR visible para escalar el eje Y del sub-panel.
@@ -53,15 +71,21 @@ sub set_scale {
 sub render {
     my ($self, $canvas, $visible_values, $scale) = @_;
 
-    $canvas->delete('atr_line');
-    $canvas->delete('atr_last_label');
-    $canvas->delete('y_scale');
+    $canvas->delete('all');
 
     return if !@$visible_values;
 
     # Inyectar dimensiones del canvas en el objeto scale
-    $scale->{width}  = $canvas->width();
-    $scale->{height} = $canvas->height();
+    my ($canvas_w, $canvas_h) = $self->_canvas_size($canvas);
+    # ChartEngine puede inyectar un ancho compartido para sincronizar X con precio.
+    $scale->{width}  ||= $canvas_w;
+    $scale->{height} = $canvas_h;
+
+    # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
+    # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
+    # los colores claros (con defaults seguros si el tema no está disponible).
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#e0e0e0';
+    $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
 
     $scale->_draw_y_scale($canvas);
 
@@ -80,7 +104,8 @@ sub render {
     }
 
     if (@points >= 4) {
-        $canvas->createLine(@points, -fill => 'blue', -width => 1.5, -tags => 'atr_line');
+        my $atr_color = $self->{theme}{atr_line} // '#2962ff';
+        $canvas->createLine(@points, -fill => $atr_color, -width => 1.5, -tags => 'atr_line');
     }
 
     $self->render_last_visible_value($canvas);
@@ -100,11 +125,14 @@ sub render_last_visible_value {
     my $y     = $scale->value_to_y($val);
     my $w     = $scale->{width};
     my $label = sprintf("%.4f", $val);
+    my $label_bg = $self->{theme}{last_price_bg} // '#363a45';
+    my $label_fg = $self->{theme}{last_price_fg} // '#ffffff';
+    my $line     = $self->{theme}{atr_line}      // '#2962ff';
 
     $canvas->createRectangle(
         $w - 68, $y - 7, $w, $y + 7,
-        -fill    => '#1e1e2e',
-        -outline => '#2196f3',
+        -fill    => $label_bg,
+        -outline => $line,
         -tags    => 'atr_last_label',
     );
     $canvas->createText(
@@ -112,13 +140,18 @@ sub render_last_visible_value {
         -text   => $label,
         -anchor => 'w',
         -font   => 'Helvetica 9 bold',
-        -fill   => '#ffffff',
+        -fill   => $label_fg,
         -tags   => 'atr_last_label',
     );
 }
 
 # Dibuja el crosshair sincronizado en el sub-panel del ATR.
-# La coordenada X es la misma que en PricePanel (sincronización temporal).
+# La coordenada X es la misma que en PricePanel (sincronización temporal): la línea
+# vertical en $x queda alineada con el panel de precios. La línea horizontal en $y solo
+# se dibuja cuando $y está definido. Ambas usan el color `crosshair_line` del tema claro
+# (gris '#9598a1', visible sobre fondo blanco) con default seguro si el tema no se
+# inyectó, sustituyendo el antiguo 'gray' hardcodeado. Se conserva el estilo punteado
+# (-dash) y el borrado previo de los objetos 'atr_crosshair'.
 sub draw_crosshair {
     my ($self, $x, $y) = @_;
 
@@ -127,19 +160,21 @@ sub draw_crosshair {
 
     $canvas->delete('atr_crosshair');
 
-    my $width = $canvas->width();
-    my $height = $canvas->height();
+    my ($width, $height) = $self->_canvas_size($canvas);
+
+    # Color del crosshair tomado del tema (con default seguro para tema claro).
+    my $crosshair_color = $self->{theme}{crosshair_line} // '#9598a1';
 
     $canvas->createLine(
         $x, 0, $x, $height,
-        -fill => 'gray',
+        -fill => $crosshair_color,
         -dash => '.',
         -tags => 'atr_crosshair',
     ) if defined $x;
 
     $canvas->createLine(
         0, $y, $width, $y,
-        -fill => 'gray',
+        -fill => $crosshair_color,
         -dash => '.',
         -tags => 'atr_crosshair',
     ) if defined $y;

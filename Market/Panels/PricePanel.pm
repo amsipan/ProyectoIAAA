@@ -7,6 +7,10 @@ sub new {
     my $self = {
         %args,
     };
+    # El tema (paleta clara) se inyecta vía `theme => \%theme` desde ChartEngine.
+    # Garantizar robustez: si no llega, dejar un hashref vacío para que las lecturas
+    # posteriores (con defaults //) sean seguras.
+    $self->{theme} = {} unless defined $self->{theme};
     bless $self, $class;
     return $self;
 }
@@ -25,6 +29,20 @@ sub round {
     my ($self, $value) = @_;
     return 0 unless defined $value;
     return int($value + ($value >= 0 ? 0.5 : -0.5));
+}
+
+sub _canvas_size {
+    my ($self, $canvas) = @_;
+    my ($w, $h) = (0, 0);
+    my $geom = eval { $canvas->geometry() };
+    if (defined $geom && $geom =~ /^(\d+)x(\d+)/) {
+        ($w, $h) = ($1, $2);
+    }
+    $w ||= eval { $canvas->Width() }  || eval { $canvas->width() }  || 1;
+    $h ||= eval { $canvas->Height() } || eval { $canvas->height() } || 1;
+    $w = 1 if $w < 1;
+    $h = 1 if $h < 1;
+    return ($w, $h);
 }
 
 # Calcula el rango de precios (min, max) de las velas visibles para escalar el eje Y.
@@ -59,22 +77,24 @@ sub set_scale {
 sub render {
     my ($self, $canvas, $data, $scale) = @_;
 
-    $canvas->delete('candle');
-    $canvas->delete('price_label');
-    $canvas->delete('y_scale');
+    my ($canvas_w, $canvas_h) = $self->_canvas_size($canvas);
+    $canvas->delete('all');
 
     return if !$data || !@$data;
 
-    # Inyectar dimensiones del canvas en el objeto scale
-    $scale->{width}  = $canvas->width();
-    $scale->{height} = $canvas->height();
+    # ChartEngine puede inyectar un ancho compartido para sincronizar X con ATR.
+    $scale->{width}  ||= $canvas_w;
+    $scale->{height} = $canvas_h;
 
     # Guardar la última vela para render_last_visible_price
     $self->{_last_candle} = $data->[-1];
 
     my $total  = scalar(@$data);
-    my $bar_w  = ($total > 0) ? ($scale->{width} / $total) : 1;
-    my $half   = ($bar_w * 0.6) / 2;
+    my $bar_w  = ($total > 0) ? ($scale->plot_width() / $total) : 1;
+    my $body_w = $bar_w * 0.6;
+    $body_w = 1 if $body_w < 1;
+    $body_w = $bar_w if $body_w > $bar_w;
+    my $half   = $body_w / 2;
 
     for (my $i = 0; $i < $total; $i++) {
         my $candle = $data->[$i];
@@ -89,12 +109,14 @@ sub render {
         my $y_c = $scale->value_to_y($close);
 
         # Verde para velas alcistas, rojo para bajistas
-        my $color = ($close >= $open) ? '#26a69a' : '#ef5350';
+        my $color = ($close >= $open)
+            ? ($self->{theme}{bull} // '#26a69a')
+            : ($self->{theme}{bear} // '#ef5350');
 
         # Mecha: línea delgada entre high y low
         $canvas->createLine(
             $cx, $y_h, $cx, $y_l,
-            -fill  => '#aaaaaa',
+            -fill  => $color,
             -width => 1,
             -tags  => 'candle',
         );
@@ -112,6 +134,12 @@ sub render {
             -tags    => 'candle',
         );
     }
+
+    # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
+    # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
+    # los colores claros (con defaults seguros si el tema no está disponible).
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#e0e0e0';
+    $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
 
     $scale->_draw_y_scale($canvas);
     $self->render_last_visible_price($canvas);
@@ -132,11 +160,22 @@ sub render_last_visible_price {
     my $y     = $scale->value_to_y($close);
     my $w     = $scale->{width};
     my $label = sprintf("%.2f", $close);
+    my $line_color = $self->{theme}{last_price_bg} // '#363a45';
+    my $label_bg   = $self->{theme}{last_price_bg} // '#363a45';
+    my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
+
+    $canvas->createLine(
+        0, $y, $w, $y,
+        -fill  => $line_color,
+        -dash  => [2, 3],
+        -width => 1,
+        -tags  => 'price_label',
+    );
 
     $canvas->createRectangle(
         $w - 68, $y - 7, $w, $y + 7,
-        -fill    => '#1e3a5f',
-        -outline => '#5599cc',
+        -fill    => $label_bg,
+        -outline => $line_color,
         -tags    => 'price_label',
     );
     $canvas->createText(
@@ -144,15 +183,37 @@ sub render_last_visible_price {
         -text   => $label,
         -anchor => 'w',
         -font   => 'Helvetica 9 bold',
-        -fill   => '#ffffff',
+        -fill   => $label_fg,
         -tags   => 'price_label',
     );
 }
 
-# Dibuja el crosshair en este panel. Si x o y son undef, borra el crosshair.
-# La coordenada X es compartida con el ATRPanel para sincronización temporal.
+# Dibuja el crosshair en este panel y sus etiquetas (valor + tiempo).
+#
+# Firma (contrato acordado con ChartEngine::_draw_crosshair_all, tarea 6.1):
+#     draw_crosshair($x, $y, $time_text)
+#   * $x         : coordenada X de pantalla del cursor. Si es undef, se borra TODO el
+#                  crosshair (líneas + etiquetas, incluida la de tiempo) y se retorna.
+#   * $y         : coordenada Y de pantalla. Si es undef, el cursor no está sobre este
+#                  panel: se dibuja solo la línea vertical (sin línea/etiqueta de valor).
+#   * $time_text : cadena ya formateada con el tiempo bajo el cursor (p.ej. "09:15" o
+#                  "18 May"), o undef si no hay etiqueta de tiempo que mostrar.
+#
+# La coordenada X es compartida con el ATRPanel para sincronización temporal (Req. 7.1).
+# Comportamiento (Req. 7.1, 7.2, 7.4, 7.5):
+#   * Línea vertical punteada en $x a lo alto del canvas.
+#   * Si $y definido: línea horizontal punteada + cajita de valor en el eje derecho con
+#     el precio obtenido vía scale->y_to_value($y).
+#   * Si $time_text definido: cajita oscura con el texto de tiempo centrada en $x dentro
+#     de la banda inferior (alineada al borde inferior), bajo la línea vertical.
+#
+# Colores tomados del tema claro en $self->{theme}, con defaults seguros vía // por si la
+# clave no está definida (no se hardcodean colores del tema oscuro):
+#   * crosshair_line (líneas)            -> '#9598a1'
+#   * label_bg / label_fg (cajitas)      -> '#363a45' / '#ffffff'
+# Todo se etiqueta con el tag 'price_crosshair' para borrarse junto al resto.
 sub draw_crosshair {
-    my ($self, $x, $y) = @_;
+    my ($self, $x, $y, $time_text) = @_;
 
     my $canvas = $self->{canvas};
     return unless defined $canvas;
@@ -160,14 +221,18 @@ sub draw_crosshair {
     $canvas->delete('price_crosshair');
     return unless defined $x;
 
-    my $w = $canvas->width();
-    my $h = $canvas->height();
+    my ($w, $h) = $self->_canvas_size($canvas);
     my $scale = $self->{scale};
+
+    # Colores del tema con defaults seguros (tema claro).
+    my $line_color  = $self->{theme}{crosshair_line} // '#9598a1';
+    my $label_bg    = $self->{theme}{label_bg}        // '#363a45';
+    my $label_fg    = $self->{theme}{label_fg}        // '#ffffff';
 
     # Línea vertical (sincronizada con ATRPanel)
     $canvas->createLine(
         $x, 0, $x, $h,
-        -fill  => '#cccccc',
+        -fill  => $line_color,
         -dash  => [4, 4],
         -width => 1,
         -tags  => 'price_crosshair',
@@ -177,7 +242,7 @@ sub draw_crosshair {
     if (defined $y) {
         $canvas->createLine(
             0, $y, $w, $y,
-            -fill  => '#cccccc',
+            -fill  => $line_color,
             -dash  => [4, 4],
             -width => 1,
             -tags  => 'price_crosshair',
@@ -189,8 +254,8 @@ sub draw_crosshair {
 
             $canvas->createRectangle(
                 $w - 68, $y - 7, $w, $y + 7,
-                -fill    => '#333344',
-                -outline => '#cccccc',
+                -fill    => $label_bg,
+                -outline => $line_color,
                 -tags    => 'price_crosshair',
             );
             $canvas->createText(
@@ -198,49 +263,131 @@ sub draw_crosshair {
                 -text   => $label,
                 -anchor => 'w',
                 -font   => 'Helvetica 9 bold',
-                -fill   => '#ffffff',
+                -fill   => $label_fg,
                 -tags   => 'price_crosshair',
             );
         }
     }
+
+    # Etiqueta de tiempo en la banda inferior, centrada en $x (Req. 7.4).
+    # Se dibuja una cajita oscura con el texto de tiempo alineada al borde inferior,
+    # bajo la línea vertical del crosshair.
+    if (defined $time_text && length $time_text) {
+        my $box_h     = 16;                 # alto de la cajita de tiempo
+        my $char_w    = 6;                  # ancho aproximado por carácter (Helvetica 9 bold)
+        my $pad_x     = 6;                  # padding horizontal a cada lado del texto
+        my $half_w    = (length($time_text) * $char_w) / 2 + $pad_x;
+
+        # Centro horizontal de la cajita: $x, ajustado para no salirse de los bordes.
+        my $cx = $x;
+        $cx = $half_w        if $cx - $half_w < 0;
+        $cx = $w - $half_w   if $cx + $half_w > $w;
+
+        my $top    = $h - $box_h;
+        my $bottom = $h;
+
+        $canvas->createRectangle(
+            $cx - $half_w, $top, $cx + $half_w, $bottom,
+            -fill    => $label_bg,
+            -outline => $line_color,
+            -tags    => 'price_crosshair',
+        );
+        $canvas->createText(
+            $cx, $top + $box_h / 2,
+            -text   => $time_text,
+            -anchor => 'center',
+            -font   => 'Helvetica 9 bold',
+            -fill   => $label_fg,
+            -tags   => 'price_crosshair',
+        );
+    }
 }
 
-# Dibuja las etiquetas de tiempo en el eje X inferior del panel de precios.
-# Recibe arrayref de { index => N, text => 'HH:MM' } desde ChartEngine.
+# Dibuja las etiquetas del eje de tiempo en la banda inferior del panel de precios.
+#
+# Entrada: arrayref de etiquetas enriquecidas producidas por
+# ChartEngine::compute_intraday_labels, cada una con la forma:
+#     { index   => <índice LOCAL 0-based en la ventana visible>,
+#       text    => <'HH:MM' o 'DD Mon', ya formateado por ChartEngine>,
+#       is_date => 0|1 }
+#
+# Reglas (Req. 5.1, 5.3, 5.4, 6.1, 6.2):
+#   * La banda inferior ocupa el ANCHO COMPLETO del canvas y las etiquetas se alinean
+#     al borde inferior (texto anclado al sur en h-2).
+#   * Cada etiqueta se centra en scale->index_to_center_x(index) (tolerancia 1 px). El
+#     index es LOCAL; la X NO se calcula a mano (regla de oro: coordenadas solo en
+#     Scales), de modo que las etiquetas siguen a su barra ante scroll/zoom.
+#   * El texto ya viene resuelto desde ChartEngine; aquí solo se dibuja $item->{text}
+#     (no se reformatea). El texto de fecha "DD Mon" es más ancho y se centra con el
+#     anchor 's' para que quede legible sobre su barra.
+#   * Etiquetas de hora (is_date=0): estilo TENUE — línea de referencia con color `grid`
+#     (trazo fino) y texto en fuente normal con color `axis_text`.
+#   * Etiquetas de fecha (is_date=1): ÉNFASIS — línea de referencia MÁS MARCADA (color
+#     `axis_text`, más oscuro y trazo más grueso) y texto en NEGRITA con color
+#     `axis_text`, distinguible de las etiquetas horarias normales.
+#
+# Colores tomados del tema claro almacenado en $self->{theme}, con defaults seguros
+# vía // por si el tema no define la clave (no se hardcodean colores del tema oscuro).
 sub draw_time_axis {
-    my ($self, $canvas, $timestamps) = @_;
+    my ($self, $canvas, $labels) = @_;
 
     $canvas->delete('time_axis');
-    return unless $timestamps && @$timestamps;
+    return unless $labels && @$labels;
 
     my $scale = $self->{scale};
     return unless defined $scale;
 
-    my $h = $canvas->height();
+    my ($w, $h) = $self->_canvas_size($canvas);
 
-    for my $item (@$timestamps) {
-        my $idx  = $item->{index};
-        my $text = $item->{text};
+    # Paleta clara: líneas tenues con `grid`; texto y énfasis de fecha con `axis_text`.
+    my $grid_color = $self->{theme}{grid}      // '#e0e0e0';
+    my $text_color = $self->{theme}{axis_text} // '#363a45';
+
+    for my $item (@$labels) {
+        my $idx     = $item->{index};
+        my $text    = $item->{text};
+        my $is_date = $item->{is_date} ? 1 : 0;
         next unless defined $idx && defined $text;
 
+        # Centro de la barra anclada: única fuente de coordenadas (Scales).
         my $x = $scale->index_to_center_x($idx);
 
-        # Línea de referencia vertical tenue
-        $canvas->createLine(
-            $x, 0, $x, $h,
-            -fill => '#222222',
-            -tags => 'time_axis',
-        );
-
-        # Etiqueta horaria
-        $canvas->createText(
-            $x, $h - 2,
-            -text   => $text,
-            -anchor => 's',
-            -font   => 'Helvetica 8',
-            -fill   => '#888888',
-            -tags   => 'time_axis',
-        );
+        if ($is_date) {
+            # Cambio de fecha: línea de referencia más marcada (oscura y gruesa).
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill  => $text_color,
+                -width => 2,
+                -tags  => 'time_axis',
+            );
+            # Texto de fecha "DD Mon" en negrita, centrado y alineado al borde inferior.
+            $canvas->createText(
+                $x, $h - 2,
+                -text   => $text,
+                -anchor => 's',
+                -font   => 'Helvetica 8 bold',
+                -fill   => $text_color,
+                -tags   => 'time_axis',
+            );
+        }
+        else {
+            # Etiqueta horaria normal: línea de referencia vertical tenue.
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill  => $grid_color,
+                -width => 1,
+                -tags  => 'time_axis',
+            );
+            # Texto HH:MM, centrado y alineado al borde inferior.
+            $canvas->createText(
+                $x, $h - 2,
+                -text   => $text,
+                -anchor => 's',
+                -font   => 'Helvetica 8',
+                -fill   => $text_color,
+                -tags   => 'time_axis',
+            );
+        }
     }
 }
 
