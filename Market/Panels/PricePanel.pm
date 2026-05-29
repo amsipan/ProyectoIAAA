@@ -90,7 +90,8 @@ sub render {
     $self->{_last_candle} = $data->[-1];
 
     my $total  = scalar(@$data);
-    my $bar_w  = ($total > 0) ? ($scale->plot_width() / $total) : 1;
+    my $x_bars = $scale->{bars} || $total || 1;
+    my $bar_w  = ($x_bars > 0) ? ($scale->plot_width() / $x_bars) : 1;
     my $body_w = $bar_w * 0.6;
     $body_w = 1 if $body_w < 1;
     $body_w = $bar_w if $body_w > $bar_w;
@@ -138,10 +139,12 @@ sub render {
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
     # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
     # los colores claros (con defaults seguros si el tema no está disponible).
-    $scale->{grid_color}      = $self->{theme}{grid}      // '#e0e0e0';
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#e6e6e6';
     $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
 
     $scale->_draw_y_scale($canvas);
+    $canvas->lower('y_grid');
+    $canvas->raise('candle');
     $self->render_last_visible_price($canvas);
 }
 
@@ -154,14 +157,16 @@ sub render_last_visible_price {
     my $scale = $self->{scale};
     return unless defined $scale && defined $self->{_last_candle};
 
-    my $close = $self->{_last_candle}->[4];
+    my ($open, $close) = @{$self->{_last_candle}}[1, 4];
     return unless defined $close;
 
     my $y     = $scale->value_to_y($close);
     my $w     = $scale->{width};
     my $label = sprintf("%.2f", $close);
-    my $line_color = $self->{theme}{last_price_bg} // '#363a45';
-    my $label_bg   = $self->{theme}{last_price_bg} // '#363a45';
+    my $line_color = (defined $open && $close >= $open)
+        ? ($self->{theme}{bull} // '#26a69a')
+        : ($self->{theme}{bear} // '#ef5350');
+    my $label_bg   = $line_color;
     my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
 
     $canvas->createLine(
@@ -171,6 +176,8 @@ sub render_last_visible_price {
         -width => 1,
         -tags  => 'price_label',
     );
+
+    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
 
     $canvas->createRectangle(
         $w - 68, $y - 7, $w, $y + 7,
@@ -248,7 +255,7 @@ sub draw_crosshair {
             -tags  => 'price_crosshair',
         );
 
-        if (defined $scale) {
+        if (defined $scale && (!exists $scale->{draw_crosshair_label} || $scale->{draw_crosshair_label})) {
             my $value = $scale->y_to_value($y);
             my $label = sprintf("%.2f", $value);
 
@@ -312,8 +319,8 @@ sub draw_crosshair {
 #       is_date => 0|1 }
 #
 # Reglas (Req. 5.1, 5.3, 5.4, 6.1, 6.2):
-#   * La banda inferior ocupa el ANCHO COMPLETO del canvas y las etiquetas se alinean
-#     al borde inferior (texto anclado al sur en h-2).
+#   * La banda inferior ocupa el ANCHO COMPLETO del canvas y las etiquetas quedan
+#     centradas verticalmente dentro del eje temporal compacto.
 #   * Cada etiqueta se centra en scale->index_to_center_x(index) (tolerancia 1 px). El
 #     index es LOCAL; la X NO se calcula a mano (regla de oro: coordenadas solo en
 #     Scales), de modo que las etiquetas siguen a su barra ante scroll/zoom.
@@ -322,26 +329,31 @@ sub draw_crosshair {
 #     anchor 's' para que quede legible sobre su barra.
 #   * Etiquetas de hora (is_date=0): estilo TENUE — línea de referencia con color `grid`
 #     (trazo fino) y texto en fuente normal con color `axis_text`.
-#   * Etiquetas de fecha (is_date=1): ÉNFASIS — línea de referencia MÁS MARCADA (color
-#     `axis_text`, más oscuro y trazo más grueso) y texto en NEGRITA con color
-#     `axis_text`, distinguible de las etiquetas horarias normales.
+#   * Etiquetas de fecha (is_date=1): énfasis suave — línea de referencia más visible
+#     que el grid normal, pero sin tapar velas cercanas al cambio de día.
 #
 # Colores tomados del tema claro almacenado en $self->{theme}, con defaults seguros
 # vía // por si el tema no define la clave (no se hardcodean colores del tema oscuro).
 sub draw_time_axis {
-    my ($self, $canvas, $labels) = @_;
+    my ($self, $canvas, $labels, $opts) = @_;
 
     $canvas->delete('time_axis');
     return unless $labels && @$labels;
+
+    $opts ||= {};
+    my $draw_grid   = exists $opts->{draw_grid}   ? $opts->{draw_grid}   : 1;
+    my $draw_labels = exists $opts->{draw_labels} ? $opts->{draw_labels} : 1;
 
     my $scale = $self->{scale};
     return unless defined $scale;
 
     my ($w, $h) = $self->_canvas_size($canvas);
+    my $label_y = int($h / 2 + 0.5);
 
     # Paleta clara: líneas tenues con `grid`; texto y énfasis de fecha con `axis_text`.
-    my $grid_color = $self->{theme}{grid}      // '#e0e0e0';
-    my $text_color = $self->{theme}{axis_text} // '#363a45';
+    my $grid_color      = $self->{theme}{grid}      // '#e6e6e6';
+    my $date_grid_color = $self->{theme}{date_grid} // '#c4c9d1';
+    my $text_color      = $self->{theme}{axis_text} // '#363a45';
 
     for my $item (@$labels) {
         my $idx     = $item->{index};
@@ -353,18 +365,21 @@ sub draw_time_axis {
         my $x = $scale->index_to_center_x($idx);
 
         if ($is_date) {
-            # Cambio de fecha: línea de referencia más marcada (oscura y gruesa).
-            $canvas->createLine(
-                $x, 0, $x, $h,
-                -fill  => $text_color,
-                -width => 2,
-                -tags  => 'time_axis',
-            );
-            # Texto de fecha "DD Mon" en negrita, centrado y alineado al borde inferior.
+            # Cambio de fecha: visible, pero suficientemente suave para no tapar velas.
+            if ($draw_grid) {
+                $canvas->createLine(
+                    $x, 0, $x, $h,
+                    -fill  => $date_grid_color,
+                    -width => 1,
+                    -tags  => ['time_axis', 'time_grid'],
+                );
+            }
+            next unless $draw_labels;
+            # Texto de fecha "DD Mon" en negrita y centrado verticalmente.
             $canvas->createText(
-                $x, $h - 2,
+                $x, $label_y,
                 -text   => $text,
-                -anchor => 's',
+                -anchor => 'center',
                 -font   => 'Helvetica 8 bold',
                 -fill   => $text_color,
                 -tags   => 'time_axis',
@@ -372,23 +387,28 @@ sub draw_time_axis {
         }
         else {
             # Etiqueta horaria normal: línea de referencia vertical tenue.
-            $canvas->createLine(
-                $x, 0, $x, $h,
-                -fill  => $grid_color,
-                -width => 1,
-                -tags  => 'time_axis',
-            );
-            # Texto HH:MM, centrado y alineado al borde inferior.
+            if ($draw_grid) {
+                $canvas->createLine(
+                    $x, 0, $x, $h,
+                    -fill  => $grid_color,
+                    -width => 1,
+                    -tags  => ['time_axis', 'time_grid'],
+                );
+            }
+            next unless $draw_labels;
+            # Texto HH:MM centrado verticalmente.
             $canvas->createText(
-                $x, $h - 2,
+                $x, $label_y,
                 -text   => $text,
-                -anchor => 's',
+                -anchor => 'center',
                 -font   => 'Helvetica 8',
                 -fill   => $text_color,
                 -tags   => 'time_axis',
             );
         }
     }
+
+    $canvas->lower('time_grid') if $draw_grid;
 }
 
 1;

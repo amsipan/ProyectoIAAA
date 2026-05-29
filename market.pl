@@ -56,22 +56,21 @@ $mw->title("Plataforma de Gráficos Financieros - Motor de Charting Tk");
 # Tamaño mínimo de la ventana principal.
 $mw->minsize(800, 600);
 
-# Maximizar ventana al iniciar (tema claro, paridad con TradingView).
-# En WSLg/Tk a veces `state('zoomed')` deja la ventana invisible o reporta una
-# pantalla absurda (p.ej. 131072x1). Por eso validamos dimensiones antes de usar
-# maximizado y siempre dejamos una geometría segura visible como fallback.
+# Geometría inicial de respaldo. Más abajo se pide maximizar la ventana al gestor
+# de ventanas para abrirla como ventana completa, sin cambiar el layout interno.
 my $sw = eval { $mw->screenwidth }  || 1280;
 my $sh = eval { $mw->screenheight } || 800;
 my $screen_ok = ($sw >= 800 && $sw <= 10000 && $sh >= 600 && $sh <= 10000);
 
 if ($screen_ok) {
-    my $maximized = eval { $mw->state('zoomed'); 1 };
-    if (!$maximized) {
-        $mw->geometry("${sw}x${sh}+0+0");
-    }
+    my $usable_w = $sw - 16;
+    my $usable_h = $sh - 96;
+    $usable_w = 1280 if $usable_w < 1280;
+    $usable_h = 720  if $usable_h < 720;
+    $mw->geometry("${usable_w}x${usable_h}+0+0");
 } else {
     warn "[!] Tk reportó pantalla inválida (${sw}x${sh}); usando geometría segura.\n";
-    $mw->geometry('1280x800+50+50');
+    $mw->geometry('1280x720+50+50');
 }
 
 $mw->deiconify;
@@ -84,7 +83,8 @@ $mw->focusForce;
 # ==========================================
 my %theme = (
     bg             => '#ffffff',
-    grid           => '#e0e0e0',
+    grid           => '#e6e6e6',
+    date_grid      => '#c4c9d1',
     axis_text      => '#363a45',
     bull           => '#26a69a',
     bear           => '#ef5350',
@@ -96,26 +96,75 @@ my %theme = (
     last_price_fg  => '#ffffff',
 );
 
-# ORDEN CORRECTO: De abajo hacia arriba.
+my $time_axis_height = 18;
+my $right_axis_width = 60;
+my $atr_axis_width   = 48;
 
-# 1. Controles (Se anclan al fondo)
-my $frame_controles = $mw->Frame()->pack(-side => 'bottom', -fill => 'x', -pady => 5);
+# ORDEN CORRECTO: controles fijos abajo; zona de chart arriba.
+
+# 1. Controles (siempre visibles al fondo)
+my $frame_controles = $mw->Frame()->pack(-side => 'bottom', -fill => 'x', -pady => 2);
 $frame_controles->Label(-text => "Temporalidades: ")->pack(-side => 'left', -padx => 10);
 
-# 2. Panel inferior ATR (Se ancla justo encima de los controles)
-my $atr_canvas = $mw->Canvas(
-    -height     => 150,
-    -background => $theme{bg},
-    -relief     => 'sunken',
-    -bd         => 1
-)->pack(-side => 'bottom', -fill => 'x');
+# 2. Contenedor del chart: precio, eje temporal y ATR.
+my $chart_frame = $mw->Frame(-background => $theme{bg})->pack(-side => 'top', -expand => 1, -fill => 'both');
 
-# 3. Panel superior de Velas (Toma todo el espacio que sobra arriba)
-my $price_canvas = $mw->Canvas(
+# 3. Panel superior de Velas con eje de precios independiente a la derecha.
+my $price_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -expand => 1, -fill => 'both');
+my $price_axis_canvas = $price_frame->Canvas(
+    -width      => $right_axis_width,
+    -background => $theme{bg},
+    -relief     => 'sunken',
+    -bd         => 1,
+    -cursor     => 'sb_v_double_arrow'
+)->pack(-side => 'right', -fill => 'y');
+my $price_canvas = $price_frame->Canvas(
+    -background => $theme{bg},
+    -relief     => 'sunken',
+    -bd         => 1,
+    -cursor     => 'crosshair'
+)->pack(-side => 'left', -expand => 1, -fill => 'both');
+
+# 4. Eje temporal independiente, inmediatamente debajo del gráfico principal.
+my $time_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -fill => 'x');
+$time_frame->Canvas(
+    -width      => $right_axis_width,
+    -height     => $time_axis_height,
+    -background => $theme{bg},
+    -relief     => 'sunken',
+    -bd         => 1,
+    -highlightthickness => 0
+)->pack(-side => 'right', -fill => 'y');
+my $time_axis_canvas = $time_frame->Canvas(
+    -height     => $time_axis_height,
+    -background => $theme{bg},
+    -relief     => 'sunken',
+    -bd         => 1,
+    -highlightthickness => 0,
+    -cursor     => 'sb_h_double_arrow'
+)->pack(-side => 'left', -expand => 1, -fill => 'x');
+
+# 5. Panel inferior ATR debajo del eje temporal, con eje derecho alineado.
+my $atr_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -fill => 'x');
+my $atr_axis_canvas = $atr_frame->Canvas(
+    -width      => $atr_axis_width,
+    -height     => 140,
     -background => $theme{bg},
     -relief     => 'sunken',
     -bd         => 1
-)->pack(-side => 'top', -expand => 1, -fill => 'both');
+)->pack(-side => 'right', -fill => 'y');
+$atr_frame->Frame(
+    -width      => $right_axis_width - $atr_axis_width,
+    -height     => 140,
+    -background => $theme{bg},
+)->pack(-side => 'right', -fill => 'y');
+my $atr_canvas = $atr_frame->Canvas(
+    -height     => 140,
+    -background => $theme{bg},
+    -relief     => 'sunken',
+    -bd         => 1,
+    -cursor     => 'crosshair'
+)->pack(-side => 'left', -expand => 1, -fill => 'x');
 
 # ==========================================
 # 4. INSTANCIAR EL MOTOR ORQUESTADOR (CHART ENGINE)
@@ -124,7 +173,10 @@ my $chart_engine = Market::ChartEngine->new(
     market_data       => $market_data,
     indicator_manager => $indicator_manager,
     price_canvas      => $price_canvas,
+    price_axis_canvas => $price_axis_canvas,
     atr_canvas        => $atr_canvas,
+    atr_axis_canvas   => $atr_axis_canvas,
+    time_axis_canvas  => $time_axis_canvas,
     theme             => \%theme
 );
 
@@ -160,6 +212,9 @@ print "[*] Abriendo ventana nativa y delegando control a Tk...\n";
 # Le damos a Tk tiempo para mapear la ventana y calcular geometrías reales antes
 # del primer render. En WSLg, renderizar demasiado pronto puede dejar escalas viejas.
 $mw->update;
+my $maximized = eval { $mw->state('zoomed'); 1 };
+$maximized ||= eval { $mw->attributes('-zoomed', 1); 1 };
+$mw->update if $maximized;
 $mw->after(300, sub {
     print "[*] Ejecutando renderizado inicial en los Canvas...\n";
     $chart_engine->render();

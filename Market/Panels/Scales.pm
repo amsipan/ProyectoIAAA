@@ -7,8 +7,7 @@ use warnings;
 #   min_y        => valor mínimo del eje Y (precio o indicador)
 #   max_y        => valor máximo del eje Y
 #   bars         => cantidad de barras visibles en la ventana
-#   right_margin => píxeles reservados a la derecha donde NO se dibuja ninguna
-#                   vela ni mecha (default 68). El margen es solo horizontal.
+#   right_margin => píxeles reservados a la derecha del área de ploteo (default 0).
 # Los atributos width y height son inyectados por los paneles en render()
 # al llamar: $scale->{width} = $canvas->width(); $scale->{height} = $canvas->height();
 sub new {
@@ -16,19 +15,18 @@ sub new {
     my $self = {
         %args,
     };
-    # Margen derecho reservado (Req. 2). Solo afecta al eje X (ploteo horizontal).
-    $self->{right_margin} = 68 unless defined $self->{right_margin};
+    # Margen derecho opcional. Solo afecta al eje X (ploteo horizontal).
+    $self->{right_margin} = 0 unless defined $self->{right_margin};
     bless $self, $class;
     return $self;
 }
 
-# Ancho del área de ploteo horizontal: el ancho del canvas menos el margen derecho
-# reservado. Toda conversión X de barras se deriva de aquí (no del width completo),
-# de modo que el borde derecho de la última vela nunca invade el margen de precios.
+# Ancho del área de ploteo horizontal: el ancho del canvas menos el margen derecho.
+# Con ejes separados normalmente el margen es 0 y la serie usa todo el canvas.
 # Se garantiza un mínimo de 1 px para evitar divisiones por cero o anchos negativos.
 sub plot_width {
     my ($self) = @_;
-    my $w = ($self->{width} // 0) - ($self->{right_margin} // 68);
+    my $w = ($self->{width} // 0) - ($self->{right_margin} // 0);
     return $w > 1 ? $w : 1;
 }
 
@@ -113,7 +111,7 @@ sub y_to_value {
 #   - Si el rango es 0 no se dibuja ninguna etiqueta ni grid y se retorna sin
 #     error, preservando el contenido previo del canvas.
 #   - Color de grid y de texto parametrizables vía atributos de instancia
-#     grid_color (default '#e0e0e0') y axis_text_color (default '#363a45').
+#     grid_color (default '#e6e6e6') y axis_text_color (default '#363a45').
 #   - Exactamente 1 línea de grid horizontal a ancho completo por etiqueta.
 sub _draw_y_scale {
     my ($self, $canvas) = @_;
@@ -135,13 +133,16 @@ sub _draw_y_scale {
     $canvas->delete('y_scale');
 
     # Colores del tema claro inyectados por el panel; defaults claros si no llegan.
-    my $grid_color = $self->{grid_color}      // '#e0e0e0';
+    my $grid_color = $self->{grid_color}      // '#e6e6e6';
     my $text_color = $self->{axis_text_color} // '#363a45';
 
-    # Paso "limpio": se elige el mejor candidato que produzca entre 4 y 8
-    # etiquetas y separación vertical >= 20 px (partiendo de ~range/5).
+    # Paso "limpio": se elige el mejor candidato que produzca marcas densas
+    # estilo TradingView, manteniendo separación vertical legible.
     my $step = _clean_step($min, $max, $range, $height);
     return if !defined $step || $step <= 0;
+
+    my $draw_grid   = exists $self->{draw_grid}   ? $self->{draw_grid}   : 1;
+    my $draw_labels = exists $self->{draw_labels} ? $self->{draw_labels} : 1;
 
     # Primer múltiplo del paso que sea >= min_y, y recorrido hasta max_y.
     my $first_k = _ceil_div($min, $step);
@@ -149,19 +150,24 @@ sub _draw_y_scale {
         my $val = $k * $step;
         my $y   = $self->value_to_y($val);
 
-        # Exactamente 1 línea de cuadrícula horizontal a ancho completo por etiqueta.
-        $canvas->createLine(
-            0, $y, $width, $y,
-            -fill => $grid_color,
-            -tags => 'y_scale',
-        );
+        if ($draw_grid) {
+            $canvas->createLine(
+                0, $y, $width, $y,
+                -fill => $grid_color,
+                -tags => ['y_scale', 'y_grid'],
+            );
+        }
 
-        # Etiqueta numérica alineada a la derecha (anchor 'e') en el margen.
+        next unless $draw_labels;
+
+        # Etiqueta numérica alineada a la derecha (anchor 'e') en el panel de escala.
         my $label = (abs($val) >= 100) ? sprintf("%.2f", $val) : sprintf("%.4f", $val);
+        my $label_x      = defined $self->{label_x}      ? $self->{label_x}      : $width - 2;
+        my $label_anchor = defined $self->{label_anchor} ? $self->{label_anchor} : 'e';
         $canvas->createText(
-            $width - 2, $y,
+            $label_x, $y,
             -text   => $label,
-            -anchor => 'e',
+            -anchor => $label_anchor,
             -font   => 'Helvetica 8',
             -fill   => $text_color,
             -tags   => 'y_scale',
@@ -203,8 +209,8 @@ sub _label_count {
 
 # Elige un paso "limpio" para el eje:
 #   - múltiplos de 1, 2, 2.5 ó 5 por una potencia de 10 (números redondos);
-#   - prioriza producir entre 4 y 8 etiquetas dentro de [min,max];
-#   - dentro de esos, prioriza separación vertical >= 20 px y cantidad ~6.
+#   - prioriza producir entre 6 y 12 etiquetas dentro de [min,max];
+#   - dentro de esos, prioriza separación vertical >= 20 px y cantidad ~9.
 # Si ningún candidato cae en [4,8] (rangos degenerados), devuelve el que más se
 # acerque a ese intervalo.
 sub _clean_step {
@@ -223,32 +229,32 @@ sub _clean_step {
     }
     @cands = sort { $a <=> $b } grep { $_ > 0 } @cands;
 
-    # Candidatos que producen entre 4 y 8 etiquetas.
+    # Candidatos que producen entre 6 y 12 etiquetas.
     my @valid;
     for my $s (@cands) {
         my $c = _label_count($min, $max, $s);
-        next unless $c >= 4 && $c <= 8;
+        next unless $c >= 6 && $c <= 12;
         my $sep = $height > 0 ? ($s / $abs_range) * $height : 0;
         push @valid, { step => $s, count => $c, sep => $sep };
     }
 
     if (@valid) {
         # Preferir separación vertical >= 20 px (Req. 4.4); si ninguno la cumple,
-        # usar todos los válidos. Luego, cantidad de etiquetas más cercana a 6.
+        # usar todos los válidos. Luego, cantidad de etiquetas más cercana a 9.
         my @ok   = grep { $height <= 0 || $_->{sep} >= 20 } @valid;
         my @pool = @ok ? @ok : @valid;
         @pool = sort {
-            abs($a->{count} - 6) <=> abs($b->{count} - 6)
+            abs($a->{count} - 9) <=> abs($b->{count} - 9)
                 || $b->{sep} <=> $a->{sep}
                 || $a->{step} <=> $b->{step}
         } @pool;
         return $pool[0]{step};
     }
 
-    # Fallback: el candidato cuya cantidad de etiquetas más se acerque a [4,8].
+    # Fallback: el candidato cuya cantidad de etiquetas más se acerque a [6,12].
     my @scored = map {
         my $c    = _label_count($min, $max, $_);
-        my $dist = $c < 4 ? (4 - $c) : ($c > 8 ? ($c - 8) : 0);
+        my $dist = $c < 6 ? (6 - $c) : ($c > 12 ? ($c - 12) : 0);
         { step => $_, dist => $dist, count => $c };
     } @cands;
     @scored = sort { $a->{dist} <=> $b->{dist} || $b->{count} <=> $a->{count} } @scored;

@@ -15,9 +15,11 @@ use Market::ChartEngine;
     }
 
     sub size { $_[0]->{size} }
+    sub last_index { $_[0]->{size} - 1 }
 
     sub get_timestamp {
         my ($self, $index) = @_;
+        return undef if $index < 0 || $index >= $self->{size};
         my $hour = int($index / 60);
         my $min  = $index % 60;
         return sprintf('2026-04-01T%02d:%02d:00-05:00', $hour, $min);
@@ -53,5 +55,11 @@ my $labels_after = $engine->compute_intraday_labels();
 my ($after) = grep { $_->{text} eq '01:10' } @$labels_after;
 ok($after, 'same global label remains visible after one-bar scroll');
 is($after->{index}, 1, 'same label moves one local bar with the grid');
+
+$engine->{offset} = -18;
+my $future_labels = $engine->compute_intraday_labels();
+my ($future) = grep { $_->{text} eq '01:56' } @$future_labels;
+ok($future, 'time axis synthesizes labels into future whitespace');
+is($future->{index}, 18, 'future time label reaches the right side of the whitespace window');
 
 done_testing();

@@ -84,10 +84,11 @@ sub render {
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
     # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
     # los colores claros (con defaults seguros si el tema no está disponible).
-    $scale->{grid_color}      = $self->{theme}{grid}      // '#e0e0e0';
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#e6e6e6';
     $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
 
     $scale->_draw_y_scale($canvas);
+    $canvas->lower('y_grid');
 
     my @points;
     $self->{_last_value} = undef;
@@ -106,6 +107,7 @@ sub render {
     if (@points >= 4) {
         my $atr_color = $self->{theme}{atr_line} // '#2962ff';
         $canvas->createLine(@points, -fill => $atr_color, -width => 1.5, -tags => 'atr_line');
+        $canvas->raise('atr_line');
     }
 
     $self->render_last_visible_value($canvas);
@@ -119,6 +121,7 @@ sub render_last_visible_value {
 
     my $scale = $self->{scale};
     return unless defined $scale;
+    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
     return unless defined $self->{_last_value};
 
     my $val   = $self->{_last_value};
