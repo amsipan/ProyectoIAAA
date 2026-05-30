@@ -62,4 +62,11 @@ my ($future) = grep { $_->{text} eq '01:56' } @$future_labels;
 ok($future, 'time axis synthesizes labels into future whitespace');
 is($future->{index}, 18, 'future time label reaches the right side of the whitespace window');
 
+$engine->{offset} = 98;
+my $past_labels = $engine->compute_intraday_labels();
+ok(!grep({ $_->{index} < 18 } @$past_labels), 'time axis leaves past whitespace unlabeled before first candle');
+my ($first_real) = grep { $_->{text} eq '00:00' } @$past_labels;
+ok($first_real, 'time axis keeps first real candle label at past blank edge');
+is($first_real->{index}, 18, 'first real candle label appears near the right edge');
+
 done_testing();

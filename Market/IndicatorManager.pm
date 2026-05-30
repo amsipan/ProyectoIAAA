@@ -81,12 +81,13 @@ sub slice_array {
     my ($self, $name, $start, $end) = @_;
     my $values = $self->get($name);
     return [] unless $values && @$values;
+    return [] if !defined $start || !defined $end || $start > $end;
 
-    $start = 0         if !defined $start || $start < 0;
-    $end   = $#$values if !defined $end   || $end > $#$values;
-    return [] if $start > $end;
-
-    return [ @{$values}[$start .. $end] ];
+    my @slice;
+    for my $i ($start .. $end) {
+        push @slice, ($i >= 0 && $i <= $#$values) ? $values->[$i] : undef;
+    }
+    return \@slice;
 }
 
 sub reset_all {

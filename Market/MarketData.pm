@@ -71,10 +71,13 @@ sub get_slice {
     my ($self, $start, $end) = @_;
     my $arr = $self->_active_array();
     return [] unless @$arr;
-    $start = 0 if !defined $start || $start < 0;
-    $end = $#$arr if !defined $end || $end > $#$arr;
-    return [] if $start > $end;
-    return [ @{$arr}[$start .. $end] ];
+    return [] if !defined $start || !defined $end || $start > $end;
+
+    my @slice;
+    for my $i ($start .. $end) {
+        push @slice, ($i >= 0 && $i <= $#$arr) ? $arr->[$i] : undef;
+    }
+    return \@slice;
 }
 
 sub get_candle {

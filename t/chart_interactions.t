@@ -91,6 +91,11 @@ my $future = engine_with(total => 100, visible_bars => 20, offset => -999, width
 is($future->{offset}, -18, 'future blank space clamps when only two real candles remain');
 is_deeply([$start, $end], [98, 117], 'future blank window keeps two real candles at the left edge');
 
+my $past = engine_with(total => 100, visible_bars => 20, offset => 999, width => 800);
+($start, $end) = $past->compute_window();
+is($past->{offset}, 98, 'past blank space clamps when only two real candles remain');
+is_deeply([$start, $end], [-18, 1], 'past blank window keeps two real candles at the right edge');
+
 my $wheel = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800);
 $wheel->{last_mouse_x} = 10;
 $wheel->_wheel_zoom(TestCanvas->new(w => 800, h => 400), 5, 500, 100, 0);
@@ -103,6 +108,11 @@ my $ctrl_wheel = engine_with(total => 100, visible_bars => 20, offset => 10, wid
 $ctrl_wheel->_wheel_zoom(TestCanvas->new(w => 800, h => 400), 5, 100, 100, 4);
 is($ctrl_wheel->{visible_bars}, 25, 'ctrl wheel zoom updates horizontal zoom');
 is($ctrl_wheel->{offset}, 6, 'ctrl wheel zoom anchors the candle under the cursor');
+
+my $past_zoom = engine_with(total => 100, visible_bars => 20, offset => 98, width => 800);
+$past_zoom->_horizontal_zoom(5, undef);
+is($past_zoom->{visible_bars}, 25, 'plain wheel zoom can zoom out at the past blank edge');
+is($past_zoom->{offset}, 98, 'plain wheel zoom keeps first real candles anchored at the past blank edge');
 
 my $vpan = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800);
 $vpan->{price_panel} = { scale => Market::Panels::Scales->new(min_y => 100, max_y => 200, bars => 20) };

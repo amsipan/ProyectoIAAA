@@ -109,9 +109,6 @@ sub compute_window {
     my $end_idx = $total_candles - 1 - $self->{offset};
     my $start_idx = $end_idx - $self->{visible_bars} + 1;
 
-    $start_idx = 0 if $start_idx < 0;
-    $end_idx = $start_idx + MIN_VISIBLE_BARS - 1 if $total_candles >= MIN_VISIBLE_BARS && ($end_idx - $start_idx + 1) < MIN_VISIBLE_BARS;
-    
     return ($start_idx, $end_idx);
 }
 
@@ -119,6 +116,7 @@ sub round {
     my ($self, $value) = @_;
 
     return 0 if !defined $value;
+
     return int($value + ($value >= 0 ? 0.5 : -0.5));
 }
 
@@ -126,11 +124,9 @@ sub _max_offset_for_visible {
     my ($self) = @_;
 
     my $total = $self->{market_data}->size() || 0;
-    my $visible = $self->{visible_bars} || MIN_VISIBLE_BARS;
-    $visible = $total if $visible > $total;
+    return 0 if $total < MIN_VISIBLE_BARS;
 
-    my $max_offset = $total - $visible;
-    return $max_offset > 0 ? $max_offset : 0;
+    return ($total - MIN_VISIBLE_BARS) > 0 ? ($total - MIN_VISIBLE_BARS) : 0;
 }
 
 sub _min_offset_for_visible {
@@ -138,6 +134,7 @@ sub _min_offset_for_visible {
 
     my $total = $self->{market_data}->size() || 0;
     return 0 if $total < MIN_VISIBLE_BARS;
+
 
     my $visible = $self->{visible_bars} || MIN_VISIBLE_BARS;
     $visible = $total if $visible > $total;
@@ -156,9 +153,18 @@ sub _clamp_offset {
     return $offset;
 }
 
+sub _pad_visible_slice {
+    my ($self, $slice, $start, $end) = @_;
+
+    return unless $slice;
+    my $target = defined $start && defined $end && $end >= $start ? $end - $start + 1 : 0;
+    push @$slice, (undef) x ($target - @$slice) if $target > @$slice;
+}
+
 sub _canvas_width {
     my ($self, $canvas) = @_;
     return 1 unless $canvas;
+
     my $w = 0;
     my $geom = eval { $canvas->geometry() };
     if (defined $geom && $geom =~ /^(\d+)x\d+/) {
@@ -220,6 +226,8 @@ sub render {
     # 2. Extraer subconjuntos de datos reales
     my $visible_candles = $self->{market_data}->get_slice($start, $end);
     my $visible_atr     = $self->{indicator_manager}->slice_array('ATR', $start, $end);
+    $self->_pad_visible_slice($visible_candles, $start, $end);
+    $self->_pad_visible_slice($visible_atr, $start, $end);
     
     # 3. Calcular rangos de precios e indicadores para construir escalas dinámicas
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
@@ -313,10 +321,16 @@ sub _render_price_axis {
     $axis_scale->_draw_y_scale($canvas);
 
     return unless $visible_candles && @$visible_candles;
-    my ($open, $close) = @{$visible_candles->[-1]}[1, 4];
+    my $last_candle;
+    for my $candle (@$visible_candles) {
+        $last_candle = $candle if defined $candle;
+    }
+    return unless defined $last_candle;
+    my ($open, $close) = @{$last_candle}[1, 4];
     return unless defined $close;
 
     my $y = $axis_scale->value_to_y($close);
+
     my $label = sprintf('%.2f', $close);
     my $bg = (defined $open && $close >= $open)
         ? ($self->{theme}{bull} // '#26a69a')
@@ -633,10 +647,12 @@ sub _anchor_index_and_x {
     }
 
     # Sin cursor: ancla = última vela real visible. Si la ventana incluye espacio
-    # futuro a la derecha, `end` puede quedar más allá del último dato real.
+    # vacío a cualquier lado, el ancla se acota al rango real de datos.
     my $last_real = ($self->{market_data}->size() || 1) - 1;
     my $anchor_index = $end > $last_real ? $last_real : $end;
+    $anchor_index = 0 if $anchor_index < 0;
     my $local_of_anchor = $anchor_index - $start;
+
     my $screen_x = $scale->index_to_center_x($local_of_anchor);
     return ($anchor_index, $screen_x);
 }
@@ -706,8 +722,8 @@ sub _wheel_zoom {
 #        local'   = anchor_screen_x / bar_w' - 0.5   (vía Scales->x_to_index_float)
 #        end_idx' = anchor_index + (new_visible - 1 - local')
 #        offset   = (total - 1) - end_idx'
-#   6. offset entero y acotado a [0, max(0, total - visible_bars)] para conservar
-#      el tamaño de ventana actual también en los extremos.
+#   6. offset entero y acotado para conservar como mínimo dos velas reales en cada extremo.
+
 #   7. request_render()
 #
 # Toda conversión X<->índice se hace SOLO con Scales (Req. 9.4). El ancla se conserva
@@ -723,11 +739,12 @@ sub _horizontal_zoom {
 
     # 1. Punto de anclaje (índice GLOBAL + X de pantalla) ANTES de cambiar el zoom.
     #    Solo Ctrl+rueda usa ancla de cursor; rueda normal conserva el borde derecho.
-    my ($anchor_index, $anchor_screen_x) = $use_cursor_anchor ? $self->_anchor_index_and_x($anchor_x) : (undef, undef);
+    my ($anchor_index, $anchor_screen_x) = $use_cursor_anchor ? $self->_anchor_index_and_x($anchor_x) : $self->_anchor_index_and_x(undef);
 
     # 2. Nuevo nº de velas visibles, acotado a [MIN_VISIBLE_BARS, total].
     #    (Esto sustituye el antiguo mínimo de 10 por MIN_VISIBLE_BARS = 2.)
     my $new_visible = $self->{visible_bars} + $delta;
+
     my $max_visible = $total < MAX_VISIBLE_BARS ? $total : MAX_VISIBLE_BARS;
     $new_visible = MIN_VISIBLE_BARS if $new_visible < MIN_VISIBLE_BARS;
     $new_visible = $max_visible     if $new_visible > $max_visible;
@@ -736,15 +753,18 @@ sub _horizontal_zoom {
     $self->{visible_bars} = $new_visible;
 
     if (!$use_cursor_anchor) {
-        $self->{offset} = $self->_clamp_offset($old_offset);
-        $self->request_render();
-        return;
+        if ($old_offset <= 0) {
+            $self->{offset} = $self->_clamp_offset($old_offset);
+            $self->request_render();
+            return;
+        }
     }
 
     # 4. Nueva escala con el nuevo nº de barras. bar_w' = plot_width / new_visible se
     #    deriva dentro de Scales; la inversión X->índice continuo vive en x_to_index_float.
     my $scale = Market::Panels::Scales->new(
         bars         => $new_visible,
+
         right_margin => RIGHT_MARGIN,
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
@@ -757,10 +777,9 @@ sub _horizontal_zoom {
     my $offset       = ($total - 1) - $end_idx;
 
     # 6. Offset entero y acotado. compute_window define:
-    #      end = total - 1 - offset ; start = end - visible_bars + 1 ; (start/end clamp >=0)
-    #    El máximo depende del zoom actual: total - visible_bars. Si se usara
-    #    MIN_VISIBLE_BARS, al extremo izquierdo la ventana colapsaría a dos velas
-    #    aunque el zoom actual pida 60/300, descuadrando precio, ATR y eje X.
+    #      end = total - 1 - offset ; start = end - visible_bars + 1.
+    #    El clamp conserva como mínimo MIN_VISIBLE_BARS velas reales en ambos extremos.
+
     $offset = $self->round($offset);
     $self->{offset} = $self->_clamp_offset($offset);
 
@@ -1329,7 +1348,7 @@ sub get_all_timestamps {
     my $tf_minutes = $self->_timeframe_minutes();
 
     for (my $i = $start; $i <= $end; $i++) {
-        my $ts = $self->{market_data}->get_timestamp($i);
+        my $ts = ($i >= 0 && $i <= $last_index) ? $self->{market_data}->get_timestamp($i) : undef;
         if (defined $ts) {
             my $parsed = eval { Time::Moment->from_string($ts) };
             push @timestamps, { index => $i, ts => $parsed } if $parsed;
@@ -1339,8 +1358,9 @@ sub get_all_timestamps {
             push @timestamps, { index => $i, ts => $future } if $future;
         }
     }
-    
+
     return \@timestamps;
+
 }
 
 sub _timeframe_minutes {

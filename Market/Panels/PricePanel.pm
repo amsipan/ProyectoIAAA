@@ -52,11 +52,13 @@ sub get_y_range {
     my ($self, $data) = @_;
     return (20000, 30000) if !$data || !@$data;
 
-    my $min = $data->[0]->[3];
-    my $max = $data->[0]->[2];
+    my @defined = grep { defined $_ } @$data;
+    return (20000, 30000) unless @defined;
 
-    for my $candle (@$data) {
-        next unless defined $candle;
+    my $min = $defined[0]->[3];
+    my $max = $defined[0]->[2];
+
+    for my $candle (@defined) {
         $min = $candle->[3] if $candle->[3] < $min;
         $max = $candle->[2] if $candle->[2] > $max;
     }
@@ -87,7 +89,13 @@ sub render {
     $scale->{height} = $canvas_h;
 
     # Guardar la última vela para render_last_visible_price
-    $self->{_last_candle} = $data->[-1];
+    $self->{_last_candle} = undef;
+    for (my $i = $#$data; $i >= 0; $i--) {
+        if (defined $data->[$i]) {
+            $self->{_last_candle} = $data->[$i];
+            last;
+        }
+    }
 
     my $total  = scalar(@$data);
     my $x_bars = $scale->{bars} || $total || 1;

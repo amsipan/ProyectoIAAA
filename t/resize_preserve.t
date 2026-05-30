@@ -26,6 +26,7 @@ local *Market::ChartEngine::request_render = sub { $_[0]->{render_requested}++ }
 for my $case (
     [100, 20, 0],
     [100, 20, 10],
+    [100, 20, 98],
     [7,   60, 0],
     [500, 300, 120],
 ) {
