@@ -57,6 +57,7 @@ sub new {
         is_auto_scale    => 1,
         manual_min_y     => undef,
         manual_max_y     => undef,
+        scale_mode_callback => $args{scale_mode_callback},
         render_pending   => 0,
         drag_start_x     => undef,
         drag_start_y     => undef,
@@ -490,10 +491,10 @@ sub _bind_all_canvas {
         $p_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($p_canvas); });
         $p_canvas->Tk::bind('<Key-a>', sub { $self->set_scale_mode('auto'); });
         $p_canvas->Tk::bind('<Key-m>', sub { $self->set_scale_mode('manual'); });
-        $p_canvas->Tk::bind('<Key-plus>', sub { $self->{is_auto_scale} = 0; $self->_vertical_zoom(0.9); });
-        $p_canvas->Tk::bind('<Key-minus>', sub { $self->{is_auto_scale} = 0; $self->_vertical_zoom(1.1); });
-        $p_canvas->Tk::bind('<Up>', sub { $self->{is_auto_scale} = 0; $self->_vertical_drag(-10); });
-        $p_canvas->Tk::bind('<Down>', sub { $self->{is_auto_scale} = 0; $self->_vertical_drag(10); });
+        $p_canvas->Tk::bind('<Key-plus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(0.9); });
+        $p_canvas->Tk::bind('<Key-minus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(1.1); });
+        $p_canvas->Tk::bind('<Up>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(-10); });
+        $p_canvas->Tk::bind('<Down>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(10); });
         $p_canvas->Tk::bind('<Enter>', sub { $p_canvas->focus; });
         $p_canvas->Tk::bind('<Leave>', sub {
             $self->{last_mouse_x} = undef;
@@ -883,6 +884,7 @@ sub _end_time_axis_drag {
 sub _apply_vertical_drag_from_start {
     my ($self, $current_y) = @_;
 
+    return if $self->{is_auto_scale};
     return unless defined $current_y;
     return unless defined $self->{drag_start_y};
     return unless defined $self->{drag_start_min_y} && defined $self->{drag_start_max_y};
@@ -899,7 +901,6 @@ sub _apply_vertical_drag_from_start {
     my $delta_value = $dy * ($range / $height);
     $self->{manual_min_y} = $self->{drag_start_min_y} + $delta_value;
     $self->{manual_max_y} = $self->{drag_start_max_y} + $delta_value;
-    $self->{is_auto_scale} = 0;
 }
 
 sub _start_price_axis_drag {
@@ -939,8 +940,11 @@ sub _on_price_axis_drag {
 
     $self->{manual_min_y} = $center - $half;
     $self->{manual_max_y} = $center + $half;
-    $self->{is_auto_scale} = 0;
-    $self->request_render();
+    if ($self->{is_auto_scale}) {
+        $self->set_scale_mode('manual');
+    } else {
+        $self->request_render();
+    }
 }
 
 sub _end_price_axis_drag {
@@ -962,6 +966,10 @@ sub set_scale_mode {
         $self->{manual_max_y} = undef;
     } else {
         $self->{is_auto_scale} = 0;
+    }
+
+    if (ref($self->{scale_mode_callback}) eq 'CODE') {
+        $self->{scale_mode_callback}->($mode);
     }
 
     $self->request_render();

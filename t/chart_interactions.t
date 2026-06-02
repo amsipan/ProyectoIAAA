@@ -45,6 +45,10 @@ sub engine_with {
         drag_start_x      => undef,
         drag_start_y      => undef,
         drag_start_offset => 0,
+        is_auto_scale     => defined $args{is_auto_scale} ? $args{is_auto_scale} : 1,
+        manual_min_y      => $args{manual_min_y},
+        manual_max_y      => $args{manual_max_y},
+        scale_mode_callback => $args{scale_mode_callback},
         render_requested  => 0,
     }, 'Market::ChartEngine';
 }
@@ -114,20 +118,32 @@ $past_zoom->_horizontal_zoom(5, undef);
 is($past_zoom->{visible_bars}, 25, 'plain wheel zoom can zoom out at the past blank edge');
 is($past_zoom->{offset}, 98, 'plain wheel zoom keeps first real candles anchored at the past blank edge');
 
-my $vpan = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800);
-$vpan->{price_panel} = { scale => Market::Panels::Scales->new(min_y => 100, max_y => 200, bars => 20) };
+my $auto_vpan = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800, is_auto_scale => 1);
+$auto_vpan->{price_panel} = { scale => Market::Panels::Scales->new(min_y => 100, max_y => 200, bars => 20) };
 my $drag_widget = TestCanvas->new(w => 800, h => 400, pointerx => 100, pointery => 100);
+$auto_vpan->_start_horizontal_drag($drag_widget, 100, 100);
+$drag_widget->{pointerx} = 180;
+$drag_widget->{pointery} = 500;
+$auto_vpan->_on_horizontal_drag($drag_widget, 180, 500);
+is($auto_vpan->{offset}, 12, 'auto mode keeps horizontal drag active');
+is($auto_vpan->{is_auto_scale}, 1, 'auto mode survives diagonal chart drag');
+is($auto_vpan->{manual_min_y}, undef, 'auto mode blocks vertical chart drag min');
+is($auto_vpan->{manual_max_y}, undef, 'auto mode blocks vertical chart drag max');
+
+my $vpan = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800, is_auto_scale => 0, manual_min_y => 100, manual_max_y => 200);
+$vpan->{price_panel} = { scale => Market::Panels::Scales->new(min_y => 100, max_y => 200, bars => 20) };
+$drag_widget = TestCanvas->new(w => 800, h => 400, pointerx => 100, pointery => 100);
 $vpan->_start_horizontal_drag($drag_widget, 100, 100);
 $drag_widget->{pointery} = 500;
 $vpan->_on_horizontal_drag($drag_widget, 100, 500);
-is($vpan->{is_auto_scale}, 0, 'vertical mouse drag switches price scale to manual');
-is($vpan->{manual_min_y}, 200, 'vertical mouse drag can move range downward by a full range');
-is($vpan->{manual_max_y}, 300, 'vertical mouse drag preserves range width downward');
+is($vpan->{is_auto_scale}, 0, 'manual mode remains manual after vertical chart drag');
+is($vpan->{manual_min_y}, 200, 'manual mode vertical chart drag moves range downward by a full range');
+is($vpan->{manual_max_y}, 300, 'manual mode vertical chart drag preserves range width downward');
 
 $drag_widget->{pointery} = -700;
 $vpan->_on_horizontal_drag($drag_widget, 100, -700);
-is($vpan->{manual_min_y}, -100, 'vertical mouse drag has no apparent lower clamp');
-is($vpan->{manual_max_y}, 0, 'vertical mouse drag preserves range width upward');
+is($vpan->{manual_min_y}, -100, 'manual mode vertical chart drag has no apparent lower clamp');
+is($vpan->{manual_max_y}, 0, 'manual mode vertical chart drag preserves range width upward');
 
 my $axis_zoom = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800);
 $axis_zoom->{price_panel} = { scale => Market::Panels::Scales->new(min_y => 100, max_y => 200, bars => 20) };

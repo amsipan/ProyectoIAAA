@@ -169,6 +169,8 @@ my $atr_canvas = $atr_frame->Canvas(
 # ==========================================
 # 4. INSTANCIAR EL MOTOR ORQUESTADOR (CHART ENGINE)
 # ==========================================
+my $scale_mode = 'auto';
+
 my $chart_engine = Market::ChartEngine->new(
     market_data       => $market_data,
     indicator_manager => $indicator_manager,
@@ -177,18 +179,20 @@ my $chart_engine = Market::ChartEngine->new(
     atr_canvas        => $atr_canvas,
     atr_axis_canvas   => $atr_axis_canvas,
     time_axis_canvas  => $time_axis_canvas,
+    scale_mode_callback => sub { $scale_mode = $_[0] },
     theme             => \%theme
 );
 
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
 # Conectar botones al motor usando los sufijos 'm' para coincidir con MarketData.pm
+
 $frame_controles->Button(-text => "1 Minuto",   -command => sub { $chart_engine->set_timeframe('1m') })->pack(-side => 'left', -padx => 2);
 $frame_controles->Button(-text => "5 Minutos",  -command => sub { $chart_engine->set_timeframe('5m') })->pack(-side => 'left', -padx => 2);
 $frame_controles->Button(-text => "15 Minutos", -command => sub { $chart_engine->set_timeframe('15m') })->pack(-side => 'left', -padx => 2);
 
-my $scale_mode = 'auto';
 $frame_controles->Label(-text => "  Escala: ")->pack(-side => 'left', -padx => 6);
+
 $frame_controles->Radiobutton(
     -text     => 'Auto',
     -value    => 'auto',

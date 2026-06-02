@@ -47,7 +47,7 @@ sub _canvas_size {
 
 # Calcula el rango de precios (min, max) de las velas visibles para escalar el eje Y.
 # Recibe arrayref de velas [ts, open, high, low, close, vol].
-# Devuelve (min_price, max_price) con un padding del 2%.
+# Devuelve (min_price, max_price) con un padding del 5%.
 sub get_y_range {
     my ($self, $data) = @_;
     return (20000, 30000) if !$data || !@$data;
@@ -63,7 +63,7 @@ sub get_y_range {
         $max = $candle->[2] if $candle->[2] > $max;
     }
 
-    my $padding = ($max - $min) * 0.02 || 1;
+    my $padding = ($max - $min) * 0.05 || 1;
     return ($min - $padding, $max + $padding);
 }
 
