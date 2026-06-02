@@ -283,6 +283,7 @@ sub render {
     $price_scale->{draw_last_label} = $self->{price_axis_canvas} ? 0 : 1;
     $price_scale->{draw_crosshair_label} = $self->{price_axis_canvas} ? 0 : 1;
     $price_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    $price_scale->{tick_size} = 0.25;
     $atr_scale->{width}    = $shared_w;
     $atr_scale->{height}   = $atr_h;
     $atr_scale->{draw_labels} = $self->{atr_axis_canvas} ? 0 : 1;
@@ -328,6 +329,7 @@ sub _render_price_axis {
     $axis_scale->{label_anchor}    = 'w';
     $axis_scale->{grid_color}      = $self->{theme}{grid}      // '#e6e6e6';
     $axis_scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
+    $axis_scale->{tick_size}       = $source_scale->{tick_size};
     $axis_scale->_draw_y_scale($canvas);
 
     return unless $visible_candles && @$visible_candles;
@@ -457,6 +459,14 @@ sub _render_atr_axis {
     $canvas->createText(4, $y, -text => $label, -anchor => 'w', -font => 'Helvetica 9 bold', -fill => $fg, -tags => 'atr_axis_last');
 }
 
+
+sub _set_cursor {
+    my ($self, $widget, $cursor) = @_;
+
+    return unless defined $widget && defined $cursor;
+    eval { $widget->configure(-cursor => $cursor) };
+}
+
 sub _bind_all_canvas {
     my ($self) = @_;
     
@@ -505,8 +515,9 @@ sub _bind_all_canvas {
         $p_canvas->Tk::bind('<Key-minus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(1.1); });
         $p_canvas->Tk::bind('<Up>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(-10); });
         $p_canvas->Tk::bind('<Down>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(10); });
-        $p_canvas->Tk::bind('<Enter>', sub { $p_canvas->focus; });
+        $p_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($p_canvas, 'crosshair'); $p_canvas->focus; });
         $p_canvas->Tk::bind('<Leave>', sub {
+            $self->_set_cursor($p_canvas, 'crosshair');
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
@@ -546,7 +557,9 @@ sub _bind_all_canvas {
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $a_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($a_canvas); });
+        $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); });
         $a_canvas->Tk::bind('<Leave>', sub {
+            $self->_set_cursor($a_canvas, 'crosshair');
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
@@ -565,7 +578,8 @@ sub _bind_all_canvas {
         }, Tk::Ev('y')]);
         $axis_canvas->Tk::bind('<ButtonRelease-1>', sub { $self->_end_price_axis_drag(); });
         $axis_canvas->Tk::bind('<Double-Button-1>', sub { $self->set_scale_mode('auto'); });
-        $axis_canvas->Tk::bind('<Enter>', sub { eval { $axis_canvas->configure(-cursor => 'sb_v_double_arrow') } });
+        $axis_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($axis_canvas, 'sb_v_double_arrow') });
+        $axis_canvas->Tk::bind('<Leave>', sub { $self->_set_cursor($axis_canvas, 'sb_v_double_arrow') });
     }
 
     if (defined $time_canvas) {
@@ -598,8 +612,9 @@ sub _bind_all_canvas {
             $self->_wheel_zoom($widget, ZOOM_STEP, $x, $y, $state);
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
-        $time_canvas->Tk::bind('<Enter>', sub { eval { $time_canvas->configure(-cursor => 'sb_h_double_arrow') } });
+        $time_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($time_canvas, 'sb_h_double_arrow') });
         $time_canvas->Tk::bind('<Leave>', sub {
+            $self->_set_cursor($time_canvas, 'sb_h_double_arrow');
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
@@ -876,8 +891,8 @@ sub _start_horizontal_drag {
     $self->{drag_start_y} = defined $root_y ? $root_y : $y;
     $self->{drag_start_offset} = $self->{offset};
 
-    if (defined $widget && defined $self->{price_canvas} && $widget == $self->{price_canvas}) {
-        eval { $widget->configure(-cursor => 'hand2') };
+    if (defined $widget) {
+        $self->_set_cursor($widget, 'fleur');
         $self->{drag_cursor_canvas} = $widget;
     }
 
@@ -927,6 +942,7 @@ sub _start_time_axis_drag {
     my ($self, $widget, $x, $y) = @_;
 
     $self->_clear_ctrl_zoom_state();
+    $self->_set_cursor($widget, 'sb_h_double_arrow');
     my $root_x = eval { $widget->pointerx() };
     $self->{time_axis_drag_start_x} = defined $root_x ? $root_x : $x;
     $self->{time_axis_drag_visible} = $self->{visible_bars};
@@ -957,6 +973,7 @@ sub _on_time_axis_drag {
 
 sub _end_time_axis_drag {
     my ($self) = @_;
+    $self->_set_cursor($self->{time_axis_canvas}, 'sb_h_double_arrow');
     $self->{time_axis_drag_start_x} = undef;
     $self->{time_axis_drag_visible} = undef;
 }
@@ -987,6 +1004,7 @@ sub _start_price_axis_drag {
     my ($self, $widget, $y) = @_;
 
     $self->_clear_ctrl_zoom_state();
+    $self->_set_cursor($widget, 'sb_v_double_arrow');
     my $root_y = eval { $widget->pointery() };
     $self->{axis_drag_start_y} = defined $root_y ? $root_y : $y;
 
@@ -1031,6 +1049,7 @@ sub _on_price_axis_drag {
 sub _end_price_axis_drag {
     my ($self) = @_;
 
+    $self->_set_cursor($self->{price_axis_canvas}, 'sb_v_double_arrow');
     $self->{axis_drag_start_y} = undef;
     $self->{axis_drag_min_y} = undef;
     $self->{axis_drag_max_y} = undef;
@@ -1077,7 +1096,7 @@ sub _end_drag {
     my ($self) = @_;
 
     if (defined $self->{drag_cursor_canvas}) {
-        eval { $self->{drag_cursor_canvas}->configure(-cursor => 'crosshair') };
+        $self->_set_cursor($self->{drag_cursor_canvas}, 'crosshair');
     }
     $self->{drag_start_x} = undef;
     $self->{drag_start_y} = undef;

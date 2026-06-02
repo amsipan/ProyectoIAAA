@@ -142,7 +142,7 @@ sub _draw_y_scale {
 
     # Paso "limpio": se elige el mejor candidato que produzca marcas densas
     # estilo TradingView, manteniendo separación vertical legible.
-    my $step = _clean_step($min, $max, $range, $height);
+    my $step = _clean_step($min, $max, $range, $height, $self->{tick_size});
     return if !defined $step || $step <= 0;
 
     my $draw_grid   = exists $self->{draw_grid}   ? $self->{draw_grid}   : 1;
@@ -211,58 +211,72 @@ sub _label_count {
     return $n < 0 ? 0 : $n;
 }
 
-# Elige un paso "limpio" para el eje:
-#   - múltiplos de 1, 2, 2.5 ó 5 por una potencia de 10 (números redondos);
-#   - prioriza producir entre 6 y 12 etiquetas dentro de [min,max];
-#   - dentro de esos, prioriza separación vertical >= 20 px y cantidad ~9.
-# Si ningún candidato cae en [4,8] (rangos degenerados), devuelve el que más se
-# acerque a ese intervalo.
+sub _tick_step {
+    my ($step, $tick_size) = @_;
+    return $step if !defined $tick_size || $tick_size <= 0;
+    return $tick_size if !defined $step || $step <= $tick_size;
+    my $ticks = _ceil($step / $tick_size - 1e-9);
+    return $ticks * $tick_size;
+}
+
 sub _clean_step {
-    my ($min, $max, $range, $height) = @_;
+    my ($min, $max, $range, $height, $tick_size) = @_;
     my $abs_range = abs($range);
-    return $range if $abs_range == 0;   # salvaguarda (no debería llegar aquí)
+    return $range if $abs_range == 0;
 
-    # Exponente base del rango para generar candidatos alrededor de range/5.
-    my $exp = _floor(log($abs_range) / log(10));
-
-    my @mult = (1, 2, 2.5, 5);
     my @cands;
-    for my $e ($exp - 2 .. $exp + 1) {
-        my $mag = 10 ** $e;
-        push @cands, $_ * $mag for @mult;
+    if (defined $tick_size && $tick_size > 0) {
+        my $min_step = $height > 0 ? ($abs_range * 22 / $height) : ($abs_range / 24);
+        my $max_step = $abs_range / 4;
+        my $first = _ceil($min_step / $tick_size - 1e-9);
+        my $last  = _ceil($max_step / $tick_size + 1e-9);
+        $first = 1 if $first < 1;
+        $last = $first if $last < $first;
+        for my $q ($first .. $last) {
+            push @cands, $q * $tick_size;
+        }
+    } else {
+        my $exp = _floor(log($abs_range) / log(10));
+        my @mult = (1, 2, 2.5, 5);
+        for my $e ($exp - 2 .. $exp + 1) {
+            my $mag = 10 ** $e;
+            push @cands, $_ * $mag for @mult;
+        }
     }
-    @cands = sort { $a <=> $b } grep { $_ > 0 } @cands;
 
-    # Candidatos que producen entre 6 y 12 etiquetas.
+    @cands = map { _tick_step($_, $tick_size) } grep { $_ > 0 } @cands;
+    my %seen;
+    @cands = sort { $a <=> $b } grep { !$seen{sprintf('%.8f', $_)}++ } @cands;
+
+    my $min_labels = defined $tick_size && $tick_size > 0 ? 4 : 6;
+    my $max_labels = defined $tick_size && $tick_size > 0 ? 32 : 12;
+    my $target_labels = defined $tick_size && $tick_size > 0 ? 20 : 9;
     my @valid;
     for my $s (@cands) {
         my $c = _label_count($min, $max, $s);
-        next unless $c >= 6 && $c <= 12;
+        next unless $c >= $min_labels && $c <= $max_labels;
         my $sep = $height > 0 ? ($s / $abs_range) * $height : 0;
         push @valid, { step => $s, count => $c, sep => $sep };
     }
 
     if (@valid) {
-        # Preferir separación vertical >= 20 px (Req. 4.4); si ninguno la cumple,
-        # usar todos los válidos. Luego, cantidad de etiquetas más cercana a 9.
         my @ok   = grep { $height <= 0 || $_->{sep} >= 20 } @valid;
         my @pool = @ok ? @ok : @valid;
         @pool = sort {
-            abs($a->{count} - 9) <=> abs($b->{count} - 9)
+            abs($a->{count} - $target_labels) <=> abs($b->{count} - $target_labels)
                 || $b->{sep} <=> $a->{sep}
                 || $a->{step} <=> $b->{step}
         } @pool;
         return $pool[0]{step};
     }
 
-    # Fallback: el candidato cuya cantidad de etiquetas más se acerque a [6,12].
     my @scored = map {
         my $c    = _label_count($min, $max, $_);
-        my $dist = $c < 6 ? (6 - $c) : ($c > 12 ? ($c - 12) : 0);
+        my $dist = $c < $min_labels ? ($min_labels - $c) : ($c > $max_labels ? ($c - $max_labels) : 0);
         { step => $_, dist => $dist, count => $c };
     } @cands;
     @scored = sort { $a->{dist} <=> $b->{dist} || $b->{count} <=> $a->{count} } @scored;
-    return @scored ? $scored[0]{step} : ($abs_range / 5);
+    return @scored ? $scored[0]{step} : _tick_step($abs_range / 5, $tick_size);
 }
 
 1;
