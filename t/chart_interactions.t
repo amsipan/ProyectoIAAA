@@ -112,6 +112,33 @@ my $ctrl_wheel = engine_with(total => 100, visible_bars => 20, offset => 10, wid
 $ctrl_wheel->_wheel_zoom(TestCanvas->new(w => 800, h => 400), 5, 100, 100, 4);
 is($ctrl_wheel->{visible_bars}, 25, 'ctrl wheel zoom updates horizontal zoom');
 is($ctrl_wheel->{offset}, 6, 'ctrl wheel zoom anchors the candle under the cursor');
+ok(defined $ctrl_wheel->{ctrl_zoom_x_shift}, 'ctrl wheel stores x correction');
+
+my $ctrl_focus = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800, is_auto_scale => 0, manual_min_y => 100, manual_max_y => 200);
+$ctrl_focus->_wheel_zoom(TestCanvas->new(w => 800, h => 400), -5, 380, 100, 4);
+my ($ctrl_start, undef) = $ctrl_focus->compute_window();
+my $ctrl_scale = Market::Panels::Scales->new(bars => $ctrl_focus->{visible_bars}, right_margin => 0);
+$ctrl_scale->{width} = 800;
+$ctrl_scale->{x_shift} = $ctrl_focus->{ctrl_zoom_x_shift};
+my $focused_x = $ctrl_scale->index_to_center_x(79 - $ctrl_start);
+ok(abs($focused_x - 380) < 0.0001, 'ctrl zoom keeps focused candle suspended under cursor');
+is($ctrl_focus->{ctrl_zoom_y_lock_min}, 100, 'manual ctrl zoom locks current price min during burst');
+is($ctrl_focus->{ctrl_zoom_y_lock_max}, 200, 'manual ctrl zoom locks current price max during burst');
+
+my $auto_ctrl = engine_with(total => 100, visible_bars => 20, offset => 10, width => 800, is_auto_scale => 1, manual_min_y => 100, manual_max_y => 200);
+$auto_ctrl->_wheel_zoom(TestCanvas->new(w => 800, h => 400), -5, 380, 100, 4);
+is($auto_ctrl->{ctrl_zoom_y_lock_min}, undef, 'auto ctrl zoom does not lock price min');
+is($auto_ctrl->{ctrl_zoom_y_lock_max}, undef, 'auto ctrl zoom does not lock price max');
+is($auto_ctrl->{is_auto_scale}, 1, 'auto ctrl zoom keeps auto scale enabled');
+
+my $ctrl_max = engine_with(total => 100, visible_bars => 3, offset => 10, width => 800);
+$ctrl_max->_wheel_zoom(TestCanvas->new(w => 800, h => 400), -5, 400, 100, 4);
+my ($ctrl_max_start, undef) = $ctrl_max->compute_window();
+my $ctrl_max_scale = Market::Panels::Scales->new(bars => $ctrl_max->{visible_bars}, right_margin => 0);
+$ctrl_max_scale->{width} = 800;
+$ctrl_max_scale->{x_shift} = $ctrl_max->{ctrl_zoom_x_shift};
+my $max_focus_x = $ctrl_max_scale->index_to_center_x(88 - $ctrl_max_start);
+ok(abs($max_focus_x - 400) < 0.0001, 'ctrl zoom can keep one candle centered at maximum zoom');
 
 my $past_zoom = engine_with(total => 100, visible_bars => 20, offset => 98, width => 800);
 $past_zoom->_horizontal_zoom(5, undef);

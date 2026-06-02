@@ -36,7 +36,8 @@ sub index_to_x {
     my ($self, $index) = @_;
     my $bars  = $self->{bars} || 1;
     my $bar_w = $self->plot_width / $bars;
-    return $index * $bar_w;
+    my $x_shift = $self->{x_shift} || 0;
+    return $index * $bar_w + $x_shift;
 }
 
 # Convierte una coordenada X en píxeles al índice de barra entero.
@@ -55,7 +56,8 @@ sub x_to_index {
     my $bars  = $self->{bars} || 1;
     my $bar_w = $self->plot_width / $bars;
     return 0 if $bar_w <= 0;
-    my $idx = int($x / $bar_w + 1e-9);
+    my $x_shift = $self->{x_shift} || 0;
+    my $idx = int(($x - $x_shift) / $bar_w + 1e-9);
     $idx = 0         if $idx < 0;
     $idx = $bars - 1 if $idx >= $bars;
     return $idx;
@@ -68,7 +70,8 @@ sub x_to_index_float {
     my $bars  = $self->{bars} || 1;
     my $bar_w = $self->plot_width / $bars;
     return 0 if $bar_w <= 0;
-    return $x / $bar_w;
+    my $x_shift = $self->{x_shift} || 0;
+    return ($x - $x_shift) / $bar_w;
 }
 
 # Devuelve la coordenada X del centro horizontal de una barra.
@@ -78,7 +81,8 @@ sub index_to_center_x {
     my ($self, $index) = @_;
     my $bars  = $self->{bars} || 1;
     my $bar_w = $self->plot_width / $bars;
-    return $index * $bar_w + $bar_w / 2;
+    my $x_shift = $self->{x_shift} || 0;
+    return $index * $bar_w + $bar_w / 2 + $x_shift;
 }
 
 # Mapea un valor financiero (precio/indicador) a coordenada Y en píxeles.

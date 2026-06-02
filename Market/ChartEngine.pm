@@ -58,6 +58,9 @@ sub new {
         manual_min_y     => undef,
         manual_max_y     => undef,
         scale_mode_callback => $args{scale_mode_callback},
+        ctrl_zoom_x_shift => 0,
+        ctrl_zoom_y_lock_min => undef,
+        ctrl_zoom_y_lock_max => undef,
         render_pending   => 0,
         drag_start_x     => undef,
         drag_start_y     => undef,
@@ -234,7 +237,9 @@ sub render {
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
     my ($min_a, $max_a) = $self->{atr_panel}->get_y_range($visible_atr);
     
-    if (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+    if (defined $self->{ctrl_zoom_y_lock_min} && defined $self->{ctrl_zoom_y_lock_max}) {
+        ($min_p, $max_p) = ($self->{ctrl_zoom_y_lock_min}, $self->{ctrl_zoom_y_lock_max});
+    } elsif (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
         ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
     } else {
         ($self->{manual_min_y}, $self->{manual_max_y}) = ($min_p, $max_p);
@@ -277,12 +282,16 @@ sub render {
     $price_scale->{draw_labels} = $self->{price_axis_canvas} ? 0 : 1;
     $price_scale->{draw_last_label} = $self->{price_axis_canvas} ? 0 : 1;
     $price_scale->{draw_crosshair_label} = $self->{price_axis_canvas} ? 0 : 1;
+    $price_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     $atr_scale->{width}    = $shared_w;
     $atr_scale->{height}   = $atr_h;
     $atr_scale->{draw_labels} = $self->{atr_axis_canvas} ? 0 : 1;
     $atr_scale->{draw_last_label} = $self->{atr_axis_canvas} ? 0 : 1;
+    $atr_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+
     
     $self->{price_panel}->set_scale($price_scale);
+
     $self->{atr_panel}->set_scale($atr_scale);
     
     # 5. Ejecutar render en cada sub-canvas
@@ -400,6 +409,7 @@ sub _render_time_axis {
     );
     $axis_scale->{width}  = $source_scale->{width} || $w;
     $axis_scale->{height} = $h;
+    $axis_scale->{x_shift} = $source_scale->{x_shift} || 0;
 
     $self->{price_panel}->{scale} = $axis_scale;
     $self->{price_panel}->draw_time_axis($canvas, $labels, { draw_grid => 0, draw_labels => 1 });
@@ -692,6 +702,14 @@ sub _zoom_anchor_x {
     return ($x >= 0 && $x <= $plot_w) ? $x : undef;
 }
 
+sub _clear_ctrl_zoom_state {
+    my ($self) = @_;
+
+    $self->{ctrl_zoom_x_shift} = 0;
+    $self->{ctrl_zoom_y_lock_min} = undef;
+    $self->{ctrl_zoom_y_lock_max} = undef;
+}
+
 sub _wheel_zoom {
     my ($self, $widget, $step, $x, $y, $state) = @_;
 
@@ -702,8 +720,68 @@ sub _wheel_zoom {
     }
 
     my $ctrl_pressed = defined $state && ($state & CTRL_MASK);
-    my $anchor_x = $ctrl_pressed ? $self->_zoom_anchor_x() : undef;
-    $self->_horizontal_zoom($step, $anchor_x);
+    if ($ctrl_pressed) {
+        my $anchor_x = $self->_zoom_anchor_x();
+        if (defined $anchor_x) {
+            $self->_ctrl_horizontal_zoom($step, $anchor_x);
+            return;
+        }
+    }
+
+    $self->_clear_ctrl_zoom_state();
+    $self->_horizontal_zoom($step, undef);
+}
+
+sub _ctrl_horizontal_zoom {
+    my ($self, $delta, $anchor_x) = @_;
+
+    my $total = $self->{market_data}->size();
+    return if !$total;
+
+    my ($start, $end) = $self->compute_window();
+    my $old_visible = $self->{visible_bars} || ($end - $start + 1) || 1;
+    my $max_visible = $total < MAX_VISIBLE_BARS ? $total : MAX_VISIBLE_BARS;
+    $max_visible = MIN_VISIBLE_BARS if $max_visible < MIN_VISIBLE_BARS;
+    my $new_visible = $old_visible + $delta;
+    $new_visible = MIN_VISIBLE_BARS if $new_visible < MIN_VISIBLE_BARS;
+    $new_visible = $max_visible     if $new_visible > $max_visible;
+    return if $new_visible == $old_visible;
+
+    my $canvas_w = $self->_canvas_width($self->{price_canvas});
+    return if !$canvas_w || $canvas_w <= 0;
+
+    my $old_scale = Market::Panels::Scales->new(bars => $old_visible, right_margin => RIGHT_MARGIN);
+    $old_scale->{width} = $canvas_w;
+    $old_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $anchor_global = $start + $old_scale->x_to_index_float($anchor_x) - 0.5;
+
+    my $new_scale = Market::Panels::Scales->new(bars => $new_visible, right_margin => RIGHT_MARGIN);
+    $new_scale->{width} = $canvas_w;
+    my $new_bar_w = $new_scale->plot_width() / $new_visible;
+    return if $new_bar_w <= 0;
+
+    my $target_start = $anchor_global - (($anchor_x - ($new_bar_w / 2)) / $new_bar_w);
+    my $new_start = $self->round($target_start);
+    my $new_end = $new_start + $new_visible - 1;
+    my $new_offset = ($total - 1) - $new_end;
+
+    $self->{visible_bars} = $new_visible;
+    $self->{offset} = $self->_clamp_offset($new_offset);
+    ($new_start, $new_end) = $self->compute_window();
+
+    $self->{ctrl_zoom_x_shift} = $anchor_x - (($anchor_global - $new_start + 0.5) * $new_bar_w);
+
+    if ($self->{is_auto_scale}) {
+        $self->{ctrl_zoom_y_lock_min} = undef;
+        $self->{ctrl_zoom_y_lock_max} = undef;
+    } elsif (!defined $self->{ctrl_zoom_y_lock_min} || !defined $self->{ctrl_zoom_y_lock_max}) {
+        if (defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+            $self->{ctrl_zoom_y_lock_min} = $self->{manual_min_y};
+            $self->{ctrl_zoom_y_lock_max} = $self->{manual_max_y};
+        }
+    }
+
+    $self->request_render();
 }
 
 # _horizontal_zoom($delta, $anchor_x) — zoom horizontal con ANCLAJE (Req. 8.1, 8.2,
@@ -791,6 +869,7 @@ sub _horizontal_zoom {
 sub _start_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
 
+    $self->_clear_ctrl_zoom_state();
     my $root_x = eval { $widget->pointerx() };
     my $root_y = eval { $widget->pointery() };
     $self->{drag_start_x} = defined $root_x ? $root_x : $x;
@@ -847,6 +926,7 @@ sub _on_time_axis_motion {
 sub _start_time_axis_drag {
     my ($self, $widget, $x, $y) = @_;
 
+    $self->_clear_ctrl_zoom_state();
     my $root_x = eval { $widget->pointerx() };
     $self->{time_axis_drag_start_x} = defined $root_x ? $root_x : $x;
     $self->{time_axis_drag_visible} = $self->{visible_bars};
@@ -906,6 +986,7 @@ sub _apply_vertical_drag_from_start {
 sub _start_price_axis_drag {
     my ($self, $widget, $y) = @_;
 
+    $self->_clear_ctrl_zoom_state();
     my $root_y = eval { $widget->pointery() };
     $self->{axis_drag_start_y} = defined $root_y ? $root_y : $y;
 
@@ -1180,6 +1261,7 @@ sub set_timeframe {
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
     $self->{manual_max_y} = undef;
+    $self->_clear_ctrl_zoom_state();
     $self->reset_view();
 }
 
@@ -1191,6 +1273,7 @@ sub reset_view {
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
     $self->{manual_max_y} = undef;
+    $self->_clear_ctrl_zoom_state();
     $self->request_render();
 }
 
