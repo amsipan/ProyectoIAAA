@@ -30,25 +30,41 @@ sub build_tf_candles {
 
     my $group_size = ($tf eq '5m') ? 5 : ($tf eq '15m') ? 15 : 1;
     my @aggregated;
-    
-    for (my $i = 0; $i < @$base_data; $i += $group_size) {
-        my $end = $i + $group_size - 1;
-        $end = $#$base_data if $end > $#$base_data;
-        
-        my @slice = @$base_data[$i .. $end];
-        my $ts = $slice[0]->[0];
-        my $open = $slice[0]->[1];
-        my $close = $slice[-1]->[4];
-        
-        my ($high, $low, $vol) = ($slice[0]->[2], $slice[0]->[3], 0);
-        for my $c (@slice) {
-            $high = $c->[2] if $c->[2] > $high;
-            $low  = $c->[3] if $c->[3] < $low;
-            $vol += $c->[5];
+    my ($current_key, $current);
+
+    for my $c (@$base_data) {
+        my $bucket_ts = $self->_bucket_timestamp($c->[0], $group_size);
+        next unless defined $bucket_ts;
+
+        if (!defined $current_key || $bucket_ts ne $current_key) {
+            push @aggregated, $current if defined $current;
+            $current_key = $bucket_ts;
+            $current = [$bucket_ts, $c->[1], $c->[2], $c->[3], $c->[4], $c->[5]];
+            next;
         }
-        push @aggregated, [$ts, $open, $high, $low, $close, $vol];
+
+        $current->[2] = $c->[2] if $c->[2] > $current->[2];
+        $current->[3] = $c->[3] if $c->[3] < $current->[3];
+        $current->[4] = $c->[4];
+        $current->[5] += $c->[5];
     }
+
+    push @aggregated, $current if defined $current;
     $self->{data}->{$tf} = \@aggregated;
+}
+
+sub _bucket_timestamp {
+    my ($self, $ts, $minutes) = @_;
+    return undef unless defined $ts;
+    return $ts if !$minutes || $minutes <= 1;
+
+    if ($ts =~ /^(\d{4}-\d{2}-\d{2}T\d{2}):(\d{2}):(\d{2})(.*)$/) {
+        my ($prefix, $minute, $second, $suffix) = ($1, $2, $3, $4);
+        my $bucket_minute = int($minute / $minutes) * $minutes;
+        return sprintf('%s:%02d:00%s', $prefix, $bucket_minute, $suffix);
+    }
+
+    return $ts;
 }
 
 sub build_timeframes {

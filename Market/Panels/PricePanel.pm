@@ -100,48 +100,75 @@ sub render {
     my $total  = scalar(@$data);
     my $x_bars = $scale->{bars} || $total || 1;
     my $bar_w  = ($x_bars > 0) ? ($scale->plot_width() / $x_bars) : 1;
-    my $body_w = $bar_w * 0.6;
-    $body_w = 1 if $body_w < 1;
-    $body_w = $bar_w if $body_w > $bar_w;
-    my $half   = $body_w / 2;
 
-    for (my $i = 0; $i < $total; $i++) {
-        my $candle = $data->[$i];
-        next unless defined $candle;
+    if ($bar_w < 2) {
+        my $plot_w = int($scale->plot_width());
+        $plot_w = 1 if $plot_w < 1;
+        for my $px (0 .. $plot_w - 1) {
+            my $from = int($px * $x_bars / $plot_w);
+            my $to = int((($px + 1) * $x_bars / $plot_w) - 1);
+            $to = $from if $to < $from;
+            $to = $total - 1 if $to >= $total;
 
-        my ($ts, $open, $high, $low, $close, $vol) = @$candle;
+            my ($open, $high, $low, $close);
+            for my $i ($from .. $to) {
+                my $candle = $data->[$i];
+                next unless defined $candle;
+                $open = $candle->[1] if !defined $open;
+                $high = $candle->[2] if !defined $high || $candle->[2] > $high;
+                $low = $candle->[3] if !defined $low || $candle->[3] < $low;
+                $close = $candle->[4];
+            }
+            next unless defined $open && defined $close;
 
-        my $cx  = $scale->index_to_center_x($i);
-        my $y_o = $scale->value_to_y($open);
-        my $y_h = $scale->value_to_y($high);
-        my $y_l = $scale->value_to_y($low);
-        my $y_c = $scale->value_to_y($close);
+            my $y_h = $scale->value_to_y($high);
+            my $y_l = $scale->value_to_y($low);
+            my $color = ($close >= $open)
+                ? ($self->{theme}{bull} // '#26a69a')
+                : ($self->{theme}{bear} // '#ef5350');
+            $canvas->createLine($px + 0.5, $y_h, $px + 0.5, $y_l, -fill => $color, -width => 1, -tags => 'candle');
+        }
+    } else {
+        my $body_w = $bar_w * 0.6;
+        $body_w = 1 if $body_w < 1;
+        $body_w = $bar_w if $body_w > $bar_w;
+        my $half   = $body_w / 2;
 
-        # Verde para velas alcistas, rojo para bajistas
-        my $color = ($close >= $open)
-            ? ($self->{theme}{bull} // '#26a69a')
-            : ($self->{theme}{bear} // '#ef5350');
+        for (my $i = 0; $i < $total; $i++) {
+            my $candle = $data->[$i];
+            next unless defined $candle;
 
-        # Mecha: línea delgada entre high y low
-        $canvas->createLine(
-            $cx, $y_h, $cx, $y_l,
-            -fill  => $color,
-            -width => 1,
-            -tags  => 'candle',
-        );
+            my ($ts, $open, $high, $low, $close, $vol) = @$candle;
 
-        # Cuerpo: rectángulo entre open y close
-        my $top    = ($y_o < $y_c) ? $y_o : $y_c;
-        my $bottom = ($y_o > $y_c) ? $y_o : $y_c;
-        $bottom = $top + 1 if ($bottom - $top) < 1;
+            my $cx  = $scale->index_to_center_x($i);
+            my $y_o = $scale->value_to_y($open);
+            my $y_h = $scale->value_to_y($high);
+            my $y_l = $scale->value_to_y($low);
+            my $y_c = $scale->value_to_y($close);
 
-        $canvas->createRectangle(
-            $cx - $half, $top,
-            $cx + $half, $bottom,
-            -fill    => $color,
-            -outline => $color,
-            -tags    => 'candle',
-        );
+            my $color = ($close >= $open)
+                ? ($self->{theme}{bull} // '#26a69a')
+                : ($self->{theme}{bear} // '#ef5350');
+
+            $canvas->createLine(
+                $cx, $y_h, $cx, $y_l,
+                -fill  => $color,
+                -width => 1,
+                -tags  => 'candle',
+            );
+
+            my $top    = ($y_o < $y_c) ? $y_o : $y_c;
+            my $bottom = ($y_o > $y_c) ? $y_o : $y_c;
+            $bottom = $top + 1 if ($bottom - $top) < 1;
+
+            $canvas->createRectangle(
+                $cx - $half, $top,
+                $cx + $half, $bottom,
+                -fill    => $color,
+                -outline => $color,
+                -tags    => 'candle',
+            );
+        }
     }
 
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
@@ -367,6 +394,8 @@ sub draw_time_axis {
         my $idx     = $item->{index};
         my $text    = $item->{text};
         my $is_date = $item->{is_date} ? 1 : 0;
+        my $item_grid = exists $item->{grid} ? $item->{grid} : 1;
+        my $item_label = exists $item->{label} ? $item->{label} : 1;
         next unless defined $idx && defined $text;
 
         # Centro de la barra anclada: única fuente de coordenadas (Scales).
@@ -374,7 +403,7 @@ sub draw_time_axis {
 
         if ($is_date) {
             # Cambio de fecha: visible, pero suficientemente suave para no tapar velas.
-            if ($draw_grid) {
+            if ($draw_grid && $item_grid) {
                 $canvas->createLine(
                     $x, 0, $x, $h,
                     -fill  => $date_grid_color,
@@ -382,7 +411,7 @@ sub draw_time_axis {
                     -tags  => ['time_axis', 'time_grid'],
                 );
             }
-            next unless $draw_labels;
+            next unless $draw_labels && $item_label;
             # Texto de fecha "DD Mon" en negrita y centrado verticalmente.
             $canvas->createText(
                 $x, $label_y,
@@ -395,7 +424,7 @@ sub draw_time_axis {
         }
         else {
             # Etiqueta horaria normal: línea de referencia vertical tenue.
-            if ($draw_grid) {
+            if ($draw_grid && $item_grid) {
                 $canvas->createLine(
                     $x, 0, $x, $h,
                     -fill  => $grid_color,
@@ -403,7 +432,7 @@ sub draw_time_axis {
                     -tags  => ['time_axis', 'time_grid'],
                 );
             }
-            next unless $draw_labels;
+            next unless $draw_labels && $item_label;
             # Texto HH:MM centrado verticalmente.
             $canvas->createText(
                 $x, $label_y,

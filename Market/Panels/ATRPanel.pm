@@ -93,15 +93,41 @@ sub render {
     my @points;
     $self->{_last_value} = undef;
 
-    for (my $i = 0; $i < @$visible_values; $i++) {
-        my $val = $visible_values->[$i];
-        next if !defined $val;
+    my $total = scalar(@$visible_values);
+    my $x_bars = $scale->{bars} || $total || 1;
+    my $bar_w = ($x_bars > 0) ? ($scale->plot_width() / $x_bars) : 1;
 
-        my $x = $scale->index_to_center_x($i);
-        my $y = $scale->value_to_y($val);
+    if ($bar_w < 2) {
+        my $plot_w = int($scale->plot_width());
+        $plot_w = 1 if $plot_w < 1;
+        for my $px (0 .. $plot_w - 1) {
+            my $from = int($px * $x_bars / $plot_w);
+            my $to = int((($px + 1) * $x_bars / $plot_w) - 1);
+            $to = $from if $to < $from;
+            $to = $total - 1 if $to >= $total;
 
-        push @points, ($x, $y);
-        $self->{_last_value} = $val;
+            my ($sum, $count);
+            for my $i ($from .. $to) {
+                my $val = $visible_values->[$i];
+                next if !defined $val;
+                $sum += $val;
+                $count++;
+                $self->{_last_value} = $val;
+            }
+            next unless $count;
+            push @points, ($px + 0.5, $scale->value_to_y($sum / $count));
+        }
+    } else {
+        for (my $i = 0; $i < @$visible_values; $i++) {
+            my $val = $visible_values->[$i];
+            next if !defined $val;
+
+            my $x = $scale->index_to_center_x($i);
+            my $y = $scale->value_to_y($val);
+
+            push @points, ($x, $y);
+            $self->{_last_value} = $val;
+        }
     }
 
     if (@points >= 4) {

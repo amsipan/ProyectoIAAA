@@ -16,7 +16,7 @@ use Market::Panels::ATRPanel;
 use constant {
     RIGHT_MARGIN     => 0,
     MIN_VISIBLE_BARS => 2,
-    MAX_VISIBLE_BARS => 300,
+    MAX_VISIBLE_BARS => 40000,
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
@@ -61,9 +61,18 @@ sub new {
         ctrl_zoom_x_shift => 0,
         ctrl_zoom_y_lock_min => undef,
         ctrl_zoom_y_lock_max => undef,
+        is_atr_auto_scale => 1,
+        atr_manual_min_y => undef,
+        atr_manual_max_y => undef,
+        atr_axis_drag_start_y => undef,
+        atr_axis_drag_min_y => undef,
+        atr_axis_drag_max_y => undef,
+        atr_drag_start_min_y => undef,
+        atr_drag_start_max_y => undef,
         render_pending   => 0,
         drag_start_x     => undef,
         drag_start_y     => undef,
+        drag_start_panel => undef,
         drag_start_offset=> 0,
         axis_drag_start_y=> undef,
         axis_drag_min_y  => undef,
@@ -249,6 +258,11 @@ sub render {
         $min_p = 20000;
         $max_p = 30000;
     }
+    if (!$self->{is_atr_auto_scale} && defined $self->{atr_manual_min_y} && defined $self->{atr_manual_max_y}) {
+        ($min_a, $max_a) = ($self->{atr_manual_min_y}, $self->{atr_manual_max_y});
+    } else {
+        ($self->{atr_manual_min_y}, $self->{atr_manual_max_y}) = ($min_a, $max_a);
+    }
     if (!defined $min_a || !defined $max_a || $min_a == $max_a) {
         $min_a = 0;
         $max_a = 100;
@@ -303,6 +317,8 @@ sub render {
     $self->_render_price_axis($price_scale, $visible_candles);
     $self->_render_atr_axis($atr_scale, $visible_atr);
     $self->_render_time_axis($price_scale, $time_labels);
+    $self->_draw_crosshair_all() if defined $self->{last_mouse_x};
+    $self->_redraw_pointer_symbol();
 }
 
 sub _render_price_axis {
@@ -367,6 +383,8 @@ sub _draw_price_axis_crosshair {
 
     my ($w, undef) = $self->_canvas_size($canvas);
     my $value = $scale->y_to_value($y);
+    my $tick = $scale->{tick_size} || 0.25;
+    $value = int($value / $tick + ($value >= 0 ? 0.5 : -0.5)) * $tick;
     my $label = sprintf('%.2f', $value);
     my $bg = $self->{theme}{label_bg} // '#363a45';
     my $fg = $self->{theme}{label_fg} // '#ffffff';
@@ -467,6 +485,26 @@ sub _set_cursor {
     eval { $widget->configure(-cursor => $cursor) };
 }
 
+sub _draw_pointer_symbol {
+    my ($self, $widget, $x, $y, $kind) = @_;
+
+    return unless defined $widget;
+    eval { $widget->delete('pointer_symbol') };
+}
+
+sub _clear_pointer_symbol {
+    my ($self, $widget) = @_;
+
+    eval { $widget->delete('pointer_symbol') } if defined $widget;
+    $self->{pointer_widget} = undef;
+}
+
+sub _redraw_pointer_symbol {
+    my ($self) = @_;
+
+    return;
+}
+
 sub _bind_all_canvas {
     my ($self) = @_;
     
@@ -474,6 +512,7 @@ sub _bind_all_canvas {
     my $p_canvas = $self->{price_canvas};
     my $a_canvas = $self->{atr_canvas};
     my $axis_canvas = $self->{price_axis_canvas};
+    my $atr_axis_canvas = $self->{atr_axis_canvas};
     my $time_canvas = $self->{time_axis_canvas};
     
     # 1. Binding nativo para el panel de Precios usando la sintaxis clásica 'bind'
@@ -522,6 +561,7 @@ sub _bind_all_canvas {
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_pointer_symbol($p_canvas);
         });
     }
     
@@ -557,17 +597,28 @@ sub _bind_all_canvas {
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $a_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($a_canvas); });
-        $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); });
+        $a_canvas->Tk::bind('<Key-a>', sub { $self->set_atr_scale_mode('auto'); });
+        $a_canvas->Tk::bind('<Key-m>', sub { $self->set_atr_scale_mode('manual'); });
+        $a_canvas->Tk::bind('<Key-plus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(0.9); });
+        $a_canvas->Tk::bind('<Key-minus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(1.1); });
+        $a_canvas->Tk::bind('<Up>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(-10); });
+        $a_canvas->Tk::bind('<Down>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(10); });
+        $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); $a_canvas->focus; });
         $a_canvas->Tk::bind('<Leave>', sub {
             $self->_set_cursor($a_canvas, 'crosshair');
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_pointer_symbol($a_canvas);
         });
     }
 
     if (defined $axis_canvas) {
+        $axis_canvas->Tk::bind('<Motion>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_draw_pointer_symbol($widget, $x, $y, 'v');
+        }, Tk::Ev('x'), Tk::Ev('y')]);
         $axis_canvas->Tk::bind('<ButtonPress-1>', [sub {
             my ($widget, $y) = @_;
             $self->_start_price_axis_drag($widget, $y);
@@ -579,7 +630,26 @@ sub _bind_all_canvas {
         $axis_canvas->Tk::bind('<ButtonRelease-1>', sub { $self->_end_price_axis_drag(); });
         $axis_canvas->Tk::bind('<Double-Button-1>', sub { $self->set_scale_mode('auto'); });
         $axis_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($axis_canvas, 'sb_v_double_arrow') });
-        $axis_canvas->Tk::bind('<Leave>', sub { $self->_set_cursor($axis_canvas, 'sb_v_double_arrow') });
+        $axis_canvas->Tk::bind('<Leave>', sub { $self->_set_cursor($axis_canvas, 'sb_v_double_arrow'); $self->_clear_pointer_symbol($axis_canvas); });
+    }
+
+    if (defined $atr_axis_canvas) {
+        $atr_axis_canvas->Tk::bind('<Motion>', [sub {
+            my ($widget, $x, $y) = @_;
+            $self->_draw_pointer_symbol($widget, $x, $y, 'v');
+        }, Tk::Ev('x'), Tk::Ev('y')]);
+        $atr_axis_canvas->Tk::bind('<ButtonPress-1>', [sub {
+            my ($widget, $y) = @_;
+            $self->_start_atr_axis_drag($widget, $y);
+        }, Tk::Ev('y')]);
+        $atr_axis_canvas->Tk::bind('<B1-Motion>', [sub {
+            my ($widget, $y) = @_;
+            $self->_on_atr_axis_drag($widget, $y);
+        }, Tk::Ev('y')]);
+        $atr_axis_canvas->Tk::bind('<ButtonRelease-1>', sub { $self->_end_atr_axis_drag(); });
+        $atr_axis_canvas->Tk::bind('<Double-Button-1>', sub { $self->_reset_atr_scale(); });
+        $atr_axis_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($atr_axis_canvas, 'sb_v_double_arrow') });
+        $atr_axis_canvas->Tk::bind('<Leave>', sub { $self->_set_cursor($atr_axis_canvas, 'sb_v_double_arrow'); $self->_clear_pointer_symbol($atr_axis_canvas); });
     }
 
     if (defined $time_canvas) {
@@ -619,6 +689,7 @@ sub _bind_all_canvas {
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_pointer_symbol($time_canvas);
         });
     }
 }
@@ -725,26 +796,58 @@ sub _clear_ctrl_zoom_state {
     $self->{ctrl_zoom_y_lock_max} = undef;
 }
 
+sub _wheel_zoom_delta {
+    my ($self, $step) = @_;
+
+    my $total = $self->{market_data}->size() || 0;
+    return 0 unless $total > 0;
+
+    my $old_visible = $self->{visible_bars} || MIN_VISIBLE_BARS;
+    my $max_visible = $total < MAX_VISIBLE_BARS ? $total : MAX_VISIBLE_BARS;
+    $max_visible = MIN_VISIBLE_BARS if $max_visible < MIN_VISIBLE_BARS;
+
+    my $zoom_scale = -$step / ZOOM_STEP;
+    my $factor = 1 + ($zoom_scale / 10);
+    $factor = 0.1 if $factor < 0.1;
+
+    my $new_visible = $self->round($old_visible / $factor);
+    $new_visible = MIN_VISIBLE_BARS if $new_visible < MIN_VISIBLE_BARS;
+    $new_visible = $max_visible if $new_visible > $max_visible;
+
+    if ($new_visible == $old_visible) {
+        if ($zoom_scale < 0 && $old_visible < $max_visible) {
+            $new_visible = $old_visible + 1;
+        } elsif ($zoom_scale > 0 && $old_visible > MIN_VISIBLE_BARS) {
+            $new_visible = $old_visible - 1;
+        }
+    }
+
+    return $new_visible - $old_visible;
+}
+
 sub _wheel_zoom {
     my ($self, $widget, $step, $x, $y, $state) = @_;
 
     if (defined $x) {
-        $self->{last_mouse_x} = $self->round($x);
+        $self->{last_mouse_x} = $self->_snap_crosshair_x($x);
         $self->{last_mouse_y} = $self->round($y) if defined $y;
         $self->{active_canvas} = $widget if defined $widget;
     }
+
+    my $delta = $self->_wheel_zoom_delta($step);
+    return if $delta == 0;
 
     my $ctrl_pressed = defined $state && ($state & CTRL_MASK);
     if ($ctrl_pressed) {
         my $anchor_x = $self->_zoom_anchor_x();
         if (defined $anchor_x) {
-            $self->_ctrl_horizontal_zoom($step, $anchor_x);
+            $self->_ctrl_horizontal_zoom($delta, $anchor_x);
             return;
         }
     }
 
     $self->_clear_ctrl_zoom_state();
-    $self->_horizontal_zoom($step, undef);
+    $self->_horizontal_zoom($delta, undef);
 }
 
 sub _ctrl_horizontal_zoom {
@@ -785,6 +888,7 @@ sub _ctrl_horizontal_zoom {
     ($new_start, $new_end) = $self->compute_window();
 
     $self->{ctrl_zoom_x_shift} = $anchor_x - (($anchor_global - $new_start + 0.5) * $new_bar_w);
+    $self->{last_mouse_x} = $self->round($anchor_x);
 
     if ($self->{is_auto_scale}) {
         $self->{ctrl_zoom_y_lock_min} = undef;
@@ -877,6 +981,15 @@ sub _horizontal_zoom {
     $offset = $self->round($offset);
     $self->{offset} = $self->_clamp_offset($offset);
 
+    if ($use_cursor_anchor) {
+        my ($new_start, undef) = $self->compute_window();
+        my $new_local = $anchor_index - $new_start;
+        $new_local = 0 if $new_local < 0;
+        $new_local = $new_visible - 1 if $new_local >= $new_visible;
+        $scale->{x_shift} = 0;
+        $self->{last_mouse_x} = $self->round($scale->index_to_center_x($new_local));
+    }
+
     # 7. Render diferido (coalescing).
     $self->request_render();
 }
@@ -889,6 +1002,7 @@ sub _start_horizontal_drag {
     my $root_y = eval { $widget->pointery() };
     $self->{drag_start_x} = defined $root_x ? $root_x : $x;
     $self->{drag_start_y} = defined $root_y ? $root_y : $y;
+    $self->{drag_start_panel} = defined $widget && defined $self->{atr_canvas} && $widget == $self->{atr_canvas} ? 'atr' : 'price';
     $self->{drag_start_offset} = $self->{offset};
 
     if (defined $widget) {
@@ -896,9 +1010,13 @@ sub _start_horizontal_drag {
         $self->{drag_cursor_canvas} = $widget;
     }
 
-    my $scale = $self->{price_panel} ? $self->{price_panel}->{scale} : undef;
-    $self->{drag_start_min_y} = defined $self->{manual_min_y} ? $self->{manual_min_y} : (defined $scale ? $scale->{min_y} : undef);
-    $self->{drag_start_max_y} = defined $self->{manual_max_y} ? $self->{manual_max_y} : (defined $scale ? $scale->{max_y} : undef);
+    my $price_scale = $self->{price_panel} ? $self->{price_panel}->{scale} : undef;
+    $self->{drag_start_min_y} = defined $self->{manual_min_y} ? $self->{manual_min_y} : (defined $price_scale ? $price_scale->{min_y} : undef);
+    $self->{drag_start_max_y} = defined $self->{manual_max_y} ? $self->{manual_max_y} : (defined $price_scale ? $price_scale->{max_y} : undef);
+
+    my $atr_scale = $self->{atr_panel} ? $self->{atr_panel}->{scale} : undef;
+    $self->{atr_drag_start_min_y} = defined $self->{atr_manual_min_y} ? $self->{atr_manual_min_y} : (defined $atr_scale ? $atr_scale->{min_y} : undef);
+    $self->{atr_drag_start_max_y} = defined $self->{atr_manual_max_y} ? $self->{atr_manual_max_y} : (defined $atr_scale ? $atr_scale->{max_y} : undef);
 }
 
 sub _on_horizontal_drag {
@@ -924,7 +1042,11 @@ sub _on_horizontal_drag {
 
     my $delta_bars = int(($current_x - $self->{drag_start_x}) / $bar_w);
     $self->{offset} = $self->_clamp_offset($self->{drag_start_offset} + $delta_bars);
-    $self->_apply_vertical_drag_from_start($current_y);
+    if (($self->{drag_start_panel} || 'price') eq 'atr') {
+        $self->_apply_atr_vertical_drag_from_start($current_y);
+    } else {
+        $self->_apply_vertical_drag_from_start($current_y);
+    }
     $self->request_render();
 }
 
@@ -932,10 +1054,11 @@ sub _on_time_axis_motion {
     my ($self, $widget, $x, $y) = @_;
 
     return unless defined $x;
-    $self->{last_mouse_x} = $self->round($x);
+    $self->{last_mouse_x} = $self->_snap_crosshair_x($x);
     $self->{last_mouse_y} = undef;
     $self->{active_canvas} = $widget if defined $widget;
     $self->_draw_crosshair_all();
+    $self->_draw_pointer_symbol($widget, $x, $y, 'h') if defined $widget && defined $y;
 }
 
 sub _start_time_axis_drag {
@@ -1000,6 +1123,28 @@ sub _apply_vertical_drag_from_start {
     $self->{manual_max_y} = $self->{drag_start_max_y} + $delta_value;
 }
 
+sub _apply_atr_vertical_drag_from_start {
+    my ($self, $current_y) = @_;
+
+    return if $self->{is_atr_auto_scale};
+    return unless defined $current_y;
+    return unless defined $self->{drag_start_y};
+    return unless defined $self->{atr_drag_start_min_y} && defined $self->{atr_drag_start_max_y};
+
+    my $range = $self->{atr_drag_start_max_y} - $self->{atr_drag_start_min_y};
+    return if $range <= 0;
+
+    my (undef, $height) = $self->_canvas_size($self->{atr_canvas});
+    return if $height <= 0;
+
+    my $dy = $current_y - $self->{drag_start_y};
+    return if $dy == 0;
+
+    my $delta_value = $dy * ($range / $height);
+    $self->{atr_manual_min_y} = $self->{atr_drag_start_min_y} + $delta_value;
+    $self->{atr_manual_max_y} = $self->{atr_drag_start_max_y} + $delta_value;
+}
+
 sub _start_price_axis_drag {
     my ($self, $widget, $y) = @_;
 
@@ -1055,6 +1200,86 @@ sub _end_price_axis_drag {
     $self->{axis_drag_max_y} = undef;
 }
 
+sub _start_atr_axis_drag {
+    my ($self, $widget, $y) = @_;
+
+    $self->_clear_ctrl_zoom_state();
+    $self->_set_cursor($widget, 'sb_v_double_arrow');
+    my $root_y = eval { $widget->pointery() };
+    $self->{atr_axis_drag_start_y} = defined $root_y ? $root_y : $y;
+
+    my $scale = $self->{atr_panel} ? $self->{atr_panel}->{scale} : undef;
+    my $min = defined $self->{atr_manual_min_y} ? $self->{atr_manual_min_y} : (defined $scale ? $scale->{min_y} : undef);
+    my $max = defined $self->{atr_manual_max_y} ? $self->{atr_manual_max_y} : (defined $scale ? $scale->{max_y} : undef);
+    return unless defined $min && defined $max && $max > $min;
+
+    $self->{atr_axis_drag_min_y} = $min;
+    $self->{atr_axis_drag_max_y} = $max;
+}
+
+sub _on_atr_axis_drag {
+    my ($self, $widget, $y) = @_;
+
+    return unless defined $self->{atr_axis_drag_start_y};
+    return unless defined $self->{atr_axis_drag_min_y} && defined $self->{atr_axis_drag_max_y};
+
+    my $root_y = eval { $widget->pointery() };
+    my $current_y = defined $root_y ? $root_y : $y;
+    return unless defined $current_y;
+
+    my $dy = $current_y - $self->{atr_axis_drag_start_y};
+    my $min = $self->{atr_axis_drag_min_y};
+    my $max = $self->{atr_axis_drag_max_y};
+    my $center = ($min + $max) / 2;
+    my $half = ($max - $min) / 2;
+
+    my $factor = exp($dy / 220);
+    $factor = 0.000001 if $factor < 0.000001;
+    $half *= $factor;
+
+    $self->{atr_manual_min_y} = $center - $half;
+    $self->{atr_manual_max_y} = $center + $half;
+    if ($self->{is_atr_auto_scale}) {
+        $self->set_atr_scale_mode('manual');
+    } else {
+        $self->request_render();
+    }
+}
+
+sub _end_atr_axis_drag {
+    my ($self) = @_;
+
+    $self->_set_cursor($self->{atr_axis_canvas}, 'sb_v_double_arrow');
+    $self->{atr_axis_drag_start_y} = undef;
+    $self->{atr_axis_drag_min_y} = undef;
+    $self->{atr_axis_drag_max_y} = undef;
+}
+
+sub _reset_atr_scale {
+    my ($self) = @_;
+
+    $self->set_atr_scale_mode('auto');
+}
+
+sub set_atr_scale_mode {
+    my ($self, $mode) = @_;
+
+    return unless defined $mode && ($mode eq 'auto' || $mode eq 'manual');
+    if ($mode eq 'auto') {
+        $self->{is_atr_auto_scale} = 1;
+        $self->{atr_manual_min_y} = undef;
+        $self->{atr_manual_max_y} = undef;
+    } else {
+        $self->{is_atr_auto_scale} = 0;
+    }
+
+    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
+        $self->{atr_scale_mode_callback}->($mode);
+    }
+
+    $self->request_render();
+}
+
 sub set_scale_mode {
     my ($self, $mode) = @_;
 
@@ -1100,8 +1325,11 @@ sub _end_drag {
     }
     $self->{drag_start_x} = undef;
     $self->{drag_start_y} = undef;
+    $self->{drag_start_panel} = undef;
     $self->{drag_start_min_y} = undef;
     $self->{drag_start_max_y} = undef;
+    $self->{atr_drag_start_min_y} = undef;
+    $self->{atr_drag_start_max_y} = undef;
     $self->{drag_cursor_canvas} = undef;
 }
 
@@ -1147,12 +1375,72 @@ sub _vertical_zoom {
     $self->request_render();
 }
 
+sub _atr_vertical_drag {
+    my ($self, $dy) = @_;
+
+    return if $self->{is_atr_auto_scale};
+    return if !$dy || $dy == 0;
+
+    my $atr_scale = $self->{atr_panel}->{scale};
+    return if !defined $atr_scale;
+
+    my $val_at_zero = $atr_scale->y_to_value(0);
+    my $val_at_one  = $atr_scale->y_to_value(1);
+    my $units_per_pixel = $val_at_zero - $val_at_one;
+
+    my $value_delta = $dy * $units_per_pixel;
+
+    $self->{atr_manual_min_y} += $value_delta;
+    $self->{atr_manual_max_y} += $value_delta;
+
+    $self->request_render();
+}
+
+sub _atr_vertical_zoom {
+    my ($self, $factor) = @_;
+
+    return if $self->{is_atr_auto_scale};
+    return if !$factor || $factor <= 0;
+
+    my $min = $self->{atr_manual_min_y};
+    my $max = $self->{atr_manual_max_y};
+    return if !defined $min || !defined $max;
+
+    my $center = ($min + $max) / 2;
+    my $half_range = ($max - $min) / 2;
+
+    $half_range *= $factor;
+
+    $self->{atr_manual_min_y} = $center - $half_range;
+    $self->{atr_manual_max_y} = $center + $half_range;
+
+    $self->request_render();
+}
+
+sub _snap_crosshair_x {
+    my ($self, $raw_x) = @_;
+
+    return undef unless defined $raw_x;
+    my ($start, $end) = $self->compute_window();
+    my $bars = $end - $start + 1;
+    return $self->round($raw_x) if $bars < 1;
+
+    my $scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $local = $scale->x_to_index($raw_x);
+    return $self->round($scale->index_to_center_x($local));
+}
+
 sub _on_mouse_move {
     my ($self, $widget, $raw_x, $raw_y) = @_;
     
     return if !defined $raw_x || !defined $raw_y;
     
-    my $pixel_x = $self->round($raw_x);
+    my $pixel_x = $self->_snap_crosshair_x($raw_x);
     my $pixel_y = $self->round($raw_y);
     
     $self->{last_mouse_x} = $pixel_x;
@@ -1160,6 +1448,7 @@ sub _on_mouse_move {
     $self->{active_canvas} = $widget;
     
     $self->_draw_crosshair_all();
+    $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
 }
 
 # _crosshair_time_label — texto de tiempo (HH:MM) de la vela bajo el cursor (Req. 7.4).
@@ -1202,6 +1491,7 @@ sub _crosshair_time_label {
         right_margin => RIGHT_MARGIN,
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
 
     # X -> índice LOCAL (acotado por Scales a [0, bars-1]) -> índice GLOBAL.
     my $local  = $scale->x_to_index($last_x);
@@ -1280,6 +1570,12 @@ sub set_timeframe {
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
     $self->{manual_max_y} = undef;
+    $self->{is_atr_auto_scale} = 1;
+    $self->{atr_manual_min_y} = undef;
+    $self->{atr_manual_max_y} = undef;
+    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
+        $self->{atr_scale_mode_callback}->('auto');
+    }
     $self->_clear_ctrl_zoom_state();
     $self->reset_view();
 }
@@ -1292,6 +1588,12 @@ sub reset_view {
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
     $self->{manual_max_y} = undef;
+    $self->{is_atr_auto_scale} = 1;
+    $self->{atr_manual_min_y} = undef;
+    $self->{atr_manual_max_y} = undef;
+    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
+        $self->{atr_scale_mode_callback}->('auto');
+    }
     $self->_clear_ctrl_zoom_state();
     $self->request_render();
 }
@@ -1302,7 +1604,9 @@ sub reset_view {
 # Produce un arrayref de etiquetas enriquecidas con la forma:
 #       { index => <índice LOCAL en la ventana visible>,
 #         text  => <'HH:MM' o 'DD Mon'>,
-#         is_date => 0|1 }
+#         is_date => 0|1,
+#         grid => 0|1,
+#         label => 0|1 }
 #
 # Convención de índice (CRÍTICA): el `index` de salida es LOCAL (0-based dentro de la
 # ventana visible), porque las velas se dibujan con índices locales 0..N-1 y
@@ -1310,17 +1614,13 @@ sub reset_view {
 # El índice local se obtiene como `global - start`, robusto frente a timestamps
 # omitidos (no es la posición del bucle).
 #
-# Espaciado DINÁMICO (Req. 5.6): se parte de step = 1 y se aumenta hasta que la
-# separación en píxeles entre cualquier par de etiquetas adyacentes —medida SIEMPRE
-# vía Scales->index_to_center_x, respetando la regla de oro de coordenadas— sea
-# >= 40 px. Las etiquetas regulares se eligen por índice GLOBAL divisible por step;
-# así la cuadrícula temporal se mueve junto con las velas durante el drag.
+# Espaciado temporal (Req. 5.6): la cuadrícula usa timestamps reales alineados al
+# reloj según una escalera de intervalos. En 1m con intervalo 5, marca :00, :05,
+# :10, etc.; nunca fases arbitrarias como :02, :07 por efecto del zoom.
 #
-# Cambios de día (Req. 6.1, 6.4): se fuerza SIEMPRE la inclusión de los índices de
-# cambio de día devueltos por MarketData::compute_time_anchors (arrayref de hashes
-# { index => <GLOBAL>, is_date => 0|1 }). Los índices globales se filtran al rango
-# visible y se convierten a locales (global - start). Las etiquetas en esos índices
-# llevan is_date => 1 y se formatean como fecha "DD Mon".
+# Cambios de día (Req. 6.1, 6.4): en zoom amplio se muestran fechas sobre el mismo
+# stride uniforme; no se insertan anclas extra fuera del ritmo para evitar distancias
+# visuales irregulares entre líneas verticales.
 #
 # Casos límite:
 #   * Ventana sin barras => lista vacía sin error (Req. 5.7).
@@ -1353,63 +1653,72 @@ sub compute_intraday_labels {
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
 
-    # Índices LOCALES con cambio de DÍA (is_date == 1) dentro de la ventana visible.
-    # compute_time_anchors entrega índices GLOBALES; se filtran al rango [start,end]
-    # y se convierten a local = global - start.
-    my %is_date_local;
-    my $anchors = $self->{market_data}->compute_time_anchors();
-    for my $a (@$anchors) {
-        next unless $a->{is_date};
-        my $g = $a->{index};
-        next if $g < $start || $g > $end;
-        $is_date_local{ $g - $start } = 1;
-    }
-    my @date_locals = sort { $a <=> $b } keys %is_date_local;
-
     # Mapa índice LOCAL => Time::Moment de cada vela visible con timestamp parseable.
     my %tm_by_local;
     for my $el (@$visible_elements) {
         $tm_by_local{ $el->{index} - $start } = $el->{ts};
     }
 
-    # Selección con espaciado dinámico >= 40 px. Las etiquetas regulares se alinean
-    # por índice GLOBAL, no por posición local, para que la cuadrícula temporal se
-    # desplace con las velas durante el drag horizontal.
-    my $step = 1;
-    my @chosen;
-    while (1) {
-        my %set;
-        for my $el (@$visible_elements) {
-            my $global = $el->{index};
-            next if $global % $step != 0;
-            $set{$global - $start} = 1;
-        }
-        $set{$_} = 1 for @date_locals;   # forzar inclusión de cambios de día
+    my $bar_w = $bars > 0 ? $scale->plot_width() / $bars : 1;
+    $bar_w = 1 if $bar_w <= 0;
+    my $tf_minutes = $self->_timeframe_minutes();
+    my $interval_minutes = $self->_time_axis_interval_minutes($tf_minutes, $bar_w);
 
-        my @idxs = sort { $a <=> $b } keys %set;
+    my @items;
+    my $date_mode = ($interval_minutes >= 180) ? 1 : 0;
+    my $last_day_key;
 
-        my $ok = 1;
-        for (my $j = 1; $j < @idxs; $j++) {
-            my $dx = $scale->index_to_center_x($idxs[$j])
-                   - $scale->index_to_center_x($idxs[$j - 1]);
-            if ($dx < 40) { $ok = 0; last; }
-        }
+    for my $el (@$visible_elements) {
+        my $global = $el->{index};
+        next if $global < $start || $global > $end;
+        my $local = $global - $start;
+        my $tm = $tm_by_local{$local};
+        next unless defined $tm;
+        next unless $self->_is_time_axis_boundary($tm, $interval_minutes);
 
-        if ($ok || $step >= $bars) {
-            @chosen = @idxs;
-            last;
-        }
-        $step++;
+        my $day_key = sprintf('%04d-%02d-%02d', $tm->year, $tm->month, $tm->day_of_month);
+        my $is_date = (!defined $last_day_key || $day_key ne $last_day_key) ? 1 : 0;
+        my $show_label = $date_mode ? $is_date : 1;
+        my $text = $self->_time_label_for_index($tm, $date_mode ? 1 : $is_date);
+        next unless defined $text;
+
+        push @items, {
+            index   => $local,
+            text    => $text,
+            is_date => $date_mode ? 1 : $is_date,
+            grid    => 1,
+            label   => $show_label,
+            x       => $scale->index_to_center_x($local),
+            w       => length($text) * 7 + 16,
+        };
+        $last_day_key = $day_key;
     }
 
-    # Construir las etiquetas de izquierda a derecha (índices ya ordenados).
-    for my $local (@chosen) {
-        my $tm = $tm_by_local{$local};
-        next unless defined $tm;   # sin timestamp parseable => se omite (Req. 5.8)
-        my $is_date = $is_date_local{$local} ? 1 : 0;
-        my $text = $self->_time_label_for_index($tm, $is_date);
-        next unless defined $text; # formato fallido => se omite, continúan las demás
-        push @labels, { index => $local, text => $text, is_date => $is_date };
+    my @label_boxes;
+    for my $item (sort { $b->{is_date} <=> $a->{is_date} || $a->{x} <=> $b->{x} } @items) {
+        my $left = $item->{x} - $item->{w} / 2;
+        my $right = $item->{x} + $item->{w} / 2;
+        my $ok = 1;
+        for my $box (@label_boxes) {
+            if ($left < $box->{right} + 8 && $right > $box->{left} - 8) {
+                $ok = 0;
+                last;
+            }
+        }
+        $item->{label} = $ok ? 1 : 0;
+        push @label_boxes, { left => $left, right => $right } if $ok;
+    }
+
+    my $visible_count = 0;
+    for my $item (@items) {
+        $visible_count++ if $item->{label};
+    }
+    if ($visible_count == 0 && @items) {
+        $items[int(@items / 2)]->{label} = 1;
+    }
+
+    for my $item (sort { $a->{index} <=> $b->{index} } @items) {
+        push @labels, { index => $item->{index}, text => $item->{text}, is_date => $item->{is_date}, grid => $item->{grid}, label => $item->{label} };
     }
 
     return \@labels;
@@ -1431,6 +1740,36 @@ sub compute_intraday_labels {
 #
 # Devuelve undef si $tm no es un Time::Moment utilizable (timestamp no parseable),
 # para que el llamador omita esa etiqueta y continúe con las demás (Req. 5.8).
+sub _is_time_axis_boundary {
+    my ($self, $tm, $interval_minutes) = @_;
+
+    return 0 unless defined $tm && ref($tm) eq 'Time::Moment';
+    return 0 unless defined $interval_minutes && $interval_minutes > 0;
+
+    if ($interval_minutes < 1440) {
+        my $minutes = $tm->hour * 60 + $tm->minute;
+        return ($minutes % $interval_minutes) == 0 ? 1 : 0;
+    }
+
+    return $tm->hour == 0 && $tm->minute == 0 ? 1 : 0;
+}
+
+sub _time_axis_interval_minutes {
+    my ($self, $tf_minutes, $bar_w) = @_;
+
+    my @ladder = $tf_minutes == 1
+        ? (1, 5, 15, 60, 180, 720, 1440)
+        : $tf_minutes == 5
+            ? (5, 15, 60, 180, 720, 1440)
+            : (15, 30, 60, 90, 360, 720, 1440, 2880);
+    my $target_px = 100;
+    for my $interval (@ladder) {
+        my $px = ($interval / $tf_minutes) * $bar_w;
+        return $interval if $px >= $target_px;
+    }
+    return $ladder[-1];
+}
+
 sub _time_label_for_index {
     my ($self, $tm, $is_date) = @_;
 

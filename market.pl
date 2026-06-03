@@ -170,6 +170,8 @@ my $atr_canvas = $atr_frame->Canvas(
 # 4. INSTANCIAR EL MOTOR ORQUESTADOR (CHART ENGINE)
 # ==========================================
 my $scale_mode = 'auto';
+my $atr_scale_mode = 'auto';
+my $active_tf = '1m';
 
 my $chart_engine = Market::ChartEngine->new(
     market_data       => $market_data,
@@ -180,6 +182,7 @@ my $chart_engine = Market::ChartEngine->new(
     atr_axis_canvas   => $atr_axis_canvas,
     time_axis_canvas  => $time_axis_canvas,
     scale_mode_callback => sub { $scale_mode = $_[0] },
+    atr_scale_mode_callback => sub { $atr_scale_mode = $_[0] },
     theme             => \%theme
 );
 
@@ -187,26 +190,61 @@ $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
 # Conectar botones al motor usando los sufijos 'm' para coincidir con MarketData.pm
 
-$frame_controles->Button(-text => "1 Minuto",   -command => sub { $chart_engine->set_timeframe('1m') })->pack(-side => 'left', -padx => 2);
-$frame_controles->Button(-text => "5 Minutos",  -command => sub { $chart_engine->set_timeframe('5m') })->pack(-side => 'left', -padx => 2);
-$frame_controles->Button(-text => "15 Minutos", -command => sub { $chart_engine->set_timeframe('15m') })->pack(-side => 'left', -padx => 2);
-
-$frame_controles->Label(-text => "  Escala: ")->pack(-side => 'left', -padx => 6);
-
 $frame_controles->Radiobutton(
+    -text     => "1 Minuto",
+    -value    => '1m',
+    -variable => \$active_tf,
+    -indicatoron => 0,
+    -command  => sub { $chart_engine->set_timeframe('1m') },
+)->pack(-side => 'left', -padx => 2);
+$frame_controles->Radiobutton(
+    -text     => "5 Minutos",
+    -value    => '5m',
+    -variable => \$active_tf,
+    -indicatoron => 0,
+    -command  => sub { $chart_engine->set_timeframe('5m') },
+)->pack(-side => 'left', -padx => 2);
+$frame_controles->Radiobutton(
+    -text     => "15 Minutos",
+    -value    => '15m',
+    -variable => \$active_tf,
+    -indicatoron => 0,
+    -command  => sub { $chart_engine->set_timeframe('15m') },
+)->pack(-side => 'left', -padx => 2);
+
+
+my $price_scale_controls = $frame_controles->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 14, -pady => 2);
+$price_scale_controls->Label(-text => "Precio: ")->pack(-side => 'left', -padx => 6);
+$price_scale_controls->Radiobutton(
     -text     => 'Auto',
     -value    => 'auto',
     -variable => \$scale_mode,
     -command  => sub { $chart_engine->set_scale_mode('auto') },
 )->pack(-side => 'left', -padx => 2);
-$frame_controles->Radiobutton(
+$price_scale_controls->Radiobutton(
     -text     => 'Manual',
     -value    => 'manual',
     -variable => \$scale_mode,
     -command  => sub { $chart_engine->set_scale_mode('manual') },
 )->pack(-side => 'left', -padx => 2);
 
-$frame_controles->Button(-text => "Reset Vista",-command => sub { $chart_engine->reset_view() })->pack(-side => 'right', -padx => 20);
+my $atr_scale_controls = $frame_controles->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'right', -padx => 14, -pady => 2);
+$frame_controles->Button(-text => "Reset Vista", -command => sub { $chart_engine->reset_view() })->pack(-side => 'right', -padx => 20);
+$atr_scale_controls->Label(-text => "ATR: ")->pack(-side => 'left', -padx => 6);
+$atr_scale_controls->Radiobutton(
+    -text     => 'Auto',
+    -value    => 'auto',
+    -variable => \$atr_scale_mode,
+    -command  => sub { $chart_engine->set_atr_scale_mode('auto') },
+)->pack(-side => 'left', -padx => 2);
+$atr_scale_controls->Radiobutton(
+    -text     => 'Manual',
+    -value    => 'manual',
+    -variable => \$atr_scale_mode,
+    -command  => sub { $chart_engine->set_atr_scale_mode('manual') },
+)->pack(-side => 'left', -padx => 2);
+
+
 
 # ==========================================
 # 5. DISPARAR RENDER Y LOOP GRÁFICO (CON ESTABILIDAD PARA WAYLAND)
