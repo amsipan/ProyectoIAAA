@@ -744,4 +744,96 @@ sub build_ohlc_vol {
     is(scalar(@$zones1), scalar(@$zones2), 'equiv zones: mismo número tras reset');
 }
 
+# =============================================================================
+# TASK 0013: Volume multi-TF timestamp-based validation
+# =============================================================================
+{
+    # Construir un fixture de 35 velas de 1m (índices 0..34)
+    # con precio de fondo plano de 10 para evitar otros swings.
+    # Cada vela tiene un volumen secuencial igual a su índice + 1.
+    my @c = (
+        # 0..9: flat
+        [10, 10, 10, 10, 1],   [10, 10, 10, 10, 2],   [10, 10, 10, 10, 3],
+        [10, 10, 10, 10, 4],   [10, 10, 10, 10, 5],   [10, 10, 10, 10, 6],
+        [10, 10, 10, 10, 7],   [10, 10, 10, 10, 8],   [10, 10, 10, 10, 9],
+        [10, 10, 10, 10, 10],
+        # 10 (Swing High at index 10, price = 15.0)
+        [10, 15, 10, 10, 11],
+        # 11..14
+        [10, 10, 10, 10, 12],  [10, 10, 10, 10, 13],  [10, 10, 10, 10, 14],
+        [10, 10, 10, 10, 15],
+        # 15 (Swing High at index 15, price = 16.0) -> confirms index 10 SH
+        [10, 16, 10, 10, 16],
+        # 16 (confirms index 15 SH, BSL level at index 10 registered)
+        [10, 10, 10, 10, 17],
+        # 17..22 (stay below BSL level 15)
+        [10, 10, 10, 10, 18],  [10, 10, 10, 10, 19],  [10, 10, 10, 10, 20],
+        [10, 10, 10, 10, 21],  [10, 10, 10, 10, 22],  [10, 10, 10, 10, 23],
+        # 23 (High = 17 > 15 -> Swept, Close = 16 -> consec = 1)
+        [10, 17, 10, 16, 24],
+        # 24 (Close = 16 -> consec = 2)
+        [10, 16, 10, 16, 25],
+        # 25 (Close = 16 -> consec = 3 -> RUN resolved)
+        [10, 16, 10, 16, 26],
+        # 26..34: flat
+        [10, 10, 10, 10, 27],  [10, 10, 10, 10, 28],  [10, 10, 10, 10, 29],
+        [10, 10, 10, 10, 30],  [10, 10, 10, 10, 31],  [10, 10, 10, 10, 32],
+        [10, 10, 10, 10, 33],  [10, 10, 10, 10, 34],  [10, 10, 10, 10, 35],
+    );
+
+    my $md = build_ohlc_vol(\@c);
+    $md->build_tf_candles('5m');
+    $md->build_tf_candles('15m');
+    $md->build_tf_candles('1h');
+
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my $events = $liq->get_events();
+
+    my @run = events_of_type($events, 'RUN');
+    is(scalar(@run), 1, 'TASK 0013: se emitio exactamente un RUN');
+
+    my $meta = $run[0]->{meta};
+    ok(defined $meta, 'TASK 0013: meta esta definido');
+
+    # 1. v1m exacto: sum(11..26) = 296
+    is($meta->{v1m}, 296, 'TASK 0013: v1m es exactamente 296');
+
+    # 2. v5m / v15m exactos por timestamp
+    # 5m: sum(65, 90, 115, 140) = 410
+    is($meta->{v5m}, 410, 'TASK 0013: v5m es exactamente 410');
+    # 15m: sum(345) = 345
+    is($meta->{v15m}, 345, 'TASK 0013: v15m es exactamente 345');
+
+    is($meta->{internal}, 1, 'TASK 0013: internal es 1 en TF activo 1m');
+
+    # 3. TF macro no afecta el volumen (el volumen multi-TF es independiente del TF visible)
+    # Comparamos la salida de _compute_event_meta de forma directa sobre el mismo rango temporal:
+    # Rango temporal equivalente de toda la serie disponible:
+    # - En 1m: index 0 (00:00) a 34 (00:34), ts_end_next = 00:35:00.
+    # - En 1h: index 0 (00:00) a 0 (00:00), ts_end_next = 01:00:00.
+    # Como no hay velas despues de 00:34, ambos rangos cubren exactamente el mismo conjunto de velas.
+    $md->set_timeframe('1m');
+    my $meta_from_1m = $liq->_compute_event_meta({ index => 0, price => 15 }, 34);
+
+    $md->set_timeframe('1h');
+    my $meta_from_1h = $liq->_compute_event_meta({ index => 0, price => 15 }, 0);
+
+    is($meta_from_1h->{v1m},  $meta_from_1m->{v1m},  'TASK 0013: v1m coincide entre TFs (1m vs 1h)');
+    is($meta_from_1h->{v5m},  $meta_from_1m->{v5m},  'TASK 0013: v5m coincide entre TFs (1m vs 1h)');
+    is($meta_from_1h->{v15m}, $meta_from_1m->{v15m}, 'TASK 0013: v15m coincide entre TFs (1m vs 1h)');
+    is($meta_from_1h->{internal}, 0, 'TASK 0013: internal es 0 para active_tf 1h');
+    is($meta_from_1m->{internal}, 1, 'TASK 0013: internal es 1 para active_tf 1m');
+
+    # 4. Replay guard e incremental == batch (restablecemos a 1m)
+    $md->set_timeframe('1m');
+    is(scalar($D->replay_violations($events, $md->last_index)), 0,
+       'TASK 0013: replay guard sin violaciones en eventos');
+
+    $liq->reset();
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my $events_batch = $liq->get_events();
+    is(scalar(@$events), scalar(@$events_batch), 'TASK 0013: equiv incremental == batch');
+}
+
 done_testing();

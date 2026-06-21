@@ -1,6 +1,7 @@
 package Market::Indicators::Liquidity;
 use strict;
 use warnings;
+use Time::Moment;
 
 # =============================================================================
 # Market::Indicators::Liquidity — swings, EQH/EQL, BSL/SSL + Sweep/Grab/Run FSM
@@ -385,9 +386,12 @@ sub _compute_event_meta {
     my $active_tf = $md ? $md->{active_tf} : '1m';
     my $internal = ($active_tf eq '1m' || $active_tf eq '5m' || $active_tf eq '15m') ? 1 : 0;
 
-    my $v1m  = $self->_sum_volume_for_tf('1m',  $lvl->{index}, $resolve_index);
-    my $v5m  = $self->_sum_volume_for_tf('5m',  $lvl->{index}, $resolve_index);
-    my $v15m = $self->_sum_volume_for_tf('15m', $lvl->{index}, $resolve_index);
+    my $ts_start = $md ? $md->get_timestamp($lvl->{index}) : undef;
+    my $ts_end   = $md ? $md->get_timestamp($resolve_index) : undef;
+
+    my $v1m  = ($ts_start && $ts_end) ? $self->_sum_volume_for_tf('1m',  $ts_start, $ts_end) : 0;
+    my $v5m  = ($ts_start && $ts_end) ? $self->_sum_volume_for_tf('5m',  $ts_start, $ts_end) : 0;
+    my $v15m = ($ts_start && $ts_end) ? $self->_sum_volume_for_tf('15m', $ts_start, $ts_end) : 0;
 
     return {
         v1m      => $v1m,
@@ -397,24 +401,66 @@ sub _compute_event_meta {
     };
 }
 
+# _sum_volume_for_tf — Sums the volume for a specific timeframe within a temporal range.
+#
+# Arguments:
+#   $tf: Target timeframe to sum volume for (e.g., '1m', '5m', '15m')
+#   $ts_start_str: Start timestamp of the event range (inclusive)
+#   $ts_end_str: End timestamp of the event range (the start timestamp of the resolving candle, inclusive)
+#
+# Upper boundary convention:
+#   Since $ts_end_str is the start time of the resolving candle in the active TF, the event actually covers
+#   until the end of that resolving candle. The end of the resolving candle is exactly when the next active
+#   candle would start (ts_end_next).
+#   We include any sub-candle of the target $tf whose bucket starts at or after $ts_start_str and strictly
+#   before $ts_end_next (i.e. ts_start <= ts < ts_end_next).
 sub _sum_volume_for_tf {
-    my ($self, $tf, $from_idx, $to_idx) = @_;
+    my ($self, $tf, $ts_start_str, $ts_end_str) = @_;
     my $md = $self->{_market_data};
     return 0 unless $md;
     my $arr = $md->{data}->{$tf};
     return 0 unless $arr && @$arr;
 
-    my $total = 0;
-    my $start = $from_idx;
-    my $end   = $to_idx;
+    my $tm_start = eval { Time::Moment->from_string($ts_start_str) };
+    return 0 unless $tm_start;
+    my $ts_start_epoch = $tm_start->epoch;
 
-    # ponytail: if TF != active, indices may not align 1:1.
-    # For 1m data (always the base), indices align with active if active is 1m.
-    # For other TFs, we use the same index range (best effort on synthetic test data).
-    for my $i ($start .. $end) {
-        last if $i > $#$arr;
-        my $c = $arr->[$i];
-        $total += $c->[5] if $c && defined $c->[5];
+    my $tm_end = eval { Time::Moment->from_string($ts_end_str) };
+    return 0 unless $tm_end;
+
+    # Determine ts_end_next based on the active timeframe (active_tf) duration
+    my $active_tf = $md->{active_tf} // '1m';
+    my $tm_end_next;
+    if ($active_tf eq '1m') {
+        $tm_end_next = $tm_end->plus_minutes(1);
+    } elsif ($active_tf eq '5m') {
+        $tm_end_next = $tm_end->plus_minutes(5);
+    } elsif ($active_tf eq '15m') {
+        $tm_end_next = $tm_end->plus_minutes(15);
+    } elsif ($active_tf eq '1h') {
+        $tm_end_next = $tm_end->plus_hours(1);
+    } elsif ($active_tf eq '2h') {
+        $tm_end_next = $tm_end->plus_hours(2);
+    } elsif ($active_tf eq '4h') {
+        $tm_end_next = $tm_end->plus_hours(4);
+    } elsif ($active_tf eq 'D') {
+        $tm_end_next = $tm_end->plus_days(1);
+    } elsif ($active_tf eq 'W') {
+        $tm_end_next = $tm_end->plus_weeks(1);
+    } else {
+        $tm_end_next = $tm_end->plus_minutes(1);
+    }
+    my $ts_end_next_epoch = $tm_end_next->epoch;
+
+    my $total = 0;
+    for my $c (@$arr) {
+        next unless $c && defined $c->[0];
+        my $tm = eval { Time::Moment->from_string($c->[0]) };
+        next unless $tm;
+        my $epoch = $tm->epoch;
+        if ($epoch >= $ts_start_epoch && $epoch < $ts_end_next_epoch) {
+            $total += $c->[5] if defined $c->[5];
+        }
     }
     return $total;
 }
