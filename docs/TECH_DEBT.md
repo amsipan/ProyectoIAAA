@@ -4,20 +4,15 @@ Clasificada por severidad. No se resuelve aquí; solo se documenta. Última act.
 
 ## Crítico
 
-### Indicadores se alimentan hasta el fin del dataset en Replay — task 0015 abierta
-- **Descripción:** `ChartEngine::render` (cableado de 0008/0012) llama `update_last` de SMC/Liquidity
-  hasta `size()-1` aunque Replay esté activo, filtrando solo el DIBUJO por `index<=end`. Como los
-  indicadores son incrementales con estado, eso filtra futuro: un FVG anclado en `index<=replay_idx`
-  muestra mitigación causada por velas futuras; pivotes se confirman con velas futuras
-  (`swing` en `j=index-k` necesita k velas posteriores); step-backward no recalcula.
-- **Impacto:** viola el criterio duro del PDF §3 ("recalcular únicamente hasta la última vela del
-  puntero del Replay"). No afecta la vista normal (sin Replay); se manifiesta al cablear la UI de
-  Replay (0004).
-- **Evidencia:** `ChartEngine.pm` render líneas ~399-421 (`$last = size()-1`, comentario que asume
-  que el filtro `index<=end` basta).
-- **Recomendación:** task `0015-replay-indicator-truncation.md` (alimentar hasta `replay_idx` con
-  reset+realimentación en retroceso). Resolver ANTES de 0004.
-- **¿Bloquea escalabilidad?:** sí para la corrección del Replay; resolver antes de la UI de Replay.
+### [RESUELTO 2026-06-21] Indicadores se alimentaban hasta el fin del dataset en Replay — task 0015
+- **Era:** `ChartEngine::render` alimentaba SMC/Liquidity hasta `size()-1` aunque Replay estuviera
+  activo, filtrando solo el dibujo → fuga de futuro (FVG mitigado por velas futuras, pivotes
+  confirmados con futuro).
+- **Fix:** `sync_overlay_indicators` alimenta hasta `replay_idx` (activo) o `size()-1` (inactivo);
+  `_feed_indicator_to` hace avance incremental o `reset()`+realimentación en retroceso. Test `t/16`
+  verifica `mitig==0` parado en la formación del FVG, compara contra referencia 0..I, y documenta que
+  el cableado viejo daba `mitig=0.3` (fuga). 597/597 PASS.
+- **¿Bloquea?:** ya no. Replay listo para cablear a UI (0004).
 
 (Sin otras bloqueantes. La Fase 1 funciona y está evaluada.)
 

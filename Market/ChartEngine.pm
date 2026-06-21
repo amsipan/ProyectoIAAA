@@ -174,6 +174,67 @@ sub compute_window {
     return ($start_idx, $end_idx);
 }
 
+# sync_overlay_indicators — task 0015.
+# Lleva los indicadores SMC y Liquidity exactamente al tope de alimentación
+# efectivo según el estado de Replay. Los indicadores son máquinas
+# incrementales con estado; alimentarlos hasta el fin del dataset filtra
+# futuro (FVG mitigado por velas futuras, pivotes confirmados con velas
+# futuras) aunque el overlay filtre el dibujo por index <= end. Corrección:
+#   * Replay ACTIVO   → feed_to = replay_controller->current_index (replay_idx).
+#   * Replay INACTIVO → feed_to = size()-1 (vista normal intacta).
+# El avance/retroceso de cada indicador lo resuelve _feed_indicator_to.
+# Es público para que t/16 pueda verificar el cableado sin invocar render()
+# (que requiere UI completa) pero NO se invoca desde fuera de ChartEngine en
+# producción.
+sub sync_overlay_indicators {
+    my ($self) = @_;
+    return unless $self->{overlay_manager};
+
+    my $replay   = $self->{replay_controller};
+    my $last_idx = $self->{market_data}->size() - 1;
+    my $feed_to;
+    if ($replay && $replay->is_active() && defined $replay->current_index()) {
+        $feed_to = $replay->current_index();
+        $feed_to = $last_idx if defined $last_idx && $feed_to > $last_idx;
+    } else {
+        $feed_to = $last_idx;
+    }
+
+    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
+    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
+    return $feed_to;
+}
+
+# _feed_indicator_to($indicator, $cursor_key, $feed_to)
+# task 0015: lleva un indicador incremental exactamente al índice $feed_to,
+# respetando el cursor $self->{$cursor_key} (último índice ya alimentado).
+#   * Avance (feed_to > cursor): update_last de cursor+1 .. feed_to.
+#   * Retroceso (feed_to < cursor): reset() + realimentar 0 .. feed_to.
+# El indicador refleja entonces el estado que tendría si el dataset terminara
+# en feed_to (cero fuga de futuro en Replay). Mismo patrón para SMC y Liquidity.
+sub _feed_indicator_to {
+    my ($self, $indicator, $cursor_key, $feed_to) = @_;
+    return unless $indicator && defined $feed_to;
+    return if $feed_to < 0;
+
+    my $fed_up_to = $self->{$cursor_key};
+    $fed_up_to = -1 unless defined $fed_up_to;
+
+    if ($feed_to > $fed_up_to) {
+        for my $i ($fed_up_to + 1 .. $feed_to) {
+            $indicator->update_last($self->{market_data}, $i);
+        }
+        $self->{$cursor_key} = $feed_to;
+    } elsif ($feed_to < $fed_up_to) {
+        $indicator->reset();
+        for my $i (0 .. $feed_to) {
+            $indicator->update_last($self->{market_data}, $i);
+        }
+        $self->{$cursor_key} = $feed_to;
+    }
+    return;
+}
+
 sub round {
     my ($self, $value) = @_;
 
@@ -389,36 +450,16 @@ sub render {
     $self->_render_atr_axis($atr_scale, $visible_atr);
     $self->_render_time_axis($price_scale, $time_labels);
 
-    # spec 0003: overlays — compute + draw respetando replay_idx (start/end
-    # ya vienen truncados por compute_window si Replay está activo).
+    # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx
+    # (start/end ya vienen truncados por compute_window si Replay está activo).
     if ($self->{overlay_manager}) {
-        # Alimentar el indicador SMC incrementalmente hasta el final del dataset
-        # (los getters son no-mutantes desde task 0014, así podemos mantener el
-        # cómputo completo sin corromper la FSM). El overlay filtra por ventana y
-        # por index <= end, garantizando cero fuga de futuro en Replay.
-        if ($self->{smc_indicator} && defined $end) {
-            my $last = $self->{market_data}->size() - 1;
-            if ($last >= 0 && $self->{_smc_fed_up_to} < $last) {
-                my $from = $self->{_smc_fed_up_to} + 1;
-                $self->{_smc_fed_up_to} = -1 if $self->{_smc_fed_up_to} >= $last;
-                for my $i ($from .. $last) {
-                    $self->{smc_indicator}->update_last($self->{market_data}, $i);
-                }
-                $self->{_smc_fed_up_to} = $last;
-            }
-        }
-        # spec 0005 / task 0012: alimentación incremental del indicador de
-        # liquidez (mismo criterio que SMC). El overlay filtra por replay_idx.
-        if ($self->{liq_indicator} && defined $end) {
-            my $last = $self->{market_data}->size() - 1;
-            if ($last >= 0 && $self->{_liq_fed_up_to} < $last) {
-                my $from = $self->{_liq_fed_up_to} + 1;
-                for my $i ($from .. $last) {
-                    $self->{liq_indicator}->update_last($self->{market_data}, $i);
-                }
-                $self->{_liq_fed_up_to} = $last;
-            }
-        }
+        # task 0015: el cableado de alimentación de los indicadores SMC/Liquidity
+        # se sincroniza con el tope de Replay (ver sync_overlay_indicators).
+        $self->sync_overlay_indicators();
+
+        # compute_all y el filtro del overlay (index <= end) actúan como segunda
+        # barrera (defensa en profundidad); la corrección real es alimentar hasta
+        # feed_to en sync_overlay_indicators.
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
     }
