@@ -7,6 +7,7 @@ use lib '.';
 use_ok('Market::MarketData');
 use_ok('Market::IndicatorManager');
 use_ok('Market::Indicators::ATR');
+use_ok('Market::Indicators::SMC_Structures');
 use_ok('Market::Panels::Scales');
 use_ok('Market::ChartEngine');
 use_ok('Market::Panels::PricePanel');
@@ -17,6 +18,7 @@ my @syntax_files = qw(
     Market/MarketData.pm
     Market/IndicatorManager.pm
     Market/Indicators/ATR.pm
+    Market/Indicators/SMC_Structures.pm
     Market/Panels/Scales.pm
     Market/ChartEngine.pm
     Market/Panels/PricePanel.pm

@@ -8,6 +8,7 @@ use lib '.';
 use Market::MarketData;
 use Market::IndicatorManager;
 use Market::Indicators::ATR;
+use Market::Indicators::SMC_Structures;
 use Market::ChartEngine;
 
 print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
@@ -21,6 +22,7 @@ my $indicator_manager = Market::IndicatorManager->new();
 my $atr_indicator = Market::Indicators::ATR->new(14); # ATR de 14 periodos clásico
 
 $indicator_manager->register('ATR', $atr_indicator);
+$indicator_manager->register('SMC', Market::Indicators::SMC_Structures->new(k => 3));
 
 # ==========================================
 # 2. CARGAR HISTÓRICO Y SIMULAR STREAMING PARA ATR

@@ -6,7 +6,7 @@ use Time::Moment;
 sub new {
     my ($class) = @_;
     my $self = {
-        data      => { '1m' => [], '5m' => [], '15m' => [] },
+        data      => { '1m' => [], '5m' => [], '15m' => [], '1h' => [], '2h' => [], '4h' => [], 'D' => [], 'W' => [] },
         active_tf => '1m',
     };
     bless $self, $class;
@@ -28,12 +28,11 @@ sub build_tf_candles {
     my $base_data = $self->{data}->{'1m'};
     return unless @$base_data;
 
-    my $group_size = ($tf eq '5m') ? 5 : ($tf eq '15m') ? 15 : 1;
     my @aggregated;
     my ($current_key, $current);
 
     for my $c (@$base_data) {
-        my $bucket_ts = $self->_bucket_timestamp($c->[0], $group_size);
+        my $bucket_ts = $self->_bucket_timestamp($c->[0], $tf);
         next unless defined $bucket_ts;
 
         if (!defined $current_key || $bucket_ts ne $current_key) {
@@ -53,11 +52,75 @@ sub build_tf_candles {
     $self->{data}->{$tf} = \@aggregated;
 }
 
+# _bucket_timestamp($ts, $tf) — frontera de reloj para el TF dado.
+# $tf puede ser un nombre ('5m','15m','1h','2h','4h','D','W') o un entero de minutos.
+# - minutos (5,15,60,120,240): truncar al múltiplo de minutos desde medianoche.
+# - 'D': truncar a inicio de día (00:00) calendario.
+# - 'W': truncar a inicio de semana (lunes). Time::Moment->day_of_week es ISO 8601
+#   (1=Lun .. 7=Dom). Se resta (dow-1) días para llegar al lunes de esa semana.
 sub _bucket_timestamp {
-    my ($self, $ts, $minutes) = @_;
+    my ($self, $ts, $tf) = @_;
     return undef unless defined $ts;
+
+    # --- Casos especiales: D y W no usan minutos ---
+    if (!defined $tf) {
+        return $ts;
+    }
+    elsif ($tf eq 'D') {
+        if ($ts =~ /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(.*)$/) {
+            return $1 . 'T00:00:00' . $2;
+        }
+        return $ts;
+    }
+    elsif ($tf eq 'W') {
+        my $tm = eval { Time::Moment->from_string($ts) };
+        return $ts unless $tm;
+        my $dow = $tm->day_of_week;  # 1=Lun .. 7=Dom
+        my $monday = $tm->minus_days($dow - 1);
+        if ($ts =~ /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(.*)$/) {
+            my $suffix = $2;
+            return sprintf('%04d-%02d-%02dT00:00:00%s',
+                $monday->year, $monday->month, $monday->day_of_month, $suffix);
+        }
+        return $ts;
+    }
+
+    # --- Minutos: resolver $minutes desde $tf o entero ---
+    my $minutes;
+    if ($tf =~ /^(\d+)$/) {
+        $minutes = int($1);
+    } elsif ($tf eq '1m') {
+        return $ts;  # sin agregación
+    } elsif ($tf eq '5m') {
+        $minutes = 5;
+    } elsif ($tf eq '15m') {
+        $minutes = 15;
+    } elsif ($tf eq '1h') {
+        $minutes = 60;
+    } elsif ($tf eq '2h') {
+        $minutes = 120;
+    } elsif ($tf eq '4h') {
+        $minutes = 240;
+    } else {
+        return $ts;
+    }
+
     return $ts if !$minutes || $minutes <= 1;
 
+    # Para >= 60 min, truncar hora+minuto juntos.
+    if ($minutes >= 60) {
+        if ($ts =~ /^(\d{4}-\d{2}-\d{2}T)(\d{2}):(\d{2}):(\d{2})(.*)$/) {
+            my ($date_prefix, $hour, $min, $sec, $sfx) = ($1, $2, $3, $4, $5);
+            my $total_minutes = int($hour) * 60 + int($min);
+            my $bucket_total = int($total_minutes / $minutes) * $minutes;
+            my $bucket_hour = int($bucket_total / 60);
+            my $bucket_min = $bucket_total % 60;
+            return sprintf('%s%02d:%02d:00%s', $date_prefix, $bucket_hour, $bucket_min, $sfx);
+        }
+        return $ts;
+    }
+
+    # Para < 60 min (5m, 15m), truncar solo minutos.
     if ($ts =~ /^(\d{4}-\d{2}-\d{2}T\d{2}):(\d{2}):(\d{2})(.*)$/) {
         my ($prefix, $minute, $second, $suffix) = ($1, $2, $3, $4);
         my $bucket_minute = int($minute / $minutes) * $minutes;
@@ -69,8 +132,9 @@ sub _bucket_timestamp {
 
 sub build_timeframes {
     my ($self) = @_;
-    $self->build_tf_candles('5m');
-    $self->build_tf_candles('15m');
+    for my $tf ('5m', '15m', '1h', '2h', '4h', 'D', 'W') {
+        $self->build_tf_candles($tf);
+    }
 }
 
 sub set_timeframe {

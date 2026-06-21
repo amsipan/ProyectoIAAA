@@ -37,12 +37,30 @@ Clasificada por severidad. No se resuelve aquí; solo se documenta. Última act.
 
 ## Medio
 
-### Sin tests automatizados
-- **Descripción:** validación 100% visual; `t/` está vacía.
-- **Impacto:** regresiones silenciosas al añadir Fase 2; difícil verificar algoritmos de ML.
-- **Evidencia:** `t/` vacío; AGENTS.md ("No hay tests automatizados").
-- **Recomendación:** Test::More para cálculo puro (ATR, SMC labels, Viterbi tensorial con la
-  salida de referencia del docx, Pearson con el ejemplo Iris).
+### Detección SMC (FVG/CHoCH) — primera versión funcional, simplificaciones conocidas
+- **Descripción:** `Market/Indicators/SMC_Structures.pm` (tasks 0005–0007) pasa 317 tests, pero
+  tiene tres simplificaciones deliberadas a vigilar:
+  1. **Mitigación FVG unidireccional:** `FVG_up` solo recorta `hi` (penetración desde arriba);
+     no modela entrada por debajo. TradingView mitiga bidireccional.
+  2. **`get_pivots()` muta estado** al confirmar `_current`/`_trailing` provisionales. Como
+     `get_events/major/fvg/fibonacci` lo invocan primero, el orden/momento de llamada puede afectar
+     resultados en uso interactivo (Replay). Los tests usan `reset`+recálculo, así que no lo exponen.
+  3. **`CHoCH_false` no verifica cierre de cuerpo** (compara solo `close` vs nivel interno, no
+     `close` vs `open`), a diferencia de BOS.
+- **Impacto:** suficiente para la 1ª entrega (29/06). Riesgo al integrar con Replay (0008) por el
+  punto 2; precisión visual vs LuxAlgo por el punto 1.
+- **Evidencia:** `Market/Indicators/SMC_Structures.pm`, `t/09-smc-structures.t`.
+- **Recomendación:** al integrar el overlay 0008 con Replay, verificar que llamar `get_*` repetidas
+  veces a distintos `replay_idx` no acumule pivotes provisionales mal; considerar un método de
+  lectura no-mutante. Mitigación bidireccional y body-close en CHoCH_false en 2ª entrega.
+- **¿Bloquea escalabilidad?:** no para 1ª entrega; vigilar punto 2 en 0008.
+
+### Tests automatizados — establecidos (entrada previa obsoleta)
+- **Descripción:** Ya existe suite `t/00`–`t/13` con Test::More (317 tests al cierre de 0007),
+  cubriendo eje temporal, ATR, replay, overlays base y SMC. La nota previa "t/ vacía" quedó
+  obsoleta.
+- **Recomendación:** mantener la regla de `prove -l t` completo por task; añadir tests de Viterbi
+  (salida de referencia del docx) y Pearson (ejemplo Iris) en Fase 3.
 - **¿Bloquea escalabilidad?:** no, pero aumenta el riesgo.
 
 ### Recálculo total de indicadores al cambiar timeframe

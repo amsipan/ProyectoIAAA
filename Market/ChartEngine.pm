@@ -1648,7 +1648,9 @@ sub _draw_crosshair_all {
 sub set_timeframe {
     my ($self, $tf) = @_;
 
-    if ($tf ne '1m' && $tf ne '5m' && $tf ne '15m') {
+    # spec 0001: 8 temporalidades soportadas.
+    my %valid_tf = map { $_ => 1 } qw(1m 5m 15m 1h 2h 4h D W);
+    if (!$valid_tf{$tf}) {
             warn "Temporalidad '$tf' no soportada por el sistema.";
             return;
     }
@@ -2459,8 +2461,13 @@ sub _timeframe_minutes {
     my ($self) = @_;
 
     my $tf = eval { $self->{market_data}->{active_tf} } || '1m';
-    return 5  if $tf eq '5m';
-    return 15 if $tf eq '15m';
+    return 5    if $tf eq '5m';
+    return 15   if $tf eq '15m';
+    return 60   if $tf eq '1h';
+    return 120  if $tf eq '2h';
+    return 240  if $tf eq '4h';
+    return 1440 if $tf eq 'D';
+    return 10080 if $tf eq 'W';
     return 1;
 }
 1;
