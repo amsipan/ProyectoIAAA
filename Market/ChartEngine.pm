@@ -8,6 +8,10 @@ use Market::Panels::PricePanel;
 use Market::Panels::ATRPanel;
 use Market::ReplayController;
 use Market::OverlayManager;
+use Market::Indicators::SMC_Structures;
+use Market::Overlays::SMC_Structures;
+use Market::Indicators::Liquidity;
+use Market::Overlays::Liquidity;
 
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
@@ -105,6 +109,29 @@ sub new {
 
     # spec 0003: OverlayManager — registro de overlays.
     $self->{overlay_manager} = Market::OverlayManager->new();
+
+    # spec 0004 / task 0008: overlay SMC_Structures. Consume el indicador de
+    # cálculo (capa Indicators). El indicador se alimenta incrementalmente en
+    # render() hasta el tope efectivo (respeta replay_idx). El overlay solo lee.
+    $self->{smc_indicator} = Market::Indicators::SMC_Structures->new(k => 3);
+    $self->{smc_overlay} = Market::Overlays::SMC_Structures->new(
+        indicator => $self->{smc_indicator},
+        theme     => $self->{theme},
+    );
+    $self->{overlay_manager}->register('smc', $self->{smc_overlay});
+    # Alimentado incremental: último índice global ya procesado por el indicador.
+    $self->{_smc_fed_up_to} = -1;
+
+    # spec 0005 / task 0012: overlay Liquidity. Consume el indicador de cálculo
+    # (capa Indicators). Mismo patrón que SMC: alimentación incremental en render
+    # hasta el tope efectivo (respeta replay_idx); el overlay solo lee.
+    $self->{liq_indicator} = Market::Indicators::Liquidity->new(k => 3);
+    $self->{liq_overlay} = Market::Overlays::Liquidity->new(
+        indicator => $self->{liq_indicator},
+        theme     => $self->{theme},
+    );
+    $self->{overlay_manager}->register('liq', $self->{liq_overlay});
+    $self->{_liq_fed_up_to} = -1;
 
     $self->bind_events();
     
@@ -365,6 +392,33 @@ sub render {
     # spec 0003: overlays — compute + draw respetando replay_idx (start/end
     # ya vienen truncados por compute_window si Replay está activo).
     if ($self->{overlay_manager}) {
+        # Alimentar el indicador SMC incrementalmente hasta el final del dataset
+        # (los getters son no-mutantes desde task 0014, así podemos mantener el
+        # cómputo completo sin corromper la FSM). El overlay filtra por ventana y
+        # por index <= end, garantizando cero fuga de futuro en Replay.
+        if ($self->{smc_indicator} && defined $end) {
+            my $last = $self->{market_data}->size() - 1;
+            if ($last >= 0 && $self->{_smc_fed_up_to} < $last) {
+                my $from = $self->{_smc_fed_up_to} + 1;
+                $self->{_smc_fed_up_to} = -1 if $self->{_smc_fed_up_to} >= $last;
+                for my $i ($from .. $last) {
+                    $self->{smc_indicator}->update_last($self->{market_data}, $i);
+                }
+                $self->{_smc_fed_up_to} = $last;
+            }
+        }
+        # spec 0005 / task 0012: alimentación incremental del indicador de
+        # liquidez (mismo criterio que SMC). El overlay filtra por replay_idx.
+        if ($self->{liq_indicator} && defined $end) {
+            my $last = $self->{market_data}->size() - 1;
+            if ($last >= 0 && $self->{_liq_fed_up_to} < $last) {
+                my $from = $self->{_liq_fed_up_to} + 1;
+                for my $i ($from .. $last) {
+                    $self->{liq_indicator}->update_last($self->{market_data}, $i);
+                }
+                $self->{_liq_fed_up_to} = $last;
+            }
+        }
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
     }
@@ -1660,6 +1714,17 @@ sub set_timeframe {
     $self->{indicator_manager}->reset_all();
     for (my $i = 0; $i < $self->{market_data}->size(); $i++) {
         $self->{indicator_manager}->update_last($self->{market_data}, $i);
+    }
+    # spec 0004 / task 0008: reset del indicador SMC al cambiar timeframe para
+    # que el overlay se recalcule sobre la nueva serie.
+    if ($self->{smc_indicator}) {
+        $self->{smc_indicator}->reset();
+        $self->{_smc_fed_up_to} = -1;
+    }
+    # spec 0005 / task 0012: reset del indicador de liquidez (mismo criterio).
+    if ($self->{liq_indicator}) {
+        $self->{liq_indicator}->reset();
+        $self->{_liq_fed_up_to} = -1;
     }
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;

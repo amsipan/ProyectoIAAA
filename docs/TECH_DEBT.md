@@ -4,7 +4,22 @@ Clasificada por severidad. No se resuelve aquí; solo se documenta. Última act.
 
 ## Crítico
 
-(Ninguna bloqueante hoy. La Fase 1 funciona y está evaluada.)
+### Indicadores se alimentan hasta el fin del dataset en Replay — task 0015 abierta
+- **Descripción:** `ChartEngine::render` (cableado de 0008/0012) llama `update_last` de SMC/Liquidity
+  hasta `size()-1` aunque Replay esté activo, filtrando solo el DIBUJO por `index<=end`. Como los
+  indicadores son incrementales con estado, eso filtra futuro: un FVG anclado en `index<=replay_idx`
+  muestra mitigación causada por velas futuras; pivotes se confirman con velas futuras
+  (`swing` en `j=index-k` necesita k velas posteriores); step-backward no recalcula.
+- **Impacto:** viola el criterio duro del PDF §3 ("recalcular únicamente hasta la última vela del
+  puntero del Replay"). No afecta la vista normal (sin Replay); se manifiesta al cablear la UI de
+  Replay (0004).
+- **Evidencia:** `ChartEngine.pm` render líneas ~399-421 (`$last = size()-1`, comentario que asume
+  que el filtro `index<=end` basta).
+- **Recomendación:** task `0015-replay-indicator-truncation.md` (alimentar hasta `replay_idx` con
+  reset+realimentación en retroceso). Resolver ANTES de 0004.
+- **¿Bloquea escalabilidad?:** sí para la corrección del Replay; resolver antes de la UI de Replay.
+
+(Sin otras bloqueantes. La Fase 1 funciona y está evaluada.)
 
 ### [RESUELTO 2026-06-21] Pesado de volumen multi-TF — corregido en task 0013
 - **Era:** `_sum_volume_for_tf` sumaba por índice del array activo; índices no alineados entre TFs.
