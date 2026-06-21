@@ -4,7 +4,18 @@ Clasificada por severidad. No se resuelve aquí; solo se documenta. Última act.
 
 ## Crítico
 
-(Ninguna bloqueante hoy. La Fase 1 funciona y está evaluada.)
+### Pesado de volumen multi-TF suma por índice, no por rango temporal — task 0013 abierta
+- **Descripción:** `Liquidity.pm::_sum_volume_for_tf` (task 0011) recorre `data->{5m/15m}[from..to]`
+  con los índices del array activo 1m. Los índices NO se alinean entre TFs (el índice `i` de 5m es
+  un bucket de reloj distinto), así que `v5m`/`v15m` suman velas fuera del rango temporal del evento.
+  El PDF §4.4 exige sumar por timestamp (sub-velas dentro del rango del evento).
+- **Impacto:** los pesos de volumen multi-TF son insumo del HMM (Fase 3) y del filtrado de niveles
+  institucionales; un valor incorrecto se propaga. `v1m` sí es correcto.
+- **Evidencia:** comentario `# ponytail: best effort on synthetic test data` en `_sum_volume_for_tf`;
+  el test caso 18 de `t/10-liquidity.t` solo verifica `v1m` exacto y `defined(v5m/v15m)`.
+- **Recomendación:** task `0013-liquidity-volume-multitf-timestamp-fix.md` (sumar por timestamp +
+  test que falle con el código viejo).
+- **¿Bloquea escalabilidad?:** sí para la fidelidad de los pesos; resolver antes de cerrar liquidez.
 
 ## Alto
 
