@@ -91,13 +91,27 @@ sub compute_visible {
 
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
-    $self->{_pivots} = _window_filter($ind->get_pivots(),   $start, $end);
-    $self->{_events} = _window_filter($ind->get_events(),   $start, $end);
-    $self->{_fvgs}   = _window_filter($ind->get_fvg(),      $start, $end);
+    # spec 0018c: tope de recencia. En vistas amplias (mensual) el rango visible
+    # abarca cientos de velas; dibujar TODOS los pivotes/eventos amontona etiquetas
+    # ilegibles. Como TradingView SMC, mostramos solo la estructura RECIENTE: los
+    # N items más recientes (por índice) de cada familia. major/fib ya están
+    # acotados (<=2 y 5). Cap generoso para no afectar tests (que usan pocos items).
+    $self->{_pivots} = _recent(_window_filter($ind->get_pivots(),   $start, $end), 14);
+    $self->{_events} = _recent(_window_filter($ind->get_events(),   $start, $end), 10);
+    $self->{_fvgs}   = _recent(_window_filter($ind->get_fvg(),      $start, $end), 8);
     $self->{_fibs}   = _window_filter($ind->get_fibonacci(),$start, $end);
     $self->{_major}  = _window_filter($ind->get_major(),    $start, $end);
 
     return $self;
+}
+
+# Mantiene los $n items más recientes (mayor index), preservando orden ascendente.
+sub _recent {
+    my ($items, $n) = @_;
+    return $items unless defined $n && @$items > $n;
+    my @sorted = sort { ($b->{index} // 0) <=> ($a->{index} // 0) } @$items;
+    my @keep = @sorted[0 .. $n - 1];
+    return [ sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @keep ];
 }
 
 # Filtra items por index dentro de [start, end]. Un item sin index se descarta.

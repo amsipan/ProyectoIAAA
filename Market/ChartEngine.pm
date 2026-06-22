@@ -1232,6 +1232,12 @@ sub _on_horizontal_drag {
     }
 
     $self->{offset} = $self->_clamp_offset($new_offset);
+    # spec 0018c: si el offset tocó su límite (2 velas en el borde), NO permitir
+    # desplazamiento sub-vela adicional: x_shift se anula para que las velas no
+    # tiemblen ni se asomen más allá del límite al seguir arrastrando.
+    if ($self->{offset} != $new_offset) {
+        $new_shift = 0;
+    }
     $self->{ctrl_zoom_x_shift} = $new_shift;
 
     if (($self->{drag_start_panel} || 'price') eq 'atr') {

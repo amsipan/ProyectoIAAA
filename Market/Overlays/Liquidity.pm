@@ -118,10 +118,23 @@ sub compute_visible {
 
     my $levels = $ind->can('get_levels') ? $ind->get_levels() : [];
     my $events = $ind->can('get_events') ? $ind->get_events() : [];
-    $self->{_levels} = _window_filter($levels, $start, $end);
-    $self->{_events} = _window_filter($events, $start, $end);
+    # spec 0018c: tope de recencia (como TradingView SMC). En vistas amplias el
+    # rango visible tiene cientos de niveles; mostrarlos todos apila bandas BSL/SSL
+    # ilegibles. Mantenemos los N niveles/eventos más recientes por índice. Cap
+    # generoso para no afectar tests (que usan pocos items).
+    $self->{_levels} = _recent(_window_filter($levels, $start, $end), 12);
+    $self->{_events} = _recent(_window_filter($events, $start, $end), 10);
 
     return $self;
+}
+
+# Mantiene los $n items más recientes (mayor index), preservando orden ascendente.
+sub _recent {
+    my ($items, $n) = @_;
+    return $items unless defined $n && @$items > $n;
+    my @sorted = sort { ($b->{index} // 0) <=> ($a->{index} // 0) } @$items;
+    my @keep = @sorted[0 .. $n - 1];
+    return [ sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @keep ];
 }
 
 # Filtra items por index dentro de [start, end]. Un item sin index se descarta.
