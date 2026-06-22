@@ -4,7 +4,21 @@ Clasificada por severidad. No se resuelve aquí; solo se documenta. Última act.
 
 ## Crítico
 
-(Sin críticas abiertas. El arranque con el dataset real quedó en ~8.4s tras 0016+0017.)
+(Sin críticas abiertas. Arranque instantáneo tras 0018: las capas pesadas SMC/Liquidity se
+alimentan bajo demanda; con las capas OFF al abrir, solo se computa velas+ATR como en Fase 1.)
+
+### [RESUELTO 2026-06-22] Fallos de UI en la primera validación visual — task 0018
+- **F1 (toggles no restauraban líneas):** los `-command` de Checkbutton no recibían el valor de su
+  `-variable` (Tk no lo pasa). Fix: `market.pl` pasa explícito `$cb->($var ? 1 : 0)`. Verificado en
+  `t/18` (OFF→ON restaura los mismos items).
+- **F2 (barra saturada, TF/Replay recortados):** ~28 widgets en una sola fila desbordaban el ancho.
+  Fix: rediseño a **menubar** (Temporalidad/Capas/Replay/Escala) + barra inferior compacta.
+- **F3 (arranque pesado):** `market.pl` registraba un SMC extra duplicado + alimentaba indicadores
+  con capas apagadas. Fix: SMC extra eliminado; alimentación **bajo demanda** en
+  `sync_overlay_indicators` (solo si el overlay está visible). Arranque instantáneo.
+- **F4 (demasiadas líneas al abrir):** overlays nacían visibles. Fix: overlays OFF por defecto.
+- **F5 (sin recuperación con app en blanco):** Reset Vista y controles críticos ahora siempre
+  accesibles (menubar + barra compacta). 672 PASS; `t/18` cubre F1/F3/F4.
 
 ### [RESUELTO 2026-06-22] SMC_Structures se colgaba ~37s en el dataset real — task 0017
 - **Era:** `_detect_and_mitigate_fvgs` (84%) recorría `_fvgs` entero por vela; FVGs inactivos nunca

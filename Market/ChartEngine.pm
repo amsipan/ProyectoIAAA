@@ -117,6 +117,7 @@ sub new {
     $self->{smc_overlay} = Market::Overlays::SMC_Structures->new(
         indicator => $self->{smc_indicator},
         theme     => $self->{theme},
+        visible   => 0,   # task 0018 (F4): capas OFF por defecto (arranque limpio)
     );
     $self->{overlay_manager}->register('smc', $self->{smc_overlay});
     # Alimentado incremental: último índice global ya procesado por el indicador.
@@ -129,6 +130,7 @@ sub new {
     $self->{liq_overlay} = Market::Overlays::Liquidity->new(
         indicator => $self->{liq_indicator},
         theme     => $self->{theme},
+        visible   => 0,   # task 0018 (F4): capas OFF por defecto (arranque limpio)
     );
     $self->{overlay_manager}->register('liq', $self->{liq_overlay});
     $self->{_liq_fed_up_to} = -1;
@@ -200,10 +202,29 @@ sub sync_overlay_indicators {
         $feed_to = $last_idx;
     }
 
-    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
-    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
+    # task 0018 (F3/F4): alimentación BAJO DEMANDA. Un indicador pesado
+    # (SMC/Liquidity) solo se alimenta si su overlay está visible. Con las capas
+    # apagadas por defecto, el arranque es instantáneo (no calcula nada pesado);
+    # el costo se paga al activar la capa, una sola vez (cursor cacheado).
+    # Si no hay overlay registrado (p.ej. tests t/16), se alimenta igual para
+    # preservar el comportamiento verificado.
+    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to)
+        if $self->_overlay_wants_feed('smc');
+    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to)
+        if $self->_overlay_wants_feed('liq');
     return $feed_to;
 }
+
+# _overlay_wants_feed($name) — true si el indicador asociado debe alimentarse:
+# cuando su overlay está visible, o cuando no hay overlay registrado (tests).
+sub _overlay_wants_feed {
+    my ($self, $name) = @_;
+    my $mgr = $self->{overlay_manager};
+    my $ov  = $mgr ? $mgr->get($name) : undef;
+    return 1 unless $ov;                 # sin overlay (tests t/16) → alimentar
+    return $ov->is_visible() ? 1 : 0;    # con overlay → solo si visible
+}
+
 
 # _feed_indicator_to($indicator, $cursor_key, $feed_to)
 # task 0015: lleva un indicador incremental exactamente al índice $feed_to,
