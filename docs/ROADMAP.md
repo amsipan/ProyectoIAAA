@@ -1,25 +1,32 @@
 # Roadmap
 
-Última actualización: 2026-06-20. Separa estado actual de objetivos. Las fechas vienen del
+Última actualización: 2026-06-22. Separa estado actual de objetivos. Las fechas vienen del
 PDF oficial de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`).
 
 ## Estado actual
 
 - Fase 1 completa y evaluada (89/100): motor gráfico, paneles, ATR, interacciones, 1m/5m/15m.
-- Eje temporal TradingView cerrado en `0000g`–`0000j` (`142` tests verdes, snapshot de debug). Es el
-  último frente de Fase 1; queda como pulido cosmético opcional (separaciones finas de labels en
-  zoom extremo) que **no bloquea** Fase 2 porque velas/overlays se anclan por índice lógico, no por
-  la cadencia de etiquetas.
-- Infraestructura de Fase 2 lista: `Market/Debug/IndicatorSnapshot.pm` + contrato
-  (`docs/PHASE2_DEBUG_CONTRACT.md`) + harness `t/08`. Tasks `0001`–`0012` endurecidas con tests
-  obligatorios por debug. **Apto para empezar a implementar con el agente barato.**
-- Tasks arrancables sin esperar nada: `0002` (Replay) y `0003` (Overlays base).
+- Eje temporal TradingView cerrado en `0000g`–`0000j` (tests verdes, snapshot de debug).
+- **1ª entrega Fase 2 funcionalmente completa (código).** Todo el contenido mínimo del PDF
+  para el 29/06 está implementado y verificado por **672 tests** (`t/00`–`t/18`):
+  - Temporalidades 1m/5m/15m/1h/2h/4h/D/W (`0001`).
+  - Sistema Replay sin fuga de futuro (`0002`, `0015`).
+  - Arquitectura base de Overlays (`0003`).
+  - Motor SMC: zigzag/BOS/CHoCH/FVG/Fibonacci (`0005`–`0007`), getters idempotentes (`0014`).
+  - Módulo de liquidez: swings/EQH/EQL/BSL/SSL, FSM Sweep/Grab/Run, volumen multi-TF, 7 zonas
+    (`0009`–`0011`, `0013`).
+  - Render de overlays SMC y Liquidez (`0008`, `0012`).
+  - UI: timeframes + Replay + toggles (`0004`), rediseñada a controles inline (`0018`).
+  - Rendimiento: corregidos cuelgues O(n²) en Liquidity y SMC con el dataset real (`0016`, `0017`).
+- **Pendiente para cerrar la 1ª entrega:** aceptación visual final del usuario en la GUI
+  (varias rondas hechas; última en `0018d` restauró el paneo izquierdo de Fase 1).
 
-## Objetivo inmediato — cierre Fase 1
+## Objetivo inmediato — aceptación visual de la 1ª entrega
 
-- Resolver `tasks/0000g-time-axis-global-cadence-tradingview.md` como follow-up de `0000f`.
-- Validar contra TradingView 1m y zoom alejado: el eje debe elegir una cadencia global por ventana con **Modo A obligatorio**: días + horas uniformes. No se aceptan mezclas irregulares de días/horas ni modo diario conservador como cierre final.
-- Solo después avanzar a temporalidades extendidas, Replay y overlays.
+- Validar en GUI (WSLg): arranque instantáneo, cambio de TF, capas SMC/Liquidez legibles
+  (tope de recencia), Replay sin futuro, paneo con espacio a ambos lados y sin temblor, y que
+  Fase 1 (zoom/drag/crosshair) siga intacta.
+- Si algo falla, registrar el fallo en una task `0018x` antes de corregir (como F1–F7).
 
 ## Objetivo a la 1ª entrega — 29/06 (contenido mínimo exigido por el PDF)
 

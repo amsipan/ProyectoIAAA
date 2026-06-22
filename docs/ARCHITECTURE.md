@@ -85,22 +85,41 @@ contexto, no sobre todo el historial.
 - ATR 14 con modo auto/manual independiente y controles propios.
 - Validado contra la rúbrica (89/100); según observación actual, está más cerca del 100% al cerrar los detalles de spec `0000`.
 
+## Estado actual (qué funciona hoy — Fase 2, 1ª entrega)
+
+- **8 timeframes** (1m/5m/15m/1h/2h/4h/D/W) por fronteras de reloj; W=lunes ISO (`MarketData`).
+- **Sistema Replay** (`ReplayController` + `ChartEngine::sync_overlay_indicators`): índice-tope;
+  indicadores/overlays se recalculan SOLO hasta `replay_idx` (cero fuga de futuro, `t/16`).
+- **Overlays** (`OverlayManager` + `Overlays/`): patrón base con tag de Canvas propio, toggles,
+  alimentación BAJO DEMANDA (solo si la capa está visible) y tope de recencia (vista legible).
+- **SMC** (`Indicators/SMC_Structures` + overlay): zigzag HH/HL/LL/LH por FSM, BOS/CHoCH
+  true/false, major high/low, FVG con mitigación, Fibonacci. Getters idempotentes (`0014`).
+- **Liquidez** (`Indicators/Liquidity` + overlay): swings, EQH/EQL (`ATR*0.10`), BSL/SSL, FSM
+  Sweep/Grab/Run (5 estados), volumen multi-TF por timestamp, 7 zonas, interno/externo.
+- **UI inline** (`market.pl` + `UI/Callbacks`): controles en la ventana (sin menubar ni
+  Optionmenu, que abrían popups X erráticos bajo WSLg); TF/capas/Replay/escala/Reset.
+- **Rendimiento:** Liquidity 272s→5.8s (`0016`), SMC 37.6s→2.9s (`0017`); arranque instantáneo
+  con capas OFF. Verificado contra las 29888 velas reales.
+- **672 tests** (`t/00`–`t/18`) en verde. Pendiente: aceptación visual final del usuario.
+
 ## Problemas arquitectónicos (con evidencia)
 
-- **`ChartEngine.pm` ~70 KB / ~65 subs.** Concentra orquestación, render de 3 ejes, eventos de
-  mouse/teclado, zoom, drag, cursores. Añadir Replay + overlays multi-temporal puede
-  convertirlo en god object. Evidencia: inventario de subs (`_render_price_axis`,
-  `_render_time_axis`, `_render_atr_axis`, `_draw_*_crosshair`, `_wheel_zoom_delta`, etc.).
+- **`ChartEngine.pm` ~2600 líneas.** Concentra orquestación, render de 3 ejes, eventos de
+  mouse/teclado, zoom, drag, cursores, Replay y overlays. God object. Evidencia: inventario de
+  subs (`_render_price_axis`, `_render_time_axis`, `_render_atr_axis`, `_draw_*_crosshair`,
+  `_wheel_zoom_delta`, `sync_overlay_indicators`, etc.).
   Recomendación: aislar el control de Replay y el registro de overlays en colaboradores
-  dedicados, no inline en ChartEngine. (Ver TECH_DEBT.)
-- **Sin capa de "controlador de overlays".** Hoy ChartEngine llama paneles directamente; Fase 2
-  introduce N overlays activables/desactivables. Conviene un registro de overlays análogo a
-  `IndicatorManager` (cálculo) pero para render.
+  dedicados (ya hay `ReplayController` y `OverlayManager`; falta sacar más lógica de render). (Ver TECH_DEBT.)
+- **Registro de overlays presente.** `OverlayManager` ya centraliza overlays activables; Fase 2
+  lo usa para SMC/Liquidez. Falta extraerle a ChartEngine el feeding y el render-loop (análogo a
+  `IndicatorManager` pero para render).
 - **Acoplamiento timeframe → recálculo total de indicadores.** Hoy O(N) por timeframe está
   bien para ATR; SMC/Liquidez son más caros, de ahí la regla de "solo velas visibles +
-  contexto" del PDF.
-- **Sin tests automatizados.** Validación 100% visual. Para los algoritmos de ML (Viterbi,
-  Pearson) sí hay valores de referencia que permiten tests deterministas.
+  contexto" del PDF y la alimentación bajo demanda (tasks 0016/0017/0018).
+- **Tests automatizados presentes.** Suite `t/00`–`t/18` con Test::More (672 tests): sintaxis,
+  regresión, eje temporal, indicadores SMC/Liquidez (vía debug snapshot), Replay, overlays y UI.
+  Para los algoritmos de ML (Viterbi, Pearson) hay valores de referencia que permitirán tests
+  deterministas en Fase 3.
 
 ## Recomendaciones futuras (no obligaciones inmediatas)
 
