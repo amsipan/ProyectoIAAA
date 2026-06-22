@@ -170,8 +170,14 @@ sub compute_window {
     my $end_idx = $effective_total - 1 - $self->{offset};
     my $start_idx = $end_idx - $self->{visible_bars} + 1;
 
-    # spec 0002: clamp start a 0 si el tope de replay deja pocas velas.
-    $start_idx = 0 if $start_idx < 0;
+    # spec 0018d: en modo NORMAL, start_idx puede ser NEGATIVO: eso crea el
+    # espacio vacío a la izquierda de la primera vela (igual que el espacio a la
+    # derecha de la última), comportamiento de Fase 1. NO se clampa a 0 aquí
+    # porque eso encogería x_bars (= end-start+1) y haría "zoom" de las velas.
+    # Solo bajo Replay se clampa para no pintar índices fuera del tope.
+    if ($replay && $replay->is_active()) {
+        $start_idx = 0 if $start_idx < 0;
+    }
 
     return ($start_idx, $end_idx);
 }
