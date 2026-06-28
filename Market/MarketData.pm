@@ -52,37 +52,39 @@ sub build_tf_candles {
     $self->{data}->{$tf} = \@aggregated;
 }
 
-# _bucket_timestamp($ts, $tf) — frontera de reloj para el TF dado.
+# _bucket_timestamp($ts, $tf) — frontera de reloj/sesión para el TF dado.
 # $tf puede ser un nombre ('5m','15m','1h','2h','4h','D','W') o un entero de minutos.
-# - minutos (5,15,60,120,240): truncar al múltiplo de minutos desde medianoche.
-# - 'D': truncar a inicio de día (00:00) calendario.
-# - 'W': truncar a inicio de semana (lunes). Time::Moment->day_of_week es ISO 8601
-#   (1=Lun .. 7=Dom). Se resta (dow-1) días para llegar al lunes de esa semana.
+# - 5m/15m: truncar al múltiplo de minutos de la hora local (comportamiento Fase 1).
+# - >=1h: anclar a sesión CME/NQ UTC-5 que inicia 17:00, como TradingView.
+#   Esto hace que 2h use horas impares (...23:00,01:00,03:00...), 3h vía entero
+#   180 use ...23:00,02:00,05:00..., y 4h use ...21:00,01:00,05:00...
+# - 'D': día de trading CME. Desde 17:00 pertenece al día de trading siguiente,
+#   pero se conserva timestamp YYYY-MM-DDT00:00:00 para etiquetas diarias limpias.
+# - 'W': semana ISO del día de trading (lunes). Time::Moment->day_of_week es
+#   ISO 8601 (1=Lun .. 7=Dom).
 sub _bucket_timestamp {
     my ($self, $ts, $tf) = @_;
     return undef unless defined $ts;
 
-    # --- Casos especiales: D y W no usan minutos ---
     if (!defined $tf) {
         return $ts;
     }
-    elsif ($tf eq 'D') {
-        if ($ts =~ /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(.*)$/) {
-            return $1 . 'T00:00:00' . $2;
-        }
-        return $ts;
+
+    my $tm = eval { Time::Moment->from_string($ts) };
+    my $suffix = $self->_timestamp_suffix($ts);
+
+    # --- Casos especiales: D y W usan fecha de trading CME ---
+    if ($tf eq 'D') {
+        return $ts unless $tm && defined $suffix;
+        my $trading_day = $self->_trading_day_tm($tm);
+        return $self->_format_bucket_timestamp($trading_day, 0, 0, $suffix);
     }
     elsif ($tf eq 'W') {
-        my $tm = eval { Time::Moment->from_string($ts) };
-        return $ts unless $tm;
-        my $dow = $tm->day_of_week;  # 1=Lun .. 7=Dom
-        my $monday = $tm->minus_days($dow - 1);
-        if ($ts =~ /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(.*)$/) {
-            my $suffix = $2;
-            return sprintf('%04d-%02d-%02dT00:00:00%s',
-                $monday->year, $monday->month, $monday->day_of_month, $suffix);
-        }
-        return $ts;
+        return $ts unless $tm && defined $suffix;
+        my $trading_day = $self->_trading_day_tm($tm);
+        my $dow = $trading_day->day_of_week;  # 1=Lun .. 7=Dom
+        my $monday = $trading_day->minus_days($dow - 1);
+        return $self->_format_bucket_timestamp($monday, 0, 0, $suffix);
     }
 
     # --- Minutos: resolver $minutes desde $tf o entero ---
@@ -107,8 +109,13 @@ sub _bucket_timestamp {
 
     return $ts if !$minutes || $minutes <= 1;
 
-    # Para >= 60 min, truncar hora+minuto juntos.
+    # Para >= 60 min, anclar al inicio de sesión CME (17:00 local) en vez de
+    # truncar desde medianoche. Para 1h no cambia la hora visible; para 2h/4h
+    # corrige la fase observada en TradingView.
     if ($minutes >= 60) {
+        return $self->_session_bucket_timestamp($tm, $minutes, $suffix) if $tm && defined $suffix;
+
+        # Fallback defensivo si Time::Moment no pudo parsear.
         if ($ts =~ /^(\d{4}-\d{2}-\d{2}T)(\d{2}):(\d{2}):(\d{2})(.*)$/) {
             my ($date_prefix, $hour, $min, $sec, $sfx) = ($1, $2, $3, $4, $5);
             my $total_minutes = int($hour) * 60 + int($min);
@@ -128,6 +135,58 @@ sub _bucket_timestamp {
     }
 
     return $ts;
+}
+
+sub _timestamp_suffix {
+    my ($self, $ts) = @_;
+    return $1 if defined $ts && $ts =~ /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.*)$/;
+    return undef;
+}
+
+sub _format_bucket_timestamp {
+    my ($self, $date_tm, $hour, $minute, $suffix) = @_;
+    $hour   //= 0;
+    $minute //= 0;
+    $suffix //= '';
+    return sprintf('%04d-%02d-%02dT%02d:%02d:00%s',
+        $date_tm->year, $date_tm->month, $date_tm->day_of_month,
+        $hour, $minute, $suffix);
+}
+
+sub _trading_day_tm {
+    my ($self, $tm) = @_;
+    my $minute_of_day = $tm->hour * 60 + $tm->minute;
+    return $minute_of_day >= 17 * 60 ? $tm->plus_days(1) : $tm;
+}
+
+sub _session_bucket_timestamp {
+    my ($self, $tm, $minutes, $suffix) = @_;
+
+    my $session_start_minute = 17 * 60;
+    my $minute_of_day = $tm->hour * 60 + $tm->minute;
+
+    # Fecha calendario donde empezó la sesión activa.
+    my $session_date = $minute_of_day >= $session_start_minute ? $tm : $tm->minus_days(1);
+
+    # Minutos transcurridos desde 17:00 local. Rango lógico [0, 1439].
+    my $elapsed = $minute_of_day >= $session_start_minute
+        ? $minute_of_day - $session_start_minute
+        : $minute_of_day + (24 * 60 - $session_start_minute);
+
+    my $bucket_elapsed = int($elapsed / $minutes) * $minutes;
+
+    my ($bucket_date, $bucket_minute_of_day);
+    if ($bucket_elapsed < (24 * 60 - $session_start_minute)) {
+        $bucket_date = $session_date;
+        $bucket_minute_of_day = $session_start_minute + $bucket_elapsed;
+    } else {
+        $bucket_date = $session_date->plus_days(1);
+        $bucket_minute_of_day = $bucket_elapsed - (24 * 60 - $session_start_minute);
+    }
+
+    my $bucket_hour = int($bucket_minute_of_day / 60);
+    my $bucket_min  = $bucket_minute_of_day % 60;
+    return $self->_format_bucket_timestamp($bucket_date, $bucket_hour, $bucket_min, $suffix);
 }
 
 sub build_timeframes {
