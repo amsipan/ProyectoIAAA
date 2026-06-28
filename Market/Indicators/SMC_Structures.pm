@@ -67,6 +67,10 @@ sub new {
         _pending_bos   => undef,
         _pending_choch => undef,
         _fvgs          => [],
+        _last_hh_broken => undef,
+        _last_ll_broken => undef,
+        _last_hl_broken => undef,
+        _last_lh_broken => undef,
     };
     bless $self, $class;
     return $self;
@@ -266,11 +270,14 @@ sub _check_bos_choch {
     # --- 1. Resolve pending BOS (wick-only from previous candle) ---
     if ($self->{_pending_bos}) {
         my $p = $self->{_pending_bos};
+        my $hh_idx = $p->{start_index};
         if ($p->{dir} eq 'up') {
-            if ($close > $p->{level}) {
+            if ($close > $p->{level} && ($self->{_last_hh_broken} // -1) != $hh_idx) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'BOS', dir => 'up', price => $p->{level}
+                    index => $index, type => 'BOS', dir => 'up', price => $p->{level},
+                    start_index => $hh_idx
                 };
+                $self->{_last_hh_broken} = $hh_idx;
                 $self->{_pending_bos} = undef;
                 $just_resolved = 1;
             } elsif ($close < $p->{level} && $close < $open) {
@@ -278,10 +285,12 @@ sub _check_bos_choch {
                 $just_resolved = 1;
             }
         } else {
-            if ($close < $p->{level}) {
+            if ($close < $p->{level} && ($self->{_last_ll_broken} // -1) != $hh_idx) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'BOS', dir => 'down', price => $p->{level}
+                    index => $index, type => 'BOS', dir => 'down', price => $p->{level},
+                    start_index => $hh_idx
                 };
+                $self->{_last_ll_broken} = $hh_idx;
                 $self->{_pending_bos} = undef;
                 $just_resolved = 1;
             } elsif ($close > $p->{level} && $close > $open) {
@@ -297,7 +306,8 @@ sub _check_bos_choch {
         if ($p->{dir} eq 'down') {
             if ($close < $p->{level}) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'CHoCH_true', dir => 'down', price => $p->{level}
+                    index => $index, type => 'CHoCH_true', dir => 'down', price => $p->{level},
+                    start_index => $p->{start_index}
                 };
                 $self->{_trend} = 'down';
                 $self->_update_major_on_choch('down');
@@ -310,7 +320,8 @@ sub _check_bos_choch {
         } else {
             if ($close > $p->{level}) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'CHoCH_true', dir => 'up', price => $p->{level}
+                    index => $index, type => 'CHoCH_true', dir => 'up', price => $p->{level},
+                    start_index => $p->{start_index}
                 };
                 $self->{_trend} = 'up';
                 $self->_update_major_on_choch('up');
@@ -330,48 +341,66 @@ sub _check_bos_choch {
     if ($self->{_trend} eq 'up') {
         if ($self->{_last_hh}) {
             my $level = $self->{_last_hh}->{price};
-            if ($close > $level) {
+            my $hh_idx = $self->{_last_hh}->{index};
+            if ($close > $level && ($self->{_last_hh_broken} // -1) != $hh_idx) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'BOS', dir => 'up', price => $level
+                    index => $index, type => 'BOS', dir => 'up', price => $level,
+                    start_index => $hh_idx
                 };
-            } elsif ($high > $level && $close <= $level) {
-                $self->{_pending_bos} = { dir => 'up', level => $level, index => $index };
+                $self->{_last_hh_broken} = $hh_idx;
+            } elsif ($high > $level && $close <= $level && ($self->{_last_hh_broken} // -1) != $hh_idx) {
+                $self->{_pending_bos} = { dir => 'up', level => $level, index => $index, start_index => $hh_idx };
             }
         }
         if ($self->{_major_low} && $close < $self->{_major_low}->{price}) {
             $self->{_pending_bos} = undef;
             $self->{_pending_choch} = {
-                dir => 'down', level => $self->{_major_low}->{price}, index => $index
+                dir => 'down', level => $self->{_major_low}->{price}, index => $index,
+                start_index => $self->{_major_low}->{index}
             };
         } elsif ($self->{_last_hl} && $close < $self->{_last_hl}->{price}
                  && (!$self->{_major_low} || $close >= $self->{_major_low}->{price})) {
-            push @{ $self->{_events} }, {
-                index => $index, type => 'CHoCH_false', dir => 'down',
-                price => $self->{_last_hl}->{price}
-            };
+            my $hl_idx = $self->{_last_hl}->{index};
+            if (($self->{_last_hl_broken} // -1) != $hl_idx) {
+                push @{ $self->{_events} }, {
+                    index => $index, type => 'CHoCH_false', dir => 'down',
+                    price => $self->{_last_hl}->{price},
+                    start_index => $hl_idx
+                };
+                $self->{_last_hl_broken} = $hl_idx;
+            }
         }
     } else {
         if ($self->{_last_ll}) {
             my $level = $self->{_last_ll}->{price};
-            if ($close < $level) {
+            my $ll_idx = $self->{_last_ll}->{index};
+            if ($close < $level && ($self->{_last_ll_broken} // -1) != $ll_idx) {
                 push @{ $self->{_events} }, {
-                    index => $index, type => 'BOS', dir => 'down', price => $level
+                    index => $index, type => 'BOS', dir => 'down', price => $level,
+                    start_index => $ll_idx
                 };
-            } elsif ($low < $level && $close >= $level) {
-                $self->{_pending_bos} = { dir => 'down', level => $level, index => $index };
+                $self->{_last_ll_broken} = $ll_idx;
+            } elsif ($low < $level && $close >= $level && ($self->{_last_ll_broken} // -1) != $ll_idx) {
+                $self->{_pending_bos} = { dir => 'down', level => $level, index => $index, start_index => $ll_idx };
             }
         }
         if ($self->{_major_high} && $close > $self->{_major_high}->{price}) {
             $self->{_pending_bos} = undef;
             $self->{_pending_choch} = {
-                dir => 'up', level => $self->{_major_high}->{price}, index => $index
+                dir => 'up', level => $self->{_major_high}->{price}, index => $index,
+                start_index => $self->{_major_high}->{index}
             };
         } elsif ($self->{_last_lh} && $close > $self->{_last_lh}->{price}
                  && (!$self->{_major_high} || $close <= $self->{_major_high}->{price})) {
-            push @{ $self->{_events} }, {
-                index => $index, type => 'CHoCH_false', dir => 'up',
-                price => $self->{_last_lh}->{price}
-            };
+            my $lh_idx = $self->{_last_lh}->{index};
+            if (($self->{_last_lh_broken} // -1) != $lh_idx) {
+                push @{ $self->{_events} }, {
+                    index => $index, type => 'CHoCH_false', dir => 'up',
+                    price => $self->{_last_lh}->{price},
+                    start_index => $lh_idx
+                };
+                $self->{_last_lh_broken} = $lh_idx;
+            }
         }
     }
     return;
@@ -665,6 +694,10 @@ sub reset {
     $self->{_pending_bos}   = undef;
     $self->{_pending_choch} = undef;
     $self->{_fvgs}          = [];
+    $self->{_last_hh_broken} = undef;
+    $self->{_last_ll_broken} = undef;
+    $self->{_last_hl_broken} = undef;
+    $self->{_last_lh_broken} = undef;
     return;
 }
 

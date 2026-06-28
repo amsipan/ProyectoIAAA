@@ -363,4 +363,30 @@ sub make_scales {
     is($texts[0]->[1], $expected_x, 'SMC local-index: idx global 50 se dibuja como local 10');
 }
 
+# =============================================================================
+# Test 9: dibujo de lineas entrecortadas (BOS/CHoCH) si viene start_index
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        events => [
+            { index => 5, type => 'BOS', dir => 'up', price => 15, start_index => 2 }
+        ]
+    );
+    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 10); # ventana [0, 9]
+
+    $ov->compute_visible(undef, $ind, 0, 9);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is(scalar(@lines), 1, 'BOS con start_index: crea una linea para representar el breakout');
+    
+    my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'BOS' } @{ $canvas->{ops} };
+    is(scalar(@texts), 1, 'BOS con start_index: crea un texto BOS');
+    my $expected_mid_x = ($scales->index_to_center_x(2) + $scales->index_to_center_x(5)) / 2;
+    ok(abs($texts[0]->[1] - $expected_mid_x) < 0.001, 'BOS con start_index: texto centrado en el medio de la linea');
+}
+
 done_testing();

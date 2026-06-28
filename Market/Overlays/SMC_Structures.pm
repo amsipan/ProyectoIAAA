@@ -214,7 +214,8 @@ sub draw {
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
-        my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
+        
+        my $x_end = $scales->index_to_center_x($self->_local_index($e->{index}));
         my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
         my ($label, $color);
         if ($e->{type} eq 'BOS') {
@@ -229,8 +230,23 @@ sub draw {
             $label = 'ICHoCH';
             $color = $self->_color('smc_choch_false', '#b39ddb');
         }
+
+        # Dibuja la línea entrecortada si tiene start_index
+        my $x_label = $x_end;
+        if (defined $e->{start_index}) {
+            my $x_start = $scales->index_to_center_x($self->_local_index($e->{start_index}));
+            $canvas->createLine(
+                $x_start, $y, $x_end, $y,
+                -dash  => [3, 3],
+                -fill  => $color,
+                -width => 1,
+                -tags  => $tag,
+            );
+            $x_label = ($x_start + $x_end) / 2;
+        }
+
         $canvas->createText(
-            $x, $y,
+            $x_label, $y,
             -text   => $label,
             -anchor => 's',
             -font   => 'Helvetica 8 bold',

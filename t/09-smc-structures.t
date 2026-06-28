@@ -689,4 +689,29 @@ sub events_of_type {
         sprintf("TASK 0017: alimentar %d velas < 5s (medido: %.3fs; old code ~12s)", $N, $elapsed));
 }
 
+# =============================================================================
+# TASK 0021 (Regresiones): BOS/CHoCH single trigger prevention
+# =============================================================================
+{
+    # Si la tendencia es alcista y el precio sigue subiendo de manera continua
+    # superando el último HH, solo se debe registrar un único evento BOS para
+    # esa ruptura de nivel, no múltiples eventos en velas consecutivas.
+    my @c = (
+        [ 9, 10,  9, 10],   # 0
+        [10, 15, 10, 15],   # 1: Swing High (HH = 15)
+        [11, 11,  8, 10],   # 2: Swing Low (LL = 8)
+        [10, 14, 10, 14],   # 3
+        [13, 13, 10, 13],   # 4
+        [13, 16, 13, 16],   # 5: close=16 > 15 → primer BOS up
+        [16, 17, 16, 17],   # 6: close=17 > 15 → no debe emitir otro BOS
+        [17, 18, 17, 18],   # 7: close=18 > 15 → no debe emitir otro BOS
+    );
+    my $md  = build_ohlc(\@c);
+    my $smc = Market::Indicators::SMC_Structures->new(k => 1);
+    $smc->update_last($md, $_) for 0 .. $md->last_index;
+    my $events = $smc->get_events();
+    my @bos_up = grep { $_->{type} eq 'BOS' && $_->{dir} eq 'up' } @$events;
+    is(scalar(@bos_up), 1, 'BOS single-trigger: solo se emite exactamente un BOS up para el nivel 15');
+}
+
 done_testing();
