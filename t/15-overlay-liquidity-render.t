@@ -376,6 +376,29 @@ sub tab2_indicator {
     is($del[0][1], 'ov_liq', 'clear borra el tag ov_liq (no otros)');
 }
 
+# =============================================================================
+# Test 8: los overlays reciben indices GLOBALES, pero Scales dibuja indices
+# LOCALES de la ventana visible. Un evento idx=50 en ventana [40,60] debe caer
+# en la barra local 10, no quedar volando fuera del viewport (bug visual 0019).
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        events => [ { index => 50, type => 'GRAB', dir => 'up', price => 20 } ],
+    );
+    my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 21); # ventana inclusiva [40,60] => 21 barras
+
+    $ov->compute_visible(undef, $ind, 40, 60);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'LQ GRAB' } @{ $canvas->{ops} };
+    is(scalar(@texts), 1, 'Liquidity local-index: dibuja una etiqueta LQ GRAB visible');
+    my $expected_x = $scales->index_to_center_x(10); # 50 - 40
+    is($texts[0]->[1], $expected_x, 'Liquidity local-index: idx global 50 se dibuja como local 10');
+}
+
 # --- helper: firma de una linea para distinguirlas (no usado en asserts finales)
 sub _line_signature {
     my ($op) = @_;

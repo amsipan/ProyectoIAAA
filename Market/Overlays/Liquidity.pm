@@ -144,6 +144,13 @@ sub _window_filter {
     return [ grep { defined $_->{index} && $_->{index} >= $start && $_->{index} <= $end } @$items ];
 }
 
+sub _local_index {
+    my ($self, $index) = @_;
+    my $range = $self->{_compute_range};
+    my $start = $range ? ($range->[0] // 0) : 0;
+    return $index - $start;
+}
+
 # --- helpers de tema (defaults de la Tabla 2, override por tema inyectado) ------
 
 sub _color {
@@ -263,9 +270,9 @@ sub _draw_pair_line {
         my $a = $sorted[$i];
         my $b = $sorted[$i + 1];
         next unless defined $a->{price} && defined $b->{price};
-        my $x1 = $scales->index_to_center_x($a->{index});
+        my $x1 = $scales->index_to_center_x($self->_local_index($a->{index}));
         my $y1 = $scales->value_to_y($a->{price});
-        my $x2 = $scales->index_to_center_x($b->{index});
+        my $x2 = $scales->index_to_center_x($self->_local_index($b->{index}));
         my $y2 = $scales->value_to_y($b->{price});
         $canvas->createLine(
             $x1, $y1, $x2, $y2,
@@ -277,7 +284,7 @@ sub _draw_pair_line {
     # Etiqueta sobre el último pivote del par.
     my $last = $sorted[-1];
     if (defined $last->{price}) {
-        my $x = $scales->index_to_center_x($last->{index});
+        my $x = $scales->index_to_center_x($self->_local_index($last->{index}));
         my $y = $scales->value_to_y($last->{price});
         $canvas->createText(
             $x, $y,
@@ -296,7 +303,7 @@ sub _draw_pair_line {
 # roto, y la etiqueta de la Tabla 2.
 sub _draw_event_marker {
     my ($self, $canvas, $scales, $tag, $e, $label, $color) = @_;
-    my $x = $scales->index_to_center_x($e->{index});
+    my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
     my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
     # Línea vertical corta (marcador de quiebre) de ~24px centrada en el nivel.
     $canvas->createLine(

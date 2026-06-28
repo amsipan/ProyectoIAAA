@@ -340,4 +340,27 @@ sub make_scales {
     is(scalar(@$vis), 0, 'ventana [0,10]: pivot idx=50 queda fuera (no se dibuja)');
 }
 
+# =============================================================================
+# Test 8: los overlays reciben indices GLOBALES, pero Scales dibuja indices
+# LOCALES de la ventana visible. Un item idx=50 en ventana [40,60] debe caer
+# en la barra local 10, no en X de barra global 50 (bug visual 0019).
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        pivots => [ { index => 50, type => 'HH', price => 20 } ],
+    );
+    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 21); # ventana inclusiva [40,60] => 21 barras
+
+    $ov->compute_visible(undef, $ind, 40, 60);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'HH' } @{ $canvas->{ops} };
+    is(scalar(@texts), 1, 'SMC local-index: dibuja una etiqueta HH visible');
+    my $expected_x = $scales->index_to_center_x(10); # 50 - 40
+    is($texts[0]->[1], $expected_x, 'SMC local-index: idx global 50 se dibuja como local 10');
+}
+
 done_testing();

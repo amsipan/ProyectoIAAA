@@ -55,6 +55,7 @@ Los habilitadores van primero porque el resto depende de ellos.
 | 0010 | Liquidity: clasificación Sweep/Grab/Run + FSM 5 estados | 0005 | 0009 |
 | 0011 | Liquidity: pesado de volumen multi-TF + 7 zonas | 0005 | 0009,0001 |
 | 0012 | Overlays/Liquidity: render Tabla 2 + toggles | 0005 | 0003,0010 |
+| 0019 | Regresiones visuales beta: overlays SMC/Liquidez con coordenadas locales y Replay | 0004/0005/0010 | 0008,0012,0015,0018 |
 
 (2ª entrega — 13/07: concurrencia 0006, strategy builder 0007, volume profile 0008, VWAP 0009.
 Fase 3: HMM/Viterbi 0011, Pearson 0012. Se crearán tasks cuando se aborden.)

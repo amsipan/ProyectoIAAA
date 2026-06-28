@@ -62,6 +62,10 @@ sub step_forward {
     my $last = $self->_last_index();
     $self->{replay_idx}++ if defined $self->{replay_idx};
     $self->{replay_idx} = $last if defined $last && $self->{replay_idx} > $last;
+    # Si Play llega al último índice, detener el loop automático. Sin esto,
+    # step_forward queda clampado en el último frame pero `playing` sigue true,
+    # y la UI reprograma after() indefinidamente mostrando un frame congelado.
+    $self->pause() if defined $self->{replay_idx} && defined $last && $self->{replay_idx} >= $last;
     return $self->{replay_idx};
 }
 

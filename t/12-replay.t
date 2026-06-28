@@ -105,6 +105,14 @@ $rc->start(99);
 $rc->step_forward();
 is($rc->current_index(), 99, 'step_forward en último idx clampa a 99');
 
+# En modo playing, llegar al último índice debe pausar el replay para no dejar
+# un after-loop re-renderizando el último frame congelado.
+$rc->start(98);
+$rc->{playing} = 1;
+$rc->step_forward();
+is($rc->current_index(), 99, 'step_forward llega al último idx');
+ok(!$rc->{playing}, 'step_forward pausa automaticamente al llegar al final');
+
 # Clamp al inicio (idx 0)
 $rc->start(0);
 $rc->step_backward();

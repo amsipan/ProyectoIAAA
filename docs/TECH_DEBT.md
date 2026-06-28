@@ -12,13 +12,13 @@ alimentan bajo demanda; con las capas OFF al abrir, solo se computa velas+ATR co
   `-variable` (Tk no lo pasa). Fix: `market.pl` pasa explícito `$cb->($var ? 1 : 0)`. Verificado en
   `t/18` (OFF→ON restaura los mismos items).
 - **F2 (barra saturada, TF/Replay recortados):** ~28 widgets en una sola fila desbordaban el ancho.
-  Fix: rediseño a **menubar** (Temporalidad/Capas/Replay/Escala) + barra inferior compacta.
+  Fix final: rediseño a controles **inline en dos filas** (sin menubar ni Optionmenu por problemas de popups bajo WSLg).
 - **F3 (arranque pesado):** `market.pl` registraba un SMC extra duplicado + alimentaba indicadores
   con capas apagadas. Fix: SMC extra eliminado; alimentación **bajo demanda** en
   `sync_overlay_indicators` (solo si el overlay está visible). Arranque instantáneo.
 - **F4 (demasiadas líneas al abrir):** overlays nacían visibles. Fix: overlays OFF por defecto.
 - **F5 (sin recuperación con app en blanco):** Reset Vista y controles críticos ahora siempre
-  accesibles (menubar + barra compacta). 672 PASS; `t/18` cubre F1/F3/F4.
+  accesibles en la barra inline. 672 PASS; `t/18` cubre F1/F3/F4.
 
 ### [RESUELTO 2026-06-22] SMC_Structures se colgaba ~37s en el dataset real — task 0017
 - **Era:** `_detect_and_mitigate_fvgs` (84%) recorría `_fvgs` entero por vela; FVGs inactivos nunca
@@ -79,14 +79,13 @@ alimentan bajo demanda; con las capas OFF al abrir, solo se computa velas+ATR co
   render) y un `ReplayController` separado; ChartEngine solo coordina.
 - **¿Bloquea escalabilidad?:** sí, para Fase 2 si no se controla.
 
-### Falta de carpeta/patrón de Overlays
+### [RESUELTO 2026-06-22] Falta de carpeta/patrón de Overlays
 - **Descripción:** el PDF exige `Market/Overlays/` (render) separado de `Market/Indicators/`
-  (cálculo); hoy no existe.
-- **Impacto:** sin un patrón uniforme, cada overlay se implementará distinto.
-- **Evidencia:** `Market/` solo tiene `Indicators/` y `Panels/`.
-- **Recomendación:** definir contrato de overlay (`compute_visible`, `draw`, `set_visible`)
-  antes de implementar el primero. Ver `specs/0003-overlays-base.md`.
-- **¿Bloquea escalabilidad?:** sí.
+  (cálculo); ya existe y se usa para SMC y Liquidez.
+- **Impacto:** resuelto para la 1ª entrega; el patrón debe mantenerse para Strategy Builder, Volume Profile y VWAP.
+- **Evidencia:** `Market/OverlayManager.pm`, `Market/Overlays/Base.pm`, `Market/Overlays/SMC_Structures.pm`, `Market/Overlays/Liquidity.pm`.
+- **Recomendación:** no volver a mezclar cálculo dentro de overlays; nuevas capas deben implementar `compute_visible`, `draw`, `set_visible`.
+- **¿Bloquea escalabilidad?:** ya no.
 
 ## Medio
 

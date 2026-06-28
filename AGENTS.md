@@ -7,7 +7,7 @@
 > 4. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos OFICIALES de Fase 2.
 > 5. La spec concreta en `specs/` y su task en `tasks/`.
 >
-> **Antes de Fase 2:** `0000f` introdujo tickmarks ponderados, pero la validación visual aún falla por el problema principal histórico: mezcla irregular de días/horas y distancias no uniformes. Cerrar ahora `tasks/0000g-time-axis-global-cadence-tradingview.md` con **Modo A obligatorio**: días + horas uniformes por ventana, evitando secuencias tipo `DAY | HOUR | DAY | DAY | HOUR`. No aceptar modo diario conservador como cierre final; solo puede ser fallback temporal/incompleto. Luego seguir con `0001`.
+> **Estado actual:** la 1ª entrega de Fase 2 está funcionalmente implementada y testeada. El eje temporal TradingView quedó cerrado en `0000g`–`0000j`; las tareas `0001`–`0018` cubren temporalidades, Replay, overlays SMC/Liquidez, rendimiento y UI inline. Antes de seguir, validar visualmente la GUI y registrar nuevos fallos como task incremental.
 >
 > **Flujo de trabajo (SDD):** toma una task de `tasks/` → implementa solo eso → verifica con
 > `perl -I. -c` de los archivos tocados + `prove -l t` → no toques nada fuera de "Archivos relevantes"/"Qué no tocar" de la task.
@@ -50,13 +50,13 @@ ProyectoIAAA/
     IndicatorManager.pm      # Gestor de indicadores
     Indicators/              # CÁLCULO (sin Tk)
       ATR.pm                 # Cálculo del ATR (14 periodos)
-      SMC_Structures.pm      # (Fase 2, por crear) BOS/CHoCH/FVG/Fibonacci
-      Liquidity.pm           # (Fase 2, por crear) swings, EQH/EQL, sweep/grab/run, FSM
-      Strategy_Builder.pm    # (Fase 2, por crear) SuperTrend/HalfTrend/RangeFilter/Supply/Demand
-    Overlays/                # (Fase 2, carpeta nueva) RENDER sobre Canvas
-      SMC_Structures.pm
-      Liquidity.pm
-      Strategy_Builder.pm
+      SMC_Structures.pm      # Fase 2 implementado: BOS/CHoCH/FVG/Fibonacci
+      Liquidity.pm           # Fase 2 implementado: swings, EQH/EQL, sweep/grab/run, FSM
+      Strategy_Builder.pm    # 2ª entrega, por crear: SuperTrend/HalfTrend/RangeFilter/Supply/Demand
+    Overlays/                # RENDER sobre Canvas (separado de cálculo)
+      SMC_Structures.pm      # Fase 2 implementado
+      Liquidity.pm           # Fase 2 implementado
+      Strategy_Builder.pm    # 2ª entrega, por crear
     Panels/
       PricePanel.pm          # Render de velas japonesas + crosshair
       ATRPanel.pm            # Render línea ATR + crosshair sincronizado

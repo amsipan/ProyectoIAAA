@@ -121,6 +121,13 @@ sub _window_filter {
     return [ grep { defined $_->{index} && $_->{index} >= $start && $_->{index} <= $end } @$items ];
 }
 
+sub _local_index {
+    my ($self, $index) = @_;
+    my $range = $self->{_compute_range};
+    my $start = $range ? ($range->[0] // 0) : 0;
+    return $index - $start;
+}
+
 # --- helpers de tema (defaults claros, override por el tema inyectado) ----------
 
 sub _color {
@@ -175,7 +182,7 @@ sub draw {
         my $y_hi = $scales->value_to_y($fvg->{hi});
         my $y_lo = $scales->value_to_y($fvg->{lo});
         my $is_up = (defined $fvg->{type} && $fvg->{type} eq 'FVG_up');
-        my $x0 = $scales->index_to_x($fvg->{index});
+        my $x0 = $scales->index_to_x($self->_local_index($fvg->{index}));
         # Rectángulo: (x0, y_hi) -> (w, y_lo). Su altura = |y_hi - y_lo| =
         # (hi - lo) escalado → más pequeño cuanto mayor mitig.
         $canvas->createRectangle(
@@ -191,7 +198,7 @@ sub draw {
     # --- Etiquetas de pivotes HH/HL/LL/LH ------------------------------------
     for my $p (@{ $self->{_pivots} }) {
         next unless defined $p->{index} && defined $p->{type};
-        my $x = $scales->index_to_center_x($p->{index});
+        my $x = $scales->index_to_center_x($self->_local_index($p->{index}));
         my $y = defined $p->{price} ? $scales->value_to_y($p->{price}) : 0;
         $canvas->createText(
             $x, $y,
@@ -207,7 +214,7 @@ sub draw {
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
-        my $x = $scales->index_to_center_x($e->{index});
+        my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
         my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
         my ($label, $color);
         if ($e->{type} eq 'BOS') {

@@ -1,7 +1,7 @@
 # Arquitectura
 
-Estado real del sistema. Separa lo implementado (Fase 1) de lo planificado (Fase 2/3).
-Última actualización: 2026-06-20.
+Estado real del sistema. Separa lo implementado (Fase 1 + 1ª entrega Fase 2) de lo planificado (2ª entrega Fase 2 / Fase 3).
+Última actualización: 2026-06-28.
 
 ## Diagrama (texto)
 
@@ -37,9 +37,9 @@ Estado real del sistema. Separa lo implementado (Fase 1) de lo planificado (Fase
 
 ## Capas del sistema
 
-1. **Datos** — `MarketData.pm`. Almacena OHLCV en 1m y agrega a 5m/15m por fronteras reales
-   de reloj. Acceso por índice, slicing, última vela, anclas temporales. (Fase 2: deberá
-   soportar 1h/2h/4h/D/W y un puntero de Replay.)
+1. **Datos** — `MarketData.pm`. Almacena OHLCV en 1m y agrega a 5m/15m/1h/2h/4h/D/W por fronteras reales
+   de reloj (W = lunes ISO). Acceso por índice, slicing, última vela y anclas temporales. El tope de Replay
+   vive en `ReplayController`, no dentro de la capa de datos.
 2. **Indicadores (cálculo, sin Tk)** — `IndicatorManager.pm` + `Indicators/`. Contrato:
    `update_last`, `get_values`, `reset`. ATR es O(1) por vela. (Fase 2: SMC_Structures,
    Liquidity, Strategy_Builder.)
@@ -59,10 +59,10 @@ Estado real del sistema. Separa lo implementado (Fase 1) de lo planificado (Fase
 
 ## Flujo de datos
 
-CSV → `MarketData.add_candle` (1m) → `build_timeframes` (5m/15m) → `ChartEngine.compute_window`
-(qué rango es visible, offset desde el final) → `Scales` mapea índice/valor a píxeles →
-`PricePanel`/`ATRPanel` dibujan. Indicadores: cada vela se propaga con `update_last`; al
-cambiar timeframe, `reset_all` + recálculo vela por vela (O(N)).
+CSV → `MarketData.add_candle` (1m) → `build_timeframes` (5m/15m/1h/2h/4h/D/W) → `ChartEngine.compute_window`
+(qué rango es visible, offset desde el final y tope efectivo de Replay) → `Scales` mapea índice/valor a píxeles →
+`PricePanel`/`ATRPanel` dibujan. Indicadores base: cada vela se propaga con `update_last`; al
+cambiar timeframe, `reset_all` + recálculo vela por vela (O(N)). Indicadores pesados de overlays: alimentación bajo demanda solo cuando su capa está visible.
 
 (Fase 2) El Replay fija un índice tope; indicadores y overlays solo calculan hasta ese índice
 (jamás velas futuras). Overlays SMC/Liquidez calculan sobre velas visibles + ventana de
@@ -123,9 +123,7 @@ contexto, no sobre todo el historial.
 
 ## Recomendaciones futuras (no obligaciones inmediatas)
 
-- Introducir `Market/Overlays/` con un patrón uniforme (cada overlay: `compute_visible`,
-  `draw`, `set_visible`).
-- Un `ReplayController` que posea el índice-tope y notifique a ChartEngine para re-render.
-- Tests `.t` (Test::More) para Indicators de cálculo puro (ATR, SMC labels, Viterbi tensorial,
-  Pearson) usando los valores de referencia del material del profesor.
+- Extraer de `ChartEngine.pm` más lógica de alimentación/render-loop de overlays hacia colaboradores dedicados; `OverlayManager` y `ReplayController` ya existen.
+- Mantener el patrón uniforme de `Market/Overlays/` (cada overlay: `compute_visible`, `draw`, `set_visible`) para Strategy Builder, Volume Profile y VWAP.
+- Añadir tests `.t` (Test::More) para Viterbi tensorial y Pearson usando los valores de referencia del material del profesor.
 - A mediano plazo, evaluar partir `ChartEngine` (render de ejes vs orquestación de eventos).
