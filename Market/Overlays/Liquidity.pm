@@ -194,8 +194,10 @@ sub draw {
     my $ev  = $self->{_elem_visible};
 
     # --- BSL / SSL: líneas horizontales punteadas (rojo / verde) --------------
+    # Solo dibujar niveles que NO estén resueltos (barridos)
     for my $lvl (@{ $self->{_levels} }) {
         next unless defined $lvl->{index} && defined $lvl->{price};
+        next if defined $lvl->{state} && $lvl->{state} eq 'Resolved';
         my $type = $lvl->{type};
         if ($type eq 'BSL' && $ev->{BSL}) {
             $self->_draw_hline_label($canvas, $scales, $tag, $w,
@@ -213,13 +215,30 @@ sub draw {
     }
 
     # --- EQH / EQL: línea que conecta los dos pivotes del par -----------------
-    # Los EQH/EQL vienen de a pares (mismo type, dos index). Se conectan con una
-    # línea entre ambos puntos. Color configurable (Tabla 2).
+    # Los EQH/EQL vienen de a pares (mismo type y precio similar). Se agrupan
+    # por precio y se dibujan como pares separados.
     if ($ev->{EQH} || $ev->{EQL}) {
         for my $type (qw(EQH EQL)) {
             next unless $ev->{$type};
-            my @pair = grep { defined $_->{type} && $_->{type} eq $type } @{ $self->{_levels} };
-            $self->_draw_pair_line($canvas, $scales, $tag, $type, \@pair);
+            my @all_eq = grep { defined $_->{type} && $_->{type} eq $type } @{ $self->{_levels} };
+            # Agrupar por precio (con tolerancia de 0.01 para floats)
+            my @pairs;
+            my %used;
+            for my $i (0 .. $#all_eq - 1) {
+                next if $used{$i};
+                for my $j ($i + 1 .. $#all_eq) {
+                    next if $used{$j};
+                    if (abs(($all_eq[$i]{price} // 0) - ($all_eq[$j]{price} // 0)) < 1.0) {
+                        push @pairs, [$all_eq[$i], $all_eq[$j]];
+                        $used{$i} = 1;
+                        $used{$j} = 1;
+                        last;
+                    }
+                }
+            }
+            for my $pair (@pairs) {
+                $self->_draw_pair_line($canvas, $scales, $tag, $type, $pair);
+            }
         }
     }
 
@@ -286,7 +305,8 @@ sub _draw_hline_label {
     return;
 }
 
-# _draw_pair_line: conecta los pivotes de un par (EQH/EQL) con una línea.
+# _draw_pair_line: conecta los pivotes de un par (EQH/EQL) con una línea
+# horizontal punteada que va SOLO entre los dos pivotes del par.
 sub _draw_pair_line {
     my ($self, $canvas, $scales, $tag, $type, $items) = @_;
     return unless @$items >= 2;
@@ -299,37 +319,19 @@ sub _draw_pair_line {
     my $first = $sorted[0];
     my $last  = $sorted[-1];
     
-    my $x_start = $scales->index_to_center_x($self->_local_index($first->{index}));
-    my $y = $scales->value_to_y($first->{price});
-    my $x_end = $scales->{width} || $scales->plot_width();
-    
-    # Encontrar el BSL/SSL correspondiente al primer y último pivote para obtener su swept_index
-    my $swept_idx;
-    for my $lvl (@{ $self->{_levels} }) {
-        next unless defined $lvl->{price} && abs($lvl->{price} - $first->{price}) < 0.0001;
-        next unless grep { $_->{index} == $lvl->{index} } @sorted;
-        if (defined $lvl->{swept_index}) {
-            $swept_idx = $lvl->{swept_index};
-            last;
-        }
-    }
-    if (defined $swept_idx) {
-        $x_end = $scales->index_to_center_x($self->_local_index($swept_idx));
-    }
-    
-    return if $x_end < 0;
+    my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
+    my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
+    my $y  = $scales->value_to_y($first->{price});
 
     $canvas->createLine(
-        $x_start, $y, $x_end, $y,
+        $x1, $y, $x2, $y,
         -fill  => $color,
         -dash  => [2, 3],
         -width => 2,
         -tags  => $tag,
     );
 
-    # Etiqueta sobre el punto medio de los extremos del par.
-    my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
-    my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
+    # Etiqueta centrada entre los dos pivotes.
     my $x_mid = ($x1 + $x2) / 2;
     $canvas->createText(
         $x_mid, $type eq 'EQH' ? $y - 6 : $y + 6,

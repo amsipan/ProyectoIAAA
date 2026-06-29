@@ -32,7 +32,7 @@ sub new {
     my ($class, %opts) = @_;
     my $k         = $opts{k}         // 3;
     my $atr_period= $opts{atr_period}// 14;
-    my $tol_factor= $opts{tol_factor}// 0.25;
+    my $tol_factor= $opts{tol_factor}// 0.05;
     my $N         = $opts{N}         // 3;
     die "Liquidity: k must be a positive integer"
         unless defined $k && $k =~ /^\d+$/ && $k > 0;

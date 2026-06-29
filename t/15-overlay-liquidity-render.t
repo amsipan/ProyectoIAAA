@@ -440,17 +440,17 @@ sub _line_signature {
 }
 
 # =============================================================================
-# Test 10: dibujo de EQH/EQL barridos (hasta swept_index) vs activos (hasta el final)
+# Test 10: dibujo de EQH/EQL solo entre los dos pivotes del par
 # =============================================================================
 {
     my $ind = TestIndicator->new(
         levels => [
-            # EQH activo: no tiene swept_index
+            # EQH par: index 1 y index 3, ambos price=20
             { index => 1, type => 'EQH', price => 20 },
             { index => 3, type => 'EQH', price => 20 },
-            # EQL barrido: tiene swept_index
+            # EQL par: index 2 y index 4, ambos price=10
             { index => 2, type => 'EQL', price => 10 },
-            { index => 4, type => 'EQL', price => 10, swept_index => 6 },
+            { index => 4, type => 'EQL', price => 10 },
         ]
     );
     my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
@@ -462,19 +462,18 @@ sub _line_signature {
     $ov->draw($canvas, $scales);
 
     my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 2, 'Liquidity rendering: crea dos lineas de par EQH/EQL');
+    is(scalar(@lines), 2, 'EQH/EQL: crea exactamente dos lineas de par');
 
-    # EQH activo (price=20 -> y=150):
-    # index_start = 1 -> x_start = index_to_center_x(1) = 135.
-    # No tiene swept_index, por lo que x_end = w = 900.
-    my @eqh_lines = grep { $_->[2] == 150 && $_->[1] == 135 && $_->[3] == 900 } @lines;
-    is(scalar(@eqh_lines), 1, 'EQH activo: la linea horizontal va hasta el final de la pantalla (900)');
+    # EQH (price=20 -> y=150):
+    # x1 = index_to_center_x(1) = 135, x2 = index_to_center_x(3) = 315.
+    my @eqh_lines = grep { $_->[2] == 150 && $_->[1] == 135 && $_->[3] == 315 } @lines;
+    is(scalar(@eqh_lines), 1, 'EQH: linea horizontal solo entre los dos pivotes (135 -> 315)');
 
-    # EQL barrido (price=10 -> y=450):
-    # index_start = 2 -> x_start = index_to_center_x(2) = 225.
-    # Tiene swept_index = 6 -> x_end = index_to_center_x(6) = 585.
-    my @eql_lines = grep { $_->[2] == 450 && $_->[1] == 225 && $_->[3] == 585 } @lines;
-    is(scalar(@eql_lines), 1, 'EQL barrido: la linea horizontal termina exactamente en el swept_index (585)');
+    # EQL (price=10 -> y=450):
+    # x1 = index_to_center_x(2) = 225, x2 = index_to_center_x(4) = 405.
+    my @eql_lines = grep { $_->[2] == 450 && $_->[1] == 225 && $_->[3] == 405 } @lines;
+    is(scalar(@eql_lines), 1, 'EQL: linea horizontal solo entre los dos pivotes (225 -> 405)');
 }
 
 done_testing();
+
