@@ -85,6 +85,7 @@ sub draw {
     # 1. Draw SuperTrend Line
     if ($self->is_element_visible('SUPERTREND')) {
         for my $i ($start .. $end - 1) {
+            next if $i < 0 || $i + 1 < 0; # Guard against Perl negative array wrapping
             next unless defined $st->[$i] && defined $st->[$i+1];
             next unless defined $st->[$i]->{value} && defined $st->[$i+1]->{value};
             my $x1 = $scales->index_to_center_x($self->_local_index($i));
@@ -107,9 +108,10 @@ sub draw {
         my $w_total = $scales->{width} || $scales->plot_width();
         
         # Supply Zones (Sell blocks)
-        my @supplies = grep { $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
+        my @supplies = grep { $_->{index} >= 0 && $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
         @supplies = splice(@supplies, -6) if @supplies > 6; # Keep max 6 recent visible zones
         for my $z (@supplies) {
+            next if $z->{index} < 0;
             my $x0 = $scales->index_to_x($self->_local_index($z->{index}));
             my $x1 = $scales->index_to_x($self->_local_index($z->{index} + 15));
             $x1 = $w_total if $x1 > $w_total;
@@ -127,9 +129,10 @@ sub draw {
         }
         
         # Demand Zones (Buy blocks)
-        my @demands = grep { $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
+        my @demands = grep { $_->{index} >= 0 && $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
         @demands = splice(@demands, -6) if @demands > 6; # Keep max 6 recent visible zones
         for my $z (@demands) {
+            next if $z->{index} < 0;
             my $x0 = $scales->index_to_x($self->_local_index($z->{index}));
             my $x1 = $scales->index_to_x($self->_local_index($z->{index} + 15));
             $x1 = $w_total if $x1 > $w_total;

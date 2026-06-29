@@ -5,8 +5,8 @@ use warnings;
 # =============================================================================
 # Market::Indicators::AnchoredVWAP
 # 
-# Multipivot Anchored VWAP engine supporting 5 anchor event types:
-#   1. Session Start ('session')
+# Multipivot Anchored VWAP engine supporting continuous & anchor event types:
+#   1. Continuous / Series ('session')
 #   2. Market Open ('open')
 #   3. Confirmed BOS ('bos')
 #   4. Confirmed CHoCH ('choch')
@@ -68,15 +68,6 @@ sub update_last {
     $self->{_lows}->[$index]    = $low;
     $self->{_closes}->[$index]  = $close;
     $self->{_volumes}->[$index] = $vol;
-
-    # Check for session boundary anchor reset if anchor_type eq 'session'
-    if ($self->{anchor_type} eq 'session' && $index > 0) {
-        my $ts = $candle->[0];
-        my $prev_ts = $market_data->get_candle($index - 1)->[0];
-        if (defined $ts && defined $prev_ts && substr($ts, 0, 10) ne substr($prev_ts, 0, 10)) {
-            $self->set_anchor_index($index);
-        }
-    }
 
     my $tp = ($high + $low + $close) / 3;
     $self->{_cum_pv}  += ($tp * $vol);
