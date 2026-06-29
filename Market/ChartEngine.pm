@@ -18,7 +18,8 @@ use Market::Indicators::VolumeProfile;
 use Market::Overlays::VolumeProfile;
 use Market::Indicators::AnchoredVWAP;
 use Market::Overlays::AnchoredVWAP;
-
+use Market::Indicators::Mxwll_Suite;
+use Market::Overlays::Mxwll_Suite;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -168,6 +169,15 @@ sub new {
     $self->{overlay_manager}->register('vwap', $self->{vwap_overlay});
     $self->{_vwap_fed_up_to} = -1;
 
+    $self->{mxwll_indicator} = Market::Indicators::Mxwll_Suite->new();
+    $self->{mxwll_overlay}   = Market::Overlays::Mxwll_Suite->new(
+        indicator => $self->{mxwll_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register('mxwll', $self->{mxwll_overlay});
+    $self->{_mxwll_fed_up_to} = -1;
+
     $self->bind_events();
     
     return $self;
@@ -257,6 +267,8 @@ sub sync_overlay_indicators {
         if $self->_overlay_wants_feed('vp');
     $self->_feed_indicator_to($self->{vwap_indicator}, '_vwap_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('vwap');
+    $self->_feed_indicator_to($self->{mxwll_indicator}, '_mxwll_fed_up_to', $feed_to)
+        if $self->_overlay_wants_feed('mxwll');
     return $feed_to;
 }
 
@@ -1850,6 +1862,10 @@ sub set_timeframe {
     if ($self->{vwap_indicator}) {
         $self->{vwap_indicator}->reset();
         $self->{_vwap_fed_up_to} = -1;
+    }
+    if ($self->{mxwll_indicator}) {
+        $self->{mxwll_indicator}->reset();
+        $self->{_mxwll_fed_up_to} = -1;
     }
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;

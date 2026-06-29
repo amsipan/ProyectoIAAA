@@ -148,6 +148,7 @@ my $vis_liq = 0;
 my $vis_strategy = 0;
 my $vis_vp = 0;
 my $vis_vwap = 0;
+my $vis_mxwll = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
@@ -157,6 +158,7 @@ my $cb_liq = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'strategy');
 my $cb_vp = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vp');
 my $cb_vwap = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vwap');
+my $cb_mxwll = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'mxwll');
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
@@ -199,6 +201,8 @@ $cap_box->Checkbutton(-text => 'Perfil Vol', -variable => \$vis_vp,
     -command => sub { $cb_vp->($vis_vp ? 1 : 0); })->pack(-side => 'left');
 $cap_box->Checkbutton(-text => 'VWAP', -variable => \$vis_vwap,
     -command => sub { $cb_vwap->($vis_vwap ? 1 : 0); })->pack(-side => 'left');
+$cap_box->Checkbutton(-text => 'Mxwll', -variable => \$vis_mxwll,
+    -command => sub { $cb_mxwll->($vis_mxwll ? 1 : 0); })->pack(-side => 'left');
 
 # --- Fila 1: Elementos de liquidez (sub-filtros) ---
 my $elem_box = $row1->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
