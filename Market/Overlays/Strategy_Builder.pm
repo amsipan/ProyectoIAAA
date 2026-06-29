@@ -107,8 +107,8 @@ sub draw {
     if ($self->is_element_visible('SUPPLY_DEMAND')) {
         my $w_total = $scales->{width} || $scales->plot_width();
         
-        # Supply Zones (Sell blocks)
-        my @supplies = grep { $_->{index} >= 0 && $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
+        # Supply Zones (Sell blocks - Red boxes)
+        my @supplies = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
         @supplies = splice(@supplies, -6) if @supplies > 6; # Keep max 6 recent visible zones
         for my $z (@supplies) {
             next if $z->{index} < 0;
@@ -123,13 +123,13 @@ sub draw {
                 $x0, $y_hi, $x1, $y_lo,
                 -fill    => '#f77c80',
                 -outline => '#b22833',
-                -stipple => 'gray50',
+                -width   => 1,
                 -tags    => $tag,
             );
         }
         
-        # Demand Zones (Buy blocks)
-        my @demands = grep { $_->{index} >= 0 && $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
+        # Demand Zones (Buy blocks - Blue boxes)
+        my @demands = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
         @demands = splice(@demands, -6) if @demands > 6; # Keep max 6 recent visible zones
         for my $z (@demands) {
             next if $z->{index} < 0;
@@ -142,9 +142,9 @@ sub draw {
             my $y_lo = $scales->value_to_y($z->{lo});
             $canvas->createRectangle(
                 $x0, $y_hi, $x1, $y_lo,
-                -fill    => '#3179f5',
-                -outline => '#1848cc',
-                -stipple => 'gray50',
+                -fill    => '#64b5f6',
+                -outline => '#1976d2',
+                -width   => 1,
                 -tags    => $tag,
             );
         }

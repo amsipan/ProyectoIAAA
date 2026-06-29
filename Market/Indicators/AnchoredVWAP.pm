@@ -5,7 +5,7 @@ use warnings;
 # =============================================================================
 # Market::Indicators::AnchoredVWAP
 # 
-# Multipivot Anchored VWAP engine supporting session resets (Section 8 PDF)
+# Multipivot Anchored VWAP engine generating smooth continuous series
 # =============================================================================
 
 sub new {
@@ -41,13 +41,6 @@ sub reset {
     return;
 }
 
-sub set_anchor_index {
-    my ($self, $idx) = @_;
-    $self->{_anchor_idx} = $idx;
-    $self->{_cum_pv}     = 0;
-    $self->{_cum_vol}    = 0;
-}
-
 sub update_last {
     my ($self, $market_data, $index) = @_;
     my $candle = defined $index ? $market_data->get_candle($index) : $market_data->last_candle();
@@ -64,15 +57,6 @@ sub update_last {
     $self->{_closes}->[$index]  = $close;
     $self->{_volumes}->[$index] = $vol;
 
-    # Check for session boundary anchor reset if anchor_type eq 'session'
-    if ($self->{anchor_type} eq 'session' && $index > 0) {
-        my $ts = $candle->[0];
-        my $prev_ts = $market_data->get_candle($index - 1)->[0];
-        if (defined $ts && defined $prev_ts && substr($ts, 0, 10) ne substr($prev_ts, 0, 10)) {
-            $self->set_anchor_index($index);
-        }
-    }
-
     my $tp = ($high + $low + $close) / 3;
     $self->{_cum_pv}  += ($tp * $vol);
     $self->{_cum_vol} += $vol;
@@ -80,7 +64,7 @@ sub update_last {
     my $vwap_val = ($self->{_cum_vol} > 0) ? ($self->{_cum_pv} / $self->{_cum_vol}) : $close;
     $self->{_vwap}->[$index] = {
         value      => $vwap_val,
-        anchor_idx => $self->{_anchor_idx},
+        anchor_idx => 0,
     };
     return;
 }

@@ -5,7 +5,7 @@ use warnings;
 # =============================================================================
 # Market::Overlays::AnchoredVWAP
 # 
-# Render smooth Anchored VWAP curve across the chart.
+# Render smooth unbroken Anchored VWAP curve across the chart.
 # =============================================================================
 
 sub new {
@@ -81,11 +81,6 @@ sub draw {
         next if $i < 0 || $i + 1 < 0; # Guard against Perl negative array wrapping
         next unless defined $vwap->[$i] && defined $vwap->[$i+1];
         next unless defined $vwap->[$i]->{value} && defined $vwap->[$i+1]->{value};
-
-        # Do not connect across session resets / anchor changes
-        my $anc1 = $vwap->[$i]->{anchor_idx} // 0;
-        my $anc2 = $vwap->[$i+1]->{anchor_idx} // 0;
-        next if $anc1 != $anc2;
 
         my $x1 = $scales->index_to_center_x($self->_local_index($i));
         my $x2 = $scales->index_to_center_x($self->_local_index($i+1));
