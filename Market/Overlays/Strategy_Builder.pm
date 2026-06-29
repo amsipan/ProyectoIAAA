@@ -102,29 +102,43 @@ sub draw {
         }
     }
 
-    # 2. Draw Supply & Demand Zones
+    # 2. Draw Supply & Demand Zones (Order blocks bounded to 15 bars length)
     if ($self->is_element_visible('SUPPLY_DEMAND')) {
-        my $w = $scales->{width} || $scales->plot_width();
-        for my $z (@{ $vals->{supply_zones} // [] }) {
-            next if $z->{index} > $end;
+        my $w_total = $scales->{width} || $scales->plot_width();
+        
+        # Supply Zones (Sell blocks)
+        my @supplies = grep { $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
+        @supplies = splice(@supplies, -6) if @supplies > 6; # Keep max 6 recent visible zones
+        for my $z (@supplies) {
             my $x0 = $scales->index_to_x($self->_local_index($z->{index}));
+            my $x1 = $scales->index_to_x($self->_local_index($z->{index} + 15));
+            $x1 = $w_total if $x1 > $w_total;
+            next if $x1 < 0;
+            
             my $y_hi = $scales->value_to_y($z->{hi});
             my $y_lo = $scales->value_to_y($z->{lo});
             $canvas->createRectangle(
-                $x0, $y_hi, $w, $y_lo,
+                $x0, $y_hi, $x1, $y_lo,
                 -fill    => '#f77c80',
                 -outline => '#b22833',
                 -stipple => 'gray50',
                 -tags    => $tag,
             );
         }
-        for my $z (@{ $vals->{demand_zones} // [] }) {
-            next if $z->{index} > $end;
+        
+        # Demand Zones (Buy blocks)
+        my @demands = grep { $_->{index} >= $start - 30 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
+        @demands = splice(@demands, -6) if @demands > 6; # Keep max 6 recent visible zones
+        for my $z (@demands) {
             my $x0 = $scales->index_to_x($self->_local_index($z->{index}));
+            my $x1 = $scales->index_to_x($self->_local_index($z->{index} + 15));
+            $x1 = $w_total if $x1 > $w_total;
+            next if $x1 < 0;
+
             my $y_hi = $scales->value_to_y($z->{hi});
             my $y_lo = $scales->value_to_y($z->{lo});
             $canvas->createRectangle(
-                $x0, $y_hi, $w, $y_lo,
+                $x0, $y_hi, $x1, $y_lo,
                 -fill    => '#3179f5',
                 -outline => '#1848cc',
                 -stipple => 'gray50',
