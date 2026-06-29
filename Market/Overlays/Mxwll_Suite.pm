@@ -82,6 +82,17 @@ sub compute_visible {
     my ($self, $market_data, $indicator, $start, $end) = @_;
     $self->{_start} = $start // 0;
     $self->{_end}   = $end   // 0;
+    # Indice de la ULTIMA vela real (el dataset). La ventana visible puede
+    # extenderse mas alla (espacio vacio a la derecha, relleno con undef en
+    # ChartEngine), asi que guardamos el tope real para cortar cajas/lineas
+    # justo en la ultima vela, como TradingView.
+    my $last_real;
+    if ($market_data && $market_data->can('last_index')) {
+        $last_real = $market_data->last_index();
+    } elsif ($market_data && $market_data->can('size')) {
+        $last_real = $market_data->size() - 1;
+    }
+    $self->{_last_real_index} = $last_real;
     return $self;
 }
 
@@ -105,11 +116,16 @@ sub draw {
     my $end   = $self->{_end}   // 0;
     my $w     = $scales->{width} || $scales->plot_width();
 
-    # Borde derecho de las cajas/lineas: la ULTIMA vela visible (index $end),
-    # no el borde del canvas. Replica TradingView, que corta los dibujos al
-    # final de la ultima vela en vez de extenderlos al espacio vacio derecho.
-    my $x_right = $scales->index_to_center_x($self->_local_index($end));
+    # Borde derecho de las cajas/lineas: la ULTIMA vela REAL visible, no el
+    # borde del canvas ni el fin de ventana (que puede caer en el espacio vacio
+    # de la derecha). Replica TradingView, que corta los dibujos al final de la
+    # ultima vela de datos.
+    my $right_idx = $end;
+    my $last_real = $self->{_last_real_index};
+    $right_idx = $last_real if defined $last_real && $last_real < $right_idx;
+    my $x_right = $scales->index_to_center_x($self->_local_index($right_idx));
     $x_right = $w if $x_right > $w;
+    $x_right = 0 if $x_right < 0;
 
     my $bull = $self->_color('mxwll_bull', '#14D990');
     my $bear = $self->_color('mxwll_bear', '#F24968');
