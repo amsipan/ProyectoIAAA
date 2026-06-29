@@ -166,4 +166,56 @@ SKIP: {
     ok(eval { $ov->draw(undef, undef); 1 }, 'overlay: draw sin canvas no muere');
 }
 
+# =============================================================================
+# 9. ORDEN 1 (task 0021 C+A): filtro de estado por volatilidad (rango lateral)
+# =============================================================================
+# El filtro debe REDUCIR las etiquetas de estructura cuando state_atr_factor>0
+# (suprime breaks dentro de rango lateral) y NO cambiar nada con factor=0.
+SKIP: {
+    my $csv = -e 'Data/2026_06_29.csv' ? 'Data/2026_06_29.csv'
+            : -e 'Data/2026_03.csv'    ? 'Data/2026_03.csv'
+            : undef;
+    skip "no hay CSV de datos reales", 4 unless $csv;
+    my $md = Market::MarketData->new();
+    open my $fh, '<', $csv or skip "no se pudo abrir CSV", 4;
+    my $hdr = <$fh>;
+    while (my $l = <$fh>) {
+        chomp $l; next unless length $l;
+        my @f = split /,/, $l; next unless @f >= 6;
+        $md->add_candle([$f[0], $f[1]+0, $f[2]+0, $f[3]+0, $f[4]+0, $f[5]+0]);
+    }
+    close $fh;
+    $md->build_timeframes();
+    $md->set_timeframe('1m');
+    my $last = $md->last_index;
+
+    # factor=0 → sin filtro (comportamiento previo).
+    my $i0 = Market::Indicators::Mxwll_Suite->new(state_atr_factor => 0);
+    $i0->update_last($md, $_) for 0 .. $last;
+    my $n0 = scalar @{ $i0->get_values->{structures} };
+
+    # factor=2.0 (default) → filtra rango lateral.
+    my $i2 = Market::Indicators::Mxwll_Suite->new(state_atr_factor => 2.0);
+    $i2->update_last($md, $_) for 0 .. $last;
+    my $n2 = scalar @{ $i2->get_values->{structures} };
+
+    ok($n0 > 0, "ORDEN1: con factor=0 hay estructuras ($n0)");
+    ok($n2 < $n0, "ORDEN1: factor=2.0 reduce el ruido ($n2 < $n0)");
+
+    # El default del constructor debe aplicar el filtro (no factor=0).
+    my $idef = Market::Indicators::Mxwll_Suite->new;
+    $idef->update_last($md, $_) for 0 .. $last;
+    my $ndef = scalar @{ $idef->get_values->{structures} };
+    is($ndef, $n2, 'ORDEN1: el default usa state_atr_factor=2.0');
+
+    # Las etiquetas externas (estructura mayor) deben preservarse casi intactas:
+    # el filtro ataca el ruido interno, no la estructura mayor.
+    my %c0; $c0{$_->{label}}++ for @{ $i0->get_values->{structures} };
+    my %c2; $c2{$_->{label}}++ for @{ $i2->get_values->{structures} };
+    my $ext0 = ($c0{BoS}//0) + ($c0{CHoCH}//0);
+    my $ext2 = ($c2{BoS}//0) + ($c2{CHoCH}//0);
+    ok($ext2 >= $ext0 * 0.8,
+       "ORDEN1: estructura externa preservada (ext0=$ext0 ext2=$ext2)");
+}
+
 done_testing();

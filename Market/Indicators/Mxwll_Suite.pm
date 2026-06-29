@@ -47,6 +47,14 @@ sub new {
         atr_period   => $opts{atr_period}   // 14,
         fib_ratios   => $opts{fib_ratios}   // [0.236, 0.382, 0.5, 0.618, 0.786],
 
+        # ORDEN 1 (task 0021 C+A): umbral de volatilidad para el estado "lateral".
+        # Un break de estructura solo cuenta como cambio de estado real si el
+        # rango de la pierna rota (|upaxis - dnaxis|) es >= state_atr_factor * ATR.
+        # Por debajo de eso el mercado se considera en RANGO LATERAL y no se emite
+        # etiqueta (mata el ruido de CHoCH en 1m). Con factor 0 se desactiva el
+        # filtro (comportamiento previo: etiqueta en cada break).
+        state_atr_factor => defined $opts{state_atr_factor} ? $opts{state_atr_factor} : 2.0,
+
         _highs  => [],
         _lows   => [],
         _opens  => [],
@@ -61,16 +69,17 @@ sub new {
         _leg => { ext => 0, int => 0, fib => 0 },
 
         # Estructura externa (drawStructureExt / bigData).
+        # state: +1 alcista, -1 bajista, 0 lateral (ORDEN 1).
         _ext => {
             upaxis => undef, upaxis2 => undef,
             dnaxis => undef, dnaxis2 => undef,
-            upside => 1, downside => 1, moving => 0,
+            upside => 1, downside => 1, moving => 0, state => 0,
         },
         # Estructura interna (drawStructureInternals / keyValues).
         _int => {
             upaxis => undef, upaxis2 => undef,
             dnaxis => undef, dnaxis2 => undef,
-            upside => 0, downside => 0, moving => 0,
+            upside => 0, downside => 0, moving => 0, state => 0,
         },
 
         _swings     => [],   # { index, price, label HH/HL/LH/LL, dir }
@@ -97,11 +106,11 @@ sub reset {
     $self->{_leg} = { ext => 0, int => 0, fib => 0 };
     $self->{_ext} = {
         upaxis => undef, upaxis2 => undef, dnaxis => undef, dnaxis2 => undef,
-        upside => 1, downside => 1, moving => 0,
+        upside => 1, downside => 1, moving => 0, state => 0,
     };
     $self->{_int} = {
         upaxis => undef, upaxis2 => undef, dnaxis => undef, dnaxis2 => undef,
-        upside => 0, downside => 0, moving => 0,
+        upside => 0, downside => 0, moving => 0, state => 0,
     };
     $self->{_swings}      = [];
     $self->{_structures}  = [];
@@ -253,34 +262,64 @@ sub _update_structure {
 
     return unless defined $prev_close;
 
+    # ORDEN 1 (task 0021 C+A): filtro por volatilidad / estado de mercado.
+    # Un break solo cuenta como CAMBIO DE ESTADO REAL si el rango de la pierna
+    # rota (|upaxis - dnaxis|) es significativo respecto al ATR local. Por debajo
+    # del umbral el mercado esta en RANGO LATERAL: el cruce se "consume" (para no
+    # re-disparar) pero NO se emite etiqueta. Esto elimina el ruido de CHoCH en
+    # 1m, donde antes cada vaiven en rango generaba una etiqueta.
+    my $factor = $self->{state_atr_factor} // 0;
+    my $atr    = $self->{_atr_last};
+    my $leg_range;
+    if (defined $st->{upaxis} && defined $st->{dnaxis}) {
+        $leg_range = abs($st->{upaxis} - $st->{dnaxis});
+    }
+    # significant: factor<=0 desactiva el filtro (siempre significativo);
+    # si falta ATR o rango aun, tambien se considera significativo (no censurar
+    # de mas al inicio del dataset).
+    my $significant = 1;
+    if ($factor > 0 && defined $atr && $atr > 0 && defined $leg_range) {
+        $significant = ($leg_range >= $factor * $atr) ? 1 : 0;
+    }
+
     # BOS / CHoCH alcista: crossover(close, upaxis).
     if (defined $st->{upaxis}
         && $prev_close <= $st->{upaxis} && $close > $st->{upaxis}
         && $st->{upside} != 0) {
-        my $tag = ($st->{moving} < 0)
-            ? ($internal ? 'I-CHoCH' : 'CHoCH')
-            : ($internal ? 'I-BoS'   : 'BoS');
-        push @{ $self->{_structures} }, {
-            from => $st->{upaxis2}, to => $index, price => $st->{upaxis},
-            label => $tag, dir => 'up', internal => $internal,
-        };
+        if ($significant) {
+            my $tag = ($st->{moving} < 0)
+                ? ($internal ? 'I-CHoCH' : 'CHoCH')
+                : ($internal ? 'I-BoS'   : 'BoS');
+            push @{ $self->{_structures} }, {
+                from => $st->{upaxis2}, to => $index, price => $st->{upaxis},
+                label => $tag, dir => 'up', internal => $internal,
+            };
+            $st->{moving} = 1;
+            $st->{state}  = 1;   # alcista
+        } else {
+            $st->{state} = 0;    # rango lateral: cruce consumido, sin etiqueta
+        }
         $st->{upside} = 0;
-        $st->{moving} = 1;
     }
 
     # BOS / CHoCH bajista: crossunder(close, dnaxis).
     if (defined $st->{dnaxis}
         && $prev_close >= $st->{dnaxis} && $close < $st->{dnaxis}
         && $st->{downside} != 0) {
-        my $tag = ($st->{moving} > 0)
-            ? ($internal ? 'I-CHoCH' : 'CHoCH')
-            : ($internal ? 'I-BoS'   : 'BoS');
-        push @{ $self->{_structures} }, {
-            from => $st->{dnaxis2}, to => $index, price => $st->{dnaxis},
-            label => $tag, dir => 'down', internal => $internal,
-        };
+        if ($significant) {
+            my $tag = ($st->{moving} > 0)
+                ? ($internal ? 'I-CHoCH' : 'CHoCH')
+                : ($internal ? 'I-BoS'   : 'BoS');
+            push @{ $self->{_structures} }, {
+                from => $st->{dnaxis2}, to => $index, price => $st->{dnaxis},
+                label => $tag, dir => 'down', internal => $internal,
+            };
+            $st->{moving} = -1;
+            $st->{state}  = -1;  # bajista
+        } else {
+            $st->{state} = 0;    # rango lateral: cruce consumido, sin etiqueta
+        }
         $st->{downside} = 0;
-        $st->{moving} = -1;
     }
 
     return;
