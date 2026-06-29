@@ -1,7 +1,6 @@
 package Market::Overlays::AnchoredVWAP;
 use strict;
 use warnings;
-use parent 'Market::Overlays::Base';
 
 # =============================================================================
 # Market::Overlays::AnchoredVWAP
@@ -10,25 +9,69 @@ use parent 'Market::Overlays::Base';
 # =============================================================================
 
 sub new {
-    my ($class, %opts) = @_;
-    my $self = $class->SUPER::new(%opts);
-    $self->{_elements} = {
-        VWAP_LINE => 1,
+    my ($class, %args) = @_;
+    die "Overlays::AnchoredVWAP->new: requiere 'indicator'"
+        unless defined $args{indicator};
+    my $self = {
+        indicator => $args{indicator},
+        theme     => $args{theme} || {},
+        visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
+        _elements => {
+            VWAP_LINE => 1,
+        },
     };
+    bless $self, $class;
+    return $self;
+}
+
+sub set_visible {
+    my ($self, $val) = @_;
+    $self->{visible} = $val ? 1 : 0;
+}
+
+sub is_visible {
+    my ($self) = @_;
+    return $self->{visible} ? 1 : 0;
+}
+
+sub tag {
+    return 'ov_vwap';
+}
+
+sub clear {
+    my ($self, $canvas) = @_;
+    return unless $canvas;
+    $canvas->delete($self->tag());
+}
+
+sub is_element_visible {
+    my ($self, $elem) = @_;
+    return $self->{_elements}->{$elem} ? 1 : 0;
+}
+
+sub _local_index {
+    my ($self, $global_idx) = @_;
+    return $global_idx;
+}
+
+sub compute_visible {
+    my ($self, $market_data, $indicator, $start, $end) = @_;
     return $self;
 }
 
 sub draw {
     my ($self, $canvas, $scales, $window) = @_;
     return $self unless $self->is_visible() && $self->{indicator};
-    return $self unless $canvas && $scales && $window;
+    return $self unless $canvas && $scales;
 
     my $tag   = $self->tag();
+    $self->clear($canvas);
+
     my $vwap  = $self->{indicator}->get_values();
     return $self unless $vwap && @$vwap;
 
-    my $start = $window->{start_index} // 0;
-    my $end   = $window->{end_index}   // 0;
+    my $start = (ref $window eq 'HASH') ? ($window->{start_index} // 0) : 0;
+    my $end   = (ref $window eq 'HASH') ? ($window->{end_index}   // 0) : 0;
 
     for my $i ($start .. $end - 1) {
         next unless defined $vwap->[$i] && defined $vwap->[$i+1];

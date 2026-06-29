@@ -1,7 +1,6 @@
 package Market::Overlays::VolumeProfile;
 use strict;
 use warnings;
-use parent 'Market::Overlays::Base';
 
 # =============================================================================
 # Market::Overlays::VolumeProfile
@@ -10,22 +9,61 @@ use parent 'Market::Overlays::Base';
 # =============================================================================
 
 sub new {
-    my ($class, %opts) = @_;
-    my $self = $class->SUPER::new(%opts);
-    $self->{_elements} = {
-        HISTOGRAM => 1,
-        POC       => 1,
-        VALUE_AREA=> 1,
+    my ($class, %args) = @_;
+    die "Overlays::VolumeProfile->new: requiere 'indicator'"
+        unless defined $args{indicator};
+    my $self = {
+        indicator => $args{indicator},
+        theme     => $args{theme} || {},
+        visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
+        _elements => {
+            HISTOGRAM => 1,
+            POC       => 1,
+            VALUE_AREA=> 1,
+        },
     };
+    bless $self, $class;
+    return $self;
+}
+
+sub set_visible {
+    my ($self, $val) = @_;
+    $self->{visible} = $val ? 1 : 0;
+}
+
+sub is_visible {
+    my ($self) = @_;
+    return $self->{visible} ? 1 : 0;
+}
+
+sub tag {
+    return 'ov_vp';
+}
+
+sub clear {
+    my ($self, $canvas) = @_;
+    return unless $canvas;
+    $canvas->delete($self->tag());
+}
+
+sub is_element_visible {
+    my ($self, $elem) = @_;
+    return $self->{_elements}->{$elem} ? 1 : 0;
+}
+
+sub compute_visible {
+    my ($self, $market_data, $indicator, $start, $end) = @_;
     return $self;
 }
 
 sub draw {
     my ($self, $canvas, $scales, $window) = @_;
     return $self unless $self->is_visible() && $self->{indicator};
-    return $self unless $canvas && $scales && $window;
+    return $self unless $canvas && $scales;
 
     my $tag  = $self->tag();
+    $self->clear($canvas);
+
     my $prof = $self->{indicator}->get_values();
     return $self unless $prof && $prof->{bins};
 
