@@ -32,7 +32,7 @@ sub new {
     my ($class, %opts) = @_;
     my $k         = $opts{k}         // 3;
     my $atr_period= $opts{atr_period}// 14;
-    my $tol_factor= $opts{tol_factor}// 0.05;
+    my $tol_factor= $opts{tol_factor}// 0.10;
     my $N         = $opts{N}         // 3;
     die "Liquidity: k must be a positive integer"
         unless defined $k && $k =~ /^\d+$/ && $k > 0;
@@ -251,17 +251,18 @@ sub _process_swing_high {
         my $atr = $self->_get_atr_at($j) // 0;
         my $tol = $atr * $self->{tol_factor};
         if (abs($price - $prev_price) <= $tol) {
+            my $gid = "eqh_" . $self->{_last_sh_prev}->{index} . "_" . $j;
             push @{ $self->{_levels} }, {
-                index => $self->{_last_sh_prev}->{index},
-                type  => 'EQH',
-                price => $prev_price,
-                # vincular swept_index del nivel BSL correspondiente
-                # (lo buscaremos dinámicamente al dibujar)
+                index    => $self->{_last_sh_prev}->{index},
+                type     => 'EQH',
+                price    => $prev_price,
+                group_id => $gid,
             };
             push @{ $self->{_levels} }, {
-                index => $j,
-                type  => 'EQH',
-                price => $price,
+                index    => $j,
+                type     => 'EQH',
+                price    => $price,
+                group_id => $gid,
             };
         }
     }
@@ -291,15 +292,18 @@ sub _process_swing_low {
         my $atr = $self->_get_atr_at($j) // 0;
         my $tol = $atr * $self->{tol_factor};
         if (abs($price - $prev_price) <= $tol) {
+            my $gid = "eql_" . $self->{_last_sl_prev}->{index} . "_" . $j;
             push @{ $self->{_levels} }, {
-                index => $self->{_last_sl_prev}->{index},
-                type  => 'EQL',
-                price => $prev_price,
+                index    => $self->{_last_sl_prev}->{index},
+                type     => 'EQL',
+                price    => $prev_price,
+                group_id => $gid,
             };
             push @{ $self->{_levels} }, {
-                index => $j,
-                type  => 'EQL',
-                price => $price,
+                index    => $j,
+                type     => 'EQL',
+                price    => $price,
+                group_id => $gid,
             };
         }
     }

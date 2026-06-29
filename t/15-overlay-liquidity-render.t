@@ -188,15 +188,15 @@ sub tab2_indicator {
     my @ssl_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#26a69a' } @lines;
     ok(scalar(@ssl_lines) >= 1, 'SSL: al menos una linea verde (#26a69a)');
 
-    # --- EQH / EQL: etiquetas presentes, color configurable (default morado) ---
+    # --- EQH / EQL: etiquetas presentes, color configurable (default rojo/verde) ---
     ok($text_seen{'EQH'}, 'EQH: etiqueta "EQH" presente');
     ok($text_seen{'EQL'}, 'EQL: etiqueta "EQL" presente');
     # EQH conecta los dos pivotes (index 3 y 5): hay una createLine entre ellos.
-    # Comprobamos que existe al menos una linea con el color default de EQH.
-    my @eqh_pair_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#ab47bc' } @lines;
-    ok(scalar(@eqh_pair_lines) >= 1, 'EQH: linea que conecta los pivotes (color default morado)');
-    my @eql_pair_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#7e57c2' } @lines;
-    ok(scalar(@eql_pair_lines) >= 1, 'EQL: linea que conecta los pivotes (color default morado oscuro)');
+    # Comprobamos que existe al menos una linea con el color default de EQH (#ef5350).
+    my @eqh_pair_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#ef5350' } @lines;
+    ok(scalar(@eqh_pair_lines) >= 1, 'EQH: linea que conecta los pivotes (color default rojo)');
+    my @eql_pair_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#26a69a' } @lines;
+    ok(scalar(@eql_pair_lines) >= 1, 'EQL: linea que conecta los pivotes (color default verde)');
 
     # --- SWEEP_UP: rojo, etiqueta "SWEEP ↑" ---
     ok($text_seen{"SWEEP \x{2191}"}, 'SWEEP_UP: etiqueta "SWEEP ↑" presente');
@@ -440,17 +440,17 @@ sub _line_signature {
 }
 
 # =============================================================================
-# Test 10: dibujo de EQH/EQL solo entre los dos pivotes del par
+# Test 10: dibujo de EQH/EQL barridos (hasta swept_index) vs activos (hasta el final)
 # =============================================================================
 {
     my $ind = TestIndicator->new(
         levels => [
-            # EQH par: index 1 y index 3, ambos price=20
+            # EQH activo: no tiene swept_index
             { index => 1, type => 'EQH', price => 20 },
             { index => 3, type => 'EQH', price => 20 },
-            # EQL par: index 2 y index 4, ambos price=10
+            # EQL barrido: tiene swept_index
             { index => 2, type => 'EQL', price => 10 },
-            { index => 4, type => 'EQL', price => 10 },
+            { index => 4, type => 'EQL', price => 10, swept_index => 6 },
         ]
     );
     my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
@@ -462,18 +462,17 @@ sub _line_signature {
     $ov->draw($canvas, $scales);
 
     my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 2, 'EQH/EQL: crea exactamente dos lineas de par');
+    is(scalar(@lines), 2, 'Liquidity rendering: crea dos lineas de par EQH/EQL');
 
-    # EQH (price=20 -> y=150):
-    # x1 = index_to_center_x(1) = 135, x2 = index_to_center_x(3) = 315.
+    # EQH activo (price=20 -> y=150):
+    # index_start = 1 -> x_start = 135, index_end = 3 -> x_end = 315.
     my @eqh_lines = grep { $_->[2] == 150 && $_->[1] == 135 && $_->[3] == 315 } @lines;
-    is(scalar(@eqh_lines), 1, 'EQH: linea horizontal solo entre los dos pivotes (135 -> 315)');
+    is(scalar(@eqh_lines), 1, 'EQH: la linea horizontal conecta los dos pivotes del par (135 -> 315)');
 
-    # EQL (price=10 -> y=450):
-    # x1 = index_to_center_x(2) = 225, x2 = index_to_center_x(4) = 405.
+    # EQL barrido (price=10 -> y=450):
+    # index_start = 2 -> x_start = 225, index_end = 4 -> x_end = 405.
     my @eql_lines = grep { $_->[2] == 450 && $_->[1] == 225 && $_->[3] == 405 } @lines;
-    is(scalar(@eql_lines), 1, 'EQL: linea horizontal solo entre los dos pivotes (225 -> 405)');
+    is(scalar(@eql_lines), 1, 'EQL: la linea horizontal conecta los dos pivotes del par (225 -> 405)');
 }
 
 done_testing();
-

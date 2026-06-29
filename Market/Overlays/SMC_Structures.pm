@@ -218,17 +218,17 @@ sub draw {
         my $x_end = $scales->index_to_center_x($self->_local_index($e->{index}));
         my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
         my ($label, $color);
+        my $dir = $e->{dir} // 'up';
+        my $dir_color = $dir eq 'up' ? '#26a69a' : '#ef5350';
         if ($e->{type} eq 'BOS') {
             $label = 'BOS';
-            $color = $self->_color('smc_bos', '#2962ff');
+            $color = $self->{theme}{smc_bos} // $dir_color;
         } elsif ($e->{type} eq 'CHoCH_true') {
-            # Cambio real: color cálido sólido.
             $label = 'CHoCH';
-            $color = $self->_color('smc_choch_true', '#ff6d00');
+            $color = $self->{theme}{smc_choch_true} // $dir_color;
         } else {
-            # Inducement (falso): atenuado, distinguible del verdadero.
             $label = 'ICHoCH';
-            $color = $self->_color('smc_choch_false', '#b39ddb');
+            $color = $self->{theme}{smc_choch_false} // $dir_color;
         }
 
         # Dibuja la línea entrecortada si tiene start_index
