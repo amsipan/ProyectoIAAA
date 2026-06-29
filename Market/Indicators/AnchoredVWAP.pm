@@ -5,13 +5,13 @@ use warnings;
 # =============================================================================
 # Market::Indicators::AnchoredVWAP
 # 
-# Multipivot Anchored VWAP engine generating smooth continuous series near price candles
+# Multipivot Anchored VWAP engine generating responsive volume-weighted series
 # =============================================================================
 
 sub new {
     my ($class, %opts) = @_;
     my $anchor_type = $opts{anchor_type} // 'session';
-    my $window_size = $opts{window_size} // 40;
+    my $window_size = $opts{window_size} // 15;
 
     my $self = {
         anchor_type => $anchor_type,
@@ -53,7 +53,7 @@ sub update_last {
     $self->{_closes}->[$index]  = $close;
     $self->{_volumes}->[$index] = $vol;
 
-    # Compute rolling volume-weighted price over rolling window to ensure VWAP is always near candles & unbroken
+    # Compute responsive volume-weighted price over rolling window
     my $win = $self->{window_size};
     my $start_k = ($index >= $win) ? ($index - $win + 1) : 0;
 
