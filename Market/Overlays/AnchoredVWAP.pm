@@ -19,6 +19,8 @@ sub new {
         _elements => {
             VWAP_LINE => 1,
         },
+        _start    => 0,
+        _end      => 0,
     };
     bless $self, $class;
     return $self;
@@ -51,16 +53,18 @@ sub is_element_visible {
 
 sub _local_index {
     my ($self, $global_idx) = @_;
-    return $global_idx;
+    return $global_idx - ($self->{_start} // 0);
 }
 
 sub compute_visible {
     my ($self, $market_data, $indicator, $start, $end) = @_;
+    $self->{_start} = $start // 0;
+    $self->{_end}   = $end   // 0;
     return $self;
 }
 
 sub draw {
-    my ($self, $canvas, $scales, $window) = @_;
+    my ($self, $canvas, $scales) = @_;
     return $self unless $self->is_visible() && $self->{indicator};
     return $self unless $canvas && $scales;
 
@@ -70,8 +74,8 @@ sub draw {
     my $vwap  = $self->{indicator}->get_values();
     return $self unless $vwap && @$vwap;
 
-    my $start = (ref $window eq 'HASH') ? ($window->{start_index} // 0) : 0;
-    my $end   = (ref $window eq 'HASH') ? ($window->{end_index}   // 0) : 0;
+    my $start = $self->{_start} // 0;
+    my $end   = $self->{_end}   // 0;
 
     for my $i ($start .. $end - 1) {
         next unless defined $vwap->[$i] && defined $vwap->[$i+1];

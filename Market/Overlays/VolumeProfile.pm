@@ -21,6 +21,8 @@ sub new {
             POC       => 1,
             VALUE_AREA=> 1,
         },
+        _start    => 0,
+        _end      => 0,
     };
     bless $self, $class;
     return $self;
@@ -53,11 +55,13 @@ sub is_element_visible {
 
 sub compute_visible {
     my ($self, $market_data, $indicator, $start, $end) = @_;
+    $self->{_start} = $start // 0;
+    $self->{_end}   = $end   // 0;
     return $self;
 }
 
 sub draw {
-    my ($self, $canvas, $scales, $window) = @_;
+    my ($self, $canvas, $scales) = @_;
     return $self unless $self->is_visible() && $self->{indicator};
     return $self unless $canvas && $scales;
 
