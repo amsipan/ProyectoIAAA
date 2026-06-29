@@ -103,11 +103,11 @@ sub draw {
         }
     }
 
-    # 2. Draw Supply & Demand Zones (Order blocks bounded to 15 bars length)
+    # 2. Draw Supply & Demand Zones (Transparent interior order blocks bounded to 15 bars)
     if ($self->is_element_visible('SUPPLY_DEMAND')) {
         my $w_total = $scales->{width} || $scales->plot_width();
         
-        # Supply Zones (Sell blocks - Red boxes)
+        # Supply Zones (Sell blocks - Red transparent boxes)
         my @supplies = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end } @{ $vals->{supply_zones} // [] };
         @supplies = splice(@supplies, -6) if @supplies > 6; # Keep max 6 recent visible zones
         for my $z (@supplies) {
@@ -121,14 +121,14 @@ sub draw {
             my $y_lo = $scales->value_to_y($z->{lo});
             $canvas->createRectangle(
                 $x0, $y_hi, $x1, $y_lo,
-                -fill    => '#f77c80',
-                -outline => '#b22833',
+                -fill    => '',        # Transparent interior (does not cover candles)
+                -outline => '#ef5350', # Crisp red outline
                 -width   => 1,
                 -tags    => $tag,
             );
         }
         
-        # Demand Zones (Buy blocks - Blue boxes)
+        # Demand Zones (Buy blocks - Blue transparent boxes)
         my @demands = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end } @{ $vals->{demand_zones} // [] };
         @demands = splice(@demands, -6) if @demands > 6; # Keep max 6 recent visible zones
         for my $z (@demands) {
@@ -142,8 +142,8 @@ sub draw {
             my $y_lo = $scales->value_to_y($z->{lo});
             $canvas->createRectangle(
                 $x0, $y_hi, $x1, $y_lo,
-                -fill    => '#64b5f6',
-                -outline => '#1976d2',
+                -fill    => '',        # Transparent interior (does not cover candles)
+                -outline => '#2962ff', # Crisp blue outline
                 -width   => 1,
                 -tags    => $tag,
             );
