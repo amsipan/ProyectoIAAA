@@ -247,6 +247,7 @@ sub draw {
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         my $type = $e->{type};
+        my $dir  = $e->{dir} // (($type =~ /UP/i || $e->{side} eq 'BSL') ? 'up' : 'down');
 
         if ($type eq 'SWEEP_UP' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
@@ -258,11 +259,25 @@ sub draw {
                 "SWEEP \x{2193}",
                 $self->_color('liq_sweep_down', '#26a69a'),
             );
-        } elsif ($type eq 'GRAB' && $ev->{GRAB}) {
-            $self->_draw_event_marker($canvas, $scales, $tag, $e,
-                'LQ GRAB',
-                $self->_color('liq_grab', '#ff9800'),
-            );
+        } elsif ($type eq 'GRAB') {
+            if ($ev->{GRAB}) {
+                $self->_draw_event_marker($canvas, $scales, $tag, $e,
+                    'LQ GRAB',
+                    $self->_color('liq_grab', '#ff9800'),
+                );
+            } elsif ($ev->{SWEEP}) {
+                if ($dir eq 'up') {
+                    $self->_draw_event_marker($canvas, $scales, $tag, $e,
+                        "SWEEP \x{2191}",
+                        $self->_color('liq_sweep_up', '#ef5350'),
+                    );
+                } else {
+                    $self->_draw_event_marker($canvas, $scales, $tag, $e,
+                        "SWEEP \x{2193}",
+                        $self->_color('liq_sweep_down', '#26a69a'),
+                    );
+                }
+            }
         } elsif ($type eq 'RUN' && $ev->{RUN}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ RUN',
