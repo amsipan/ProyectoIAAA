@@ -116,9 +116,7 @@ sub compute_visible {
 
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
-    my $levels = $ind->can('get_active_levels') ? $ind->get_active_levels()
-               : $ind->can('get_levels')        ? $ind->get_levels()
-               : [];
+    my $levels = $ind->can('get_levels') ? $ind->get_levels() : [];
     my $events = $ind->can('get_events') ? $ind->get_events() : [];
     # spec 0018c: tope de recencia (como TradingView SMC). En vistas amplias el
     # rango visible tiene cientos de niveles; mostrarlos todos apila bandas BSL/SSL
@@ -179,13 +177,13 @@ sub draw {
         my $type = $lvl->{type};
         if ($type eq 'BSL' && $ev->{BSL}) {
             $self->_draw_hline_label($canvas, $scales, $tag, $w,
-                $lvl->{price}, 'BSL',
+                $lvl, 'BSL',
                 $self->_color('liq_bsl', '#ef5350'),
                 $self->_color('liq_bsl_label', '#ef5350'),
             );
         } elsif ($type eq 'SSL' && $ev->{SSL}) {
             $self->_draw_hline_label($canvas, $scales, $tag, $w,
-                $lvl->{price}, 'SSL',
+                $lvl, 'SSL',
                 $self->_color('liq_ssl', '#26a69a'),
                 $self->_color('liq_ssl_label', '#26a69a'),
             );
@@ -236,17 +234,27 @@ sub draw {
 
 # _draw_hline_label: línea horizontal punteada + etiqueta de texto al inicio.
 sub _draw_hline_label {
-    my ($self, $canvas, $scales, $tag, $w, $price, $label, $line_color, $text_color) = @_;
+    my ($self, $canvas, $scales, $tag, $w, $lvl, $label, $line_color, $text_color) = @_;
+    my $price = $lvl->{price};
     my $y = $scales->value_to_y($price);
+    
+    my $x_start = $scales->index_to_center_x($self->_local_index($lvl->{index}));
+    my $x_end = $w;
+    if (defined $lvl->{swept_index}) {
+        $x_end = $scales->index_to_center_x($self->_local_index($lvl->{swept_index}));
+    }
+    
+    return if $x_end < 0;
+
     $canvas->createLine(
-        0, $y, $w, $y,
+        $x_start, $y, $x_end, $y,
         -fill  => $line_color,
         -dash  => [4, 4],
         -width => 1,
         -tags  => $tag,
     );
     $canvas->createText(
-        4, $y,
+        $x_start + 4, $y,
         -text   => $label,
         -anchor => 'w',
         -font   => 'Helvetica 8 bold',
@@ -257,7 +265,6 @@ sub _draw_hline_label {
 }
 
 # _draw_pair_line: conecta los pivotes de un par (EQH/EQL) con una línea.
-# Si hay >2 items del mismo tipo, se conectan en orden de index (polilínea).
 sub _draw_pair_line {
     my ($self, $canvas, $scales, $tag, $type, $items) = @_;
     return unless @$items >= 2;
@@ -267,39 +274,49 @@ sub _draw_pair_line {
     my $label_color = $self->_color($type eq 'EQH' ? 'liq_eqh_label' : 'liq_eql_label',
                                     $color);
 
-    # Línea horizontal punteada entre pivotes consecutivos del par.
-    for my $i (0 .. $#sorted - 1) {
-        my $a = $sorted[$i];
-        my $b = $sorted[$i + 1];
-        next unless defined $a->{price} && defined $b->{price};
-        my $x1 = $scales->index_to_center_x($self->_local_index($a->{index}));
-        my $y1 = $scales->value_to_y($a->{price});
-        my $x2 = $scales->index_to_center_x($self->_local_index($b->{index}));
-        $canvas->createLine(
-            $x1, $y1, $x2, $y1,
-            -fill  => $color,
-            -dash  => [2, 3],
-            -width => 2,
-            -tags  => $tag,
-        );
-    }
-    # Etiqueta sobre el punto medio de los extremos del par.
     my $first = $sorted[0];
     my $last  = $sorted[-1];
-    if (defined $first->{price} && defined $last->{price}) {
-        my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
-        my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
-        my $x_mid = ($x1 + $x2) / 2;
-        my $y = $scales->value_to_y($first->{price});
-        $canvas->createText(
-            $x_mid, $type eq 'EQH' ? $y - 6 : $y + 6,
-            -text   => $type,
-            -anchor => $type eq 'EQH' ? 's' : 'n',
-            -font   => 'Helvetica 8 bold',
-            -fill   => $label_color,
-            -tags   => $tag,
-        );
+    
+    my $x_start = $scales->index_to_center_x($self->_local_index($first->{index}));
+    my $y = $scales->value_to_y($first->{price});
+    my $x_end = $scales->{width} || $scales->plot_width();
+    
+    # Encontrar el BSL/SSL correspondiente al primer y último pivote para obtener su swept_index
+    my $swept_idx;
+    for my $lvl (@{ $self->{_levels} }) {
+        next unless defined $lvl->{price} && abs($lvl->{price} - $first->{price}) < 0.0001;
+        next unless grep { $_->{index} == $lvl->{index} } @sorted;
+        if (defined $lvl->{swept_index}) {
+            $swept_idx = $lvl->{swept_index};
+            last;
+        }
     }
+    if (defined $swept_idx) {
+        $x_end = $scales->index_to_center_x($self->_local_index($swept_idx));
+    }
+    
+    return if $x_end < 0;
+
+    $canvas->createLine(
+        $x_start, $y, $x_end, $y,
+        -fill  => $color,
+        -dash  => [2, 3],
+        -width => 2,
+        -tags  => $tag,
+    );
+
+    # Etiqueta sobre el punto medio de los extremos del par.
+    my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
+    my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
+    my $x_mid = ($x1 + $x2) / 2;
+    $canvas->createText(
+        $x_mid, $type eq 'EQH' ? $y - 6 : $y + 6,
+        -text   => $type,
+        -anchor => $type eq 'EQH' ? 's' : 'n',
+        -font   => 'Helvetica 8 bold',
+        -fill   => $label_color,
+        -tags   => $tag,
+    );
     return;
 }
 

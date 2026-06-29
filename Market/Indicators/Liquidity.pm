@@ -235,12 +235,13 @@ sub _process_swing_high {
 
     # BSL: liquidez por encima del swing high más reciente
     if (defined $self->{_last_sh}) {
-        push @{ $self->{_levels} }, {
+        my $lvl = {
             index => $self->{_last_sh}->{index},
             type  => 'BSL',
             price => $self->{_last_sh}->{price},
         };
-        $self->_register_level($self->{_last_sh}->{index}, 'BSL', $self->{_last_sh}->{price});
+        push @{ $self->{_levels} }, $lvl;
+        $self->_register_level_ref($lvl);
     }
     $self->{_last_sh} = { index => $j, price => $price };
 
@@ -254,6 +255,8 @@ sub _process_swing_high {
                 index => $self->{_last_sh_prev}->{index},
                 type  => 'EQH',
                 price => $prev_price,
+                # vincular swept_index del nivel BSL correspondiente
+                # (lo buscaremos dinámicamente al dibujar)
             };
             push @{ $self->{_levels} }, {
                 index => $j,
@@ -272,12 +275,13 @@ sub _process_swing_low {
 
     # SSL: liquidez por debajo del swing low más reciente
     if (defined $self->{_last_sl}) {
-        push @{ $self->{_levels} }, {
+        my $lvl = {
             index => $self->{_last_sl}->{index},
             type  => 'SSL',
             price => $self->{_last_sl}->{price},
         };
-        $self->_register_level($self->{_last_sl}->{index}, 'SSL', $self->{_last_sl}->{price});
+        push @{ $self->{_levels} }, $lvl;
+        $self->_register_level_ref($lvl);
     }
     $self->{_last_sl} = { index => $j, price => $price };
 
@@ -809,6 +813,18 @@ sub _register_level {
         consec_out => 0,
         swept_close=> undef,
     };
+    return;
+}
+
+sub _register_level_ref {
+    my ($self, $lvl) = @_;
+    $lvl->{side}        = $lvl->{type};
+    $lvl->{state}       = 'Detected';
+    $lvl->{swept_index} = undef;
+    $lvl->{swept_dir}   = undef;
+    $lvl->{consec_out}  = 0;
+    $lvl->{swept_close} = undef;
+    push @{ $self->{_active_levels} }, $lvl;
     return;
 }
 
