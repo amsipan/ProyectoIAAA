@@ -145,12 +145,18 @@ $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 # Estado de visibilidad de capas (overlays OFF por defecto — task 0018 F4).
 my $vis_smc = 0;
 my $vis_liq = 0;
+my $vis_strategy = 0;
+my $vis_vp = 0;
+my $vis_vwap = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
 # -variable explícito al callback (Tk no lo pasa solo en -command).
 my $cb_smc = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc');
 my $cb_liq = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
+my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'strategy');
+my $cb_vp = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vp');
+my $cb_vwap = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vwap');
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
@@ -180,13 +186,19 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
     )->pack(-side => 'left', -padx => 1);
 }
 
-# --- Fila 1: Capas (SMC / Liquidez completas) ---
+# --- Fila 1: Capas (SMC / Liquidez / Estrategias / Volume / VWAP) ---
 my $cap_box = $row1->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
 $cap_box->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
 $cap_box->Checkbutton(-text => 'SMC', -variable => \$vis_smc,
     -command => sub { $cb_smc->($vis_smc ? 1 : 0); })->pack(-side => 'left');
 $cap_box->Checkbutton(-text => 'Liquidez', -variable => \$vis_liq,
     -command => sub { $cb_liq->($vis_liq ? 1 : 0); })->pack(-side => 'left');
+$cap_box->Checkbutton(-text => 'Estrategia', -variable => \$vis_strategy,
+    -command => sub { $cb_strategy->($vis_strategy ? 1 : 0); })->pack(-side => 'left');
+$cap_box->Checkbutton(-text => 'Perfil Vol', -variable => \$vis_vp,
+    -command => sub { $cb_vp->($vis_vp ? 1 : 0); })->pack(-side => 'left');
+$cap_box->Checkbutton(-text => 'VWAP', -variable => \$vis_vwap,
+    -command => sub { $cb_vwap->($vis_vwap ? 1 : 0); })->pack(-side => 'left');
 
 # --- Fila 1: Elementos de liquidez (sub-filtros) ---
 my $elem_box = $row1->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);

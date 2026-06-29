@@ -121,10 +121,10 @@ sub compute_visible {
     
     # Nivel de liquidez se dibuja horizontalmente; se mantiene mientras esté en pantalla
     my $filtered_levels = _levels_window_filter($levels, $start, $end);
-    $self->{_levels} = _recent($filtered_levels, 40);
+    $self->{_levels} = $filtered_levels;
     
     # Eventos son etiquetas en el punto de ruptura, usamos filtro estándar
-    $self->{_events} = _recent(_window_filter($events, $start, $end), 30);
+    $self->{_events} = _window_filter($events, $start, $end);
 
     return $self;
 }

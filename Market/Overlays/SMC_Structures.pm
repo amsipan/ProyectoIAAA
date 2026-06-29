@@ -92,12 +92,12 @@ sub compute_visible {
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
     # Pivotes y eventos son etiquetas locales o líneas acotadas.
-    $self->{_pivots} = _recent(_window_filter($ind->get_pivots(), $start, $end), 40);
-    $self->{_events} = _recent(_events_window_filter($ind->get_events(), $start, $end), 40);
+    $self->{_pivots} = _window_filter($ind->get_pivots(), $start, $end);
+    $self->{_events} = _events_window_filter($ind->get_events(), $start, $end);
     
     # FVG, Fib y Major son líneas horizontales o cajas que se extienden al infinito o hasta mitigación,
     # por lo que deben mostrarse si empezaron en cualquier índice <= $end (aunque start_index esté off-screen).
-    $self->{_fvgs}   = _recent([ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], 25);
+    $self->{_fvgs}   = [ grep { $_->{index} <= $end } @{$ind->get_fvg()} ];
     $self->{_fibs}   = [ grep { $_->{index} <= $end } @{$ind->get_fibonacci()} ];
     $self->{_major}  = [ grep { $_->{index} <= $end } @{$ind->get_major()} ];
 
