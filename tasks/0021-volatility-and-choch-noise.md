@@ -8,13 +8,13 @@
 
 ## Estado de los ítems
 
-- [~] **A. Filtro por volatilidad** — En zonas de baja volatilidad mostrar (casi)
+- [x] **A. Filtro por volatilidad** — En zonas de baja volatilidad mostrar (casi)
   ninguna etiqueta/indicador. Objetivo doble del profe: mejor visualización
   (menos saturación) y mejor rendimiento. Idea: medir volatilidad local (ATR
   relativo, o rango de la pierna vs ATR) y suprimir etiquetas cuyo movimiento
   asociado esté por debajo de un umbral.
-  PARCIAL: aplicado a estructura (CHoCH/BoS) en ORDEN 1. Falta extender a swings
-  y tomas de liquidez (ORDEN 2).
+  HECHO: estructura (ORDEN 1, state_atr_factor) + swings (ORDEN 2,
+  swing_atr_factor). Tomas de liquidez pendientes en ORDEN 3-4.
 
 - [ ] **B. CHoCH interno vs externo bien diferenciado** — Confirmar que I-CHoCH
   (interno, intSens) y CHoCH (externo, extSens) se distinguen en cálculo Y en
@@ -197,12 +197,25 @@ legitimos y que en 1m bajan drasticamente.
 - 4 tests nuevos en t/22 (bloque 9). Suite completa 753 tests PASS.
 
 ## ORDEN 2 — Tarea A (visual): suprimir etiquetas en baja volatilidad
+**[HECHO 2026-06-29]**
 **Diseno:** filtro de render/calculo que omite etiquetas cuyo movimiento
 asociado < umbral de volatilidad local. Si ORDEN 1 ya silencia CHoCH laterales,
 aqui se extiende a swings (HH/HL/LH/LL) y a tomas de liquidez poco significativas.
 Preferible filtrar en el indicador (menos items = mejor rendimiento) y exponer
 un parametro.
 **Archivos:** `Market/Indicators/Mxwll_Suite.pm` (+ Liquidity si aplica).
+
+**RESULTADO:**
+- Parametro nuevo `swing_atr_factor` (default 1.5; 0 desactiva). Helper
+  `_swing_significant`: un swing HH/HL/LH/LL solo se etiqueta si su recorrido
+  desde el eje OPUESTO previo es >= factor*ATR.
+- HALLAZGO: en datos reales casi no muerde (swings externos con extSens=25 ya son
+  grandes por diseno, recorrido > 1.5*ATR casi siempre). Esto CONFIRMA que los
+  swings NO eran fuente de ruido; el ruido estaba en CHoCH (ORDEN 1) y estara en
+  las tomas de liquidez (ORDEN 3-4). El filtro queda como salvaguarda
+  configurable para baja volatilidad.
+- 6 tests nuevos en t/22 (bloque 10, verifican el helper). Suite 759 PASS.
+- Las tomas de liquidez (SWEEP/GRAB/RUN) se tratan en ORDEN 3-4 (modulo Liquidity).
 
 ## ORDEN 3 — Tarea F2: SWEEP/GRAB/RUN anclados a HH/HL/LH/LL
 **Por que clave:** el profe dice que la toma de liquidez debe basarse en los

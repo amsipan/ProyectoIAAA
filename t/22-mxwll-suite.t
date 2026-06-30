@@ -218,4 +218,25 @@ SKIP: {
        "ORDEN1: estructura externa preservada (ext0=$ext0 ext2=$ext2)");
 }
 
+# =============================================================================
+# 10. ORDEN 2 (task 0021 A): filtro de volatilidad para swings (HH/HL/LH/LL)
+# =============================================================================
+# _swing_significant: true si |price - eje_opuesto| >= swing_atr_factor * ATR.
+{
+    my $i = Market::Indicators::Mxwll_Suite->new(swing_atr_factor => 1.5);
+    $i->{_atr_last} = 10;   # tol = 1.5*10 = 15
+    is($i->_swing_significant(120, 100), 1, 'ORDEN2: recorrido 20 (>=15) significativo');
+    is($i->_swing_significant(105, 100), 0, 'ORDEN2: recorrido 5 (<15) NO significativo');
+    is($i->_swing_significant(105, undef), 1, 'ORDEN2: sin eje opuesto -> significativo');
+    is($i->_swing_significant(105, 100), 0, 'ORDEN2: re-chequeo determinista');
+
+    my $j = Market::Indicators::Mxwll_Suite->new(swing_atr_factor => 0);
+    $j->{_atr_last} = 10;
+    is($j->_swing_significant(105, 100), 1, 'ORDEN2: factor=0 desactiva el filtro');
+
+    # Sin ATR todavia -> no censurar.
+    my $k = Market::Indicators::Mxwll_Suite->new(swing_atr_factor => 1.5);
+    is($k->_swing_significant(105, 100), 1, 'ORDEN2: sin ATR aun -> significativo');
+}
+
 done_testing();

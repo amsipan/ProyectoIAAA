@@ -55,6 +55,13 @@ sub new {
         # filtro (comportamiento previo: etiqueta en cada break).
         state_atr_factor => defined $opts{state_atr_factor} ? $opts{state_atr_factor} : 2.0,
 
+        # ORDEN 2 (task 0021 A): umbral de volatilidad para etiquetas de swing
+        # (HH/HL/LH/LL). Un swing solo se dibuja si su desplazamiento respecto al
+        # pivote OPUESTO previo es >= swing_atr_factor * ATR. Asi en baja
+        # volatilidad no se satura el grafico con swings poco significativos.
+        # Con 0 se desactiva (se dibujan todos, comportamiento previo).
+        swing_atr_factor => defined $opts{swing_atr_factor} ? $opts{swing_atr_factor} : 1.5,
+
         _highs  => [],
         _lows   => [],
         _opens  => [],
@@ -220,6 +227,19 @@ sub _detect_pivot {
     return ($top, $bot);
 }
 
+# _swing_significant($price, $opposite_axis) — ORDEN 2: true si el recorrido del
+# swing desde el pivote opuesto previo es >= swing_atr_factor * ATR. Si el factor
+# es 0, o aun no hay ATR / eje opuesto, se considera significativo (no censurar
+# de mas al inicio del dataset, mismo criterio que ORDEN 1).
+sub _swing_significant {
+    my ($self, $price, $opposite_axis) = @_;
+    my $factor = $self->{swing_atr_factor} // 0;
+    return 1 if $factor <= 0;
+    my $atr = $self->{_atr_last};
+    return 1 unless defined $atr && $atr > 0 && defined $opposite_axis;
+    return (abs($price - $opposite_axis) >= $factor * $atr) ? 1 : 0;
+}
+
 # --- drawStructureExt / drawStructureInternals -------------------------------
 # $st: hashref de estado (_ext o _int). $internal: 0/1. $sens: sensibilidad
 # (para ubicar el bar del pivote = $index - $sens).
@@ -231,10 +251,14 @@ sub _update_structure {
     if ($big_up) {
         $st->{upside} = 1;
         my $label = (defined $st->{upaxis} && $big_up > $st->{upaxis}) ? 'HH' : 'LH';
-        push @{ $self->{_swings} }, {
-            index => $piv_idx, price => $big_up, label => $label,
-            dir => 'up', internal => $internal,
-        } unless $internal;   # HH/LH labels solo para externos (showHHLH)
+        # ORDEN 2: solo etiquetar el swing si su recorrido desde el minimo previo
+        # (dnaxis) es significativo vs ATR. swing_atr_factor=0 desactiva el filtro.
+        if (!$internal && $self->_swing_significant($big_up, $st->{dnaxis})) {
+            push @{ $self->{_swings} }, {
+                index => $piv_idx, price => $big_up, label => $label,
+                dir => 'up', internal => $internal,
+            };
+        }
         if (!$internal) {
             push @{ $self->{_high_blocks} }, {
                 index => $piv_idx, top => $big_up, bottom => $big_up * 0.998, active => 1,
@@ -247,10 +271,12 @@ sub _update_structure {
     if ($big_dn) {
         $st->{downside} = 1;
         my $label = (defined $st->{dnaxis} && $big_dn < $st->{dnaxis}) ? 'LL' : 'HL';
-        push @{ $self->{_swings} }, {
-            index => $piv_idx, price => $big_dn, label => $label,
-            dir => 'down', internal => $internal,
-        } unless $internal;
+        if (!$internal && $self->_swing_significant($big_dn, $st->{upaxis})) {
+            push @{ $self->{_swings} }, {
+                index => $piv_idx, price => $big_dn, label => $label,
+                dir => 'down', internal => $internal,
+            };
+        }
         if (!$internal) {
             push @{ $self->{_low_blocks} }, {
                 index => $piv_idx, top => $big_dn * 1.002, bottom => $big_dn, active => 1,
