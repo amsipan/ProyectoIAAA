@@ -352,13 +352,32 @@ sub _draw_pair_line {
 # _draw_event_marker: marcador de evento (línea vertical de quiebre + etiqueta).
 # Se traza una línea vertical breve en la vela del evento a la altura del nivel
 # roto, y la etiqueta de la Tabla 2.
+# ORDEN 3 (task 0021 F2/D): si el evento trae level_index/level_price (el pivote
+# swing barrido = HH/HL/LH/LL), se dibuja ademas una linea horizontal punteada
+# que ANCLA la toma a su nivel, desde el pivote hasta la vela del evento. Asi la
+# toma de liquidez queda "vinculada a un nivel" como pedia el profe.
 sub _draw_event_marker {
     my ($self, $canvas, $scales, $tag, $e, $label, $color) = @_;
     my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
-    
+
     my $price = $e->{extreme} // $e->{price};
     my $y = defined $price ? $scales->value_to_y($price) : 0;
     my $dir = $e->{dir} // 'up';
+
+    # Ancla al nivel: linea horizontal punteada desde el pivote barrido.
+    if (defined $e->{level_index} && defined $e->{level_price}) {
+        my $lx = $scales->index_to_center_x($self->_local_index($e->{level_index}));
+        my $ly = $scales->value_to_y($e->{level_price});
+        if ($lx <= $x) {
+            $canvas->createLine(
+                $lx, $ly, $x, $ly,
+                -fill  => $color,
+                -dash  => [2, 2],
+                -width => 1,
+                -tags  => $tag,
+            );
+        }
+    }
 
     if ($dir eq 'up') {
         # BSL: Línea vertical que va hacia arriba desde el High de la vela.

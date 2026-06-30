@@ -35,7 +35,7 @@
   únicamente en transiciones reales de estado, no en cada cruce de nivel.
   HECHO (ORDEN 1): estado lateral por volatilidad; I-CHoCH 1m 1056->542.
 
-- [ ] **D. Toma de liquidez vinculada a un nivel** — (TÉRMINOS A VERIFICAR) El
+- [x] **D. Toma de liquidez vinculada a un nivel** — (TÉRMINOS A VERIFICAR) El
   profe dice que "la toma de liquidez depende del nivel" y que lo que él ve es
   que NO está vinculada con ningún nivel; sugiere que "tal vez falta poner un
   nivel". Pendiente confirmar a qué se refiere exactamente: probablemente que
@@ -43,6 +43,9 @@
   marcadores del Mxwll) deberían dibujarse anclados al nivel BSL/SSL/EQH/EQL que
   se está tomando, no sueltos. VERIFICAR con el profe el término y el indicador
   concreto antes de tocar nada.
+  HECHO (ORDEN 3, interpretacion b): el marcador de toma ahora se dibuja con una
+  linea punteada anclada al nivel BSL/SSL barrido. Si el profe queria otra cosa,
+  reabrir.
 
 - [ ] **E. Demasiados BSL (¿order block?)** — (TÉRMINOS A VERIFICAR) El profe
   dice que se están mostrando "mucho BSL o algo así" y que "deberíamos poner un
@@ -55,11 +58,13 @@
   El profe dice que SWEEP/GRAB/RUN están muy aglomeradas; mostrar solo las más
   relevantes. Liga con A (volatilidad) y con F2.
 
-- [ ] **F2. SWEEP/GRAB/RUN deben basarse en HH/HL/LH/LL** — El profe dice que
+- [x] **F2. SWEEP/GRAB/RUN deben basarse en HH/HL/LH/LL** — El profe dice que
   estas etiquetas (sweep/grab/run) deben anclarse a los pivotes de estructura
   (HH, HL, LH, LL), no calcularse independientes. Hoy el módulo Liquidity detecta
   sus propios swings/niveles BSL/SSL aparte de los HH/HL/LH/LL del Mxwll/SMC.
   Hay que vincular la toma de liquidez a esos pivotes nombrados.
+  HECHO (ORDEN 3): BSL/SSL ya SON pivotes swing; evento ahora lleva
+  level_index/level_type/level_price y el overlay ancla la toma a su nivel.
 
 - [ ] **F3. RUN (y sweep/grab) a veces mal ubicadas o ausentes** — El profe nota
   que RUN a veces está bien, a veces mal, a veces no aparece donde debería.
@@ -218,6 +223,7 @@ un parametro.
 - Las tomas de liquidez (SWEEP/GRAB/RUN) se tratan en ORDEN 3-4 (modulo Liquidity).
 
 ## ORDEN 3 — Tarea F2: SWEEP/GRAB/RUN anclados a HH/HL/LH/LL
+**[HECHO 2026-06-29]**
 **Por que clave:** el profe dice que la toma de liquidez debe basarse en los
 pivotes nombrados; hoy `Liquidity.pm` detecta sus propios swings/niveles
 (BSL/SSL) independientes de los HH/HL/LH/LL del Mxwll. Esto explica F (aglomerado)
@@ -229,6 +235,20 @@ y F3 (RUN mal ubicado/ausente).
       mas cercano y dibujar el ancla.
 **Archivos:** `Market/Indicators/Liquidity.pm`, overlay Liquidity, posible
 refactor compartido de pivotes.
+
+**RESULTADO (camino b elegido):**
+- HALLAZGO: en `Liquidity`, BSL = swing high y SSL = swing low; es decir los
+  niveles de liquidez YA son pivotes swing (los mismos HH/HL/LH/LL conceptuales),
+  solo que el evento no propagaba la referencia al nivel barrido.
+- `_resolve` ahora añade al evento: `level_index`, `level_type` (BSL/SSL),
+  `level_price` (el pivote barrido). Verificado: 328/328 eventos en 15m quedan
+  vinculados a su nivel.
+- Overlay `_draw_event_marker`: dibuja una linea horizontal punteada que ANCLA
+  la toma desde el pivote barrido hasta la vela del evento (antes el marcador
+  estaba suelto). Resuelve tambien la queja D ("vincular a un nivel").
+- Tests: 5 nuevos en t/10 + render t/15 verde. Suite 764 PASS.
+- NOTA: esto NO cambia la deteccion/ubicacion de RUN (ítem F3) ni filtra por
+  relevancia (ítem F); eso es ORDEN 4.
 
 ## ORDEN 4 — Tarea F + F3: mostrar solo tomas relevantes + arreglar RUN
 Tras F2, filtrar por relevancia (volatilidad/tamaño del barrido) y revisar la

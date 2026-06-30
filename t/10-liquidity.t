@@ -938,4 +938,38 @@ sub build_ohlc_vol {
     is(scalar(@eqh_after), 0, 'active levels: EQH inactivo tras cierre por encima (0 items)');
 }
 
+# =============================================================================
+# ORDEN 3 (task 0021 F2/D): cada evento sweep/grab/run vinculado a SU NIVEL
+# =============================================================================
+# El nivel barrido es un pivote swing (BSL = swing high, SSL = swing low). El
+# evento debe propagar level_index/level_type/level_price para que el overlay
+# pueda anclar la toma de liquidez a su nivel nombrado.
+{
+    my @c = (
+        [10, 11, 10, 11],   # 0
+        [11, 15, 11, 15],   # 1: SH → BSL@1 (price=15)
+        [13, 12, 12, 12],   # 2
+        [12, 16, 12, 16],   # 3: SH confirma BSL@1
+        [14, 14, 13, 14],   # 4
+        [14, 17, 14, 15],   # 5: high=17>15 → Swept
+        [15, 15, 15, 15],   # 6
+        [15, 15, 15, 15],   # 7
+        [15, 15, 15, 15],   # 8
+        [15, 15, 10, 10],   # 9: close=10<15 → SWEEP_UP del nivel BSL@1
+    );
+    my $md  = build_ohlc(\@c);
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my @sweep = events_of_type($liq->get_events(), 'SWEEP_UP');
+    is(scalar(@sweep), 1, 'nivel: un SWEEP_UP');
+    is($sweep[0]->{level_index}, 1, 'nivel: level_index = pivote BSL barrido (1)');
+    is($sweep[0]->{level_type}, 'BSL', 'nivel: level_type = BSL');
+    is($sweep[0]->{level_price}, 15, 'nivel: level_price = 15');
+
+    # TODOS los eventos deben venir vinculados a un nivel.
+    my $all = $liq->get_events();
+    my $linked = grep { defined $_->{level_index} && defined $_->{level_price} } @$all;
+    is($linked, scalar(@$all), 'nivel: todos los eventos llevan level_index/level_price');
+}
+
 done_testing();

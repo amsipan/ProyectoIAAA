@@ -551,6 +551,14 @@ sub _resolve {
         extreme => $extreme,
         state   => 'Resolved',
         meta    => $meta,
+        # ORDEN 3 (task 0021 F2/D): vincular la toma de liquidez a SU NIVEL.
+        # El nivel barrido es un pivote swing (BSL = swing high, SSL = swing low),
+        # i.e. los mismos HH/HL/LH/LL nombrados. Propagamos su indice/tipo/precio
+        # para que el overlay pueda dibujar el ancla desde el nivel hasta el
+        # punto de la toma (antes el evento no llevaba referencia al nivel).
+        level_index => $lvl->{index},
+        level_type  => $lvl->{side} // $lvl->{type},
+        level_price => $lvl->{price},
     };
     return;
 }
