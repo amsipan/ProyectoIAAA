@@ -1,5 +1,14 @@
 # Task 0024: Grab/Run — verificar solapamiento y semántica continuidad/rebote
 
+## Estado: HECHO (2026-07-02, 797 tests PASS)
+- SEMANTICA: verificada correcta, NO se tocó (RUN=continuidad, GRAB/SWEEP=rebote).
+- SOLAPAMIENTO: SI era real. Medido en Data/2026_06_29.csv (solo eventos
+  relevantes): 1m=190 velas con >1 marcador (16 con RUN+GRAB juntos), 5m=36,
+  15m=21. Los marcadores se encimaban en la misma vela.
+- FIX: en `_draw_event_marker` se apilan verticalmente los marcadores de la misma
+  vela (offset 18px por nivel), contador `%stack` por index en el bucle de draw.
+- Test nuevo en t/15 (ORDEN 12): dos eventos misma vela → etiquetas en Y distinta.
+
 ## Origen
 - ORDEN 12 de `tasks/0021-volatility-and-choch-noise.md`.
 - Notas WhatsApp profe (29/06): "Están sobrepuestos los grab y run"; "Run implica

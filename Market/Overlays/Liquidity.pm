@@ -281,6 +281,10 @@ sub draw {
     }
 
     # --- Eventos: SWEEP_UP / SWEEP_DOWN / GRAB / RUN --------------------------
+    # ORDEN 12 (task 0024): cuando varios marcadores caen en la MISMA vela se
+    # solapan y se vuelven ilegibles. Llevamos un contador por indice para
+    # apilarlos verticalmente (offset incremental) y que no se encimen.
+    my %stack;
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         # ORDEN 4 (task 0021 F): si only_relevant esta activo, solo dibujar las
@@ -290,26 +294,27 @@ sub draw {
         next if $self->{_only_relevant}
              && defined $e->{relevant} && !$e->{relevant};
         my $type = $e->{type};
+        my $level = $stack{$e->{index}}++;   # 0 el primero, 1 el segundo, ...
 
         if ($type eq 'SWEEP_UP' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 "SWEEP \x{2191}",
-                $self->_color('liq_sweep_up', '#ef5350'),
+                $self->_color('liq_sweep_up', '#ef5350'), $level,
             );
         } elsif ($type eq 'SWEEP_DOWN' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 "SWEEP \x{2193}",
-                $self->_color('liq_sweep_down', '#26a69a'),
+                $self->_color('liq_sweep_down', '#26a69a'), $level,
             );
         } elsif ($type eq 'GRAB' && $ev->{GRAB}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ GRAB',
-                $self->_color('liq_grab', '#ff9800'),
+                $self->_color('liq_grab', '#ff9800'), $level,
             );
         } elsif ($type eq 'RUN' && $ev->{RUN}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ RUN',
-                $self->_color('liq_run', '#2962ff'),
+                $self->_color('liq_run', '#2962ff'), $level,
             );
         }
     }
@@ -414,12 +419,17 @@ sub _draw_pair_line {
 # que ANCLA la toma a su nivel, desde el pivote hasta la vela del evento. Asi la
 # toma de liquidez queda "vinculada a un nivel" como pedia el profe.
 sub _draw_event_marker {
-    my ($self, $canvas, $scales, $tag, $e, $label, $color) = @_;
+    my ($self, $canvas, $scales, $tag, $e, $label, $color, $level) = @_;
+    $level ||= 0;
     my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
 
     my $price = $e->{extreme} // $e->{price};
     my $y = defined $price ? $scales->value_to_y($price) : 0;
     my $dir = $e->{dir} // 'up';
+
+    # ORDEN 12 (task 0024): apilar verticalmente marcadores de la misma vela para
+    # que no se solapen. Cada nivel aleja el marcador 18px mas del extremo.
+    my $stack_off = $level * 18;
 
     # Ancla al nivel: linea horizontal punteada desde el pivote barrido.
     if (defined $e->{level_index} && defined $e->{level_price}) {
@@ -438,14 +448,15 @@ sub _draw_event_marker {
 
     if ($dir eq 'up') {
         # BSL: Línea vertical que va hacia arriba desde el High de la vela.
+        my $y_tip = $y - 20 - $stack_off;
         $canvas->createLine(
-            $x, $y, $x, $y - 20,
+            $x, $y, $x, $y_tip,
             -fill  => $color,
             -width => 2,
             -tags  => $tag,
         );
         $canvas->createText(
-            $x, $y - 24,
+            $x, $y_tip - 4,
             -text   => $label,
             -anchor => 's',
             -font   => 'Helvetica 8 bold',
@@ -454,14 +465,15 @@ sub _draw_event_marker {
         );
     } else {
         # SSL: Línea vertical que va hacia abajo desde el Low de la vela.
+        my $y_tip = $y + 20 + $stack_off;
         $canvas->createLine(
-            $x, $y, $x, $y + 20,
+            $x, $y, $x, $y_tip,
             -fill  => $color,
             -width => 2,
             -tags  => $tag,
         );
         $canvas->createText(
-            $x, $y + 24,
+            $x, $y_tip + 4,
             -text   => $label,
             -anchor => 'n',
             -font   => 'Helvetica 8 bold',

@@ -548,4 +548,28 @@ sub _line_signature {
     is(scalar(@dashed), 1, 'ORDEN10: I-EQH interno entrecortado');
 }
 
+# =============================================================================
+# ORDEN 12 (task 0024): marcadores de la misma vela se apilan verticalmente.
+# =============================================================================
+{
+    # Dos eventos en la MISMA vela (index 5, dir up). Deben quedar en distinta Y.
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 5, type => 'GRAB', dir => 'up', price => 15, extreme => 15, relevant => 1 },
+            { index => 5, type => 'RUN',  dir => 'up', price => 15, extreme => 15, relevant => 1 },
+        ],
+    );
+    my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 12);
+    $ov->compute_visible(undef, $ind, 0, 11);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
+    # Las Y de las etiquetas (arg [2]) deben diferir por el apilamiento.
+    my %ys = map { $_->[2] => 1 } @texts;
+    ok(scalar(keys %ys) >= 2, 'ORDEN12: marcadores de la misma vela se apilan (Y distinta)');
+}
+
 done_testing();
