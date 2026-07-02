@@ -1,5 +1,11 @@
 # Task 0026: Etiquetar los Order Blocks como "OB"
 
+## Estado: HECHO (2026-07-02, commit tras 792 tests PASS)
+- `_draw_block` recibe un `$label` y dibuja `createText` en la caja: high_blocks
+  → "Bear OB" (color bear), low_blocks → "Bull OB" (azul #2157f3).
+- Test nuevo en t/22 (bloque 11): verifica etiquetas "Bear OB"/"Bull OB" y que se
+  dibujan las 2 cajas. Suite 792 PASS.
+
 ## Origen
 - ORDEN 14 de `tasks/0021-volatility-and-choch-noise.md`.
 - Notas WhatsApp profe (29/06): "Falta indicar Order Block"; "Falta identificar

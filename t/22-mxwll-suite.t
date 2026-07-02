@@ -6,6 +6,30 @@ use lib '.';
 use Market::MarketData;
 use Market::Indicators::Mxwll_Suite;
 use Market::Overlays::Mxwll_Suite;
+use Market::Panels::Scales;
+
+# --- Mock de canvas Tk: registra las ops de dibujo sin GUI ---
+{
+    package TestCanvas;
+    sub new { bless { w => 900, h => 600, ops => [] }, shift }
+    sub delete { my ($s,@a)=@_; push @{$s->{ops}}, [delete=>@a]; return; }
+    sub createLine { my ($s,@a)=@_; push @{$s->{ops}}, [createLine=>@a]; return scalar @{$s->{ops}}; }
+    sub createRectangle { my ($s,@a)=@_; push @{$s->{ops}}, [createRectangle=>@a]; return scalar @{$s->{ops}}; }
+    sub createText { my ($s,@a)=@_; push @{$s->{ops}}, [createText=>@a]; return scalar @{$s->{ops}}; }
+}
+sub mx_op_arg {
+    my ($op, $key) = @_;
+    my @a = @$op;
+    for my $i (0 .. $#a - 1) {
+        return $a[$i + 1] if defined $a[$i] && $a[$i] eq "-$key";
+    }
+    return undef;
+}
+sub mx_scales {
+    my $s = Market::Panels::Scales->new(min_y => 5, max_y => 25, bars => 30, right_margin => 0);
+    $s->{width} = 900; $s->{height} = 600;
+    return $s;
+}
 
 # Helper: construir MarketData sintético desde lista [O,H,L,C].
 sub build_ohlc {
@@ -237,6 +261,36 @@ SKIP: {
     # Sin ATR todavia -> no censurar.
     my $k = Market::Indicators::Mxwll_Suite->new(swing_atr_factor => 1.5);
     is($k->_swing_significant(105, 100), 1, 'ORDEN2: sin ATR aun -> significativo');
+}
+
+# =============================================================================
+# 11. ORDEN 14 (task 0026): order blocks etiquetados con "OB"
+# =============================================================================
+{
+    package MxStubOB;
+    sub new { bless { v => $_[1] }, $_[0] }
+    sub get_values { $_[0]->{v} }
+}
+{
+    my $vals = {
+        swings => [], structures => [], fvgs => [], aoe => undef, fibs => undef,
+        high_blocks => [ { index => 2, top => 20, bottom => 19.9, active => 1 } ],
+        low_blocks  => [ { index => 4, top => 10.1, bottom => 10, active => 1 } ],
+    };
+    my $ov = Market::Overlays::Mxwll_Suite->new(indicator => MxStubOB->new($vals), visible => 1);
+    # Solo OB visible para aislar.
+    $ov->set_element_visible($_, 0) for qw(STRUCTURE SWINGS FVG AOE FIBS);
+    $ov->compute_visible(undef, undef, 0, 29);
+    my $canvas = TestCanvas->new();
+    $ov->draw($canvas, mx_scales());
+
+    my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
+    my %seen  = map { (mx_op_arg($_, 'text') // '') => 1 } @texts;
+    ok($seen{'Bear OB'}, 'ORDEN14: high_block etiquetado "Bear OB"');
+    ok($seen{'Bull OB'}, 'ORDEN14: low_block etiquetado "Bull OB"');
+
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    is(scalar(@rects), 2, 'ORDEN14: se dibujan las 2 cajas de order block');
 }
 
 done_testing();

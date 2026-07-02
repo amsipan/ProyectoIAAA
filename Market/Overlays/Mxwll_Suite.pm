@@ -133,10 +133,10 @@ sub draw {
     # --- 1. Order blocks (cajas) ---
     if ($self->is_element_visible('OB')) {
         for my $z (@{ $vals->{high_blocks} // [] }) {
-            $self->_draw_block($canvas, $scales, $tag, $x_right, $z, $bear);
+            $self->_draw_block($canvas, $scales, $tag, $x_right, $z, $bear, 'Bear OB');
         }
         for my $z (@{ $vals->{low_blocks} // [] }) {
-            $self->_draw_block($canvas, $scales, $tag, $x_right, $z, '#2157f3');
+            $self->_draw_block($canvas, $scales, $tag, $x_right, $z, '#2157f3', 'Bull OB');
         }
     }
 
@@ -252,7 +252,7 @@ sub draw {
 }
 
 sub _draw_block {
-    my ($self, $canvas, $scales, $tag, $right, $z, $color) = @_;
+    my ($self, $canvas, $scales, $tag, $right, $z, $color, $label) = @_;
     return if $z->{index} > $self->{_end};
     my $x0 = $scales->index_to_x($self->_local_index($z->{index}));
     my $x1 = $right;
@@ -267,6 +267,18 @@ sub _draw_block {
         -width   => 1,
         -tags    => $tag,
     );
+    # ORDEN 14 (task 0026): etiqueta "OB" para identificar el order block. Se
+    # dibuja en la esquina izquierda de la caja (dentro del rango visible).
+    if (defined $label) {
+        $canvas->createText(
+            $x0 + 3, ($yt + $yb) / 2,
+            -text   => $label,
+            -anchor => 'w',
+            -font   => 'Helvetica 7',
+            -fill   => $color,
+            -tags   => $tag,
+        );
+    }
     return;
 }
 
