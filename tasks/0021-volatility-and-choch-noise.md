@@ -74,10 +74,12 @@
   HECHO (ORDEN 4): bug real — extreme usaba la vela de resolucion; ahora usa la
   penetracion real (swept_extreme) + ancla al nivel (ORDEN 3).
 
-- [ ] **G. EQH/EQL: distinguir internos vs externos** — Igual que la estructura,
+- [x] **G. EQH/EQL: distinguir internos vs externos** — Igual que la estructura,
   el profe quiere EQH/EQL internos y externos diferenciados. Hoy `Liquidity.pm`
   produce EQH/EQL con un solo `eqhl_size`. Habría que generar dos conjuntos
   (interno con size pequeño, externo con size grande) y distinguirlos en render.
+  HECHO (ORDEN 6): externo EQH/EQL (size 3) + interno I-EQH/I-EQL (size 2) con
+  texto literal; externos invariantes, internos aditivos.
 
 - [ ] **H. EQH/EQL: los más largos horizontalmente = más importantes** — Las
   líneas EQH/EQL largas (pivotes lejanos en el tiempo) son más relevantes; las
@@ -281,12 +283,28 @@ dibujar el marcador anclado al nivel tomado (linea al BSL/SSL/EQH/EQL).
 **Archivos:** overlay Liquidity.
 
 ## ORDEN 6 — Tarea G: EQH/EQL internos vs externos (texto literal)
+**[HECHO 2026-07-02]**
 **Diseno:** hoy `Liquidity` usa un solo `eqhl_size`. Generar DOS conjuntos:
 interno (size pequeño, p.ej. 3) y externo (size grande, p.ej. 25), y etiquetar
 LITERAL en pantalla: externos `EQH`/`EQL`, internos `I-EQH`/`I-EQL` (mismo
 criterio literal que B). Distinguir en el overlay.
 **Archivos:** `Market/Indicators/Liquidity.pm`, `Market/Overlays/Liquidity.pm`,
 `t/10-liquidity.t`.
+
+**RESULTADO:**
+- `_update_eqhl_leg` generalizado a un "kind" (ext/int) con su size, etiquetas y
+  prefijo de group_id. Se ejecutan DOS pasadas por vela.
+- Externo = `eqhl_size` (3, canonico paridad LuxAlgo) → etiquetas EQH/EQL.
+  Interno = `eqhl_int_size` (2 por defecto, mas granular) → I-EQH/I-EQL literales.
+  `eqhl_int_size=0` desactiva internos.
+- DECISION: el externo se mantiene en size=3 (no 25) para NO romper la paridad
+  con TradingView ya validada; el interno es size=2 (aditivo). Verificado: los
+  EQH/EQL externos quedan IDENTICOS (1m EQH=334, EQL=320, sin cambio), y se
+  añaden I-EQH/I-EQL (1m 576/524).
+- Overlay: `_draw_pair_line` acepta flag internal; dibuja I-EQH/I-EQL con texto
+  literal y estilo mas fino (Helvetica 7, linea width 1). Comparten toggle EQH/EQL.
+- Tests: bloque nuevo en t/10 (existen ambos, eqhl_int_size=0 desactiva, externos
+  invariantes). Suite 776 PASS.
 
 ## ORDEN 7 — Tarea H: EQH/EQL largos = mas importantes
 **Diseno:** medir la distancia horizontal del par (|idx_b - idx_a|). Resaltar

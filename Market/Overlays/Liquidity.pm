@@ -47,6 +47,9 @@ my %ELEMENT_TYPES = (
     SSL    => [qw(SSL)],
     EQH    => [qw(EQH)],
     EQL    => [qw(EQL)],
+    # ORDEN 6 (task 0021 G): EQH/EQL internos con texto literal I-EQH/I-EQL.
+    # Se controlan con el mismo toggle EQH/EQL (comparten familia visual) pero
+    # se dibujan con etiqueta y estilo internos.
     SWEEP  => [qw(SWEEP_UP SWEEP_DOWN)],
     GRAB   => [qw(GRAB)],
     RUN    => [qw(RUN)],
@@ -223,19 +226,26 @@ sub draw {
         }
     }
 
-    # --- EQH / EQL: línea que conecta los dos pivotes del par -----------------
+    # --- EQH / EQL (+ internos I-EQH / I-EQL) --------------------------------
+    # ORDEN 6: los internos comparten toggle con su externo (EQH controla
+    # EQH+I-EQH, EQL controla EQL+I-EQL) pero se dibujan con etiqueta literal
+    # distinta ('I-EQH'/'I-EQL') y estilo interno (linea mas fina/tenue).
     if ($ev->{EQH} || $ev->{EQL}) {
-        for my $type (qw(EQH EQL)) {
-            next unless $ev->{$type};
+        for my $type (qw(EQH EQL I-EQH I-EQL)) {
+            my $base = ($type eq 'I-EQH') ? 'EQH'
+                     : ($type eq 'I-EQL') ? 'EQL'
+                     : $type;
+            next unless $ev->{$base};
+            my $internal = ($type =~ /^I-/) ? 1 : 0;
             my @items = sort { ($a->{index} // 0) <=> ($b->{index} // 0) }
                         grep { defined $_->{type} && $_->{type} eq $type } @{ $self->{_levels} };
-            
+
             my %groups;
             my $has_gid = 1;
             for my $item (@items) {
                 if (!defined $item->{group_id}) { $has_gid = 0; last; }
             }
-            
+
             if ($has_gid && @items) {
                 for my $item (@items) {
                     push @{ $groups{$item->{group_id}} }, $item;
@@ -247,9 +257,9 @@ sub draw {
                     push @{ $groups{$gid} }, $items[$i];
                 }
             }
-            
+
             for my $gid (sort keys %groups) {
-                $self->_draw_pair_line($canvas, $scales, $tag, $type, $groups{$gid});
+                $self->_draw_pair_line($canvas, $scales, $tag, $type, $groups{$gid}, $internal);
             }
         }
     }
@@ -324,13 +334,17 @@ sub _draw_hline_label {
 }
 
 # _draw_pair_line: conecta los pivotes de un par (EQH/EQL) con una línea.
+# $type puede ser EQH/EQL o I-EQH/I-EQL (interno). $internal ajusta etiqueta y
+# estilo (linea mas fina) pero el color se toma del tipo base (EQH/EQL).
 sub _draw_pair_line {
-    my ($self, $canvas, $scales, $tag, $type, $items) = @_;
+    my ($self, $canvas, $scales, $tag, $type, $items, $internal) = @_;
     return unless @$items >= 2;
+    $internal ||= 0;
+    my $is_high = ($type =~ /EQH/) ? 1 : 0;
     my @sorted = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @$items;
-    my $color = $self->_color($type eq 'EQH' ? 'liq_eqh' : 'liq_eql',
-                             $type eq 'EQH' ? '#ef5350' : '#26a69a');
-    my $label_color = $self->_color($type eq 'EQH' ? 'liq_eqh_label' : 'liq_eql_label',
+    my $color = $self->_color($is_high ? 'liq_eqh' : 'liq_eql',
+                             $is_high ? '#ef5350' : '#26a69a');
+    my $label_color = $self->_color($is_high ? 'liq_eqh_label' : 'liq_eql_label',
                                     $color);
 
     my $first = $sorted[0];
@@ -347,19 +361,19 @@ sub _draw_pair_line {
         $x_start, $y, $x_end, $y,
         -fill  => $color,
         -dash  => [2, 3],
-        -width => 2,
+        -width => $internal ? 1 : 2,
         -tags  => $tag,
     );
 
-    # Etiqueta sobre el punto medio de los extremos del par.
+    # Etiqueta sobre el punto medio de los extremos del par (texto LITERAL).
     my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
     my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
     my $x_mid = ($x1 + $x2) / 2;
     $canvas->createText(
-        $x_mid, $type eq 'EQH' ? $y - 6 : $y + 6,
+        $x_mid, $is_high ? $y - 6 : $y + 6,
         -text   => $type,
-        -anchor => $type eq 'EQH' ? 's' : 'n',
-        -font   => 'Helvetica 8 bold',
+        -anchor => $is_high ? 's' : 'n',
+        -font   => $internal ? 'Helvetica 7' : 'Helvetica 8 bold',
         -fill   => $label_color,
         -tags   => $tag,
     );

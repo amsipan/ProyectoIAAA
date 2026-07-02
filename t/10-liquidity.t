@@ -1023,4 +1023,41 @@ sub build_ohlc_vol {
     is($ov->{_only_relevant}, 1, 'overlay: set_only_relevant(1)');
 }
 
+# =============================================================================
+# ORDEN 6 (task 0021 G): EQH/EQL internos vs externos con TEXTO LITERAL
+# =============================================================================
+SKIP: {
+    my $csv = -e 'Data/2026_06_29.csv' ? 'Data/2026_06_29.csv'
+            : -e 'Data/2026_03.csv'    ? 'Data/2026_03.csv' : undef;
+    skip "no hay CSV de datos reales", 4 unless $csv;
+    my $md = Market::MarketData->new();
+    open my $fh, '<', $csv or skip "no se pudo abrir CSV", 4;
+    my $hdr = <$fh>;
+    while (my $l = <$fh>) {
+        chomp $l; next unless length $l;
+        my @f = split /,/, $l; next unless @f >= 6;
+        $md->add_candle([$f[0], $f[1]+0, $f[2]+0, $f[3]+0, $f[4]+0, $f[5]+0]);
+    }
+    close $fh;
+    $md->build_timeframes();
+    $md->set_timeframe('15m');
+    my $last = $md->last_index;
+
+    # Con deteccion interna (default): existen EQH/EQL externos e I-EQH/I-EQL.
+    my $liq = Market::Indicators::Liquidity->new(k => 3);
+    $liq->update_last($md, $_) for 0 .. $last;
+    my %c; $c{$_->{type}}++ for @{ $liq->get_levels() };
+    ok(($c{EQH}//0) > 0 || ($c{EQL}//0) > 0, 'ORDEN6: hay EQH/EQL externos');
+    ok(($c{'I-EQH'}//0) > 0 || ($c{'I-EQL'}//0) > 0, 'ORDEN6: hay I-EQH/I-EQL internos (texto literal)');
+
+    # Con eqhl_int_size=0 se desactiva la deteccion interna (solo externos).
+    my $liq2 = Market::Indicators::Liquidity->new(k => 3, eqhl_int_size => 0);
+    $liq2->update_last($md, $_) for 0 .. $last;
+    my %c2; $c2{$_->{type}}++ for @{ $liq2->get_levels() };
+    is(($c2{'I-EQH'}//0) + ($c2{'I-EQL'}//0), 0,
+       'ORDEN6: eqhl_int_size=0 desactiva internos');
+    # Los externos NO cambian entre ambos (la deteccion interna es aditiva).
+    is(($c2{EQH}//0), ($c{EQH}//0), 'ORDEN6: EQH externos identicos con/sin internos');
+}
+
 done_testing();

@@ -38,6 +38,13 @@ sub new {
     # (equalHighsLowsLengthInput=3) y tolerancia = threshold(0.1) * ta.atr(200).
     my $eqhl_size       = $opts{eqhl_size}       // 3;
     my $eqhl_atr_period = $opts{eqhl_atr_period} // 200;
+    # ORDEN 6 (task 0021 G): EQH/EQL internos vs externos con TEXTO LITERAL.
+    #   - Externo (canonico, paridad LuxAlgo/TradingView): size = eqhl_size (3),
+    #     etiquetas 'EQH' / 'EQL'.
+    #   - Interno (mas granular, deteccion adicional): size = eqhl_int_size (2),
+    #     etiquetas 'I-EQH' / 'I-EQL'.
+    # eqhl_int_size=0 desactiva la deteccion interna (solo externos).
+    my $eqhl_int_size = defined $opts{eqhl_int_size} ? $opts{eqhl_int_size} : 2;
     # ORDEN 4 (task 0021 F): relevancia de la toma de liquidez. Cada evento se
     # marca con `relevant` (0/1) segun si la magnitud del barrido (|extreme-nivel|)
     # es >= sweep_atr_factor * ATR local. El overlay puede filtrar por relevancia
@@ -60,16 +67,18 @@ sub new {
         tol_factor => $tol_factor,
         N          => $N,
         eqhl_size       => $eqhl_size,
+        eqhl_int_size   => $eqhl_int_size,
         eqhl_atr_period => $eqhl_atr_period,
         sweep_atr_factor => $sweep_atr_factor,
         # FSM "leg" de EQH/EQL (paridad LuxAlgo). leg: 0=BEARISH, 1=BULLISH.
-        _eq_leg        => 0,
-        _eq_high_level => undef,
-        _eq_high_bar   => undef,
-        _eq_high_have  => 0,
-        _eq_low_level  => undef,
-        _eq_low_bar    => undef,
-        _eq_low_have   => 0,
+        # Dos conjuntos de estado: 'ext' (externo, EQH/EQL) e 'int' (I-EQH/I-EQL).
+        _eq_leg        => { ext => 0, int => 0 },
+        _eq_high_level => { ext => undef, int => undef },
+        _eq_high_bar   => { ext => undef, int => undef },
+        _eq_high_have  => { ext => 0, int => 0 },
+        _eq_low_level  => { ext => undef, int => undef },
+        _eq_low_bar    => { ext => undef, int => undef },
+        _eq_low_have   => { ext => 0, int => 0 },
         # ATR(200) propio para la tolerancia EQH/EQL (Wilder con seed de media movil).
         _eq_tr_sum  => 0,
         _eq_count   => 0,
@@ -142,7 +151,11 @@ sub update_last {
     $self->_update_eq_atr($index, $high, $low, $close);
 
     # --- EQH/EQL: deteccion de pivotes por "leg" (paridad LuxAlgo) ---
-    $self->_update_eqhl_leg($index);
+    # ORDEN 6 (task 0021 G): externo (EQH/EQL, size grande) + interno (I-EQH/I-EQL,
+    # size pequeño), distinguidos por TEXTO LITERAL.
+    $self->_update_eqhl_leg($index, 'ext', $self->{eqhl_size}, 'EQH', 'EQL', 'eqh');
+    $self->_update_eqhl_leg($index, 'int', $self->{eqhl_int_size}, 'I-EQH', 'I-EQL', 'ieqh')
+        if $self->{eqhl_int_size} && $self->{eqhl_int_size} > 0;
 
     # --- Swing detection at j = index - k ---
     my $k = $self->{k};
@@ -331,8 +344,13 @@ sub _process_swing_low {
 # Esta deteccion alterna obligatoriamente high<->low (a diferencia del fractal),
 # por eso captura pares EQH/EQL que el fractal estricto omite.
 sub _update_eqhl_leg {
-    my ($self, $index) = @_;
-    my $size = $self->{eqhl_size};
+    my ($self, $index, $kind, $size, $label_hi, $label_lo, $prefix) = @_;
+    $kind     //= 'ext';
+    $size     //= $self->{eqhl_size};
+    $label_hi //= 'EQH';
+    $label_lo //= 'EQL';
+    $prefix   //= 'eqh';
+    return if $size <= 0;
     my $piv  = $index - $size;
     return if $piv < 0;
 
@@ -353,10 +371,10 @@ sub _update_eqhl_leg {
     }
     return unless defined $mh && defined $ml;
 
-    my $prev_leg = $self->{_eq_leg};
-    if    ($hk > $mh) { $self->{_eq_leg} = 0; }  # BEARISH_LEG
-    elsif ($lk < $ml) { $self->{_eq_leg} = 1; }  # BULLISH_LEG
-    my $leg = $self->{_eq_leg};
+    my $prev_leg = $self->{_eq_leg}{$kind};
+    if    ($hk > $mh) { $self->{_eq_leg}{$kind} = 0; }  # BEARISH_LEG
+    elsif ($lk < $ml) { $self->{_eq_leg}{$kind} = 1; }  # BULLISH_LEG
+    my $leg = $self->{_eq_leg}{$kind};
     return if $leg == $prev_leg;  # solo en el cambio de leg
 
     my $atr = $self->{_eq_atr_last};
@@ -364,36 +382,36 @@ sub _update_eqhl_leg {
 
     if ($leg == 0) {
         # Pivote alto confirmado en bar $piv (precio $hk).
-        if ($self->{_eq_high_have} && defined $tol
-            && abs($self->{_eq_high_level} - $hk) < $tol) {
-            my $gid = "eqh_" . $self->{_eq_high_bar} . "_" . $piv;
+        if ($self->{_eq_high_have}{$kind} && defined $tol
+            && abs($self->{_eq_high_level}{$kind} - $hk) < $tol) {
+            my $gid = "${prefix}h_" . $self->{_eq_high_bar}{$kind} . "_" . $piv;
             push @{ $self->{_levels} }, {
-                index => $self->{_eq_high_bar}, type => 'EQH',
-                price => $self->{_eq_high_level}, group_id => $gid,
+                index => $self->{_eq_high_bar}{$kind}, type => $label_hi,
+                price => $self->{_eq_high_level}{$kind}, group_id => $gid,
             };
             push @{ $self->{_levels} }, {
-                index => $piv, type => 'EQH', price => $hk, group_id => $gid,
+                index => $piv, type => $label_hi, price => $hk, group_id => $gid,
             };
         }
-        $self->{_eq_high_level} = $hk;
-        $self->{_eq_high_bar}   = $piv;
-        $self->{_eq_high_have}  = 1;
+        $self->{_eq_high_level}{$kind} = $hk;
+        $self->{_eq_high_bar}{$kind}   = $piv;
+        $self->{_eq_high_have}{$kind}  = 1;
     } else {
         # Pivote bajo confirmado en bar $piv (precio $lk).
-        if ($self->{_eq_low_have} && defined $tol
-            && abs($self->{_eq_low_level} - $lk) < $tol) {
-            my $gid = "eql_" . $self->{_eq_low_bar} . "_" . $piv;
+        if ($self->{_eq_low_have}{$kind} && defined $tol
+            && abs($self->{_eq_low_level}{$kind} - $lk) < $tol) {
+            my $gid = "${prefix}l_" . $self->{_eq_low_bar}{$kind} . "_" . $piv;
             push @{ $self->{_levels} }, {
-                index => $self->{_eq_low_bar}, type => 'EQL',
-                price => $self->{_eq_low_level}, group_id => $gid,
+                index => $self->{_eq_low_bar}{$kind}, type => $label_lo,
+                price => $self->{_eq_low_level}{$kind}, group_id => $gid,
             };
             push @{ $self->{_levels} }, {
-                index => $piv, type => 'EQL', price => $lk, group_id => $gid,
+                index => $piv, type => $label_lo, price => $lk, group_id => $gid,
             };
         }
-        $self->{_eq_low_level} = $lk;
-        $self->{_eq_low_bar}   = $piv;
-        $self->{_eq_low_have}  = 1;
+        $self->{_eq_low_level}{$kind} = $lk;
+        $self->{_eq_low_bar}{$kind}   = $piv;
+        $self->{_eq_low_have}{$kind}  = 1;
     }
     return;
 }
@@ -1094,14 +1112,14 @@ sub reset {
     $self->{_levels}     = [];
     $self->{_eqh_pairs}  = {};
     $self->{_eql_pairs}  = {};
-    # EQH/EQL leg state (paridad LuxAlgo).
-    $self->{_eq_leg}        = 0;
-    $self->{_eq_high_level} = undef;
-    $self->{_eq_high_bar}   = undef;
-    $self->{_eq_high_have}  = 0;
-    $self->{_eq_low_level}  = undef;
-    $self->{_eq_low_bar}    = undef;
-    $self->{_eq_low_have}   = 0;
+    # EQH/EQL leg state (paridad LuxAlgo). Dos conjuntos: ext + int (ORDEN 6).
+    $self->{_eq_leg}        = { ext => 0, int => 0 };
+    $self->{_eq_high_level} = { ext => undef, int => undef };
+    $self->{_eq_high_bar}   = { ext => undef, int => undef };
+    $self->{_eq_high_have}  = { ext => 0, int => 0 };
+    $self->{_eq_low_level}  = { ext => undef, int => undef };
+    $self->{_eq_low_bar}    = { ext => undef, int => undef };
+    $self->{_eq_low_have}   = { ext => 0, int => 0 };
     $self->{_eq_tr_sum}     = 0;
     $self->{_eq_count}      = 0;
     $self->{_eq_atr_last}   = undef;
