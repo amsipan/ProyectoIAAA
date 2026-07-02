@@ -1,5 +1,15 @@
 # Task 0029: ML/MH primero para el cálculo de Fibonacci
 
+## Estado: YA CORRECTO — sin cambios de codigo (verificado 2026-07-02)
+Verificacion analitica (`scratch/check_fib_anchor.pl`) sobre Data/2026_06_29.csv:
+el anclaje del fib COINCIDE EXACTAMENTE con el max high y min low reales del rango
+en 2h, 1h y 15m (desajuste 0.00 en los tres). El fib ya se ancla a los swings
+mayores (ML/MH) via `_ext` (upaxis/dnaxis). NO reproduce el "margenes equivocados"
+que reporto el profe con estos datos.
+ACCION: cerrada sin tocar codigo. Reabrir SOLO si el profe aporta una captura
+concreta donde el fib salga mal; en ese caso portar el escaneo min/max real de
+`updateMain` del .pine.
+
 ## Origen
 - ORDEN 17 de `tasks/0021-volatility-and-choch-noise.md`.
 - Nota WhatsApp profe (29/06, Sebas): "Los ML y MH deben identificarse primero
