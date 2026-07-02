@@ -74,6 +74,14 @@ sub new {
         # factor*ATR, marcadas por el indicador). Por defecto ON para reducir el
         # aglomeramiento (5000 eventos en 1m). Se puede apagar via set_only_relevant.
         _only_relevant => exists $args{only_relevant} ? ($args{only_relevant} ? 1 : 0) : 1,
+        # ORDEN 7 (task 0021 H): los EQH/EQL mas largos horizontalmente (mas velas
+        # entre los dos pivotes) son mas importantes; los cortos dan menos info.
+        #   - eqhl_min_span: pares con span < N velas NO se dibujan. Default 0
+        #     (sin filtro: el profe pidio RESALTAR los largos, no ocultar cortos;
+        #     el filtro queda opt-in para quien quiera limpiar mas la vista).
+        #   - eqhl_long_span: pares con span >= N velas se resaltan (linea gruesa).
+        _eqhl_min_span  => exists $args{eqhl_min_span}  ? $args{eqhl_min_span}  : 0,
+        _eqhl_long_span => exists $args{eqhl_long_span} ? $args{eqhl_long_span} : 20,
     };
     bless $self, $class;
     return $self;
@@ -83,6 +91,14 @@ sub new {
 sub set_only_relevant {
     my ($self, $bool) = @_;
     $self->{_only_relevant} = $bool ? 1 : 0;
+    return $self;
+}
+
+# set_eqhl_span($min, $long) — umbrales de longitud EQH/EQL (ORDEN 7).
+sub set_eqhl_span {
+    my ($self, $min, $long) = @_;
+    $self->{_eqhl_min_span}  = $min  if defined $min;
+    $self->{_eqhl_long_span} = $long if defined $long;
     return $self;
 }
 
@@ -349,7 +365,17 @@ sub _draw_pair_line {
 
     my $first = $sorted[0];
     my $last  = $sorted[-1];
-    
+
+    # ORDEN 7 (task 0021 H): longitud del par en velas. Filtrar cortos, resaltar
+    # largos. El interno tiene un umbral proporcional (mitad) para no ocultarlo
+    # de mas, ya que por diseño es mas granular.
+    my $span = abs(($last->{index} // 0) - ($first->{index} // 0));
+    my $min_span  = $self->{_eqhl_min_span}  // 0;
+    my $long_span = $self->{_eqhl_long_span} // 1e9;
+    $min_span = int($min_span / 2) if $internal;   # internos: umbral mas permisivo
+    return if $min_span > 0 && $span < $min_span;
+    my $is_long = ($span >= $long_span) ? 1 : 0;
+
     my $x_start = $scales->index_to_center_x($self->_local_index($first->{index}));
     my $x_end   = $scales->index_to_center_x($self->_local_index($last->{index}));
     my $y       = $scales->value_to_y($first->{price});
@@ -357,11 +383,13 @@ sub _draw_pair_line {
     my $w = $scales->{width} || $scales->plot_width();
     return if $x_end < 0 || $x_start > $w;
 
+    # Grosor: interno=1; externo=2; externo largo (mas importante)=3.
+    my $width = $internal ? 1 : ($is_long ? 3 : 2);
     $canvas->createLine(
         $x_start, $y, $x_end, $y,
         -fill  => $color,
         -dash  => [2, 3],
-        -width => $internal ? 1 : 2,
+        -width => $width,
         -tags  => $tag,
     );
 

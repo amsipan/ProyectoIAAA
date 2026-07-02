@@ -475,4 +475,51 @@ sub _line_signature {
     is(scalar(@eql_lines), 1, 'EQL: la linea horizontal conecta los dos pivotes del par (225 -> 405)');
 }
 
+# =============================================================================
+# ORDEN 7 (task 0021 H): EQH/EQL largos = mas importantes (resaltar) + filtro
+# opt-in de cortos.
+# =============================================================================
+{
+    # Par EQH largo (span 25) y par EQL corto (span 2).
+    my $ind = TestIndicator->new(
+        levels => [
+            { index => 0,  type => 'EQH', price => 20, group_id => 'L' },
+            { index => 25, type => 'EQH', price => 20, group_id => 'L' },
+            { index => 3,  type => 'EQL', price => 10, group_id => 'S' },
+            { index => 5,  type => 'EQL', price => 10, group_id => 'S' },
+        ],
+        events => [],
+    );
+
+    # Resaltado: el par largo (span 25 >= long_span 20) usa linea gruesa (width 3);
+    # el corto usa width 2 (externo normal).
+    {
+        my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+        my $canvas = TestCanvas->new();
+        my $scales = make_scales(5, 25, 30);
+        $ov->compute_visible(undef, $ind, 0, 29);
+        $canvas->{ops} = [];
+        $ov->draw($canvas, $scales);
+        my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+        my @thick = grep { (op_arg($_, 'width') // 0) == 3 } @lines;
+        my @norm  = grep { (op_arg($_, 'width') // 0) == 2 } @lines;
+        is(scalar(@thick), 1, 'ORDEN7: par EQH largo resaltado con linea gruesa (width 3)');
+        is(scalar(@norm),  1, 'ORDEN7: par EQL corto con linea normal (width 2)');
+    }
+
+    # Filtro opt-in: con eqhl_min_span=10, el par corto (span 2) desaparece y solo
+    # queda el largo.
+    {
+        my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {},
+                                                      eqhl_min_span => 10);
+        my $canvas = TestCanvas->new();
+        my $scales = make_scales(5, 25, 30);
+        $ov->compute_visible(undef, $ind, 0, 29);
+        $canvas->{ops} = [];
+        $ov->draw($canvas, $scales);
+        my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+        is(scalar(@lines), 1, 'ORDEN7: eqhl_min_span=10 filtra el par corto (queda 1)');
+    }
+}
+
 done_testing();

@@ -81,10 +81,12 @@
   HECHO (ORDEN 6): externo EQH/EQL (size 3) + interno I-EQH/I-EQL (size 2) con
   texto literal; externos invariantes, internos aditivos.
 
-- [ ] **H. EQH/EQL: los más largos horizontalmente = más importantes** — Las
+- [x] **H. EQH/EQL: los más largos horizontalmente = más importantes** — Las
   líneas EQH/EQL largas (pivotes lejanos en el tiempo) son más relevantes; las
   cortas dan menos info. Idea: filtrar/atenuar las cortas, o resaltar las largas
   (grosor/opacidad según la distancia horizontal entre los dos pivotes del par).
+  HECHO (ORDEN 7): resaltado de largos (width 3, eqhl_long_span) + filtro opt-in
+  de cortos (eqhl_min_span, default 0).
 
 - [ ] **I. FVG: confirmar que existe y cómo encenderlo** — VERIFICADO (ver
   diagnóstico). SÍ existe FVG, en DOS sitios:
@@ -307,10 +309,23 @@ criterio literal que B). Distinguir en el overlay.
   invariantes). Suite 776 PASS.
 
 ## ORDEN 7 — Tarea H: EQH/EQL largos = mas importantes
+**[HECHO 2026-07-02]**
 **Diseno:** medir la distancia horizontal del par (|idx_b - idx_a|). Resaltar
 los largos (mayor grosor/opacidad) y atenuar/filtrar los cortos por debajo de un
 umbral configurable.
 **Archivos:** `Market/Overlays/Liquidity.pm` (+ getter de distancia en indicador).
+
+**RESULTADO:**
+- `_draw_pair_line` calcula el span (|idx_b - idx_a|) y:
+  * Resalta los largos: span >= `eqhl_long_span` (20) → linea gruesa (width 3).
+    Externo normal width 2, interno width 1.
+  * Filtra los cortos (opt-in): `eqhl_min_span` (default 0 = sin filtro) descarta
+    pares con span menor. Internos usan umbral proporcional (mitad).
+- DECISION: el filtro de cortos es opt-in (default 0). El profe pidio RESALTAR los
+  largos (los cortos "dan menos info"), no necesariamente ocultarlos; ademas
+  poner filtro por defecto rompia tests de render con pares cortos legitimos.
+  El resaltado de largos SI va por defecto (inofensivo). Setter `set_eqhl_span`.
+- Tests: 3 nuevos en t/15 (resaltado gruesa, normal, filtro opt-in). Suite 779 PASS.
 
 ## ORDEN 8 — Tarea E: demasiados BSL / order blocks (TERMINOS A CONFIRMAR)
 Esperar confirmacion del profe. Probable: reducir densidad de BSL y/o mostrar
