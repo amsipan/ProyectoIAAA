@@ -293,4 +293,29 @@ SKIP: {
     is(scalar(@rects), 2, 'ORDEN14: se dibujan las 2 cajas de order block');
 }
 
+# =============================================================================
+# 12. ORDEN 10 (task 0022): estructura externa SOLIDA, interna ENTRECORTADA
+# =============================================================================
+{
+    my $vals = {
+        swings => [], fvgs => [], aoe => undef, fibs => undef,
+        high_blocks => [], low_blocks => [],
+        structures => [
+            { from => 1, to => 5,  price => 20, dir => 'up',   label => 'BoS',     internal => 0 },
+            { from => 2, to => 6,  price => 10, dir => 'down', label => 'I-CHoCH', internal => 1 },
+        ],
+    };
+    my $ov = Market::Overlays::Mxwll_Suite->new(indicator => MxStubOB->new($vals), visible => 1);
+    $ov->set_element_visible($_, 0) for qw(SWINGS OB FVG AOE FIBS);  # solo STRUCTURE
+    $ov->compute_visible(undef, undef, 0, 29);
+    my $canvas = TestCanvas->new();
+    $ov->draw($canvas, mx_scales());
+
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    my @solid  = grep { !defined mx_op_arg($_, 'dash') } @lines;
+    my @dashed = grep {  defined mx_op_arg($_, 'dash') } @lines;
+    is(scalar(@solid),  1, 'ORDEN10: estructura externa (BoS) con linea solida');
+    is(scalar(@dashed), 1, 'ORDEN10: estructura interna (I-CHoCH) entrecortada');
+}
+
 done_testing();

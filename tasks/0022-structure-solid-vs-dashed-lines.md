@@ -1,5 +1,11 @@
 # Task 0022: Estructura Mxwll — líneas externas sólidas, internas entrecortadas
 
+## Estado: HECHO (2026-07-02, 796 tests PASS)
+- Mxwll STRUCTURE: externa sin `-dash` (solida), interna con `-dash=[4,4]`.
+- Liquidity `_draw_pair_line`: EQH/EQL externos solidos, I-EQH/I-EQL dashed.
+- Mantiene texto literal (I-) y resaltado de largos (width 3). Tests nuevos en
+  t/15 y t/22 (solida vs dashed ext/int).
+
 ## Origen
 - ORDEN 10 de `tasks/0021-volatility-and-choch-noise.md`.
 - Nota WhatsApp profe (29/06): "Líneas externas fijas, líneas internas entrecortadas".

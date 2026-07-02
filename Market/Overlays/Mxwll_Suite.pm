@@ -220,8 +220,11 @@ sub draw {
             my $y  = $scales->value_to_y($s->{price});
             next if $xt < 0;
             my $col = $s->{dir} eq 'up' ? $bull : $bear;
-            $canvas->createLine($xf, $y, $xt, $y,
-                -fill => $col, -width => 1, -dash => [4,4], -tags => $tag);
+            # ORDEN 10 (task 0022): externa = linea SOLIDA (sin dash), interna =
+            # entrecortada (dash). Diferenciacion visual ext/int por estilo.
+            my @line_opts = (-fill => $col, -width => 1, -tags => $tag);
+            push @line_opts, (-dash => [4,4]) if $s->{internal};
+            $canvas->createLine($xf, $y, $xt, $y, @line_opts);
             my $mid = ($xf + $xt) / 2;
             my $anchor = $s->{dir} eq 'up' ? 's' : 'n';
             my $dy = $s->{dir} eq 'up' ? -3 : 3;

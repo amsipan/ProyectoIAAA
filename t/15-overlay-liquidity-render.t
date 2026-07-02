@@ -522,4 +522,30 @@ sub _line_signature {
     }
 }
 
+# =============================================================================
+# ORDEN 10 (task 0022): EQH externo SOLIDO, I-EQH interno ENTRECORTADO.
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        levels => [
+            { index => 0,  type => 'EQH',   price => 20, group_id => 'E' },
+            { index => 8,  type => 'EQH',   price => 20, group_id => 'E' },
+            { index => 2,  type => 'I-EQH', price => 18, group_id => 'I' },
+            { index => 6,  type => 'I-EQH', price => 18, group_id => 'I' },
+        ],
+        events => [],
+    );
+    my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 12);
+    $ov->compute_visible(undef, $ind, 0, 11);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @lines  = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    my @solid  = grep { !defined op_arg($_, 'dash') } @lines;
+    my @dashed = grep {  defined op_arg($_, 'dash') } @lines;
+    is(scalar(@solid),  1, 'ORDEN10: EQH externo con linea solida');
+    is(scalar(@dashed), 1, 'ORDEN10: I-EQH interno entrecortado');
+}
+
 done_testing();

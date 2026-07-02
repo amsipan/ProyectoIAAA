@@ -385,13 +385,11 @@ sub _draw_pair_line {
 
     # Grosor: interno=1; externo=2; externo largo (mas importante)=3.
     my $width = $internal ? 1 : ($is_long ? 3 : 2);
-    $canvas->createLine(
-        $x_start, $y, $x_end, $y,
-        -fill  => $color,
-        -dash  => [2, 3],
-        -width => $width,
-        -tags  => $tag,
-    );
+    # ORDEN 10 (task 0022): externo EQH/EQL = linea SOLIDA; interno I-EQH/I-EQL =
+    # entrecortada. Coherente con la estructura del Mxwll.
+    my @line_opts = (-fill => $color, -width => $width, -tags => $tag);
+    push @line_opts, (-dash => [2, 3]) if $internal;
+    $canvas->createLine($x_start, $y, $x_end, $y, @line_opts);
 
     # Etiqueta sobre el punto medio de los extremos del par (texto LITERAL).
     my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
