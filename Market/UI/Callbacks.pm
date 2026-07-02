@@ -323,6 +323,24 @@ sub make_liq_element_toggle {
     };
 }
 
+# make_mxwll_element_toggle($chart, $element) — toggle de un elemento de la capa
+# Mxwll (STRUCTURE/SWINGS/OB/FVG/AOE/FIBS) via set_element_visible del overlay.
+# La visibilidad general de la capa Mxwll se controla aparte (make_overlay_toggle).
+# ORDEN 9 (task 0021 I): permite encender/apagar cada elemento por separado, igual
+# que ya se hace con los sub-elementos de Liquidez.
+sub make_mxwll_element_toggle {
+    my ($class, $chart, $element) = @_;
+    die "make_mxwll_element_toggle: requiere \$chart"   unless $chart;
+    die "make_mxwll_element_toggle: requiere \$element" unless defined $element;
+    return sub {
+        my ($on) = @_;
+        my $ov = $chart->{mxwll_overlay};
+        return unless $ov && $ov->can('set_element_visible');
+        $ov->set_element_visible($element, $on ? 1 : 0);
+        $chart->request_render();
+    };
+}
+
 # ----------------------------------------------------------------------------
 # HTF sobre LTF (spec 0010 §4). Toggle preparado: alterna una bandera de estado
 # ($vars->{htf_enabled}). La proyección de niveles de mayor temporalidad aún no

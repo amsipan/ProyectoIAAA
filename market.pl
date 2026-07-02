@@ -150,6 +150,8 @@ my $vis_vp = 0;
 my $vis_vwap = 0;
 my $vis_mxwll = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+# ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
+my %vis_mxelem = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS);
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
 # -variable explícito al callback (Tk no lo pasa solo en -command).
@@ -161,6 +163,8 @@ my $cb_vwap = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vwap');
 my $cb_mxwll = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'mxwll');
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+my %cb_mxelem = map { $_ => Market::UI::Callbacks->make_mxwll_element_toggle($chart_engine, $_) }
+                qw(STRUCTURE SWINGS OB FVG AOE FIBS);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();
@@ -210,6 +214,18 @@ $elem_box->Label(-text => 'Liq:')->pack(-side => 'left', -padx => 3);
 for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
     $elem_box->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
         -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
+}
+
+# --- Fila 1: Elementos de Mxwll (sub-filtros) — ORDEN 9 (task 0021 I) ---
+my %mx_label = (
+    STRUCTURE => 'Estr', SWINGS => 'Swings', OB => 'OB',
+    FVG => 'FVG', AOE => 'AOE', FIBS => 'Fibs',
+);
+my $mxelem_box = $row1->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+$mxelem_box->Label(-text => 'Mxwll:')->pack(-side => 'left', -padx => 3);
+for my $elem (qw(STRUCTURE SWINGS OB FVG AOE FIBS)) {
+    $mxelem_box->Checkbutton(-text => $mx_label{$elem}, -variable => \$vis_mxelem{$elem},
+        -command => sub { $cb_mxelem{$elem}->($vis_mxelem{$elem} ? 1 : 0); })->pack(-side => 'left');
 }
 
 # --- Fila 1: HTF ---

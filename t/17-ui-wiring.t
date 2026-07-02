@@ -112,6 +112,7 @@ use Market::ReplayController;
             replay_controller => Market::ReplayController->new(market_data => $md),
             overlay_manager   => $a{overlay_manager} || MockOverlayManager->new(),
             liq_overlay       => $a{liq_overlay} || MockLiqOverlay->new(),
+            mxwll_overlay     => $a{mxwll_overlay} || MockLiqOverlay->new(),
             visible_bars      => $a{visible_bars} || 20,
             _calls            => [],
             _tf               => [],
@@ -359,6 +360,31 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     is($liq->{elem}{SSL},   1, 'SSL no afectado por BSL/SWEEP');
     is($liq->{elem}{RUN},   1, 'RUN no afectado por BSL/SWEEP');
     ok($chart->render_count() >= 1, 'toggle de elemento dispara re-render');
+}
+
+# =============================================================================
+# Test 11b (ORDEN 9 / task 0021 I): cada toggle de elemento Mxwll invoca
+# mxwll_overlay->set_element_visible($elem,$on) para los 6 elementos.
+# =============================================================================
+{
+    my $mx    = MockLiqOverlay->new();   # mismo contrato set_element_visible
+    my $chart = MockChart->new(mxwll_overlay => $mx, market_data => MockMarketData->new(50));
+
+    my @elems = qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+    for my $elem (@elems) {
+        Market::UI::Callbacks->make_mxwll_element_toggle($chart, $elem)->(1);
+    }
+    Market::UI::Callbacks->make_mxwll_element_toggle($chart, 'FVG')->(0);
+    Market::UI::Callbacks->make_mxwll_element_toggle($chart, 'AOE')->(0);
+
+    my %uniq; $uniq{$_->[0]}++ for @{ $mx->{elem_calls} };
+    for my $elem (@elems) {
+        ok(exists $uniq{$elem}, "Mxwll: toggle de $elem llama set_element_visible");
+    }
+    is($mx->{elem}{FVG}, 0, 'Mxwll: FVG desactivado de forma aislada');
+    is($mx->{elem}{AOE}, 0, 'Mxwll: AOE desactivado de forma aislada');
+    is($mx->{elem}{STRUCTURE}, 1, 'Mxwll: STRUCTURE no afectado');
+    ok($chart->render_count() >= 1, 'Mxwll: toggle de elemento dispara re-render');
 }
 
 # =============================================================================

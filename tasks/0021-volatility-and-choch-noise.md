@@ -88,7 +88,7 @@
   HECHO (ORDEN 7): resaltado de largos (width 3, eqhl_long_span) + filtro opt-in
   de cortos (eqhl_min_span, default 0).
 
-- [ ] **I. FVG: confirmar que existe y cómo encenderlo** — VERIFICADO (ver
+- [x] **I. FVG: confirmar que existe y cómo encenderlo** — VERIFICADO (ver
   diagnóstico). SÍ existe FVG, en DOS sitios:
     1. `Market/Indicators/SMC_Structures.pm` + overlay SMC → capa **SMC**.
     2. `Market/Indicators/Mxwll_Suite.pm` + overlay Mxwll (elemento `FVG`) → capa **Mxwll**.
@@ -334,11 +334,19 @@ order blocks asociados. Liga con el modulo de order blocks ya existente en Mxwll
 **Archivos:** por definir tras confirmar.
 
 ## ORDEN 9 — Tarea I (UX): exponer sub-toggles de la capa Mxwll
+**[HECHO 2026-07-02]**
 **Diseno:** añadir checkbuttons individuales en `market.pl` para los elementos
 del Mxwll (STRUCTURE, SWINGS, OB, FVG, AOE, FIBS), igual que ya existen para
 Liquidez (BSL/SSL/EQH/...). Reusar `make_liq_element_toggle` o crear
 `make_mxwll_element_toggle`. Asi el FVG (y cada elemento) se enciende/apaga solo.
 **Archivos:** `market.pl`, `Market/UI/Callbacks.pm`.
+
+**RESULTADO:**
+- Nuevo `Market::UI::Callbacks->make_mxwll_element_toggle($chart, $element)`
+  (patron identico al de liquidez; usa `mxwll_overlay->set_element_visible`).
+- UI: nueva caja "Mxwll:" en la fila 1 con 6 checkbuttons (Estr/Swings/OB/FVG/
+  AOE/Fibs), todos ON por defecto. Ahora FVG se puede encender/apagar solo.
+- Tests: bloque 11b en t/17 (los 6 toggles, aislamiento, re-render). Suite 789 PASS.
 
 ---
 
