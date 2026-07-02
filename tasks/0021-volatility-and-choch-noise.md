@@ -108,6 +108,114 @@
       NO se renderizan (solo SuperTrend y Order Blocks se dibujan hoy).
     - El módulo Liquidity tiene `zone_3` (trendlines/channels: último swing
       high/low como límites de canal) calculado pero sin render dedicado.
+
+---
+
+# =====================================================================
+# CRUCE CON NOTAS DE WHATSAPP DEL PROFE (revision 29/06, procesado 02/07)
+# =====================================================================
+# Cada mensaje verificado contra el codigo. YA = hecho; NUEVO = orden nueva.
+#
+# "Cuando la volatilidad es baja, menos etiquetas"      -> YA (ORDEN 1+2, A).
+# "Diferenciar CHoCH interno y externo"                 -> YA (B, texto I-CHoCH).
+# "Mucho ruido en CHoCH"                                -> YA (ORDEN 1, 1m 1056->542).
+# "CHoCH = cambio de estado alcista/bajista/rango"      -> YA (ORDEN 1, 3 estados).
+# "Etiquetas deben coincidir con HH y HL"               -> YA (ORDEN 3, F2).
+# "Etiquetas vinculadas con niveles; nivel justifica grab" -> YA (ORDEN 3, D).
+# "Identificar tomas mas relevantes, menos aglomeracion"-> YA (ORDEN 4, F).
+# "SMC como base del run y sweep"                       -> YA (ORDEN 3, BSL/SSL=pivotes).
+# "Distinguir EQL/EQH interno y externo"                -> YA (ORDEN 6, G).
+# "Anadir FVG"                                          -> YA (existe; ORDEN 9 lo hace toggleable).
+# "Lineas externas fijas, internas entrecortadas"       -> ver ORDEN 10 (NUEVO, parcial).
+# "Solo FVG vigentes cerca del precio actual"           -> ver ORDEN 11 (NUEVO).
+# "Grab/Run sobrepuestos; run=continuidad, sweep/grab=rebote" -> ver ORDEN 12 (NUEVO, revisar).
+# "Colorear velas importantes donde ocurrio un liquidity run" -> ver ORDEN 13 (NUEVO).
+# "Order Block: lineas azules deben identificarse como OB" -> ver ORDEN 14 (NUEVO).
+# "BSL/SSL mas limpio para tener una banda"             -> ver ORDEN 15 (NUEVO) = tarea E.
+# "Strong High = coincide arriba con value de abajo"    -> ver ORDEN 16 (NUEVO).
+# "ML/MH primero para calcular fibonacci"              -> ver ORDEN 17 (NUEVO, revisar).
+# "Replay: boton select bar, elegir vela y play; shift+flecha; la vela
+#  seleccionada no cuenta, empieza una antes"           -> ver ORDEN 18 (NUEVO).
+# "Falta el canal"                                      -> J (pendiente, ver ORDEN 19).
+
+## ORDEN 10 (NUEVO) — Lineas externas fijas, internas entrecortadas
+El profe: estructura externa con linea solida (fija), interna entrecortada
+(dashed). ESTADO VERIFICADO: en Mxwll TODA la estructura (ext e int) se dibuja
+con `-dash => [4,4]` (entrecortada). Falta: externo = linea SOLIDA (sin dash),
+interno = dashed. Cambio pequeño en overlay `_draw` (bloque STRUCTURE) y en el
+render de EQH/EQL (externo solido, interno dashed) para coherencia.
+**Archivos:** `Market/Overlays/Mxwll_Suite.pm`, `Market/Overlays/Liquidity.pm`.
+
+## ORDEN 11 (NUEVO) — FVG solo vigente cerca del precio actual
+El profe: dejar FVG vigentes solo si estan cerca del precio actual; los lejanos,
+inactivos. ESTADO: hoy el FVG solo se invalida al ser rellenado (mitigado). NO
+hay criterio de proximidad al precio. NUEVO: marcar inactivo/atenuar FVG cuyo
+rango este a > X*ATR del close actual. Ya existe `closeOnly` en el .pine de Mxwll
+(mostrar solo el FVG mas cercano arriba/abajo) como referencia.
+**Archivos:** `Market/Indicators/Mxwll_Suite.pm` (+ overlay).
+
+## ORDEN 12 (NUEVO/REVISAR) — Grab/Run sobrepuestos; semantica run=continuidad
+El profe: "estan sobrepuestos grab y run"; "run implica continuidad, sweep/grab
+implican rebote"; "run al romper el nivel y continuar". ESTADO VERIFICADO: la FSM
+YA distingue esto correctamente — RUN = N cierres consecutivos fuera del nivel
+(continuidad), GRAB/SWEEP = rechazo/rebote. El "sobrepuestos" probablemente era
+el aglomeramiento (ya atacado en ORDEN 4) o falta de ancla (ORDEN 3, ya hecho).
+ACCION: verificar visualmente tras ORDEN 3+4; posible que ya este resuelto. Si
+siguen solapando etiquetas en el mismo punto, separar verticalmente.
+
+## ORDEN 13 (NUEVO) — Colorear velas donde ocurrio un liquidity run
+El profe: cambiar color de las velas importantes para saber cuando ocurrio un
+liquidity run. ESTADO: PricePanel colorea velas solo por alcista/bajista
+(close>=open). NUEVO: resaltar (color especial/borde) la vela donde se resolvio
+un RUN. Requiere pasar los indices de eventos RUN del overlay/indicador al
+PricePanel, o una capa de resaltado. Es intrusivo en PricePanel; disenar con
+cuidado para no romper el downsample por pixel.
+**Archivos:** `Market/Panels/PricePanel.pm` + puente desde Liquidity.
+
+## ORDEN 14 (NUEVO) — Etiquetar Order Blocks como "OB"
+El profe (2 veces): "Falta indicar Order Block", "lineas azules identificar con
+OB". ESTADO VERIFICADO: Mxwll dibuja order blocks (cajas high/low) SIN etiqueta
+de texto. NUEVO: anadir etiqueta literal "OB" a las cajas de order block (y quiza
+"Bull OB"/"Bear OB"). Las "lineas azules" probablemente son los low_blocks
+(azul #2157f3). Cambio en overlay `_draw_block` (anadir createText "OB").
+**Archivos:** `Market/Overlays/Mxwll_Suite.pm`.
+
+## ORDEN 15 (NUEVO) = tarea E — BSL/SSL mas limpio, en forma de banda
+El profe: "BSL y SSL debe ser mas limpio para tener una banda". CONFIRMA la
+tarea E. Interpretacion: en vez de muchas lineas BSL/SSL sueltas, agruparlas en
+una BANDA (zona sombreada entre niveles cercanos) mas limpia. NUEVO: reducir
+densidad de BSL/SSL y/o dibujar banda. Liga con order blocks (ORDEN 14).
+**Archivos:** `Market/Overlays/Liquidity.pm` (+ posible agrupacion en indicador).
+
+## ORDEN 16 (NUEVO) — Strong/Weak High/Low
+El profe: "Strong High cuando coincide lo de arriba con el value de abajo".
+ESTADO VERIFICADO: NO existe Strong/Weak High/Low en el codigo (el .pine de
+LuxAlgo SI lo tiene: trailing extremes + etiquetas Strong/Weak). NUEVO: portar
+Strong High / Weak High / Strong Low / Weak Low de LuxAlgo (segun el swingTrend).
+**Archivos:** `Market/Indicators/SMC_Structures.pm` o Mxwll + overlay.
+
+## ORDEN 17 (NUEVO/REVISAR) — ML/MH antes del Fibonacci
+El profe (Sebas): "los ML y MH deben identificarse primero para calcular
+fibonacci, sino da margenes equivocados". ESTADO VERIFICADO: `_compute_fibs` usa
+`_ext` (upaxis/dnaxis, los ultimos swings externos) para anclar el fib. Es decir
+YA se basa en los pivotes mayores. POSIBLE MEJORA: asegurar que use el par de
+swings correcto (mayor high y mayor low del swing vigente) y no una pierna
+parcial. REVISAR con captura concreta si los margenes salen mal.
+**Archivos:** `Market/Indicators/Mxwll_Suite.pm` (`_compute_fibs`).
+
+## ORDEN 18 (NUEVO) — Replay: seleccionar vela de inicio (Select Bar)
+El profe: boton "Select Bar", elegir una vela y de ahi Play; shift+flecha para
+cambiar la vela; la vela seleccionada NO se cuenta, empieza una antes. ESTADO
+VERIFICADO: hoy "Inicio" arranca automatico en (last - visible_bars); NO se puede
+elegir la vela. NUEVO: modo de seleccion de vela inicial (click en el chart o
+boton + shift+flechas), y que el replay empiece en selected-1.
+**Archivos:** `Market/ReplayController.pm`, `Market/UI/Callbacks.pm`,
+`Market/ChartEngine.pm` (bind click/teclas), `market.pl` (boton).
+
+## ORDEN 19 (NUEVO) = tarea J — El canal
+"Falta el canal". Ver ítem J. Candidatos ya calculados sin render: HalfTrend /
+Range Filter (Strategy_Builder) y zone_3 (Liquidity). NUEVO: renderizar un canal.
+Confirmar tipo con el profe.
   CONFIRMAR con el profe el término exacto y en qué indicador lo quiere antes de
   implementar.
 
