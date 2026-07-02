@@ -318,4 +318,30 @@ SKIP: {
     is(scalar(@dashed), 1, 'ORDEN10: estructura interna (I-CHoCH) entrecortada');
 }
 
+# =============================================================================
+# 13. ORDEN 11 (task 0023): FVG vigente solo cerca del precio actual
+# =============================================================================
+{
+    # FVG alcista (10,12) en idx 1-2; luego el precio se aleja MUCHO hacia arriba.
+    # Con fvg_near_atr>0 el FVG lejano deja de ser vigente; con 0 sigue vigente.
+    my @c = (
+        [9,10,9,10],[10,11,10,11],[12,14,12,13],[13,15,13,14],
+    );
+    # Extender con velas que alejan el precio a ~60 (lejos del gap en ~11).
+    for my $k (1..10) { push @c, [20+$k*4, 24+$k*4, 20+$k*4, 23+$k*4]; }
+    my $md = build_ohlc(\@c);
+
+    # Sin filtro: el FVG (10,12) sigue vigente aunque el precio esté lejos.
+    my $i0 = Market::Indicators::Mxwll_Suite->new(fvg_near_atr => 0);
+    $i0->update_last($md, $_) for 0 .. $md->last_index;
+    my @f0 = grep { abs($_->{bottom} - 10) < 1e-9 } @{ $i0->get_values->{fvgs} };
+    ok(scalar(@f0) >= 1, 'ORDEN11: fvg_near_atr=0 mantiene el FVG lejano vigente');
+
+    # Con filtro por defecto: el FVG lejano deja de estar vigente.
+    my $i1 = Market::Indicators::Mxwll_Suite->new;  # fvg_near_atr=8 default
+    $i1->update_last($md, $_) for 0 .. $md->last_index;
+    my @f1 = grep { abs($_->{bottom} - 10) < 1e-9 } @{ $i1->get_values->{fvgs} };
+    is(scalar(@f1), 0, 'ORDEN11: FVG lejano al precio deja de ser vigente (default)');
+}
+
 done_testing();

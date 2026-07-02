@@ -1,5 +1,15 @@
 # Task 0023: FVG vigente solo cerca del precio actual
 
+## Estado: HECHO (2026-07-02, 799 tests PASS)
+- Parametro `fvg_near_atr` (default 8; 0 desactiva). Helper `_fvg_is_near`:
+  distancia del close actual al gap (0 si el precio esta dentro); vigente si
+  dist <= fvg_near_atr*ATR.
+- `get_values` expone solo FVG `active` (no rellenado) Y `near` (cerca del precio).
+  No borra del historial → replay intacto; el podado O(n) del array se conserva.
+- Impacto: 1m FVG vigentes 47->8, 5m 24->10.
+- Test nuevo en t/22 (bloque 13): FVG lejano deja de ser vigente con default,
+  sigue vigente con fvg_near_atr=0.
+
 ## Origen
 - ORDEN 11 de `tasks/0021-volatility-and-choch-noise.md`.
 - Nota WhatsApp profe (29/06): "Solo dejar FVG vigentes cuando estén cerca al

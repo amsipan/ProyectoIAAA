@@ -47,6 +47,12 @@ sub new {
         atr_period   => $opts{atr_period}   // 14,
         fib_ratios   => $opts{fib_ratios}   // [0.236, 0.382, 0.5, 0.618, 0.786],
 
+        # ORDEN 11 (task 0023): un FVG solo se considera "vigente" (near=1) si su
+        # rango esta a <= fvg_near_atr * ATR del precio actual (close). Los lejanos
+        # quedan near=0 y get_values los omite por defecto (menos ruido de FVGs
+        # antiguos). 0 desactiva el filtro (todos vigentes hasta ser mitigados).
+        fvg_near_atr => defined $opts{fvg_near_atr} ? $opts{fvg_near_atr} : 8,
+
         # ORDEN 1 (task 0021 C+A): umbral de volatilidad para el estado "lateral".
         # Un break de estructura solo cuenta como cambio de estado real si el
         # rango de la pierna rota (|upaxis - dnaxis|) es >= state_atr_factor * ATR.
@@ -462,6 +468,26 @@ sub _compute_fibs {
 # =============================================================================
 # API publica
 # =============================================================================
+
+# ORDEN 11 (task 0023): un FVG esta "vigente" si su rango esta cerca del precio
+# actual (close del ultimo indice). Distancia = 0 si el precio esta DENTRO del
+# gap; si no, la separacion al borde mas cercano. near=1 si dist <= factor*ATR.
+# fvg_near_atr=0 desactiva (todos vigentes).
+sub _fvg_is_near {
+    my ($self, $g) = @_;
+    my $factor = $self->{fvg_near_atr} // 0;
+    return 1 if $factor <= 0;
+    my $last = $self->{_last_index};
+    return 1 if $last < 0;
+    my $close = $self->{_closes}->[$last];
+    my $atr   = $self->{_atr_last};
+    return 1 unless defined $close && defined $atr && $atr > 0;
+    my $dist = 0;
+    if    ($close > $g->{top})    { $dist = $close - $g->{top}; }
+    elsif ($close < $g->{bottom}) { $dist = $g->{bottom} - $close; }
+    return ($dist <= $factor * $atr) ? 1 : 0;
+}
+
 sub get_values {
     my ($self) = @_;
     return {
@@ -469,7 +495,8 @@ sub get_values {
         structures  => $self->{_structures},
         high_blocks => [ grep { $_->{active} } @{ $self->{_high_blocks} } ],
         low_blocks  => [ grep { $_->{active} } @{ $self->{_low_blocks} } ],
-        fvgs        => [ grep { $_->{active} } @{ $self->{_fvgs} } ],
+        # ORDEN 11: solo FVG activos (no rellenados) Y vigentes (cerca del precio).
+        fvgs        => [ grep { $_->{active} && $self->_fvg_is_near($_) } @{ $self->{_fvgs} } ],
         aoe         => $self->_compute_aoe(),
         fibs        => $self->_compute_fibs(),
     };
