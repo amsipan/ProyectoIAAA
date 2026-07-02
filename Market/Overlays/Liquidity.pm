@@ -67,8 +67,19 @@ sub new {
         _events => [],
         _compute_range => undef,
         _replay_idx    => undef,
+        # ORDEN 4 (task 0021 F): mostrar solo tomas relevantes (magnitud >=
+        # factor*ATR, marcadas por el indicador). Por defecto ON para reducir el
+        # aglomeramiento (5000 eventos en 1m). Se puede apagar via set_only_relevant.
+        _only_relevant => exists $args{only_relevant} ? ($args{only_relevant} ? 1 : 0) : 1,
     };
     bless $self, $class;
+    return $self;
+}
+
+# set_only_relevant($bool) — activar/desactivar el filtro de relevancia (ORDEN 4).
+sub set_only_relevant {
+    my ($self, $bool) = @_;
+    $self->{_only_relevant} = $bool ? 1 : 0;
     return $self;
 }
 
@@ -246,6 +257,12 @@ sub draw {
     # --- Eventos: SWEEP_UP / SWEEP_DOWN / GRAB / RUN --------------------------
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
+        # ORDEN 4 (task 0021 F): si only_relevant esta activo, solo dibujar las
+        # tomas marcadas como relevantes por el indicador (magnitud >= factor*ATR).
+        # Eventos sin campo `relevant` (indicador viejo/mock) se tratan como
+        # relevantes para no romper compatibilidad.
+        next if $self->{_only_relevant}
+             && defined $e->{relevant} && !$e->{relevant};
         my $type = $e->{type};
 
         if ($type eq 'SWEEP_UP' && $ev->{SWEEP}) {

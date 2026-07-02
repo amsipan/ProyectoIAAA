@@ -5,6 +5,7 @@ use Test::More;
 use lib '.';
 use Market::MarketData;
 use Market::Indicators::Liquidity;
+use Market::Overlays::Liquidity;
 use Market::Debug::IndicatorSnapshot;
 use Time::HiRes qw(time);
 
@@ -970,6 +971,56 @@ sub build_ohlc_vol {
     my $all = $liq->get_events();
     my $linked = grep { defined $_->{level_index} && defined $_->{level_price} } @$all;
     is($linked, scalar(@$all), 'nivel: todos los eventos llevan level_index/level_price');
+}
+
+# =============================================================================
+# ORDEN 4 (task 0021 F): relevancia de la toma de liquidez (magnitud vs ATR)
+# =============================================================================
+{
+    # SWEEP_UP con extreme=17, nivel=15 → magnitud=2. Con ATR pequeño y factor
+    # bajo es relevante; con factor alto deja de serlo.
+    my @c = (
+        [10, 11, 10, 11],   # 0
+        [11, 15, 11, 15],   # 1: SH → BSL@1 (price=15)
+        [13, 12, 12, 12],   # 2
+        [12, 16, 12, 16],   # 3
+        [14, 14, 13, 14],   # 4
+        [14, 17, 14, 15],   # 5: Swept, extreme=17
+        [15, 15, 15, 15],   # 6
+        [15, 15, 15, 15],   # 7
+        [15, 15, 15, 15],   # 8
+        [15, 15, 10, 10],   # 9: SWEEP_UP
+    );
+    my $md  = build_ohlc(\@c);
+
+    # factor=0 → todo relevante.
+    my $l0 = Market::Indicators::Liquidity->new(k=>1, atr_period=>3, N=>3, sweep_atr_factor=>0);
+    $l0->update_last($md, $_) for 0 .. $md->last_index;
+    my ($s0) = events_of_type($l0->get_events(), 'SWEEP_UP');
+    ok($s0->{relevant}, 'relevancia: factor=0 → evento relevante');
+    ok(defined $s0->{magnitude}, 'relevancia: evento lleva magnitude');
+    ok($s0->{magnitude} > 0, 'relevancia: magnitude = |extreme - nivel| > 0');
+
+    # factor enorme → la magnitud no alcanza → no relevante.
+    my $lbig = Market::Indicators::Liquidity->new(k=>1, atr_period=>3, N=>3, sweep_atr_factor=>1000);
+    $lbig->update_last($md, $_) for 0 .. $md->last_index;
+    my ($sbig) = events_of_type($lbig->get_events(), 'SWEEP_UP');
+    is($sbig->{relevant}, 0, 'relevancia: factor gigante → no relevante');
+
+    # El conteo total de eventos NO cambia con el factor (solo la marca relevant).
+    is(scalar(@{$l0->get_events()}), scalar(@{$lbig->get_events()}),
+       'relevancia: el factor no altera el numero de eventos, solo la marca');
+}
+
+# --- ORDEN 4: el overlay filtra por relevancia (only_relevant) ---
+{
+    my $liq = Market::Indicators::Liquidity->new;
+    my $ov  = Market::Overlays::Liquidity->new(indicator => $liq);
+    is($ov->{_only_relevant}, 1, 'overlay: only_relevant ON por defecto');
+    $ov->set_only_relevant(0);
+    is($ov->{_only_relevant}, 0, 'overlay: set_only_relevant(0)');
+    $ov->set_only_relevant(1);
+    is($ov->{_only_relevant}, 1, 'overlay: set_only_relevant(1)');
 }
 
 done_testing();

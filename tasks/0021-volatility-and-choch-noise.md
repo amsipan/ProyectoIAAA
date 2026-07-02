@@ -54,9 +54,10 @@
   que mostrar order blocks, o reducir la cantidad de BSL. CONFIRMAR términos
   exactos (BSL vs otra cosa) y qué espera ver antes de implementar.
 
-- [ ] **F. Demasiadas etiquetas de toma de liquidez (mostrar solo relevantes)** —
+- [x] **F. Demasiadas etiquetas de toma de liquidez (mostrar solo relevantes)** —
   El profe dice que SWEEP/GRAB/RUN están muy aglomeradas; mostrar solo las más
   relevantes. Liga con A (volatilidad) y con F2.
+  HECHO (ORDEN 4): sweep_atr_factor + only_relevant; 1m 5000->1714 visibles.
 
 - [x] **F2. SWEEP/GRAB/RUN deben basarse en HH/HL/LH/LL** — El profe dice que
   estas etiquetas (sweep/grab/run) deben anclarse a los pivotes de estructura
@@ -66,10 +67,12 @@
   HECHO (ORDEN 3): BSL/SSL ya SON pivotes swing; evento ahora lleva
   level_index/level_type/level_price y el overlay ancla la toma a su nivel.
 
-- [ ] **F3. RUN (y sweep/grab) a veces mal ubicadas o ausentes** — El profe nota
+- [x] **F3. RUN (y sweep/grab) a veces mal ubicadas o ausentes** — El profe nota
   que RUN a veces está bien, a veces mal, a veces no aparece donde debería.
   Probablemente consecuencia de F2 (no estar ancladas a HH/HL/LH/LL). Revisar
   la FSM de `Liquidity.pm` tras vincular a pivotes.
+  HECHO (ORDEN 4): bug real — extreme usaba la vela de resolucion; ahora usa la
+  penetracion real (swept_extreme) + ancla al nivel (ORDEN 3).
 
 - [ ] **G. EQH/EQL: distinguir internos vs externos** — Igual que la estructura,
   el profe quiere EQH/EQL internos y externos diferenciados. Hoy `Liquidity.pm`
@@ -251,10 +254,26 @@ refactor compartido de pivotes.
   relevancia (ítem F); eso es ORDEN 4.
 
 ## ORDEN 4 — Tarea F + F3: mostrar solo tomas relevantes + arreglar RUN
+**[HECHO 2026-07-02]**
 Tras F2, filtrar por relevancia (volatilidad/tamaño del barrido) y revisar la
 FSM de RUN/SWEEP/GRAB para corregir ubicaciones. Verificacion analitica como se
 hizo antes con la tabla de SWEEP.
 **Archivos:** `Market/Indicators/Liquidity.pm`, `Market/Overlays/Liquidity.pm`.
+
+**RESULTADO:**
+- F (relevancia): parametro `sweep_atr_factor` (default 1.0). Cada evento se
+  marca `relevant` (magnitud del barrido >= factor*ATR) y lleva `magnitude`.
+  Overlay filtra con `_only_relevant` (ON por defecto, `set_only_relevant`).
+  Impacto 1m: tomas visibles 5000 -> 1714 (34%) con factor 1.0; 732 (15%) con 2.0.
+  El conteo interno de eventos NO cambia (solo se filtra el dibujo).
+- F3 (ubicacion): BUG encontrado por el test — `extreme` usaba el high/low de la
+  vela de RESOLUCION, no la penetracion real del barrido. Ahora se rastrea
+  `swept_extreme` (max penetracion mientras el nivel esta Swept) y el evento usa
+  ese extremo. Efecto en 1m: magnitud minima 0.00 -> 0.25, mediana 8.00 -> 10.25
+  (extremos reales, marcadores bien ubicados). Ancla al nivel (ORDEN 3) completa
+  la correccion de "RUN suelto/mal puesto".
+- Tests: bloques nuevos en t/10 (relevancia + magnitude + only_relevant).
+  Suite 772 PASS.
 
 ## ORDEN 5 — Tarea D: toma de liquidez vinculada a un nivel (ancla visual)
 (TERMINOS A CONFIRMAR con profe.) Probablemente se resuelve junto con F2/F3:

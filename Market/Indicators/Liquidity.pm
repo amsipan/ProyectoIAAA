@@ -38,6 +38,11 @@ sub new {
     # (equalHighsLowsLengthInput=3) y tolerancia = threshold(0.1) * ta.atr(200).
     my $eqhl_size       = $opts{eqhl_size}       // 3;
     my $eqhl_atr_period = $opts{eqhl_atr_period} // 200;
+    # ORDEN 4 (task 0021 F): relevancia de la toma de liquidez. Cada evento se
+    # marca con `relevant` (0/1) segun si la magnitud del barrido (|extreme-nivel|)
+    # es >= sweep_atr_factor * ATR local. El overlay puede filtrar por relevancia
+    # para no saturar (5000 eventos en 1m). 0 desactiva (todo relevante).
+    my $sweep_atr_factor = defined $opts{sweep_atr_factor} ? $opts{sweep_atr_factor} : 1.0;
     die "Liquidity: k must be a positive integer"
         unless defined $k && $k =~ /^\d+$/ && $k > 0;
     die "Liquidity: atr_period must be a positive integer"
@@ -56,6 +61,7 @@ sub new {
         N          => $N,
         eqhl_size       => $eqhl_size,
         eqhl_atr_period => $eqhl_atr_period,
+        sweep_atr_factor => $sweep_atr_factor,
         # FSM "leg" de EQH/EQL (paridad LuxAlgo). leg: 0=BEARISH, 1=BULLISH.
         _eq_leg        => 0,
         _eq_high_level => undef,
@@ -449,6 +455,10 @@ sub _update_fsm {
                 $lvl->{swept_index} = $index;
                 $lvl->{swept_dir} = 'up';
                 $lvl->{swept_close} = $close;
+                # ORDEN 4 (task 0021 F3): rastrear la PENETRACION MAXIMA real del
+                # barrido (no el high/low de la vela de resolucion), para que el
+                # marcador y la magnitud reflejen donde de verdad barrio el precio.
+                $lvl->{swept_extreme} = $high;
                 if ($close > $price) {
                     $lvl->{consec_out} = 1;
                     if ($lvl->{consec_out} >= $N) {
@@ -465,6 +475,7 @@ sub _update_fsm {
                 $lvl->{swept_index} = $index;
                 $lvl->{swept_dir} = 'down';
                 $lvl->{swept_close} = $close;
+                $lvl->{swept_extreme} = $low;
                 if ($close < $price) {
                     $lvl->{consec_out} = 1;
                     if ($lvl->{consec_out} >= $N) {
@@ -481,6 +492,16 @@ sub _update_fsm {
         elsif ($lvl->{state} eq 'Swept') {
             my $bars_since = $index - $lvl->{swept_index};
             my $dir = $lvl->{swept_dir};
+
+            # ORDEN 4 (task 0021 F3): actualizar la penetracion maxima del barrido
+            # mientras sigue abierto, para reflejar el extremo real.
+            if ($dir eq 'up') {
+                $lvl->{swept_extreme} = $high
+                    if !defined $lvl->{swept_extreme} || $high > $lvl->{swept_extreme};
+            } else {
+                $lvl->{swept_extreme} = $low
+                    if !defined $lvl->{swept_extreme} || $low < $lvl->{swept_extreme};
+            }
 
             if ($dir eq 'up') {
                 if ($close > $price) {
@@ -542,7 +563,27 @@ sub _resolve {
     my $meta = $self->_compute_event_meta($lvl, $index);
     my $c_high = $self->{_highs}->[$index] // $lvl->{price};
     my $c_low  = $self->{_lows}->[$index] // $lvl->{price};
-    my $extreme = $dir eq 'up' ? $c_high : $c_low;
+    # ORDEN 4 (task 0021 F3): el extremo del evento es la PENETRACION MAXIMA real
+    # del barrido (swept_extreme), no el high/low de la vela de resolucion, que
+    # podia estar lejos del punto donde de verdad se barrio el nivel (causa de
+    # RUN/marcadores "mal ubicados"). Fallback al extremo de la vela si no hubo
+    # fase Swept registrada (resolucion inmediata en Detected).
+    my $extreme = $dir eq 'up'
+        ? ($lvl->{swept_extreme} // $c_high)
+        : ($lvl->{swept_extreme} // $c_low);
+
+    # ORDEN 4 (task 0021 F): magnitud del barrido y relevancia vs ATR local.
+    # magnitude = cuanto penetro el precio mas alla del nivel (|extreme-nivel|).
+    # relevant=1 si magnitude >= sweep_atr_factor * ATR; con factor 0, todo
+    # relevante. El overlay usa `relevant` para mostrar solo las tomas grandes.
+    my $magnitude = abs($extreme - $lvl->{price});
+    my $factor    = $self->{sweep_atr_factor} // 0;
+    my $atr       = $self->_get_atr_at($index);
+    my $relevant  = 1;
+    if ($factor > 0 && defined $atr && $atr > 0) {
+        $relevant = ($magnitude >= $factor * $atr) ? 1 : 0;
+    }
+
     push @{ $self->{_events} }, {
         index   => $index,
         type    => $classification,
@@ -551,6 +592,8 @@ sub _resolve {
         extreme => $extreme,
         state   => 'Resolved',
         meta    => $meta,
+        magnitude => $magnitude,
+        relevant  => $relevant,
         # ORDEN 3 (task 0021 F2/D): vincular la toma de liquidez a SU NIVEL.
         # El nivel barrido es un pivote swing (BSL = swing high, SSL = swing low),
         # i.e. los mismos HH/HL/LH/LL nombrados. Propagamos su indice/tipo/precio
