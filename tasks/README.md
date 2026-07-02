@@ -61,6 +61,25 @@ Los habilitadores van primero porque el resto depende de ellos.
 (2ª entrega — 13/07: concurrencia 0006, strategy builder 0007, volume profile 0008, VWAP 0009.
 Fase 3: HMM/Viterbi 0011, Pearson 0012. Se crearán tasks cuando se aborden.)
 
+### Revisión del profe (29/06) — mejoras Mxwll/Liquidez
+
+`0021` es el documento maestro (backlog + cruce con notas del profe + ORDEN 1-9 ya
+implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031).
+
+| # | Task | Estado |
+|---|------|--------|
+| 0021 | Volatilidad + ruido CHoCH (maestro; ORDEN 1-9 hechas) | ORDEN 1-9 ✅ |
+| 0022 | Estructura: líneas externas sólidas, internas entrecortadas | pendiente |
+| 0023 | FVG vigente solo cerca del precio actual | pendiente |
+| 0024 | Grab/Run: verificar solapamiento y semántica (¿ya resuelto?) | revisar |
+| 0025 | Colorear velas de liquidity RUN | pendiente |
+| 0026 | Etiquetar Order Blocks como "OB" | pendiente |
+| 0027 | BSL/SSL más limpio en banda (tarea E) | pendiente (confirmar) |
+| 0028 | Strong/Weak High/Low | pendiente (confirmar) |
+| 0029 | ML/MH antes del Fibonacci (¿ya correcto?) | revisar |
+| 0030 | Replay: seleccionar vela de inicio (Select Bar) | pendiente |
+| 0031 | El canal (tarea J) | pendiente (confirmar) |
+
 ## Plantilla
 
 ```
