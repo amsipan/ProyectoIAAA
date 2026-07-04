@@ -74,15 +74,22 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0024 | Grab/Run: solapamiento (apilado vertical) | ✅ hecho |
 | 0025 | Colorear velas de liquidity RUN | pendiente |
 | 0026 | Etiquetar Order Blocks como "OB" | ✅ hecho |
-| 0027 | BSL/SSL más limpio en banda (tarea E) | pendiente (confirmar) |
-| 0028 | Strong/Weak High/Low | pendiente (confirmar) |
+| 0027 | BSL/SSL más limpio en banda (tarea E) | pendiente (DESBLOQUEADA: banda por proximidad) |
+| 0028 | Strong/Weak High/Low | pendiente (LuxAlgo trailing) |
 | 0029 | ML/MH antes del Fibonacci | ✅ verificado ya correcto |
 | 0030 | Replay: seleccionar vela de inicio (Select Bar) | pendiente |
-| 0031 | El canal (tarea J) | pendiente (confirmar) |
+| 0031 | El canal (tarea J) | pendiente (DESBLOQUEADA: Swing Channel sobre ZigZag ext) |
 | 0032 | Rediseño barra de controles con pestañas | ✅ hecho |
 | 0033 | Dirección precio interna/externa vía ZigZag (NUEVO enfoque profe) | ✅ hecho |
 | 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | ✅ hecho |
 | 0035 | Modo Manual de escala fallando | ✅ hecho |
+
+### Orden recomendado para el implementor (lote restante)
+1. **0030** — Replay Select Bar (el profe lo pidió explícito en el video del ZigZag).
+2. **0031** — El canal (Swing Channel sobre el ZigZag externo; depende de 0033 ✅).
+3. **0028** — Strong/Weak High/Low (port trailing extremes de LuxAlgo).
+4. **0027** — BSL/SSL en banda (limpieza visual).
+5. **0025** — Colorear velas de liquidity RUN (la más intrusiva, al final).
 
 ## Plantilla
 

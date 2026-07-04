@@ -15,26 +15,35 @@ como una BANDA (zona) más limpia en vez de muchas líneas horizontales sueltas.
 - `Market/Overlays/Liquidity.pm`: dibuja cada nivel como línea horizontal punteada
   (`_draw_hline_label`) individual. No hay agrupación en banda.
 
-## Diseño (a decidir con usuario)
-Dos enfoques posibles:
-1. **Banda por proximidad**: agrupar niveles BSL (o SSL) cercanos en precio (dentro
-   de X*ATR) en una única zona sombreada (rectángulo tenue) que abarque el rango
-   de esos niveles. Menos líneas, más limpio.
-2. **Solo niveles vigentes/relevantes**: mostrar solo los BSL/SSL no barridos y
-   más recientes/relevantes (reusar criterio de relevancia de ORDEN 4), reduciendo
-   el número de líneas.
-- Se pueden combinar: banda de los niveles vigentes cercanos al precio.
-- Mantener toggles BSL/SSL existentes.
+## ENFOQUE DECIDIDO (04/07) — DESBLOQUEADA
+Combinar los dos: **agrupar en banda los niveles BSL (o SSL) cercanos en precio**
+y mostrar solo los vigentes. El profe dijo literal "para tener una banda", así
+que el resultado debe ser ZONAS sombreadas, no líneas sueltas.
+
+Diseño concreto:
+- En el OVERLAY (`Market/Overlays/Liquidity.pm`), NO en el indicador (el cálculo
+  de BSL/SSL no cambia; solo cómo se dibuja). Nuevo parámetro `band_atr` (default
+  0.5): dos niveles del MISMO tipo (BSL con BSL, SSL con SSL) cuya diferencia de
+  precio sea <= band_atr * ATR se agrupan en una banda.
+- Cada banda se dibuja como un rectángulo tenue (stipple 'gray12') que abarca
+  desde el min hasta el max de los niveles del grupo, en X desde el pivote más
+  antiguo del grupo hasta el borde derecho (último candle real, como Mxwll).
+  Color: BSL rojo (#ef5350), SSL verde (#26a69a), semitransparente.
+- Etiqueta 'BSL'/'SSL' una sola vez por banda (no por nivel).
+- ATR: reusar el ATR que ya calcula el indicador Liquidity (exponer un getter
+  `current_atr()` si no existe, o pasar el ATR del último índice). Si no hay ATR
+  aún, caer a dibujar líneas individuales (comportamiento actual) como fallback.
+- Toggle: un nuevo flag `_band_mode` (default ON). Con OFF, dibuja líneas sueltas
+  como hoy (para no perder el modo anterior). Setter `set_band_mode($bool)`.
 
 ## Criterios de aceptación
-- La vista de BSL/SSL es notablemente más limpia (menos líneas o banda agrupada).
-- Sigue siendo posible ver dónde está la liquidez compradora/vendedora.
-- Toggles BSL/SSL funcionan.
-- Suite `prove -l t` verde con test del agrupamiento/banda.
-
-## Pendiente de confirmar con el profe/usuario
-- ¿Banda sombreada (enfoque 1) o solo filtrar niveles (enfoque 2)?
-- ¿Cuántos niveles/qué proximidad define una banda?
+- Con band_mode ON (default), BSL/SSL cercanos se muestran como banda sombreada;
+  la vista queda notablemente más limpia (muchas menos líneas).
+- Con band_mode OFF, comportamiento actual (líneas individuales) intacto.
+- Toggles BSL/SSL siguen encendiendo/apagando cada familia.
+- Suite `prove -l t` verde; test nuevo en t/15 que verifique: (a) N niveles BSL
+  cercanos → 1 banda (createRectangle), (b) niveles lejanos → bandas separadas,
+  (c) band_mode OFF → líneas como antes.
 
 ## Verificación
 ```bash

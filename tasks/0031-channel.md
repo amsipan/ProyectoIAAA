@@ -16,34 +16,50 @@ pero hay varios candidatos ya calculados en el código sin render.
   high y low como límites de canal), calculado pero sin render dedicado.
 - No hay un "canal de tendencia" (líneas paralelas envolviendo el precio) dibujado.
 
-## Interpretación (a confirmar con el profe)
-"El canal" puede ser:
-1. **Canal de tendencia**: dos líneas paralelas (soporte/resistencia dinámicos)
-   que envuelven el movimiento entre swings.
-2. **HalfTrend / Range Filter** ya calculados en Strategy_Builder → solo falta
-   renderizar sus bandas (la opción de MENOR esfuerzo, ya está el cálculo).
-3. **Premium/Discount zones** del SMC (zona premium/equilibrio/discount de LuxAlgo).
+## ENFOQUE DECIDIDO (04/07) — DESBLOQUEADA
+"El canal" = el **Swing Channel** del indicador ZigZag Volume Profile (ChartPrime)
+que el profe mandó implementar (ver `docs/material_profesor/ZigZag_VolumeProfile_
+ChartPrime_reference.pine`, `drawBinLevel` usa `channelLineArray` con offset ATR).
+Es decir: dos líneas PARALELAS al segmento del ZigZag EXTERNO, desplazadas ±ancho
+(basado en ATR), que envuelven el movimiento. Aunque en las capturas del profe el
+Swing Channel está deshabilitado, "el canal" es exactamente esa estructura y ahora
+tenemos el ZigZag externo (task 0033) sobre el cual construirlo.
 
-## Diseño
-- Confirmar cuál de las 3 quiere el profe.
-- Si es (2): añadir al overlay Strategy_Builder el render de HalfTrend y Range
-  Filter (bandas), con toggle. Mínimo esfuerzo, cálculo ya hecho.
-- Si es (1): implementar detección de canal (regresión/paralelas sobre swings) +
-  overlay.
-- Si es (3): portar premium/discount zones del .pine de LuxAlgo.
+Se construye SOBRE el ZigZag externo ya implementado en `Market/Indicators/ZigZag.pm`
+/ `Market/Overlays/ZigZag.pm` (task 0033), NO sobre Strategy_Builder.
+
+Diseño concreto:
+- En `Market/Indicators/ZigZag.pm`: para cada segmento externo, exponer también
+  el ancho del canal = `channel_width * atr` (ya hay `channel_width` y ATR(200) en
+  el módulo). Añadir a `get_values` una lista `external_channel` con, por segmento:
+  from/to index y precios de las DOS líneas paralelas (segmento ± ancho/2, o el
+  segmento como línea central y dos offsets). Seguir el criterio del .pine:
+  `yStart = startPrice + offset`, `yEnd = endPrice + offset` para offset = ±ancho.
+- En `Market/Overlays/ZigZag.pm`: nuevo elemento toggle `CHANNEL` (default OFF para
+  no saturar). Dibuja las dos líneas paralelas del canal (color tenue, p.ej.
+  gris/azul claro) siguiendo cada segmento externo.
+- UI: checkbox "Canal" en la pestaña ZigZag (junto a Interno/Externo).
 
 ## Criterios de aceptación
-- Se dibuja "el canal" acordado, con toggle.
-- Determinista; test del cálculo/render.
+- Con el toggle Canal ON, se dibujan dos líneas paralelas al zigzag externo,
+  separadas por un ancho proporcional al ATR.
+- Con el toggle OFF (default), no se dibuja (sin regresión visual).
+- Determinista; test en t/24 (o t nuevo) que verifique que cada segmento externo
+  produce dos líneas de canal a distancia = channel_width*ATR del segmento.
 
-## Pendiente de confirmar (BLOQUEANTE)
-- Qué es "el canal" para el profe (opciones 1/2/3 arriba). No implementar hasta
-  confirmar para no construir lo que no era.
+## Nota
+Si al mostrárselo el profe resulta que "el canal" era otra cosa (canal de
+tendencia por regresión, o premium/discount zones), se reabre. Pero el candidato
+más probable —y el que viene del propio indicador que mandó— es este Swing Channel.
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Overlays/Strategy_Builder.pm && prove -l t/19-strategy-builder.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Indicators/ZigZag.pm && perl -I. -c Market/Overlays/ZigZag.pm && prove -l t/24-zigzag.t && prove -l t"
 ```
 
+## Depende de
+- Task 0033 (ZigZag) — YA HECHA. El canal se construye sobre el zigzag externo.
+
 ## Qué no tocar
-- No implementar a ciegas: confirmar el tipo de canal primero.
+- No tocar el cálculo del zigzag externo (solo añadir la salida del canal).
+- No tocar el Volume Profile/POC (el profe los deshabilita).
