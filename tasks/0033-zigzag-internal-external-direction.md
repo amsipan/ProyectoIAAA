@@ -1,5 +1,8 @@
 # Task 0033: Dirección del precio interna/externa vía ZigZag (enfoque del profe)
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - Correo + video + PDF del profe (03/07). Reemplaza el enfoque de "corregir el
   etiquetado HH/HL/LL/LH" que se venía trabajando.

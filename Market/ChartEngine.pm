@@ -20,6 +20,8 @@ use Market::Indicators::AnchoredVWAP;
 use Market::Overlays::AnchoredVWAP;
 use Market::Indicators::Mxwll_Suite;
 use Market::Overlays::Mxwll_Suite;
+use Market::Indicators::ZigZag;
+use Market::Overlays::ZigZag;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -182,6 +184,19 @@ sub new {
     $self->{overlay_manager}->register('mxwll', $self->{mxwll_overlay});
     $self->{_mxwll_fed_up_to} = -1;
 
+    $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
+        internal_resolution => 30,
+        internal_period     => 2,
+        swing_length        => 150,
+    );
+    $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
+        indicator => $self->{zigzag_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register('zigzag', $self->{zigzag_overlay});
+    $self->{_zigzag_fed_up_to} = -1;
+
     $self->bind_events();
     
     return $self;
@@ -273,7 +288,17 @@ sub sync_overlay_indicators {
         if $self->_overlay_wants_feed('vwap');
     $self->_feed_indicator_to($self->{mxwll_indicator}, '_mxwll_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('mxwll');
+    $self->_feed_indicator_to($self->{zigzag_indicator}, '_zigzag_fed_up_to', $feed_to)
+        if $self->_overlay_wants_feed('zigzag');
     return $feed_to;
+}
+
+sub set_zigzag_internal_resolution {
+    my ($self, $minutes) = @_;
+    return unless $self->{zigzag_indicator};
+    $self->{zigzag_indicator}->set_internal_resolution($minutes);
+    $self->{_zigzag_fed_up_to} = -1;
+    $self->request_render();
 }
 
 # _overlay_wants_feed($name) — true si el indicador asociado debe alimentarse:
@@ -1940,6 +1965,10 @@ sub set_timeframe {
     if ($self->{mxwll_indicator}) {
         $self->{mxwll_indicator}->reset();
         $self->{_mxwll_fed_up_to} = -1;
+    }
+    if ($self->{zigzag_indicator}) {
+        $self->{zigzag_indicator}->reset();
+        $self->{_zigzag_fed_up_to} = -1;
     }
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;

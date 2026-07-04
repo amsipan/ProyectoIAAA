@@ -149,7 +149,10 @@ my $vis_strategy = 0;
 my $vis_vp = 0;
 my $vis_vwap = 0;
 my $vis_mxwll = 0;
+my $vis_zigzag = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+my %vis_zzelem = map { $_ => 1 } qw(INTERNAL EXTERNAL);
+my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
 my %vis_mxelem = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS);
 
@@ -161,10 +164,15 @@ my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'str
 my $cb_vp = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vp');
 my $cb_vwap = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vwap');
 my $cb_mxwll = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'mxwll');
+my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my %cb_mxelem = map { $_ => Market::UI::Callbacks->make_mxwll_element_toggle($chart_engine, $_) }
                 qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
+                qw(INTERNAL EXTERNAL);
+my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
+               qw(15 30 60);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();
@@ -200,7 +208,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
 my %panel;
-$panel{$_} = $panel_row->Frame() for qw(Capas Liq Mxwll Escala Replay);
+$panel{$_} = $panel_row->Frame() for qw(Capas Liq Mxwll ZigZag Escala Replay);
 
 my $active_tab = 'Capas';
 my $show_panel = sub {
@@ -212,7 +220,7 @@ my $show_panel = sub {
 
 # --- Botones de pestaña en la fila superior ---
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 8);
-for my $name (qw(Capas Liq Mxwll Escala Replay)) {
+for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     $tabs_box->Radiobutton(
         -text => $name, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -236,6 +244,8 @@ for my $name (qw(Capas Liq Mxwll Escala Replay)) {
         -command => sub { $cb_vwap->($vis_vwap ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Mxwll', -variable => \$vis_mxwll,
         -command => sub { $cb_mxwll->($vis_mxwll ? 1 : 0); })->pack(-side => 'left');
+    $p->Checkbutton(-text => 'ZigZag', -variable => \$vis_zigzag,
+        -command => sub { $cb_zigzag->($vis_zigzag ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
 }
@@ -261,6 +271,22 @@ for my $name (qw(Capas Liq Mxwll Escala Replay)) {
     for my $elem (qw(STRUCTURE SWINGS OB FVG AOE FIBS)) {
         $p->Checkbutton(-text => $mx_label{$elem}, -variable => \$vis_mxelem{$elem},
             -command => sub { $cb_mxelem{$elem}->($vis_mxelem{$elem} ? 1 : 0); })->pack(-side => 'left');
+    }
+}
+
+# ---- Panel "ZigZag": interno/externo + resolución MTF (task 0033) ----
+{
+    my $p = $panel{ZigZag};
+    $p->Label(-text => 'ZigZag:')->pack(-side => 'left', -padx => 3);
+    $p->Checkbutton(-text => 'Interno', -variable => \$vis_zzelem{INTERNAL},
+        -command => sub { $cb_zzelem{INTERNAL}->($vis_zzelem{INTERNAL} ? 1 : 0); })->pack(-side => 'left');
+    $p->Checkbutton(-text => 'Externo', -variable => \$vis_zzelem{EXTERNAL},
+        -command => sub { $cb_zzelem{EXTERNAL}->($vis_zzelem{EXTERNAL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
+    $p->Label(-text => 'Res MTF:')->pack(-side => 'left', -padx => 3);
+    for my $res (qw(15 30 60)) {
+        $p->Radiobutton(-text => "${res}m", -value => $res, -variable => \$zigzag_resolution,
+            -indicatoron => 0, -padx => 4,
+            -command => sub { $cb_zzres{$res}->(); })->pack(-side => 'left');
     }
 }
 
