@@ -83,6 +83,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0033 | Dirección precio interna/externa vía ZigZag (NUEVO enfoque profe) | ✅ hecho |
 | 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | ✅ hecho |
 | 0035 | Modo Manual de escala fallando | ✅ hecho |
+| 0036 | Pulido menor tras lote (validación visual + detalles) | pendiente (BAJA prioridad) |
 
 ### Orden recomendado para el implementor (lote restante)
 1. ~~**0030** — Replay Select Bar~~ ✅
