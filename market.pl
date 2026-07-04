@@ -153,7 +153,7 @@ my $vis_vwap = 0;
 my $vis_mxwll = 0;
 my $vis_zigzag = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
-my %vis_zzelem = map { $_ => 1 } qw(INTERNAL EXTERNAL);
+my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
 my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
 my %vis_mxelem = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS);
@@ -172,7 +172,7 @@ my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_
 my %cb_mxelem = map { $_ => Market::UI::Callbacks->make_mxwll_element_toggle($chart_engine, $_) }
                 qw(STRUCTURE SWINGS OB FVG AOE FIBS);
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
-                qw(INTERNAL EXTERNAL);
+                qw(INTERNAL EXTERNAL CHANNEL);
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
                qw(15 30 60);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
@@ -284,6 +284,8 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         -command => sub { $cb_zzelem{INTERNAL}->($vis_zzelem{INTERNAL} ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Externo', -variable => \$vis_zzelem{EXTERNAL},
         -command => sub { $cb_zzelem{EXTERNAL}->($vis_zzelem{EXTERNAL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
+    $p->Checkbutton(-text => 'Canal', -variable => \$vis_zzelem{CHANNEL},
+        -command => sub { $cb_zzelem{CHANNEL}->($vis_zzelem{CHANNEL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
     $p->Label(-text => 'Res MTF:')->pack(-side => 'left', -padx => 3);
     for my $res (qw(15 30 60)) {
         $p->Radiobutton(-text => "${res}m", -value => $res, -variable => \$zigzag_resolution,

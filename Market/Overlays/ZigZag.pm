@@ -7,7 +7,7 @@ use warnings;
 # Task 0033: capa separada; toggles interno/externo; tag ov_zigzag.
 # =============================================================================
 
-my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL);
+my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
 
 sub new {
     my ($class, %args) = @_;
@@ -17,7 +17,7 @@ sub new {
         indicator => $args{indicator},
         theme     => $args{theme} || {},
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
-        _elements => { INTERNAL => 1, EXTERNAL => 1 },
+        _elements => { INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 },
         _start    => 0,
         _end      => 0,
     };
@@ -135,6 +135,30 @@ sub draw {
                 -width => 2,
                 -tags  => $tag,
             );
+        }
+    }
+
+    if ($self->is_element_visible('CHANNEL')) {
+        my $ch_col = $self->{theme}{zz_channel} // '#90a4ae';
+        for my $ch (@{ $vals->{external_channel} || [] }) {
+            next unless $self->_segment_visible($ch);
+            my $x1 = $scales->index_to_center_x($self->_local_index($ch->{from_index}));
+            my $x2 = $scales->index_to_center_x($self->_local_index($ch->{to_index}));
+            for my $pair (
+                [$ch->{from_price_upper}, $ch->{to_price_upper}],
+                [$ch->{from_price_lower}, $ch->{to_price_lower}],
+            ) {
+                my ($p1, $p2) = @$pair;
+                my $y1 = $scales->value_to_y($p1);
+                my $y2 = $scales->value_to_y($p2);
+                $canvas->createLine(
+                    $x1, $y1, $x2, $y2,
+                    -fill  => $ch_col,
+                    -width => 1,
+                    -dash  => '.',
+                    -tags  => $tag,
+                );
+            }
         }
     }
 

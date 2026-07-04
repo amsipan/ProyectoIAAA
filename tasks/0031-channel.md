@@ -1,5 +1,8 @@
 # Task 0031: El canal (tarea J)
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - ORDEN 19 de `tasks/0021-volatility-and-choch-noise.md` (= tarea J original).
 - Nota WhatsApp profe (29/06): "Falta el canal".

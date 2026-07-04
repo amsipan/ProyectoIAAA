@@ -78,7 +78,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0028 | Strong/Weak High/Low | pendiente (LuxAlgo trailing) |
 | 0029 | ML/MH antes del Fibonacci | ✅ verificado ya correcto |
 | 0030 | Replay: seleccionar vela de inicio (Select Bar) | ✅ hecho |
-| 0031 | El canal (tarea J) | pendiente (DESBLOQUEADA: Swing Channel sobre ZigZag ext) |
+| 0031 | El canal (tarea J) | ✅ hecho |
 | 0032 | Rediseño barra de controles con pestañas | ✅ hecho |
 | 0033 | Dirección precio interna/externa vía ZigZag (NUEVO enfoque profe) | ✅ hecho |
 | 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | ✅ hecho |
@@ -86,7 +86,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 
 ### Orden recomendado para el implementor (lote restante)
 1. ~~**0030** — Replay Select Bar~~ ✅
-2. **0031** — El canal (Swing Channel sobre el ZigZag externo; depende de 0033 ✅).
+2. ~~**0031** — El canal~~ ✅
 3. **0028** — Strong/Weak High/Low (port trailing extremes de LuxAlgo).
 4. **0027** — BSL/SSL en banda (limpieza visual).
 5. **0025** — Colorear velas de liquidity RUN (la más intrusiva, al final).

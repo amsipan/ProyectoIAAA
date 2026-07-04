@@ -97,9 +97,32 @@ sub get_values {
         external_vertices   => [ @{ $self->{_ext_vertices} } ],
         internal_segments   => [ @{ $self->{_int_segments} } ],
         external_segments   => [ @{ $self->{_ext_segments} } ],
+        external_channel    => [ @{ $self->_external_channel_list() } ],
         internal_direction  => [ @{ $self->{internal_direction} } ],
         external_direction  => [ @{ $self->{external_direction} } ],
     };
+}
+
+# external_channel — dos líneas paralelas ±offset por segmento externo (task 0031).
+# offset = channel_width * ATR(atr_period), mismo criterio que drawBinLevel del .pine.
+sub _external_channel_list {
+    my ($self) = @_;
+    my @ch;
+    for my $seg (@{ $self->{_ext_segments} }) {
+        my $o = $seg->{channel_offset} // 0;
+        next if $o <= 0;
+        push @ch, {
+            from_index       => $seg->{from_index},
+            to_index         => $seg->{to_index},
+            from_price_upper => $seg->{from_price} + $o,
+            to_price_upper   => $seg->{to_price} + $o,
+            from_price_lower => $seg->{from_price} - $o,
+            to_price_lower   => $seg->{to_price} - $o,
+            offset           => $o,
+            dir              => $seg->{dir},
+        };
+    }
+    return \@ch;
 }
 
 # Items para IndicatorSnapshot / tests (vértices + segmentos consolidados).
@@ -370,18 +393,23 @@ sub _rebuild_external_segments {
     my ($self) = @_;
     my @verts = @{ $self->{_ext_vertices} };
     my @segs;
+    my $offset = 0;
+    if (defined $self->{_atr}) {
+        $offset = ($self->{channel_width} // 1) * $self->{_atr};
+    }
     for (my $i = 1; $i < @verts; $i += 2) {
         my $a = $verts[$i - 1];
         my $b = $verts[$i];
         next unless $a && $b;
         my $dir = $b->{price} >= $a->{price} ? 'up' : 'down';
         push @segs, {
-            from_index   => $a->{index},
-            from_price   => $a->{price},
-            to_index     => $b->{index},
-            to_price     => $b->{price},
-            dir          => $dir,
-            consolidated => ($i < @verts - 2) ? 1 : 0,
+            from_index     => $a->{index},
+            from_price     => $a->{price},
+            to_index       => $b->{index},
+            to_price       => $b->{price},
+            dir            => $dir,
+            consolidated   => ($i < @verts - 2) ? 1 : 0,
+            channel_offset => $offset,
         };
     }
     $self->{_ext_segments} = \@segs;

@@ -46,7 +46,7 @@ sub feed_all {
     ok($ind->can('get_values'),  'contrato: get_values');
     ok($ind->can('reset'),       'contrato: reset');
     my $v = $ind->get_values();
-    for my $k (qw(internal_vertices external_vertices internal_segments external_segments internal_direction external_direction)) {
+    for my $k (qw(internal_vertices external_vertices internal_segments external_segments external_channel internal_direction external_direction)) {
         ok(exists $v->{$k}, "get_values tiene '$k'");
     }
 }
@@ -177,7 +177,74 @@ sub feed_all {
     is(scalar(grep { $_->[0] ne 'delete' } @{ $canvas->{ops} }), 0, 'visible=0: sin ops');
 }
 
-# 8. Snapshot determinista (segmentos internos)
+# 8. Canal externo: dos líneas paralelas a ± channel_width * ATR (task 0031)
+{
+    my @rows;
+    for my $i (0 .. 9) {
+        my $p = 100 - $i;
+        push @rows, [$p, $p + 1, $p - 2, $p - 1];
+    }
+    for my $i (0 .. 11) {
+        my $p = 90 + $i * 2;
+        push @rows, [$p, $p + 2, $p - 1, $p + 1];
+    }
+    my $md  = build_ohlc(\@rows);
+    my $cw  = 1.5;
+    my $ind = Market::Indicators::ZigZag->new(
+        swing_length => 8, atr_period => 5, channel_width => $cw, internal_resolution => 30,
+    );
+    feed_all($ind, $md);
+    my $vals = $ind->get_values();
+    ok(@{ $vals->{external_segments} } >= 1, 'canal: hay segmento externo');
+    ok(@{ $vals->{external_channel} } >= 1, 'canal: external_channel no vacío');
+
+    my $ch = $vals->{external_channel}[0];
+    my $seg = $vals->{external_segments}[0];
+    my $offset = $ch->{offset};
+    ok($offset > 0, 'canal: offset ATR positivo');
+    is($offset, $seg->{channel_offset}, 'canal: offset coherente con segmento');
+    ok(abs(($ch->{from_price_upper} - $seg->{from_price}) - $offset) < 1e-6,
+       'canal: línea superior a +offset del segmento');
+    ok(abs(($seg->{from_price} - $ch->{from_price_lower}) - $offset) < 1e-6,
+       'canal: línea inferior a -offset del segmento');
+    ok(abs(($ch->{to_price_upper} - $seg->{to_price}) - $offset) < 1e-6,
+       'canal: extremo superior paralelo al segmento');
+}
+
+# 9. Overlay canal: toggle CHANNEL OFF por defecto; ON dibuja 2 líneas extra por segmento
+{
+    my @rows;
+    for my $i (0 .. 9) {
+        my $p = 100 - $i;
+        push @rows, [$p, $p + 1, $p - 2, $p - 1];
+    }
+    for my $i (0 .. 11) {
+        my $p = 90 + $i * 2;
+        push @rows, [$p, $p + 2, $p - 1, $p + 1];
+    }
+    my $ind = Market::Indicators::ZigZag->new(swing_length => 8, atr_period => 5, internal_resolution => 30);
+    feed_all($ind, build_ohlc(\@rows));
+    my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
+    ok(!$ov->is_element_visible('CHANNEL'), 'canal: toggle CHANNEL OFF por defecto');
+    $ov->set_visible(1);
+    $ov->compute_visible(undef, $ind, 0, $#rows);
+    my $canvas = ZZTestCanvas->new();
+    my $scales = Market::Panels::Scales->new(min_y => 80, max_y => 110, bars => scalar @rows);
+    $scales->{width} = 400; $scales->{height} = 300;
+    $ov->draw($canvas, $scales);
+    my $lines_no_ch = scalar grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+
+    $ov->set_element_visible('CHANNEL', 1);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my $lines_with_ch = scalar grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    ok($lines_with_ch > $lines_no_ch, 'canal: CHANNEL ON añade líneas paralelas');
+    if (@{ $ind->get_values()->{external_channel} } >= 1) {
+        is($lines_with_ch - $lines_no_ch, 2, 'canal: +2 líneas por segmento externo visible');
+    }
+}
+
+# 10. Snapshot determinista (segmentos internos)
 {
     my @rows = (
         [10,11, 9,10], [10,13,10,12], [12,16,12,15], [15,16,11,12],
