@@ -156,7 +156,7 @@ my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
 my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
-my %vis_mxelem = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+my %vis_mxelem = ( STRUCTURE => 1, SWINGS => 1, OB => 1, FVG => 1, AOE => 1, FIBS => 1, STRONG_WEAK => 0 );
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
 # -variable explícito al callback (Tk no lo pasa solo en -command).
@@ -170,7 +170,7 @@ my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigza
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my %cb_mxelem = map { $_ => Market::UI::Callbacks->make_mxwll_element_toggle($chart_engine, $_) }
-                qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+                qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK);
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
@@ -267,10 +267,10 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     my $p = $panel{Mxwll};
     my %mx_label = (
         STRUCTURE => 'Estr', SWINGS => 'Swings', OB => 'OB',
-        FVG => 'FVG', AOE => 'AOE', FIBS => 'Fibs',
+        FVG => 'FVG', AOE => 'AOE', FIBS => 'Fibs', STRONG_WEAK => 'S/W',
     );
     $p->Label(-text => 'Mxwll:')->pack(-side => 'left', -padx => 3);
-    for my $elem (qw(STRUCTURE SWINGS OB FVG AOE FIBS)) {
+    for my $elem (qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK)) {
         $p->Checkbutton(-text => $mx_label{$elem}, -variable => \$vis_mxelem{$elem},
             -command => sub { $cb_mxelem{$elem}->($vis_mxelem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }

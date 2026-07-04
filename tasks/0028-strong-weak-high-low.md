@@ -1,5 +1,8 @@
 # Task 0028: Strong/Weak High/Low
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - ORDEN 16 de `tasks/0021-volatility-and-choch-noise.md`.
 - Nota WhatsApp profe (29/06): "Strong High es cuando coincide lo de arriba con el

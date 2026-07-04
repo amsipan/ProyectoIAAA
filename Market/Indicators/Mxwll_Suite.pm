@@ -101,6 +101,10 @@ sub new {
         _low_blocks  => [],  # { index, top, bottom, active }
         _fvgs       => [],   # { index, top, bottom, dir, active }
 
+        # task 0028: trailing extremes (LuxAlgo Strong/Weak High/Low).
+        _trail_top  => undef,  # { index, price }
+        _trail_bot  => undef,
+
         _last_index => -1,
     };
     bless $self, $class;
@@ -130,6 +134,8 @@ sub reset {
     $self->{_high_blocks} = [];
     $self->{_low_blocks}  = [];
     $self->{_fvgs}        = [];
+    $self->{_trail_top}   = undef;
+    $self->{_trail_bot}   = undef;
     $self->{_last_index}  = -1;
     return;
 }
@@ -157,6 +163,7 @@ sub update_last {
     my ($big_up, $big_dn) = $self->_detect_pivot('ext', $self->{ext_sens}, $index);
     $self->_update_structure($index, $close, $big_up, $big_dn, $self->{_ext},
                              0, $self->{ext_sens});
+    $self->_update_trailing_extremes($index, $high, $low, ($big_up || $big_dn) ? 1 : 0);
 
     # 2. Estructura interna (I-BoS / I-CHoCH).
     my ($small_up, $small_dn) = $self->_detect_pivot('int', $self->{int_sens}, $index);
@@ -414,6 +421,55 @@ sub _mitigate_fvg {
     return;
 }
 
+# --- Trailing extremes + Strong/Weak High/Low (task 0028, LuxAlgo SMC) ---------
+# Rastrea max/min corrido del swing externo; reset en nuevo pivote externo.
+# Etiquetas segun bias: Strong High si bajista, Weak High si alcista;
+# Strong Low si alcista, Weak Low si bajista.
+sub _update_trailing_extremes {
+    my ($self, $index, $high, $low, $reset) = @_;
+    if ($reset || !defined $self->{_trail_top}) {
+        $self->{_trail_top} = { index => $index, price => $high };
+        $self->{_trail_bot} = { index => $index, price => $low };
+        return;
+    }
+    if ($high >= $self->{_trail_top}{price}) {
+        $self->{_trail_top} = { index => $index, price => $high };
+    }
+    if ($low <= $self->{_trail_bot}{price}) {
+        $self->{_trail_bot} = { index => $index, price => $low };
+    }
+    return;
+}
+
+sub _swing_bias {
+    my ($self) = @_;
+    my $bias = $self->{_ext}{state} // 0;
+    if ($bias == 0) {
+        my $moving = $self->{_ext}{moving} // 0;
+        $bias = $moving > 0 ? 1 : ($moving < 0 ? -1 : 0);
+    }
+    return $bias;
+}
+
+sub _compute_strong_weak {
+    my ($self) = @_;
+    my @out;
+    my $bias = $self->_swing_bias();
+    if (my $t = $self->{_trail_top}) {
+        my $label = ($bias < 0) ? 'Strong High' : 'Weak High';
+        push @out, {
+            kind => 'high', index => $t->{index}, price => $t->{price}, label => $label,
+        };
+    }
+    if (my $b = $self->{_trail_bot}) {
+        my $label = ($bias > 0) ? 'Strong Low' : 'Weak Low';
+        push @out, {
+            kind => 'low', index => $b->{index}, price => $b->{price}, label => $label,
+        };
+    }
+    return \@out;
+}
+
 # --- Area of Interest: zonas sobre/bajo el max/min de los ultimos N closes/opens
 sub _compute_aoe {
     my ($self) = @_;
@@ -499,6 +555,7 @@ sub get_values {
         fvgs        => [ grep { $_->{active} && $self->_fvg_is_near($_) } @{ $self->{_fvgs} } ],
         aoe         => $self->_compute_aoe(),
         fibs        => $self->_compute_fibs(),
+        strong_weak => $self->_compute_strong_weak(),
     };
 }
 

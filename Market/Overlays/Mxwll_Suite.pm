@@ -18,12 +18,13 @@ use warnings;
 #   FVG        — fair value gaps: cajas amarillas semitransparentes (stipple).
 #   AOE        — Area of Interest: zonas sup/inf con stipple.
 #   FIBS       — linea de tendencia + niveles fib horizontales.
+#   STRONG_WEAK — trailing extremes Strong/Weak High/Low (task 0028).
 #
 # Colores (paridad con el .pine de Mxwll):
 #   bull #14D990, bear #F24968, fvg #F2B807, fib gray/lime/yellow/orange/red.
 # =============================================================================
 
-my %ELEMENTS = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+my %ELEMENTS = map { $_ => 1 } qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK);
 
 my @FIB_COLORS = ('#808080', '#00ff00', '#ffff00', '#ffa500', '#ff0000');
 
@@ -35,7 +36,10 @@ sub new {
         indicator => $args{indicator},
         theme     => $args{theme} || {},
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
-        _elements => { %ELEMENTS },
+        _elements => {
+            STRUCTURE => 1, SWINGS => 1, OB => 1, FVG => 1, AOE => 1, FIBS => 1,
+            STRONG_WEAK => 0,
+        },
         _start    => 0,
         _end      => 0,
     };
@@ -235,7 +239,30 @@ sub draw {
         }
     }
 
-    # --- 6. Swings HH/HL/LH/LL ---
+    # --- 6. Strong/Weak High/Low (trailing extremes, task 0028) ---
+    if ($self->is_element_visible('STRONG_WEAK')) {
+        my $sw_col = $self->_color('mxwll_strong_weak', '#b0bec5');
+        for my $sw (@{ $vals->{strong_weak} // [] }) {
+            next if ($sw->{index} // -1) > $end;
+            my $x0 = $scales->index_to_center_x($self->_local_index($sw->{index}));
+            next if $x0 > $x_right;
+            $x0 = 0 if $x0 < 0;
+            my $y = $scales->value_to_y($sw->{price});
+            $canvas->createLine(
+                $x0, $y, $x_right, $y,
+                -fill => $sw_col, -width => 1, -dash => [3, 3], -tags => $tag,
+            );
+            my $anchor = $sw->{kind} eq 'high' ? 's' : 'n';
+            my $dy = $sw->{kind} eq 'high' ? -4 : 4;
+            $canvas->createText(
+                $x0 + 2, $y + $dy,
+                -text => $sw->{label}, -anchor => $anchor,
+                -font => 'Helvetica 7 bold', -fill => $sw_col, -tags => $tag,
+            );
+        }
+    }
+
+    # --- 7. Swings HH/HL/LH/LL ---
     if ($self->is_element_visible('SWINGS')) {
         for my $sw (@{ $vals->{swings} // [] }) {
             next if $sw->{index} > $end;

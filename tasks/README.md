@@ -75,7 +75,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0025 | Colorear velas de liquidity RUN | pendiente |
 | 0026 | Etiquetar Order Blocks como "OB" | ✅ hecho |
 | 0027 | BSL/SSL más limpio en banda (tarea E) | pendiente (DESBLOQUEADA: banda por proximidad) |
-| 0028 | Strong/Weak High/Low | pendiente (LuxAlgo trailing) |
+| 0028 | Strong/Weak High/Low | ✅ hecho |
 | 0029 | ML/MH antes del Fibonacci | ✅ verificado ya correcto |
 | 0030 | Replay: seleccionar vela de inicio (Select Bar) | ✅ hecho |
 | 0031 | El canal (tarea J) | ✅ hecho |
@@ -87,7 +87,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 ### Orden recomendado para el implementor (lote restante)
 1. ~~**0030** — Replay Select Bar~~ ✅
 2. ~~**0031** — El canal~~ ✅
-3. **0028** — Strong/Weak High/Low (port trailing extremes de LuxAlgo).
+3. ~~**0028** — Strong/Weak High/Low~~ ✅
 4. **0027** — BSL/SSL en banda (limpieza visual).
 5. **0025** — Colorear velas de liquidity RUN (la más intrusiva, al final).
 

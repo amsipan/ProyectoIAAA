@@ -344,4 +344,50 @@ SKIP: {
     is(scalar(@f1), 0, 'ORDEN11: FVG lejano al precio deja de ser vigente (default)');
 }
 
+# =============================================================================
+# 14. task 0028: Strong/Weak High/Low segun bias del swing externo
+# =============================================================================
+{
+    my $i = Market::Indicators::Mxwll_Suite->new();
+    $i->{_trail_top} = { index => 12, price => 55 };
+    $i->{_trail_bot} = { index => 8,  price => 45 };
+    $i->{_ext}{state} = -1;   # bajista
+    my @sw = @{ $i->get_values()->{strong_weak} };
+    is(scalar(@sw), 2, 'strong_weak: expone top y bottom');
+    my %lbl = map { $_->{kind} => $_->{label} } @sw;
+    is($lbl{high}, 'Strong High', 'bias bajista: top = Strong High');
+    is($lbl{low},  'Weak Low',    'bias bajista: bottom = Weak Low');
+
+    $i->{_ext}{state} = 1;    # alcista
+    %lbl = map { $_->{kind} => $_->{label} } @{ $i->get_values()->{strong_weak} };
+    is($lbl{high}, 'Weak High',  'bias alcista: top = Weak High');
+    is($lbl{low},  'Strong Low', 'bias alcista: bottom = Strong Low');
+}
+
+# =============================================================================
+# 15. task 0028: overlay STRONG_WEAK dibuja linea + etiqueta
+# =============================================================================
+{
+    my $vals = {
+        swings => [], structures => [], fvgs => [], aoe => undef, fibs => undef,
+        high_blocks => [], low_blocks => [],
+        strong_weak => [
+            { kind => 'high', index => 5, price => 22, label => 'Strong High' },
+            { kind => 'low',  index => 3, price => 18, label => 'Weak Low' },
+        ],
+    };
+    my $ov = Market::Overlays::Mxwll_Suite->new(indicator => MxStubOB->new($vals), visible => 1);
+    $ov->set_element_visible($_, 0) for qw(STRUCTURE SWINGS OB FVG AOE FIBS);
+    $ov->set_element_visible('STRONG_WEAK', 1);
+    $ov->compute_visible(undef, undef, 0, 29);
+    my $canvas = TestCanvas->new();
+    $ov->draw($canvas, mx_scales());
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
+    is(scalar(@lines), 2, 'STRONG_WEAK: 2 lineas horizontales');
+    my %seen = map { (mx_op_arg($_, 'text') // '') => 1 } @texts;
+    ok($seen{'Strong High'}, 'STRONG_WEAK: etiqueta Strong High');
+    ok($seen{'Weak Low'},    'STRONG_WEAK: etiqueta Weak Low');
+}
+
 done_testing();
