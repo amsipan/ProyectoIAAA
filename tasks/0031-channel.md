@@ -42,7 +42,7 @@ pero hay varios candidatos ya calculados en el código sin render.
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/Overlays/Strategy_Builder.pm && prove -l t/19-strategy-builder.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Overlays/Strategy_Builder.pm && prove -l t/19-strategy-builder.t"
 ```
 
 ## Qué no tocar

@@ -38,7 +38,7 @@ Dos enfoques posibles:
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/Overlays/Liquidity.pm && prove -l t/10-liquidity.t t/15-overlay-liquidity-render.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Overlays/Liquidity.pm && prove -l t/10-liquidity.t t/15-overlay-liquidity-render.t"
 ```
 
 ## Qué no tocar

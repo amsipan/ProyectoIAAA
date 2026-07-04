@@ -98,12 +98,10 @@ Dos ZigZag simultáneos, cada uno da una "dirección":
   verde/rojo, externo azul) como líneas; solo el último segmento se redibuja.
 - Exponer la DIRECCIÓN interna/externa (+1/-1) como salida para alimentar el
   futuro modelo (Fase 3) y, opcionalmente, una señal de convergencia.
-- Integrar en ChartEngine + capa/toggle en la UI (nueva pestaña o dentro de una
-  existente).
-- DECIDIR con el usuario/profe: ¿este ZigZag REEMPLAZA las etiquetas HH/HL/LL/LH
-  del Mxwll/SMC, o CONVIVE con ellas? El profe dice "en lugar de atascarse con
-  el etiquetado" → probablemente el ZigZag es la nueva fuente de dirección, pero
-  las etiquetas pueden quedar como capa opcional.
+- Integrar en ChartEngine + capa/toggle en la UI (dentro del diseño de pestañas,
+  task 0032; nueva capa "ZigZag").
+- ALCANCE YA DECIDIDO (04/07): CONVIVE con HH/HL/LL/LH y SMC/Mxwll. Es una capa
+  NUEVA y separada; NO se toca ni se borra nada de lo existente.
 
 ## Criterios de aceptación
 - Dos ZigZag (interno MTF + externo volumen/ATR) calculados de forma determinista.
@@ -131,7 +129,37 @@ Dos ZigZag simultáneos, cada uno da una "dirección":
    resolución interna (15/30/60). Integrar en el diseño de pestañas (task 0032).
 6. Verificar en Replay que reproduce el comportamiento del video del profe (29/jun).
 
+## Tests obligatorios (regla dura AGENTS.md)
+Crear `t/23-zigzag.t` con Test::More, SIN Tk, determinista. Debe cubrir:
+1. Contrato del indicador: `new` / `update_last` / `get_values` / `reset`.
+2. `get_values` retorna las estructuras esperadas (segmentos internos, externos,
+   dirección interna/externa +1/-1) como arrayrefs/hashrefs.
+3. Zigzag interno sobre un fixture sintético con pivotes claros: verificar que se
+   generan los vértices esperados y la dirección (+1 tras pivote alto, -1 tras
+   bajo). Transcribir el esperado en el test (índices/precios de los vértices).
+4. "Último segmento se ajusta, anteriores consolidados": alimentar velas que
+   extienden el último tramo y comprobar que solo cambia el último vértice, no
+   los previos (equivalente a `update_zigzag` del .pine).
+5. Zigzag externo (swingLength/ATR): fixture con un swing largo → un vértice
+   externo con su dirección.
+6. Equivalencia incremental == batch (reset + realimentar da igual salida).
+7. Contrato del overlay `t/23` o extender: tag propio, visibilidad, toggles
+   interno/externo, `draw` sin canvas no muere (patrón de t/22 bloque 8).
+8. Replay guard: con IndicatorSnapshot, ningún vértice con index > replay_idx
+   (usar el patrón de `Market/Debug/IndicatorSnapshot.pm`, ver otros t/).
+Verificación analítica adicional (script en `scratch/`, NO en t/): correr sobre
+`Data/2026_06_29.csv` en 1m con resolución interna 30m y confirmar que la
+cantidad/posición de vértices es razonable y limpia (menos ruido que HH/HL/LL/LH).
+
+## Comando de verificación
+```bash
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Indicators/ZigZag.pm && perl -I. -c Market/Overlays/ZigZag.pm && perl -I. -c Market/ChartEngine.pm && perl -I. -c market.pl && prove -l t"
+```
+La suite COMPLETA (`prove -l t`) debe quedar verde tras la task, no solo el test nuevo.
+
 ## Qué no tocar
 - No borrar ni modificar el etiquetado HH/HL/LL/LH ni SMC/Mxwll (conviven).
 - No portar el Volume Profile/POC del indicador 2 (el profe lo deshabilita); solo
   la línea zigzag externa.
+- No tocar `Market/Debug/` (propiedad del arquitecto; si falta un campo, reportar).
+- No tocar `MarketData.pm` ni los CSV de `Data/`.

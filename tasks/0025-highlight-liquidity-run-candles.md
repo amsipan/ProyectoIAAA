@@ -38,7 +38,7 @@ RUN, para localizar de un vistazo los momentos de continuidad relevantes.
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/Panels/PricePanel.pm && perl -I. -c Market/ChartEngine.pm && prove -l t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Panels/PricePanel.pm && perl -I. -c Market/ChartEngine.pm && prove -l t"
 ```
 Requiere confirmación visual.
 

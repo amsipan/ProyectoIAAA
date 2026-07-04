@@ -48,7 +48,7 @@ que el replay comience en (vela_seleccionada - 1).
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/ReplayController.pm && perl -I. -c Market/UI/Callbacks.pm && perl -I. -c Market/ChartEngine.pm && perl -I. -c market.pl && prove -l t/12-replay.t t/17-ui-wiring.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/ReplayController.pm && perl -I. -c Market/UI/Callbacks.pm && perl -I. -c Market/ChartEngine.pm && perl -I. -c market.pl && prove -l t/12-replay.t t/17-ui-wiring.t"
 ```
 
 ## Qué no tocar

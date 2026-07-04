@@ -43,7 +43,7 @@ con el profe si su definición coincide con la de LuxAlgo.
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/Indicators/Mxwll_Suite.pm && prove -l t/22-mxwll-suite.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Indicators/Mxwll_Suite.pm && prove -l t/22-mxwll-suite.t"
 ```
 
 ## Qué no tocar

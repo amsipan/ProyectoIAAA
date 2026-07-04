@@ -43,7 +43,7 @@ Overlay `Market/Overlays/SMC_Structures.pm`, bloque "Etiquetas BOS/CHoCH"
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '<repo>' && perl -I. -c Market/Overlays/SMC_Structures.pm && prove -l t/09-smc-structures.t t/14-overlay-smc-render.t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/Overlays/SMC_Structures.pm && prove -l t/09-smc-structures.t t/14-overlay-smc-render.t"
 ```
 Requiere confirmacion visual (capa SMC en 2h).
 
