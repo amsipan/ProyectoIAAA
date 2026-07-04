@@ -1001,6 +1001,12 @@ sub _register_level_ref {
 # Public API
 # =============================================================================
 
+# current_atr — ATR(14) vigente para agrupación BSL/SSL en banda (task 0027).
+sub current_atr {
+    my ($self) = @_;
+    return $self->{_last_atr};
+}
+
 sub get_levels {
     my ($self) = @_;
     my @all = @{ $self->{_levels} };

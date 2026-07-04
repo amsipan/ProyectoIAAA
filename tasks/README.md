@@ -74,7 +74,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0024 | Grab/Run: solapamiento (apilado vertical) | ✅ hecho |
 | 0025 | Colorear velas de liquidity RUN | pendiente |
 | 0026 | Etiquetar Order Blocks como "OB" | ✅ hecho |
-| 0027 | BSL/SSL más limpio en banda (tarea E) | pendiente (DESBLOQUEADA: banda por proximidad) |
+| 0027 | BSL/SSL más limpio en banda (tarea E) | ✅ hecho |
 | 0028 | Strong/Weak High/Low | ✅ hecho |
 | 0029 | ML/MH antes del Fibonacci | ✅ verificado ya correcto |
 | 0030 | Replay: seleccionar vela de inicio (Select Bar) | ✅ hecho |
@@ -88,7 +88,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 1. ~~**0030** — Replay Select Bar~~ ✅
 2. ~~**0031** — El canal~~ ✅
 3. ~~**0028** — Strong/Weak High/Low~~ ✅
-4. **0027** — BSL/SSL en banda (limpieza visual).
+4. ~~**0027** — BSL/SSL en banda~~ ✅
 5. **0025** — Colorear velas de liquidity RUN (la más intrusiva, al final).
 
 ## Plantilla

@@ -1,5 +1,8 @@
 # Task 0027: BSL/SSL más limpio — agrupar en banda (tarea E)
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - ORDEN 15 de `tasks/0021-volatility-and-choch-noise.md` (= tarea E original).
 - Notas WhatsApp profe (29/06): "BSL y SSL debe ser más limpio para tener una

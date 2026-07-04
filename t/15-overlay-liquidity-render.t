@@ -64,6 +64,7 @@ my $D = 'Market::Debug::IndicatorSnapshot';
     }
     sub get_levels { shift->{levels} || [] }
     sub get_events { shift->{events} || [] }
+    sub current_atr { shift->{atr} }
 }
 
 # --- helpers de inspección de ops ---
@@ -144,7 +145,7 @@ sub tab2_indicator {
 # =============================================================================
 {
     my $ind    = tab2_indicator();
-    my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    my $ov     = Market::Overlays::Liquidity->new(indicator => $ind, theme => {}, band_mode => 0);
     my $canvas = TestCanvas->new();
     my $scales = make_scales(5, 25, 14);
 
@@ -570,6 +571,57 @@ sub _line_signature {
     # Las Y de las etiquetas (arg [2]) deben diferir por el apilamiento.
     my %ys = map { $_->[2] => 1 } @texts;
     ok(scalar(keys %ys) >= 2, 'ORDEN12: marcadores de la misma vela se apilan (Y distinta)');
+}
+
+# =============================================================================
+# task 0027: BSL/SSL agrupados en banda sombreada
+# =============================================================================
+{
+    # 3 BSL cercanos (spread 0.4) + 2 lejanos → 2 bandas con ATR=1, band_atr=0.5
+    my $ind = TestIndicator->new(
+        atr => 1,
+        levels => [
+            { index => 1, type => 'BSL', price => 20.0 },
+            { index => 2, type => 'BSL', price => 20.2 },
+            { index => 3, type => 'BSL', price => 20.4 },
+            { index => 4, type => 'BSL', price => 25.0 },
+            { index => 5, type => 'BSL', price => 25.3 },
+        ],
+        events => [],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, band_mode => 1, band_atr => 0.5);
+    $ov->set_element_visible($_, 0) for qw(SSL EQH EQL SWEEP GRAB RUN);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 30, 12);
+    $ov->compute_visible(undef, $ind, 0, 11);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    is(scalar(@rects), 2, 'band_mode ON: 3 cercanos + 2 lejanos → 2 bandas BSL');
+    my @bsl_texts = grep { (op_arg($_, 'text') // '') eq 'BSL' } grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
+    is(scalar(@bsl_texts), 2, 'band_mode ON: una etiqueta BSL por banda');
+}
+
+{
+    my $ind = TestIndicator->new(
+        atr => 1,
+        levels => [
+            { index => 1, type => 'BSL', price => 20 },
+            { index => 2, type => 'BSL', price => 20.1 },
+        ],
+        events => [],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, band_mode => 0);
+    $ov->set_element_visible($_, 0) for qw(SSL EQH EQL SWEEP GRAB RUN);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 30, 12);
+    $ov->compute_visible(undef, $ind, 0, 11);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is(scalar(@lines), 2, 'band_mode OFF: líneas individuales BSL como antes');
+    my $rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    ok(!$rects, 'band_mode OFF: sin rectángulos de banda');
 }
 
 done_testing();

@@ -82,6 +82,10 @@ sub new {
         #   - eqhl_long_span: pares con span >= N velas se resaltan (linea gruesa).
         _eqhl_min_span  => exists $args{eqhl_min_span}  ? $args{eqhl_min_span}  : 0,
         _eqhl_long_span => exists $args{eqhl_long_span} ? $args{eqhl_long_span} : 20,
+        # task 0027: agrupar BSL/SSL cercanos en banda sombreada.
+        _band_mode => exists $args{band_mode} ? ($args{band_mode} ? 1 : 0) : 1,
+        _band_atr  => defined $args{band_atr} ? $args{band_atr} : 0.5,
+        _draw_end_idx => 0,
     };
     bless $self, $class;
     return $self;
@@ -100,6 +104,18 @@ sub set_eqhl_span {
     $self->{_eqhl_min_span}  = $min  if defined $min;
     $self->{_eqhl_long_span} = $long if defined $long;
     return $self;
+}
+
+# set_band_mode($bool) — bandas sombreadas BSL/SSL vs líneas sueltas (task 0027).
+sub set_band_mode {
+    my ($self, $bool) = @_;
+    $self->{_band_mode} = $bool ? 1 : 0;
+    return $self;
+}
+
+sub band_mode {
+    my ($self) = @_;
+    return $self->{_band_mode} ? 1 : 0;
 }
 
 sub tag { 'ov_liq' }
@@ -143,6 +159,7 @@ sub compute_visible {
     $end   //= 0;
     $self->{_compute_range} = [$start, $end];
     $self->{_replay_idx}    = $end;
+    $self->{_draw_end_idx}  = $end;
 
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
@@ -223,22 +240,40 @@ sub draw {
     my $w   = $scales->{width} || $scales->plot_width();
     my $ev  = $self->{_elem_visible};
 
-    # --- BSL / SSL: líneas horizontales punteadas (rojo / verde) --------------
-    for my $lvl (@{ $self->{_levels} }) {
-        next unless defined $lvl->{index} && defined $lvl->{price};
-        my $type = $lvl->{type};
-        if ($type eq 'BSL' && $ev->{BSL}) {
-            $self->_draw_hline_label($canvas, $scales, $tag, $w,
-                $lvl, 'BSL',
-                $self->_color('liq_bsl', '#ef5350'),
-                $self->_color('liq_bsl_label', '#ef5350'),
-            );
-        } elsif ($type eq 'SSL' && $ev->{SSL}) {
-            $self->_draw_hline_label($canvas, $scales, $tag, $w,
-                $lvl, 'SSL',
-                $self->_color('liq_ssl', '#26a69a'),
-                $self->_color('liq_ssl_label', '#26a69a'),
-            );
+    # --- BSL / SSL: bandas agrupadas (default) o líneas sueltas (task 0027) ----
+    my $x_right = $scales->index_to_center_x($self->_local_index($self->{_draw_end_idx} // 0));
+    $x_right = $w if $x_right > $w;
+    $x_right = 0 if $x_right < 0;
+    my $atr = ($self->{indicator} && $self->{indicator}->can('current_atr'))
+        ? $self->{indicator}->current_atr()
+        : undef;
+    my $use_bands = $self->{_band_mode} && defined $atr && $atr > 0;
+
+    for my $fam (
+        [ BSL => '#ef5350', 'liq_bsl', 'liq_bsl_label' ],
+        [ SSL => '#26a69a', 'liq_ssl', 'liq_ssl_label' ],
+    ) {
+        my ($elem, $def_col, $theme_k, $label_k) = @$fam;
+        next unless $ev->{$elem};
+        my @lvls = grep {
+            defined $_->{type} && $_->{type} eq $elem
+                && defined $_->{index} && defined $_->{price}
+        } @{ $self->{_levels} };
+        next unless @lvls;
+        my $col = $self->_color($theme_k, $def_col);
+        my $lbl_col = $self->_color($label_k, $def_col);
+        if ($use_bands) {
+            my $thr = ($self->{_band_atr} // 0.5) * $atr;
+            for my $band (@{ $self->_cluster_bsl_ssl(\@lvls, $thr) }) {
+                $self->_draw_bsl_ssl_band($canvas, $scales, $tag, $x_right,
+                    $band, $elem, $col, $lbl_col);
+            }
+        }
+        else {
+            for my $lvl (@lvls) {
+                $self->_draw_hline_label($canvas, $scales, $tag, $w,
+                    $lvl, $elem, $col, $lbl_col);
+            }
         }
     }
 
@@ -320,6 +355,60 @@ sub draw {
     }
 
     return $self;
+}
+
+# _cluster_bsl_ssl — agrupa niveles del mismo tipo si |precio| <= threshold.
+sub _cluster_bsl_ssl {
+    my ($self, $levels, $threshold) = @_;
+    return [] unless $levels && @$levels;
+    my @sorted = sort { $a->{price} <=> $b->{price} } @$levels;
+    my @bands;
+    my $cur = [ $sorted[0] ];
+    for my $i (1 .. $#sorted) {
+        my $lvl = $sorted[$i];
+        my $max_p = (sort { $b->{price} <=> $a->{price} } @$cur)[0]{price};
+        if (($lvl->{price} - $max_p) <= $threshold + 1e-9) {
+            push @$cur, $lvl;
+        }
+        else {
+            push @bands, $cur;
+            $cur = [ $lvl ];
+        }
+    }
+    push @bands, $cur;
+    return \@bands;
+}
+
+# _draw_bsl_ssl_band — rectángulo tenue + una etiqueta por banda (task 0027).
+sub _draw_bsl_ssl_band {
+    my ($self, $canvas, $scales, $tag, $x_right, $group, $label, $outline, $text_color) = @_;
+    return unless $group && @$group;
+    my @prices = map { $_->{price} } @$group;
+    my $min_p = (sort { $a <=> $b } @prices)[0];
+    my $max_p = (sort { $b <=> $a } @prices)[0];
+    my $min_idx = (sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @$group)[0]{index};
+    my $x0 = $scales->index_to_center_x($self->_local_index($min_idx));
+    return if $x_right < 0;
+    $x0 = 0 if $x0 < 0;
+    my $yt = $scales->value_to_y($max_p);
+    my $yb = $scales->value_to_y($min_p);
+    $canvas->createRectangle(
+        $x0, $yt, $x_right, $yb,
+        -fill    => $outline,
+        -stipple => 'gray12',
+        -outline => $outline,
+        -width   => 1,
+        -tags    => $tag,
+    );
+    $canvas->createText(
+        $x0 + 4, ($yt + $yb) / 2,
+        -text   => $label,
+        -anchor => 'w',
+        -font   => 'Helvetica 8 bold',
+        -fill   => $text_color,
+        -tags   => $tag,
+    );
+    return;
 }
 
 # _draw_hline_label: línea horizontal punteada + etiqueta de texto al inicio.
