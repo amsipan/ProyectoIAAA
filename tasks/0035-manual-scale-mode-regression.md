@@ -4,7 +4,10 @@
 - Reporte del usuario (03/07): "el modo manual parece que está fallando y no está
   bien como antes estaba".
 
-## Estado (a diagnosticar con detalle)
+## Estado
+✅ **Hecho** (2026-07-03)
+
+## Diagnóstico (resuelto)
 Codigo relevante en `Market/ChartEngine.pm`:
 - `set_scale_mode('manual')` (linea ~1538): pone `is_auto_scale=0` pero NO fija
   `manual_min_y`/`manual_max_y` en ese momento. Quedan como esten (posiblemente

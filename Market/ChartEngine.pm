@@ -70,6 +70,8 @@ sub new {
         is_auto_scale    => 1,
         manual_min_y     => undef,
         manual_max_y     => undef,
+        last_auto_min_y  => undef,
+        last_auto_max_y  => undef,
         scale_mode_callback => $args{scale_mode_callback},
         ctrl_zoom_x_shift => 0,
         ctrl_zoom_y_lock_min => undef,
@@ -77,6 +79,8 @@ sub new {
         is_atr_auto_scale => 1,
         atr_manual_min_y => undef,
         atr_manual_max_y => undef,
+        last_auto_atr_min_y => undef,
+        last_auto_atr_max_y => undef,
         atr_axis_drag_start_y => undef,
         atr_axis_drag_min_y => undef,
         atr_axis_drag_max_y => undef,
@@ -450,12 +454,13 @@ sub render {
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
     my ($min_a, $max_a) = $self->{atr_panel}->get_y_range($visible_atr);
     
-    if (defined $self->{ctrl_zoom_y_lock_min} && defined $self->{ctrl_zoom_y_lock_max}) {
-        ($min_p, $max_p) = ($self->{ctrl_zoom_y_lock_min}, $self->{ctrl_zoom_y_lock_max});
-    } elsif (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+    if (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
         ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
-    } else {
+    } elsif (defined $self->{ctrl_zoom_y_lock_min} && defined $self->{ctrl_zoom_y_lock_max}) {
+        ($min_p, $max_p) = ($self->{ctrl_zoom_y_lock_min}, $self->{ctrl_zoom_y_lock_max});
+    } elsif ($self->{is_auto_scale}) {
         ($self->{manual_min_y}, $self->{manual_max_y}) = ($min_p, $max_p);
+        ($self->{last_auto_min_y}, $self->{last_auto_max_y}) = ($min_p, $max_p);
     }
 
     if (!defined $min_p || !defined $max_p || $min_p == $max_p) {
@@ -464,8 +469,9 @@ sub render {
     }
     if (!$self->{is_atr_auto_scale} && defined $self->{atr_manual_min_y} && defined $self->{atr_manual_max_y}) {
         ($min_a, $max_a) = ($self->{atr_manual_min_y}, $self->{atr_manual_max_y});
-    } else {
+    } elsif ($self->{is_atr_auto_scale}) {
         ($self->{atr_manual_min_y}, $self->{atr_manual_max_y}) = ($min_a, $max_a);
+        ($self->{last_auto_atr_min_y}, $self->{last_auto_atr_max_y}) = ($min_a, $max_a);
     }
     if (!defined $min_a || !defined $max_a || $min_a == $max_a) {
         $min_a = 0;
@@ -1376,6 +1382,8 @@ sub _apply_vertical_drag_from_start {
     my $delta_value = $dy * ($range / $height);
     $self->{manual_min_y} = $self->{drag_start_min_y} + $delta_value;
     $self->{manual_max_y} = $self->{drag_start_max_y} + $delta_value;
+    $self->{ctrl_zoom_y_lock_min} = undef;
+    $self->{ctrl_zoom_y_lock_max} = undef;
 }
 
 sub _apply_atr_vertical_drag_from_start {
@@ -1516,6 +1524,56 @@ sub _reset_atr_scale {
     $self->set_atr_scale_mode('auto');
 }
 
+sub _compute_visible_price_y_range {
+    my ($self) = @_;
+
+    return (undef, undef) unless $self->{market_data} && $self->{price_panel};
+    my ($start, $end) = $self->compute_window();
+    my $visible = $self->{market_data}->get_slice($start, $end);
+    return $self->{price_panel}->get_y_range($visible);
+}
+
+sub _compute_visible_atr_y_range {
+    my ($self) = @_;
+
+    return (undef, undef) unless $self->{market_data} && $self->{atr_panel} && $self->{indicator_manager};
+    my ($start, $end) = $self->compute_window();
+    my $visible = $self->{indicator_manager}->slice_array('ATR', $start, $end);
+    return $self->{atr_panel}->get_y_range($visible);
+}
+
+sub _capture_price_y_range {
+    my ($self) = @_;
+
+    if (defined $self->{last_auto_min_y} && defined $self->{last_auto_max_y}) {
+        return ($self->{last_auto_min_y}, $self->{last_auto_max_y});
+    }
+    if (defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+        return ($self->{manual_min_y}, $self->{manual_max_y});
+    }
+    my $scale = $self->{price_panel} ? $self->{price_panel}->{scale} : undef;
+    if (defined $scale && defined $scale->{min_y} && defined $scale->{max_y}) {
+        return ($scale->{min_y}, $scale->{max_y});
+    }
+    return $self->_compute_visible_price_y_range();
+}
+
+sub _capture_atr_y_range {
+    my ($self) = @_;
+
+    if (defined $self->{last_auto_atr_min_y} && defined $self->{last_auto_atr_max_y}) {
+        return ($self->{last_auto_atr_min_y}, $self->{last_auto_atr_max_y});
+    }
+    if (defined $self->{atr_manual_min_y} && defined $self->{atr_manual_max_y}) {
+        return ($self->{atr_manual_min_y}, $self->{atr_manual_max_y});
+    }
+    my $scale = $self->{atr_panel} ? $self->{atr_panel}->{scale} : undef;
+    if (defined $scale && defined $scale->{min_y} && defined $scale->{max_y}) {
+        return ($scale->{min_y}, $scale->{max_y});
+    }
+    return $self->_compute_visible_atr_y_range();
+}
+
 sub set_atr_scale_mode {
     my ($self, $mode) = @_;
 
@@ -1526,6 +1584,11 @@ sub set_atr_scale_mode {
         $self->{atr_manual_max_y} = undef;
     } else {
         $self->{is_atr_auto_scale} = 0;
+        my ($min, $max) = $self->_capture_atr_y_range();
+        if (defined $min && defined $max) {
+            $self->{atr_manual_min_y} = $min;
+            $self->{atr_manual_max_y} = $max;
+        }
     }
 
     if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
@@ -1546,6 +1609,13 @@ sub set_scale_mode {
         $self->{manual_max_y} = undef;
     } else {
         $self->{is_auto_scale} = 0;
+        $self->{ctrl_zoom_y_lock_min} = undef;
+        $self->{ctrl_zoom_y_lock_max} = undef;
+        my ($min, $max) = $self->_capture_price_y_range();
+        if (defined $min && defined $max) {
+            $self->{manual_min_y} = $min;
+            $self->{manual_max_y} = $max;
+        }
     }
 
     if (ref($self->{scale_mode_callback}) eq 'CODE') {
@@ -1607,6 +1677,8 @@ sub _vertical_drag {
 
     $self->{manual_min_y} += $value_delta;
     $self->{manual_max_y} += $value_delta;
+    $self->{ctrl_zoom_y_lock_min} = undef;
+    $self->{ctrl_zoom_y_lock_max} = undef;
 
     $self->request_render();
 }
@@ -1628,6 +1700,8 @@ sub _vertical_zoom {
 
     $self->{manual_min_y} = $center - $half_range;
     $self->{manual_max_y} = $center + $half_range;
+    $self->{ctrl_zoom_y_lock_min} = undef;
+    $self->{ctrl_zoom_y_lock_max} = undef;
 
     $self->request_render();
 }
