@@ -664,4 +664,50 @@ sub _line_signature {
     ok($run_hl, 'RUN: halo usa color azul #2962ff');
 }
 
+# =============================================================================
+# Test (task 0036-B): downsample (bar_w < 2) alinea halo RUN con PricePanel.
+# =============================================================================
+{
+    package MockMDRunDS;
+    sub new {
+        my ($class, $candles) = @_;
+        return bless { candles => $candles }, $class;
+    }
+    sub get_candle {
+        my ($self, $i) = @_;
+        return $self->{candles}[$i];
+    }
+}
+{
+    package main;
+    my $md = MockMDRunDS->new([
+        (undef) x 10,
+        ['ts', 10, 12, 9, 11, 100],
+    ]);
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 5, type => 'RUN', dir => 'up', price => 11, extreme => 11, relevant => 1 },
+        ],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, only_relevant => 1);
+    $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP GRAB);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 100);
+    $scales->{width} = 200;
+
+    $ov->compute_visible($md, $ind, 0, 99);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is(scalar(@lines), 1, 'RUN downsample: halo como línea gruesa');
+    my $plot_w = 200;
+    my $x_left  = 5 * $plot_w / 100;
+    my $x_right = 6 * $plot_w / 100;
+    my $cx      = ($x_left + $x_right) / 2;
+    ok(abs($lines[0]->[1] - $cx) < 0.01, 'RUN downsample: x centrado en columna de píxel');
+    ok(abs($lines[0]->[3] - $cx) < 0.01, 'RUN downsample: x_end centrado en columna de píxel');
+}
+
 done_testing();

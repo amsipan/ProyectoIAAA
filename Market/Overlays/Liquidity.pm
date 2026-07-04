@@ -514,6 +514,26 @@ sub _draw_pair_line {
     return;
 }
 
+# Borde izquierdo de la barra local (alineado con PricePanel, incl. downsample).
+sub _bar_left_x {
+    my ($self, $scales, $local) = @_;
+    my $bars  = $scales->{bars} || 1;
+    my $bar_w = $scales->plot_width() / $bars;
+    if ($bar_w < 2) {
+        my $plot_w = int($scales->plot_width());
+        $plot_w = 1 if $plot_w < 1;
+        my $x_shift = $scales->{x_shift} || 0;
+        return $local * $plot_w / $bars + $x_shift;
+    }
+    return $scales->index_to_x($local);
+}
+
+# Borde derecho de la barra local (extremo derecho de la vela).
+sub _bar_right_x {
+    my ($self, $scales, $local) = @_;
+    return $self->_bar_left_x($scales, $local + 1);
+}
+
 # _highlight_run_candle — resalta la vela del RUN (task 0025, overlay halo).
 sub _highlight_run_candle {
     my ($self, $canvas, $scales, $tag, $e) = @_;
@@ -524,22 +544,29 @@ sub _highlight_run_candle {
     my $candle = $md->get_candle($idx);
     return unless $candle && @$candle >= 5;
     my (undef, $open, $high, $low, $close) = @$candle[0 .. 4];
-    my $cx = $scales->index_to_center_x($self->_local_index($idx));
-    my $bars = $scales->{bars} || 1;
+    my $local = $self->_local_index($idx);
+    my $bars  = $scales->{bars} || 1;
     my $bar_w = $scales->plot_width() / $bars;
     my $color = $self->_color('liq_run_highlight', '#2962ff');
     my $y_h = $scales->value_to_y($high);
     my $y_l = $scales->value_to_y($low);
 
+    my $x_left  = $self->_bar_left_x($scales, $local);
+    my $x_right = $self->_bar_right_x($scales, $local);
+
     if ($bar_w < 2) {
+        my $cx = ($x_left + $x_right) / 2;
+        my $w  = $x_right - $x_left;
+        $w = 3 if $w < 3;
         $canvas->createLine(
             $cx, $y_h, $cx, $y_l,
-            -fill => $color, -width => 3, -tags => $tag,
+            -fill => $color, -width => int($w + 0.5), -tags => $tag,
         );
         return;
     }
 
-    my $half = $bar_w * 0.35;
+    my $cx   = ($x_left + $x_right) / 2;
+    my $half = $bar_w * 0.3;
     $half = 1 if $half < 1;
     $canvas->createRectangle(
         $cx - $half, $y_h, $cx + $half, $y_l,

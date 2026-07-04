@@ -83,7 +83,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0033 | Dirección precio interna/externa vía ZigZag (NUEVO enfoque profe) | ✅ hecho |
 | 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | ✅ hecho |
 | 0035 | Modo Manual de escala fallando | ✅ hecho |
-| 0036 | Pulido menor tras lote (validación visual + detalles) | pendiente (BAJA prioridad) |
+| 0036 | Pulido menor tras lote (validación visual + detalles) | ✅ hecho (A: checklist visual usuario) |
 | 0037 | [CRÍTICO] Zoom/Replay deja eje Y corrupto → velas desaparecen | ✅ hecho |
 | 0038 | [ALTO] Fuga de futuro en Liquidity Zone 6/7 rompe Replay | ✅ hecho |
 | 0039 | [MEDIO] Bugs de render en overlays (SuperTrend flip, whitespace, toggles muertos) | ✅ hecho |

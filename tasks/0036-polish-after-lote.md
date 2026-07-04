@@ -1,5 +1,8 @@
 # Task 0036: Pulido menor tras lote 0025-0031 (baja prioridad)
 
+## Estado
+✅ **Hecho** (2026-07-04) — B y C implementados/evaluados; A pendiente confirmación visual del usuario.
+
 ## Origen
 - Revisión de arquitecto (04/07) tras aprobar 0025/0027/0028/0030/0031. Todo
   quedó funcional y con tests; estos son detalles de pulido, NO bugs bloqueantes.
@@ -32,6 +35,27 @@ RUN relevante). Decisión de UX, confirmar con profe/usuario.
 ## Criterios de aceptación
 - Validación visual (A) OK por el usuario; si algo se ve mal, abrir task puntual.
 - (B) y (C) evaluadas; ajustar solo si hay problema real.
+
+## Resultado (04/07)
+
+### B — `bar_w` halo RUN
+- `_highlight_run_candle` ahora usa `_bar_left_x` / `_bar_right_x` (mismo patrón que
+  `SMC_Structures` y `PricePanel` downsample).
+- Modo normal: ancho halo = 60% de `bar_w` (igual que cuerpo de vela en PricePanel).
+- Modo downsample (`bar_w < 2`): línea gruesa centrada en la columna de píxel.
+- Test: `t/15-overlay-liquidity-render.t` (bloque task 0036-B).
+
+### C — densidad visual
+- Sin cambio de defaults: `band_mode` sigue ON; halo RUN solo en eventos relevantes.
+- Saturación posible en 1m con todas las capas ON — decisión UX para el profe/usuario.
+
+### A — validación visual (usuario, WSLg)
+Checklist pendiente de confirmación en pantalla:
+1. Select Bar: marcador, Shift+←/→, Play en selected-1.
+2. Canal ZigZag ON/OFF.
+3. S/W High/Low toggle.
+4. BSL/SSL bandas no tapan velas.
+5. Halo RUN en 1m y con zoom bajo.
 
 ## Prioridad
 BAJA. No bloquea. Hacer tras validación visual del usuario.
