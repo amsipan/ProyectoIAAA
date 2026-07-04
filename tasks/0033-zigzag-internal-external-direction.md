@@ -1,16 +1,38 @@
 # Task 0033: Dirección del precio interna/externa vía ZigZag (enfoque del profe)
 
 ## Origen
-- Correo + video del profe (03/07). Reemplaza el enfoque de "corregir el
+- Correo + video + PDF del profe (03/07). Reemplaza el enfoque de "corregir el
   etiquetado HH/HL/LL/LH" que se venía trabajando.
-- Material: `docs/material_profesor/Direccion-del-precio-interna-externa_video.txt`
-  (guion del video), `Indicador-zigzag-para-direccion-interna-externa.pdf` (del
-  profe, PENDIENTE de pasar a texto: este modelo no lee PDF).
-- Source codes de referencia (guardados):
-  * `docs/material_profesor/ZigZag_MTF_Fibonacci_reference.pine` (LonesomeTheBlue,
-    "ZigZag Multi Time Frame with Fibonacci Retracement").
-  * `docs/material_profesor/ZigZag_VolumeProfile_ChartPrime_reference.pine`
-    (ChartPrime, "ZigZag Volume Profile").
+- Material (todo guardado en `docs/material_profesor/`):
+  * `Direccion-del-precio-interna-externa_video.txt` — guion del video.
+  * `Direccion-del-precio-interna-externa_PDF.txt` — texto extraído del PDF oficial.
+  * `imagenes/zigzag_concepto_htf_ltf.png` — negro=HTF (limpio) vs rojo=LTF (ruido).
+  * `imagenes/zigzag_config_zzmtf.png` — config exacta del indicador interno.
+  * `imagenes/zigzag_config_volumeprofile.png` — config exacta del indicador externo.
+  * `imagenes/zigzag_resultado_replay.png` — RESULTADO OBJETIVO (1m con ambos zigzag).
+  * `ZigZag_MTF_Fibonacci_reference.pine` (LonesomeTheBlue).
+  * `ZigZag_VolumeProfile_ChartPrime_reference.pine` (ChartPrime).
+
+## DECISIÓN DE ALCANCE (confirmada por Bryan, 04/07)
+El ZigZag CONVIVE con las etiquetas HH/HL/LL/LH y con SMC/Mxwll existentes; NO
+reemplaza nada por ahora. Va como capa/módulo SEPARADO. Todo lo actual se mantiene
+hasta confirmar con el profe qué quiere hacer finalmente. Lo IMPORTANTE es que la
+visualización quede TAL CUAL la describen el video y el PDF (ver imagen
+`zigzag_resultado_replay.png`).
+
+## PARÁMETROS EXACTOS (confirmados de las capturas del PDF)
+### Indicador interno — ZZMTF (config `zigzag_config_zzmtf.png`):
+- ZigZag Resolution = **30 min** (configurable: 15/30/60).
+- ZigZag Period = **2**.
+- SOLO "Show Zig Zag" HABILITADO. Fibonacci Ratios OFF, Colorful OFF, todos los
+  Enable Level (0.236/0.382/0.5/0.618/0.786) OFF.
+- Zigzag Line Colors: verde (subida) / rojo (bajada).
+### Indicador externo — ZigZag Volume Profile (config `zigzag_config_volumeprofile.png`):
+- Amount of Profiles = 15.
+- Swing Channel Display = OFF; Length = **150**; Width = **1**.
+- VolumeProfile Display = OFF; Bins = 10; Bins Width = 5.
+- POC Display = OFF.
+- → Con todo OFF, solo se ve la LÍNEA zigzag azul (dirección externa).
 
 ## Problema que resuelve
 Las etiquetas HH/HL/LL/LH en 1m generan mucho RUIDO (movimiento oscilatorio) que
@@ -91,13 +113,25 @@ Dos ZigZag simultáneos, cada uno da una "dirección":
 - Toggle en UI; no rompe overlays existentes ni Fase 1.
 - Tests con `IndicatorSnapshot` + verificación analítica sobre Data/2026_06_29.csv.
 
-## Pendiente / bloqueante
-- Pasar a texto el PDF `Indicador-zigzag-para-direccion-interna-externa.pdf`
-  (puede tener parámetros/definiciones que el video no detalla).
-- Confirmar: ¿reemplaza o convive con HH/HL/LL/LH?
-- Confirmar resolución interna default (30m) y swingLength externo.
+## Desbloqueado (04/07)
+- PDF ya extraído (texto + imágenes en `docs/material_profesor/`).
+- Alcance decidido: CONVIVE, capa separada, no reemplaza nada.
+- Parámetros default confirmados: interno ZZMTF 30m period 2; externo Length 150
+  Width 1.
+
+## Sub-pasos de implementación sugeridos
+1. `Market/Indicators/ZigZag.pm`: pivotes MTF (resolución configurable, agregando
+   velas 1m a la resolución elegida) → segmentos con dirección interna (+1/-1).
+2. Mismo módulo o segundo: zigzag externo por swingLength(150) + ATR(200), solo
+   la línea (dirección externa +1/-1). Reproducir "último segmento se ajusta,
+   anteriores consolidados".
+3. `Market/Overlays/ZigZag.pm`: dibujar interno (verde/rojo) + externo (azul).
+4. ChartEngine: instanciar + feed bajo demanda + reset (patrón de los otros).
+5. UI: nueva capa "ZigZag" (checkbox) + sub-toggles interno/externo y selector de
+   resolución interna (15/30/60). Integrar en el diseño de pestañas (task 0032).
+6. Verificar en Replay que reproduce el comportamiento del video del profe (29/jun).
 
 ## Qué no tocar
-- No borrar el etiquetado HH/HL/LL/LH existente hasta decidir reemplazo/convivencia.
+- No borrar ni modificar el etiquetado HH/HL/LL/LH ni SMC/Mxwll (conviven).
 - No portar el Volume Profile/POC del indicador 2 (el profe lo deshabilita); solo
   la línea zigzag externa.

@@ -1,0 +1,43 @@
+Indicadores zigzag para la detección de la
+dirección interna y externa del precio
+Problema del uso de las etiquetas HH, HL, LL, LH en baja temporalidad.
+
+
+Desarrollar un indicador zigzag basado únicamente en etiquetas HH, HL, LL, LH de baja
+temporalidad implica demasiado ruido en la data para entrenar modelos predictivos.
+
+
+
+
+Objetivo: Proporcionarle al algoritmo de entrenamiento de modelos predictivos una data limpia
+minimizando el efecto del ruido presente en las oscilaciones naturales del comportamiento del
+precio.
+
+Propuesta de uso de dos Indicadores zigzag para detecctar la interna y externa dirección del
+movimiento del precio:
+1) ZigZag Multi Time Frame with Fibonacci Retracement [ZZMTF]
+
+2) ZigZag Volume Profile [ChartPrime]
+Resultado de aplicar los dos indicadores con la configuración default de forma limpia, con
+displays y niveles de fibonacci deshabilitados en una gráfica de 1 minuto.
+
+La dirección interna es configurable y obtenible mediante el ajuste de la temporalidad en el
+
+
+
+
+indicador ZZMTF (15, 30 o 60) minutos y la dirección externa. Se observa en la presente gráfica
+mediante los segmentos de recta de colores verde y rojo. Por otro lado, la dirección externa se
+observa a través del indicador ZigZag Volume Profile que pinta los segmentos del zigzag en
+color azul.
+Enlace de un video de reproducción de ambos indicadores puestos en TradingView para observar
+los momentos donde los indicadores ponen sus segmentos zigzag, y como los altera tras recibir
+más data.
+
+Ubicado en la carpeta Proyecto de la Unidad 5:
+
+https://epnecuador-my.sharepoint.com/:v:/g/personal/josafa_aguiar_epn_edu_ec/IQDLif2-
+3O_cSrUooXC2k5ebAY4vt3JLGOdxOcRaxzeyB6Y?
+nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9yb
+SI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=ogKlJR
+
