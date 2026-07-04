@@ -120,6 +120,10 @@ sub new {
         _epoch_cache      => {},
         _volsum_cache     => {},
         _epoch_cache_size => {},
+        # task 0038: OHLC del día/semana en curso acumulado solo con velas <= index
+        # (no leer $md->{data}{D/W}->[-1], que incluye futuro respecto a replay_idx).
+        _daily_ohlc  => undef,
+        _weekly_ohlc => undef,
     };
     bless $self, $class;
     return $self;
@@ -175,6 +179,7 @@ sub update_last {
     }
 
     $self->_update_fsm($index, $high, $low, $close);
+    $self->_update_period_ohlc($index, $candle->[1], $high, $low, $close, $candle->[0]);
     $self->_detect_zones($index);
     return;
 }
@@ -780,6 +785,38 @@ sub _sum_volume_for_tf {
     return $volsum->[$end_idx] - $volsum->[$start_idx];
 }
 
+# task 0038: acumula H/L/O/C del bucket daily/weekly vigente en $index sin leer
+# los arrays D/W completos de MarketData (fuga de futuro en Replay).
+sub _update_period_ohlc {
+    my ($self, $index, $open, $high, $low, $close, $ts) = @_;
+    my $md = $self->{_market_data};
+    return unless $md && defined $ts;
+
+    for my $spec (['D', '_daily_ohlc'], ['W', '_weekly_ohlc']) {
+        my ($tf, $key) = @$spec;
+        my $bucket_ts = eval { $md->_bucket_timestamp($ts, $tf) };
+        next unless defined $bucket_ts;
+
+        my $state = $self->{$key};
+        if (!$state || !defined $state->{bucket_ts} || $state->{bucket_ts} ne $bucket_ts) {
+            $self->{$key} = {
+                bucket_ts => $bucket_ts,
+                open      => $open,
+                high      => $high,
+                low       => $low,
+                close     => $close,
+            };
+        } else {
+            $state->{high} = $high
+                if defined $high && (!defined $state->{high} || $high > $state->{high});
+            $state->{low} = $low
+                if defined $low && (!defined $state->{low} || $low < $state->{low});
+            $state->{close} = $close if defined $close;
+        }
+    }
+    return;
+}
+
 # =============================================================================
 # 7 zones detection (task 0011)
 # =============================================================================
@@ -916,44 +953,50 @@ sub _detect_zones {
         }
     }
 
-    # Zone 6: daily H/L/O/C
-    my $d_arr = $md ? $md->{data}->{'D'} : undef;
-    if ($d_arr && @$d_arr) {
-        my $d = $d_arr->[-1];
-        if ($d) {
-            for my $src ('daily_open', 'daily_high', 'daily_low', 'daily_close') {
-                my $idx = $src eq 'daily_open' ? 1 : $src eq 'daily_high' ? 2 : $src eq 'daily_low' ? 3 : 4;
-                my $sig = "zone_6:$src:$d->[$idx]";
-                if (!$seen->{$sig}) {
-                    $seen->{$sig} = 1;
-                    push @new_zones, {
-                        index => $index,
-                        type  => 'zone_6',
-                        price => $d->[$idx],
-                        meta  => { internal => 0, source => $src },
-                    };
-                }
+    # Zone 6: daily H/L/O/C (task 0038: solo bucket acumulado hasta $index)
+    my $d = $self->{_daily_ohlc};
+    if ($d) {
+        for my $pair (
+            ['daily_open',  $d->{open}],
+            ['daily_high',  $d->{high}],
+            ['daily_low',   $d->{low}],
+            ['daily_close', $d->{close}],
+        ) {
+            my ($src, $price) = @$pair;
+            next unless defined $price;
+            my $sig = "zone_6:$src:$price";
+            if (!$seen->{$sig}) {
+                $seen->{$sig} = 1;
+                push @new_zones, {
+                    index => $index,
+                    type  => 'zone_6',
+                    price => $price,
+                    meta  => { internal => 0, source => $src },
+                };
             }
         }
     }
 
-    # Zone 7: weekly H/L/O/C
-    my $w_arr = $md ? $md->{data}->{'W'} : undef;
-    if ($w_arr && @$w_arr) {
-        my $w = $w_arr->[-1];
-        if ($w) {
-            for my $src ('weekly_open', 'weekly_high', 'weekly_low', 'weekly_close') {
-                my $idx = $src eq 'weekly_open' ? 1 : $src eq 'weekly_high' ? 2 : $src eq 'weekly_low' ? 3 : 4;
-                my $sig = "zone_7:$src:$w->[$idx]";
-                if (!$seen->{$sig}) {
-                    $seen->{$sig} = 1;
-                    push @new_zones, {
-                        index => $index,
-                        type  => 'zone_7',
-                        price => $w->[$idx],
-                        meta  => { internal => 0, source => $src },
-                    };
-                }
+    # Zone 7: weekly H/L/O/C (task 0038: solo bucket acumulado hasta $index)
+    my $w = $self->{_weekly_ohlc};
+    if ($w) {
+        for my $pair (
+            ['weekly_open',  $w->{open}],
+            ['weekly_high',  $w->{high}],
+            ['weekly_low',   $w->{low}],
+            ['weekly_close', $w->{close}],
+        ) {
+            my ($src, $price) = @$pair;
+            next unless defined $price;
+            my $sig = "zone_7:$src:$price";
+            if (!$seen->{$sig}) {
+                $seen->{$sig} = 1;
+                push @new_zones, {
+                    index => $index,
+                    type  => 'zone_7',
+                    price => $price,
+                    meta  => { internal => 0, source => $src },
+                };
             }
         }
     }
@@ -1146,6 +1189,8 @@ sub reset {
     $self->{_epoch_cache}      = {};
     $self->{_volsum_cache}     = {};
     $self->{_epoch_cache_size} = {};
+    $self->{_daily_ohlc}  = undef;
+    $self->{_weekly_ohlc} = undef;
     return;
 }
 

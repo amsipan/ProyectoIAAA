@@ -744,6 +744,67 @@ sub build_ohlc_vol {
     is(scalar(@$zones1), scalar(@$zones2), 'equiv zones: mismo número tras reset');
 }
 
+# --- 26. Zone 6/7: sin fuga de futuro (alimentar hasta N == dataset truncado) ---
+# task 0038: antes leía D/W->[-1] del CSV completo; una vela futura con high=999
+# en el mismo día corrompía daily_high aunque replay_idx fuera 4.
+{
+    my @c = (
+        [10, 11, 10, 11, 5],
+        [11, 15, 11, 15, 10],
+        [13, 12, 12, 12, 20],
+        [12, 16, 12, 16, 30],
+        [14, 14, 13, 14, 40],    # idx 4 = tope replay
+        [14, 999, 13, 16, 50],   # idx 5: futuro mismo día (high=999)
+    );
+    my $replay_idx = 4;
+
+    my $md_full = build_ohlc_vol(\@c);
+    $md_full->build_tf_candles('D');
+    $md_full->build_tf_candles('W');
+
+    my $liq_full = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq_full->update_last($md_full, $_) for 0 .. $replay_idx;
+    my $zones_full = $liq_full->get_zones();
+
+    my $md_trunc = Market::MarketData->new();
+    for my $i (0 .. $replay_idx) {
+        my ($o, $h, $l, $c, $v) = @{ $c[$i] };
+        my $ts = sprintf("2026-04-06T00:%02d:00-05:00", $i);
+        $md_trunc->add_candle([$ts, $o, $h, $l, $c, $v]);
+    }
+    $md_trunc->build_tf_candles('D');
+    $md_trunc->build_tf_candles('W');
+
+    my $liq_trunc = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq_trunc->update_last($md_trunc, $_) for 0 .. $md_trunc->last_index;
+    my $zones_trunc = $liq_trunc->get_zones();
+
+    sub zone6_7_prices_by_source {
+        my ($zones) = @_;
+        my %out;
+        for my $z (@$zones) {
+            next unless $z->{type} =~ /^zone_[67]$/;
+            my $src = $z->{meta}->{source} // '';
+            $out{"$z->{type}:$src"} = $z->{price};
+        }
+        return \%out;
+    }
+
+    my $full_map  = zone6_7_prices_by_source($zones_full);
+    my $trunc_map = zone6_7_prices_by_source($zones_trunc);
+
+    is($full_map->{'zone_6:daily_high'}, 16,
+       'Zone 6 replay: daily_high acumulado hasta N (no 999 del futuro)');
+    is($trunc_map->{'zone_6:daily_high'}, 16,
+       'Zone 6 truncado: daily_high coherente');
+    is($full_map->{'zone_6:daily_high'}, $trunc_map->{'zone_6:daily_high'},
+       'Zone 6: full-hasta-N == truncado en daily_high');
+    is($full_map->{'zone_7:weekly_high'}, $trunc_map->{'zone_7:weekly_high'},
+       'Zone 7: full-hasta-N == truncado en weekly_high');
+    ok(!scalar(grep { $_ == 999 } values %$full_map),
+       'Zone 6/7: ningún precio depende de la vela futura (999)');
+}
+
 # =============================================================================
 # TASK 0013: Volume multi-TF timestamp-based validation
 # =============================================================================
