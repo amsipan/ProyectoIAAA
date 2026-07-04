@@ -1,5 +1,8 @@
 # Task 0037: [CRÍTICO] Zoom/Replay deja el eje Y corrupto → velas desaparecen
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - Reporte del usuario (04/07) con captura: movió el zoom y las velas desaparecieron;
   la pantalla quedó casi en blanco con el eje Y en ~20163-29986 aunque los datos de

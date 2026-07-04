@@ -211,25 +211,25 @@ sub compute_window {
     my $total_candles = $self->{market_data}->size();
     return (0, -1) if !$total_candles || $total_candles <= 0;
 
-    if ($total_candles >= MIN_VISIBLE_BARS) {
-        $self->{visible_bars} = MIN_VISIBLE_BARS if $self->{visible_bars} < MIN_VISIBLE_BARS;
-    } else {
-        $self->{visible_bars} = $total_candles;
-    }
-
-    $self->{visible_bars} = $total_candles if $self->{visible_bars} > $total_candles;
-    $self->{visible_bars} = MAX_VISIBLE_BARS if $self->{visible_bars} > MAX_VISIBLE_BARS;
-
-    $self->{offset} = $self->_clamp_offset($self->{offset});
-
     # spec 0002: si Replay está activo, el límite superior efectivo es replay_idx.
-    # Ninguna capa debe leer/dibujar velas con índice > replay_idx.
     my $replay = $self->{replay_controller};
     my $effective_total = $total_candles;
     if ($replay && $replay->is_active()) {
         my $eff_end = $replay->effective_end($total_candles - 1);
         $effective_total = $eff_end + 1;
     }
+    my $window_total = ($replay && $replay->is_active()) ? $effective_total : $total_candles;
+
+    if ($window_total >= MIN_VISIBLE_BARS) {
+        $self->{visible_bars} = MIN_VISIBLE_BARS if $self->{visible_bars} < MIN_VISIBLE_BARS;
+    } else {
+        $self->{visible_bars} = $window_total;
+    }
+
+    $self->{visible_bars} = $window_total if $self->{visible_bars} > $window_total;
+    $self->{visible_bars} = MAX_VISIBLE_BARS if $self->{visible_bars} > MAX_VISIBLE_BARS;
+
+    $self->{offset} = $self->_clamp_offset($self->{offset}, $window_total);
 
     my $end_idx = $effective_total - 1 - $self->{offset};
     my $start_idx = $end_idx - $self->{visible_bars} + 1;
@@ -241,6 +241,18 @@ sub compute_window {
     # Solo bajo Replay se clampa para no pintar índices fuera del tope.
     if ($replay && $replay->is_active()) {
         $start_idx = 0 if $start_idx < 0;
+    }
+
+    # task 0037: ventana inválida (p.ej. offset heredado + replay_idx bajo) → forzar
+    # índices coherentes para que get_slice nunca devuelva solo undef por start > end.
+    if ($start_idx > $end_idx) {
+        $end_idx = $effective_total - 1;
+        $start_idx = $end_idx - $self->{visible_bars} + 1;
+        if ($replay && $replay->is_active()) {
+            $start_idx = 0 if $start_idx < 0;
+        }
+        $self->{offset} = $effective_total - 1 - $end_idx;
+        $self->{offset} = $self->_clamp_offset($self->{offset}, $window_total);
     }
 
     return ($start_idx, $end_idx);
@@ -353,18 +365,18 @@ sub round {
 }
 
 sub _max_offset_for_visible {
-    my ($self) = @_;
+    my ($self, $total_override) = @_;
 
-    my $total = $self->{market_data}->size() || 0;
+    my $total = defined $total_override ? $total_override : ($self->{market_data}->size() || 0);
     return 0 if $total < MIN_VISIBLE_BARS;
 
     return ($total - MIN_VISIBLE_BARS) > 0 ? ($total - MIN_VISIBLE_BARS) : 0;
 }
 
 sub _min_offset_for_visible {
-    my ($self) = @_;
+    my ($self, $total_override) = @_;
 
-    my $total = $self->{market_data}->size() || 0;
+    my $total = defined $total_override ? $total_override : ($self->{market_data}->size() || 0);
     return 0 if $total < MIN_VISIBLE_BARS;
 
 
@@ -375,14 +387,30 @@ sub _min_offset_for_visible {
 }
 
 sub _clamp_offset {
-    my ($self, $offset) = @_;
+    my ($self, $offset, $total_override) = @_;
 
     $offset = 0 if !defined $offset;
-    my $min_offset = $self->_min_offset_for_visible();
-    my $max_offset = $self->_max_offset_for_visible();
+    my $min_offset = $self->_min_offset_for_visible($total_override);
+    my $max_offset = $self->_max_offset_for_visible($total_override);
     $offset = $min_offset if $offset < $min_offset;
     $offset = $max_offset if $offset > $max_offset;
     return $offset;
+}
+
+sub _visible_slice_has_candles {
+    my ($self, $slice) = @_;
+
+    return 0 unless $slice && @$slice;
+    for my $c (@$slice) {
+        next unless defined $c && ref $c eq 'ARRAY';
+        return 1 if defined $c->[2] || defined $c->[3];
+    }
+    return 0;
+}
+
+sub _is_price_y_fallback {
+    my ($self, $min, $max) = @_;
+    return defined $min && defined $max && $min == 20000 && $max == 30000;
 }
 
 sub _pad_visible_slice {
@@ -480,19 +508,30 @@ sub render {
     # 3. Calcular rangos de precios e indicadores para construir escalas dinámicas
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
     my ($min_a, $max_a) = $self->{atr_panel}->get_y_range($visible_atr);
+    my $has_price_candles = $self->_visible_slice_has_candles($visible_candles);
     
     if (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
         ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
-    } elsif (defined $self->{ctrl_zoom_y_lock_min} && defined $self->{ctrl_zoom_y_lock_max}) {
+    } elsif (!$self->{is_auto_scale}
+        && defined $self->{ctrl_zoom_y_lock_min}
+        && defined $self->{ctrl_zoom_y_lock_max}) {
         ($min_p, $max_p) = ($self->{ctrl_zoom_y_lock_min}, $self->{ctrl_zoom_y_lock_max});
-    } elsif ($self->{is_auto_scale}) {
+    } elsif ($self->{is_auto_scale} && $has_price_candles) {
         ($self->{manual_min_y}, $self->{manual_max_y}) = ($min_p, $max_p);
         ($self->{last_auto_min_y}, $self->{last_auto_max_y}) = ($min_p, $max_p);
     }
 
-    if (!defined $min_p || !defined $max_p || $min_p == $max_p) {
-        $min_p = 20000;
-        $max_p = 30000;
+    if (!defined $min_p || !defined $max_p || $min_p == $max_p || !$has_price_candles) {
+        if (defined $self->{last_auto_min_y} && defined $self->{last_auto_max_y}
+            && !$self->_is_price_y_fallback($self->{last_auto_min_y}, $self->{last_auto_max_y})) {
+            ($min_p, $max_p) = ($self->{last_auto_min_y}, $self->{last_auto_max_y});
+        } elsif (!$self->{is_auto_scale}
+            && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+            ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
+        } else {
+            $min_p = 20000;
+            $max_p = 30000;
+        }
     }
     if (!$self->{is_atr_auto_scale} && defined $self->{atr_manual_min_y} && defined $self->{atr_manual_max_y}) {
         ($min_a, $max_a) = ($self->{atr_manual_min_y}, $self->{atr_manual_max_y});
@@ -1720,10 +1759,12 @@ sub _compute_visible_atr_y_range {
 sub _capture_price_y_range {
     my ($self) = @_;
 
-    if (defined $self->{last_auto_min_y} && defined $self->{last_auto_max_y}) {
+    if (defined $self->{last_auto_min_y} && defined $self->{last_auto_max_y}
+        && !$self->_is_price_y_fallback($self->{last_auto_min_y}, $self->{last_auto_max_y})) {
         return ($self->{last_auto_min_y}, $self->{last_auto_max_y});
     }
-    if (defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
+    if (defined $self->{manual_min_y} && defined $self->{manual_max_y}
+        && !$self->_is_price_y_fallback($self->{manual_min_y}, $self->{manual_max_y})) {
         return ($self->{manual_min_y}, $self->{manual_max_y});
     }
     my $scale = $self->{price_panel} ? $self->{price_panel}->{scale} : undef;
@@ -1782,6 +1823,8 @@ sub set_scale_mode {
         $self->{is_auto_scale} = 1;
         $self->{manual_min_y} = undef;
         $self->{manual_max_y} = undef;
+        $self->{ctrl_zoom_y_lock_min} = undef;
+        $self->{ctrl_zoom_y_lock_max} = undef;
     } else {
         $self->{is_auto_scale} = 0;
         $self->{ctrl_zoom_y_lock_min} = undef;

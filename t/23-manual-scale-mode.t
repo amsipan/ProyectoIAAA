@@ -134,11 +134,16 @@ sub build_chart {
     $chart->{manual_max_y} = 120;
     $chart->{is_auto_scale} = 0;
 
+    $chart->{ctrl_zoom_y_lock_min} = 50;
+    $chart->{ctrl_zoom_y_lock_max} = 80;
+
     $chart->set_scale_mode('auto');
 
     ok($chart->{is_auto_scale}, 'auto: is_auto_scale=1');
     ok(!defined $chart->{manual_min_y}, 'auto: manual_min_y limpiado');
     ok(!defined $chart->{manual_max_y}, 'auto: manual_max_y limpiado');
+    ok(!defined $chart->{ctrl_zoom_y_lock_min}, 'auto: ctrl_zoom_y_lock_min limpiado');
+    ok(!defined $chart->{ctrl_zoom_y_lock_max}, 'auto: ctrl_zoom_y_lock_max limpiado');
 }
 
 done_testing();
