@@ -97,7 +97,9 @@ sub new {
         axis_drag_min_y  => undef,
         axis_drag_max_y  => undef,
         vertical_drag_y  => undef,
-        
+        _replay_select_mode => 0,
+        _selected_bar       => undef,
+
         %args,
     };
     bless $self, $class;
@@ -574,6 +576,7 @@ sub render {
     }
 
     $self->_draw_crosshair_all() if defined $self->{last_mouse_x};
+    $self->_draw_replay_select_marker();
     $self->_redraw_pointer_symbol();
 }
 
@@ -761,6 +764,124 @@ sub _redraw_pointer_symbol {
     return;
 }
 
+# ----------------------------------------------------------------------------
+# Replay Select Bar (task 0030): elegir vela de inicio con click + Shift+flechas.
+# ----------------------------------------------------------------------------
+
+sub set_replay_select_mode {
+    my ($self, $on) = @_;
+    $self->{_replay_select_mode} = $on ? 1 : 0;
+    return $self;
+}
+
+sub is_replay_select_mode {
+    my ($self) = @_;
+    return $self->{_replay_select_mode} ? 1 : 0;
+}
+
+sub selected_bar {
+    my ($self) = @_;
+    return $self->{_selected_bar};
+}
+
+sub set_selected_bar {
+    my ($self, $idx) = @_;
+    return $self unless defined $idx;
+    my $md = $self->{market_data};
+    my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
+    $idx = 0 if $idx < 0;
+    $idx = $last if $idx > $last;
+    $self->{_selected_bar} = $idx;
+    return $self;
+}
+
+sub adjust_selected_bar {
+    my ($self, $delta) = @_;
+    return $self unless $self->{_replay_select_mode};
+    my $idx;
+    if (!defined $self->{_selected_bar}) {
+        $idx = $self->_global_index_from_x($self->{last_mouse_x});
+        $idx = 0 unless defined $idx;
+    }
+    else {
+        $idx = $self->{_selected_bar} + $delta;
+    }
+    return $self->set_selected_bar($idx);
+}
+
+# replay_start_index — índice para ReplayController->start: selected-1 o auto.
+sub replay_start_index {
+    my ($self) = @_;
+    if (defined $self->{_selected_bar}) {
+        my $idx = $self->{_selected_bar} - 1;
+        $idx = 0 if $idx < 0;
+        my $md = $self->{market_data};
+        my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
+        $idx = $last if $idx > $last;
+        return $idx;
+    }
+    my $md = $self->{market_data};
+    my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
+    my $vis = $self->{visible_bars} || 60;
+    my $start_idx = $last - $vis;
+    return $start_idx < 0 ? 0 : $start_idx;
+}
+
+# _global_index_from_x($x) — índice GLOBAL bajo la coordenada X del canvas.
+sub _global_index_from_x {
+    my ($self, $x) = @_;
+    return undef unless defined $x;
+
+    my ($start, $end) = $self->compute_window();
+    my $bars = $end - $start + 1;
+    return undef if $bars < 1;
+
+    my $scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $local = $scale->x_to_index($x);
+    return $start + $local;
+}
+
+sub _draw_replay_select_marker {
+    my ($self) = @_;
+    my $tag = 'replay_select_marker';
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        eval { $canvas->delete($tag) } if $canvas;
+    }
+    return unless defined $self->{_selected_bar};
+
+    my ($start, $end) = $self->compute_window();
+    my $global = $self->{_selected_bar};
+    return if $global < $start || $global > $end;
+
+    my $local = $global - $start;
+    my $bars = $end - $start + 1;
+    my $scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $x = $scale->index_to_center_x($local);
+    my $color = $self->{theme}{replay_select} // '#e67e22';
+
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        my (undef, $h) = $self->_canvas_size($canvas);
+        next unless defined $h && $h > 0;
+        eval {
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill => $color, -width => 2, -dash => '.', -tags => $tag,
+            );
+        };
+    }
+}
+
 sub _bind_all_canvas {
     my ($self) = @_;
     
@@ -810,6 +931,16 @@ sub _bind_all_canvas {
         $p_canvas->Tk::bind('<Key-minus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(1.1); });
         $p_canvas->Tk::bind('<Up>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(-10); });
         $p_canvas->Tk::bind('<Down>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(10); });
+        $p_canvas->Tk::bind('<Shift-Left>', sub {
+            return unless $self->{_replay_select_mode};
+            $self->adjust_selected_bar(-1);
+            $self->request_render();
+        });
+        $p_canvas->Tk::bind('<Shift-Right>', sub {
+            return unless $self->{_replay_select_mode};
+            $self->adjust_selected_bar(1);
+            $self->request_render();
+        });
         $p_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($p_canvas, 'crosshair'); $p_canvas->focus; });
         $p_canvas->Tk::bind('<Leave>', sub {
             $self->_set_cursor($p_canvas, 'crosshair');
@@ -859,6 +990,16 @@ sub _bind_all_canvas {
         $a_canvas->Tk::bind('<Key-minus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(1.1); });
         $a_canvas->Tk::bind('<Up>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(-10); });
         $a_canvas->Tk::bind('<Down>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(10); });
+        $a_canvas->Tk::bind('<Shift-Left>', sub {
+            return unless $self->{_replay_select_mode};
+            $self->adjust_selected_bar(-1);
+            $self->request_render();
+        });
+        $a_canvas->Tk::bind('<Shift-Right>', sub {
+            return unless $self->{_replay_select_mode};
+            $self->adjust_selected_bar(1);
+            $self->request_render();
+        });
         $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); $a_canvas->focus; });
         $a_canvas->Tk::bind('<Leave>', sub {
             $self->_set_cursor($a_canvas, 'crosshair');
@@ -1252,6 +1393,15 @@ sub _horizontal_zoom {
 
 sub _start_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
+
+    if ($self->{_replay_select_mode}) {
+        my $idx = $self->_global_index_from_x($x);
+        if (defined $idx) {
+            $self->set_selected_bar($idx);
+            $self->request_render();
+        }
+        return;
+    }
 
     # spec 0000c: preservar x_shift para paneo fraccional suave. NO limpiar
     # ctrl_zoom_state aquí; reset_view/set_timeframe sí lo resetean cuando corresponde.

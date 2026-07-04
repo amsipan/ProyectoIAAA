@@ -103,9 +103,23 @@ sub _replay {
     return $chart->{replay_controller};
 }
 
+# _replay_start_index($chart) — índice inicial para Replay (task 0030).
+# Si hay vela seleccionada: selected-1 (la seleccionada no cuenta).
+# Si no: last - visible_bars (comportamiento automático previo).
+sub _replay_start_index {
+    my ($chart) = @_;
+    if ($chart->can('replay_start_index')) {
+        return $chart->replay_start_index();
+    }
+    my $md = $chart->{market_data};
+    my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
+    my $vis = $chart->{visible_bars} || 60;
+    my $start_idx = $last - $vis;
+    return $start_idx < 0 ? 0 : $start_idx;
+}
+
 # make_replay_start($chart, $vars) — Inicio Replay.
-# Arranca el replay en un índice inicial razonable (visible_bars atrás del
-# final para que se vean velas previas al puntero) y pide re-render.
+# Arranca el replay en el índice elegido (Select Bar) o automático y pide re-render.
 sub make_replay_start {
     my ($class, $chart, $vars) = @_;
     die "make_replay_start: requiere \$chart" unless $chart;
@@ -113,15 +127,21 @@ sub make_replay_start {
     return sub {
         my $rc = _replay($chart);
         return unless $rc;
-        # Índice inicial = último índice - ventana visible, clamp a >= 0.
-        # Así arrancamos viendo N velas antes del puntero de replay.
-        my $md = $chart->{market_data};
-        my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
-        my $vis = $chart->{visible_bars} || 60;
-        my $start_idx = $last - $vis;
-        $start_idx = 0 if $start_idx < 0;
-        $rc->start($start_idx);
+        $rc->start(_replay_start_index($chart));
         ${$ref} = 1 if $ref;
+        $chart->request_render();
+    };
+}
+
+# make_replay_select_bar($chart, $vars) — activa/desactiva modo Select Bar (task 0030).
+sub make_replay_select_bar {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_select_bar: requiere \$chart" unless $chart;
+    my $mode_ref = ref($vars) eq 'HASH' ? $vars->{replay_select_mode} : undef;
+    return sub {
+        my $on = $chart->can('is_replay_select_mode') && $chart->is_replay_select_mode() ? 0 : 1;
+        ${$mode_ref} = $on if $mode_ref;
+        $chart->set_replay_select_mode($on) if $chart->can('set_replay_select_mode');
         $chart->request_render();
     };
 }
@@ -140,12 +160,7 @@ sub make_replay_play {
         # Si el replay no está activo, lo arrancamos en el último índice
         # visibilizable para que play tenga efecto desde la UI.
         if (!$rc->is_active()) {
-            my $md = $chart->{market_data};
-            my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
-            my $vis = $chart->{visible_bars} || 60;
-            my $start_idx = $last - $vis;
-            $start_idx = 0 if $start_idx < 0;
-            $rc->start($start_idx);
+            $rc->start(_replay_start_index($chart));
         }
         my $tick = sub {
             my $idx = $rc->step_forward();
@@ -213,12 +228,7 @@ sub make_replay_step_fwd {
         # Si no hay replay activo, arrancamos en el índice visible actual
         # (mismo criterio que play/start) para que step funcione desde la UI.
         if (!$rc->is_active()) {
-            my $md = $chart->{market_data};
-            my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
-            my $vis = $chart->{visible_bars} || 60;
-            my $start_idx = $last - $vis;
-            $start_idx = 0 if $start_idx < 0;
-            $rc->start($start_idx);
+            $rc->start(_replay_start_index($chart));
         }
         $rc->step_forward();
         $chart->request_render();
@@ -233,12 +243,7 @@ sub make_replay_step_back {
         my $rc = _replay($chart);
         return unless $rc;
         if (!$rc->is_active()) {
-            my $md = $chart->{market_data};
-            my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
-            my $vis = $chart->{visible_bars} || 60;
-            my $start_idx = $last - $vis;
-            $start_idx = 0 if $start_idx < 0;
-            $rc->start($start_idx);
+            $rc->start(_replay_start_index($chart));
         }
         $rc->step_backward();
         $chart->request_render();
@@ -256,12 +261,7 @@ sub make_replay_fast_fwd {
         my $rc = _replay($chart);
         return unless $rc;
         if (!$rc->is_active()) {
-            my $md = $chart->{market_data};
-            my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
-            my $vis = $chart->{visible_bars} || 60;
-            my $start_idx = $last - $vis;
-            $start_idx = 0 if $start_idx < 0;
-            $rc->start($start_idx);
+            $rc->start(_replay_start_index($chart));
         }
         $rc->fast_forward($n);
         $chart->request_render();

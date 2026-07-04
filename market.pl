@@ -123,8 +123,10 @@ my $atr_scale_mode = 'auto';
 my $active_tf = '1m';
 my $htf_enabled = 0;
 my $replay_on   = 0;
+my $replay_select_mode = 0;
 my %ui_vars = (
     active_tf => \$active_tf, htf_enabled => \$htf_enabled, replay_on => \$replay_on,
+    replay_select_mode => \$replay_select_mode,
 );
 
 my $chart_engine = Market::ChartEngine->new(
@@ -316,15 +318,16 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     my $p = $panel{Replay};
     $p->Label(-text => 'Replay:')->pack(-side => 'left', -padx => 3);
     my %rep_btn = (
-        'Inicio' => Market::UI::Callbacks->make_replay_start($chart_engine, \%ui_vars),
-        'Play'   => Market::UI::Callbacks->make_replay_play($chart_engine, $mw, \%ui_vars),
-        'Pause'  => Market::UI::Callbacks->make_replay_pause($chart_engine, \%ui_vars),
-        '>'      => Market::UI::Callbacks->make_replay_step_fwd($chart_engine),
-        '<'      => Market::UI::Callbacks->make_replay_step_back($chart_engine),
-        '>>'     => Market::UI::Callbacks->make_replay_fast_fwd($chart_engine, $mw, \%ui_vars),
-        'Salir'  => Market::UI::Callbacks->make_replay_exit($chart_engine, \%ui_vars),
+        'Select Bar' => Market::UI::Callbacks->make_replay_select_bar($chart_engine, \%ui_vars),
+        'Inicio'     => Market::UI::Callbacks->make_replay_start($chart_engine, \%ui_vars),
+        'Play'       => Market::UI::Callbacks->make_replay_play($chart_engine, $mw, \%ui_vars),
+        'Pause'      => Market::UI::Callbacks->make_replay_pause($chart_engine, \%ui_vars),
+        '>'          => Market::UI::Callbacks->make_replay_step_fwd($chart_engine),
+        '<'          => Market::UI::Callbacks->make_replay_step_back($chart_engine),
+        '>>'         => Market::UI::Callbacks->make_replay_fast_fwd($chart_engine, $mw, \%ui_vars),
+        'Salir'      => Market::UI::Callbacks->make_replay_exit($chart_engine, \%ui_vars),
     );
-    for my $lbl ('Inicio', 'Play', 'Pause', '<', '>', '>>', 'Salir') {
+    for my $lbl ('Select Bar', 'Inicio', 'Play', 'Pause', '<', '>', '>>', 'Salir') {
         $p->Button(-text => $lbl, -command => $rep_btn{$lbl}, -padx => 3)
             ->pack(-side => 'left', -padx => 1);
     }

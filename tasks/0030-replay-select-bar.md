@@ -1,5 +1,8 @@
 # Task 0030: Replay — seleccionar vela de inicio (Select Bar)
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - ORDEN 18 de `tasks/0021-volatility-and-choch-noise.md`.
 - Notas WhatsApp profe (29/06): "Elegir una vela y de ahí que haga play";
