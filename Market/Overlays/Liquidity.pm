@@ -160,6 +160,7 @@ sub compute_visible {
     $self->{_compute_range} = [$start, $end];
     $self->{_replay_idx}    = $end;
     $self->{_draw_end_idx}  = $end;
+    $self->{_market_data}   = $market_data;
 
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
@@ -347,6 +348,7 @@ sub draw {
                 $self->_color('liq_grab', '#ff9800'), $level,
             );
         } elsif ($type eq 'RUN' && $ev->{RUN}) {
+            $self->_highlight_run_candle($canvas, $scales, $tag, $e);
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ RUN',
                 $self->_color('liq_run', '#2962ff'), $level,
@@ -496,6 +498,44 @@ sub _draw_pair_line {
         -font   => $internal ? 'Helvetica 7' : 'Helvetica 8 bold',
         -fill   => $label_color,
         -tags   => $tag,
+    );
+    return;
+}
+
+# _highlight_run_candle — resalta la vela del RUN (task 0025, overlay halo).
+sub _highlight_run_candle {
+    my ($self, $canvas, $scales, $tag, $e) = @_;
+    my $md = $self->{_market_data};
+    return unless $md && $md->can('get_candle');
+    my $idx = $e->{index};
+    return unless defined $idx;
+    my $candle = $md->get_candle($idx);
+    return unless $candle && @$candle >= 5;
+    my (undef, $open, $high, $low, $close) = @$candle[0 .. 4];
+    my $cx = $scales->index_to_center_x($self->_local_index($idx));
+    my $bars = $scales->{bars} || 1;
+    my $bar_w = $scales->plot_width() / $bars;
+    my $color = $self->_color('liq_run_highlight', '#2962ff');
+    my $y_h = $scales->value_to_y($high);
+    my $y_l = $scales->value_to_y($low);
+
+    if ($bar_w < 2) {
+        $canvas->createLine(
+            $cx, $y_h, $cx, $y_l,
+            -fill => $color, -width => 3, -tags => $tag,
+        );
+        return;
+    }
+
+    my $half = $bar_w * 0.35;
+    $half = 1 if $half < 1;
+    $canvas->createRectangle(
+        $cx - $half, $y_h, $cx + $half, $y_l,
+        -fill    => $color,
+        -stipple => 'gray50',
+        -outline => $color,
+        -width   => 2,
+        -tags    => $tag,
     );
     return;
 }

@@ -1,5 +1,8 @@
 # Task 0025: Colorear velas donde ocurrió un liquidity RUN
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - ORDEN 13 de `tasks/0021-volatility-and-choch-noise.md`.
 - Nota WhatsApp profe (29/06): "Cambiar colores de velas importantes para saber

@@ -72,7 +72,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0022 | Estructura: líneas externas sólidas, internas entrecortadas | ✅ hecho |
 | 0023 | FVG vigente solo cerca del precio actual | ✅ hecho |
 | 0024 | Grab/Run: solapamiento (apilado vertical) | ✅ hecho |
-| 0025 | Colorear velas de liquidity RUN | pendiente |
+| 0025 | Colorear velas de liquidity RUN | ✅ hecho |
 | 0026 | Etiquetar Order Blocks como "OB" | ✅ hecho |
 | 0027 | BSL/SSL más limpio en banda (tarea E) | ✅ hecho |
 | 0028 | Strong/Weak High/Low | ✅ hecho |
@@ -89,7 +89,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 2. ~~**0031** — El canal~~ ✅
 3. ~~**0028** — Strong/Weak High/Low~~ ✅
 4. ~~**0027** — BSL/SSL en banda~~ ✅
-5. **0025** — Colorear velas de liquidity RUN (la más intrusiva, al final).
+5. ~~**0025** — Colorear velas de liquidity RUN~~ ✅
 
 ## Plantilla
 

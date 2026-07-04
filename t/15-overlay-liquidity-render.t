@@ -624,4 +624,44 @@ sub _line_signature {
     ok(!$rects, 'band_mode OFF: sin rectángulos de banda');
 }
 
+# =============================================================================
+# task 0025: resaltar velas donde ocurrió un RUN relevante
+# =============================================================================
+{
+    package MockMDRun;
+    sub new {
+        my ($class, $candles) = @_;
+        return bless { candles => $candles }, $class;
+    }
+    sub get_candle {
+        my ($self, $i) = @_;
+        return $self->{candles}[$i];
+    }
+}
+{
+    my $md = MockMDRun->new([
+        undef,
+        ['ts', 10, 12, 9, 11, 100],
+        ['ts', 11, 13, 10, 12, 100],
+        ['ts', 12, 14, 11, 13, 100],
+    ]);
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 2, type => 'RUN', dir => 'up', price => 13, extreme => 13, relevant => 1 },
+        ],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, only_relevant => 1);
+    $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP GRAB);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 20, 6);
+    $ov->compute_visible($md, $ind, 0, 5);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    ok(scalar(@rects) >= 1, 'RUN: vela resaltada con rectángulo halo');
+    my $run_hl = (grep { op_arg($_, 'outline') eq '#2962ff' } @rects)[0];
+    ok($run_hl, 'RUN: halo usa color azul #2962ff');
+}
+
 done_testing();
