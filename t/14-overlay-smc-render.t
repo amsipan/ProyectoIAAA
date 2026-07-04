@@ -381,11 +381,79 @@ sub make_scales {
 
     my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
     is(scalar(@lines), 1, 'BOS con start_index: crea una linea para representar el breakout');
-    
+
+    my $x_left  = $scales->index_to_x(2);
+    my $x_right = $scales->index_to_x(6);
+    is($lines[0]->[1], $x_left,  'BOS: linea inicia en borde izquierdo del pivote');
+    is($lines[0]->[3], $x_right, 'BOS: linea termina en borde derecho de la vela de quiebre');
+
     my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'BOS' } @{ $canvas->{ops} };
     is(scalar(@texts), 1, 'BOS con start_index: crea un texto BOS');
-    my $expected_mid_x = ($scales->index_to_center_x(2) + $scales->index_to_center_x(5)) / 2;
+    my $expected_mid_x = ($x_left + $x_right) / 2;
     ok(abs($texts[0]->[1] - $expected_mid_x) < 0.001, 'BOS con start_index: texto centrado en el medio de la linea');
+    is($texts[0]->[6], 's', 'BOS alcista: etiqueta anclada arriba (anchor s)');
+}
+
+# =============================================================================
+# Test 10 (task 0034): pivote off-screen, downsample y anchor por direccion.
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        events => [
+            { index => 50, type => 'CHoCH_true', dir => 'down', price => 12, start_index => 30 },
+            { index => 8,  type => 'BOS',        dir => 'down', price => 14, start_index => 6 },
+        ],
+    );
+    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 21);
+
+    $ov->compute_visible(undef, $ind, 40, 60);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is(scalar(@lines), 1, 'CHoCH bajista: una linea de evento');
+    is($lines[0]->[1], 0, 'CHoCH: pivote off-screen recorta x_start al borde izquierdo');
+    my $fill = undef;
+    for my $i (0 .. $#{$lines[0]} - 1) {
+        $fill = $lines[0]->[$i + 1] if defined $lines[0]->[$i] && $lines[0]->[$i] eq '-fill';
+    }
+    is($fill, '#ef5350', 'CHoCH bajista: color rojo por direccion');
+
+    $ov->compute_visible(undef, $ind, 0, 9);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @bos_texts = grep { $_->[0] eq 'createText' && $_->[4] eq 'BOS' } @{ $canvas->{ops} };
+    is(scalar(@bos_texts), 1, 'BOS bajista: etiqueta presente');
+    is($bos_texts[0]->[6], 'n', 'BOS bajista: etiqueta anclada abajo (anchor n)');
+}
+
+# =============================================================================
+# Test 11 (task 0034): downsample (bar_w < 2) alinea extremos de linea.
+# =============================================================================
+{
+    my $ind = TestIndicator->new(
+        events => [
+            { index => 5, type => 'BOS', dir => 'up', price => 15, start_index => 2 },
+        ],
+    );
+    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 100);
+    $scales->{width} = 200;
+
+    $ov->compute_visible(undef, $ind, 0, 99);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is(scalar(@lines), 1, 'downsample: una linea BOS');
+    my $plot_w = 200;
+    my $x_left  = 2 * $plot_w / 100;
+    my $x_right = 6 * $plot_w / 100;
+    ok(abs($lines[0]->[1] - $x_left)  < 0.01, 'downsample: x_start alineado por pixel');
+    ok(abs($lines[0]->[3] - $x_right) < 0.01, 'downsample: x_end alineado por pixel');
 }
 
 done_testing();

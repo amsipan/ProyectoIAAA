@@ -81,7 +81,7 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0031 | El canal (tarea J) | pendiente (confirmar) |
 | 0032 | Rediseño barra de controles con pestañas | ✅ hecho |
 | 0033 | Dirección precio interna/externa vía ZigZag (NUEVO enfoque profe) | pendiente (desbloqueada; convive, no reemplaza) |
-| 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | pendiente |
+| 0034 | SMC CHoCH/BOS líneas mal dibujadas (a media vela) | ✅ hecho |
 | 0035 | Modo Manual de escala fallando | ✅ hecho |
 
 ## Plantilla

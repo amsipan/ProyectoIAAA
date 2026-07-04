@@ -1,5 +1,8 @@
 # Task 0034: SMC CHoCH/BOS — líneas mal dibujadas (a mitad de vela, colores/posición)
 
+## Estado
+✅ **Hecho** (2026-07-03)
+
 ## Origen
 - Reporte del usuario (03/07) con captura, capa SMC activa en 2h:
   1. Las líneas de CHoCH/BOS salen de un extremo de una vela pero **no llegan al

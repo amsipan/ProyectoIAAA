@@ -142,6 +142,48 @@ sub _local_index {
     return $index - $start;
 }
 
+# Borde izquierdo de la barra local (alineado con PricePanel, incl. downsample).
+sub _bar_left_x {
+    my ($self, $scales, $local) = @_;
+    my $bars  = $scales->{bars} || 1;
+    my $bar_w = $scales->plot_width() / $bars;
+    if ($bar_w < 2) {
+        my $plot_w = int($scales->plot_width());
+        $plot_w = 1 if $plot_w < 1;
+        my $x_shift = $scales->{x_shift} || 0;
+        return $local * $plot_w / $bars + $x_shift;
+    }
+    return $scales->index_to_x($local);
+}
+
+# Borde derecho de la barra local (extremo derecho de la vela).
+sub _bar_right_x {
+    my ($self, $scales, $local) = @_;
+    return $self->_bar_left_x($scales, $local + 1);
+}
+
+# Span horizontal [x_start, x_end] para un evento BOS/CHoCH entre dos índices globales.
+# Usa extremos de vela (no centros) y recorta al viewport cuando el pivote queda off-screen.
+sub _event_line_x_bounds {
+    my ($self, $scales, $start_global, $end_global) = @_;
+    my $range = $self->{_compute_range};
+    my $win_start = $range ? ($range->[0] // 0) : 0;
+    my $bars      = $scales->{bars} || 1;
+    my $plot_w    = $scales->plot_width();
+
+    my $local_start = $start_global - $win_start;
+    my $local_end   = $end_global - $win_start;
+
+    my $x_start = $self->_bar_left_x($scales, $local_start);
+    my $x_end   = $self->_bar_right_x($scales, $local_end);
+
+    $x_start = 0     if $local_start < 0;
+    $x_end   = $plot_w if $local_end >= $bars;
+
+    ($x_start, $x_end) = ($x_end, $x_start) if $x_start > $x_end;
+    return ($x_start, $x_end);
+}
+
 # --- helpers de tema (defaults claros, override por el tema inyectado) ----------
 
 sub _color {
@@ -229,40 +271,44 @@ sub draw {
         next unless defined $e->{index} && defined $e->{type};
         next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
         
-        my $x_end = $scales->index_to_center_x($self->_local_index($e->{index}));
         my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
-        my ($label, $color);
+        my ($label, $color, $dash);
         my $dir = $e->{dir} // 'up';
         my $dir_color = $dir eq 'up' ? '#26a69a' : '#ef5350';
         if ($e->{type} eq 'BOS') {
             $label = 'BOS';
-            $color = $self->{theme}{smc_bos} // $dir_color;
+            $color = $dir_color;
+            $color = $self->{theme}{smc_bos} if defined $self->{theme}{smc_bos};
+            $dash  = [3, 3];
         } elsif ($e->{type} eq 'CHoCH_true') {
             $label = 'CHoCH';
-            $color = $self->{theme}{smc_choch_true} // $dir_color;
+            $color = $dir_color;
+            $color = $self->{theme}{smc_choch_true} if defined $self->{theme}{smc_choch_true};
+            $dash  = [];
         } else {
             $label = 'CHoCH';
-            $color = $self->{theme}{smc_choch_false} // $dir_color;
+            $color = $dir_color;
+            $color = $self->{theme}{smc_choch_false} if defined $self->{theme}{smc_choch_false};
+            $dash  = [3, 3];
         }
 
-        # Dibuja la línea entrecortada si tiene start_index
-        my $x_label = $x_end;
-        if (defined $e->{start_index}) {
-            my $x_start = $scales->index_to_center_x($self->_local_index($e->{start_index}));
-            $canvas->createLine(
-                $x_start, $y, $x_end, $y,
-                -dash  => [3, 3],
-                -fill  => $color,
-                -width => 1,
-                -tags  => $tag,
-            );
-            $x_label = ($x_start + $x_end) / 2;
-        }
+        my $anchor = $dir eq 'up' ? 's' : 'n';
+        my $start_idx = $e->{start_index} // $e->{index};
+        my ($x_start, $x_end) = $self->_event_line_x_bounds($scales, $start_idx, $e->{index});
+
+        $canvas->createLine(
+            $x_start, $y, $x_end, $y,
+            -dash  => $dash,
+            -fill  => $color,
+            -width => 1,
+            -tags  => $tag,
+        );
+        my $x_label = ($x_start + $x_end) / 2;
 
         $canvas->createText(
             $x_label, $y,
             -text   => $label,
-            -anchor => 's',
+            -anchor => $anchor,
             -font   => 'Helvetica 8 bold',
             -fill   => $color,
             -tags   => $tag,
