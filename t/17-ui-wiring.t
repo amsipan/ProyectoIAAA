@@ -131,6 +131,13 @@ use Market::ReplayController;
     }
     sub tf_calls    { shift->{_tf} }
     sub render_count { scalar grep { $_->[0] eq 'request_render' } @{ shift->{_calls} } }
+    sub clear_replay_select_state {
+        my ($s) = @_;
+        delete $s->{_selected_bar};
+        $s->{_replay_select_mode} = 0;
+        return $s;
+    }
+    sub selected_bar { shift->{_selected_bar} }
 }
 
 # Helper: un MockMW que NO ejecuta el callback (para probar que play/fast_fwd
@@ -167,6 +174,41 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
               'los 8 callbacks de TF llaman set_timeframe con los valores correctos en orden');
     is($active_tf, 'W',
        'make_tf_callback sincroniza $active_tf con el último TF seleccionado (W)');
+}
+
+# =============================================================================
+# Test 2b (task 0040-D): cambio de TF con Play activo detiene Play y limpia estado.
+# =============================================================================
+{
+    my $chart = MockChart->new(market_data => MockMarketData->new(100));
+    my $replay_on = 1;
+    my $replay_select_mode = 1;
+    my $active_tf = '1m';
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+        active_tf          => \$active_tf,
+    );
+    my $rc = $chart->{replay_controller};
+
+    $rc->start(50);
+    $rc->{playing} = 1;
+    $chart->{_selected_bar} = 50;
+    $chart->{_replay_select_mode} = 1;
+
+    ok($rc->{playing}, '0040-D: Play activo antes de TF');
+    ok($rc->is_active(), '0040-D: replay activo antes de TF');
+
+    my $cb = Market::UI::Callbacks->make_tf_callback($chart, '5m', \%vars);
+    $cb->();
+
+    ok(!$rc->{playing}, '0040-D: TF detiene Play');
+    ok(!$rc->is_active(), '0040-D: TF sale de Replay');
+    ok(!defined $chart->selected_bar(), '0040-D: TF limpia selected_bar');
+    is($replay_on, 0, '0040-D: replay_on=0');
+    is($replay_select_mode, 0, '0040-D: replay_select_mode=0');
+    is($active_tf, '5m', '0040-D: active_tf actualizado');
+    is($chart->tf_calls()->[-1], '5m', '0040-D: set_timeframe invocado');
 }
 
 # =============================================================================
