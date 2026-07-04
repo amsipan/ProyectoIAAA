@@ -108,6 +108,7 @@ sub draw {
     if ($self->is_element_visible('EXTERNAL')) {
         for my $seg (@{ $vals->{external_segments} || [] }) {
             next unless $self->_segment_visible($seg);
+            next unless defined $seg->{from_price} && defined $seg->{to_price};
             my $x1 = $scales->index_to_center_x($self->_local_index($seg->{from_index}));
             my $x2 = $scales->index_to_center_x($self->_local_index($seg->{to_index}));
             my $y1 = $scales->value_to_y($seg->{from_price});
@@ -125,6 +126,7 @@ sub draw {
         for my $seg (@{ $vals->{internal_segments} || [] }) {
             next unless $self->_segment_visible($seg);
             my $color = $seg->{dir} eq 'up' ? $up_int : $dn_int;
+            next unless defined $seg->{from_price} && defined $seg->{to_price};
             my $x1 = $scales->index_to_center_x($self->_local_index($seg->{from_index}));
             my $x2 = $scales->index_to_center_x($self->_local_index($seg->{to_index}));
             my $y1 = $scales->value_to_y($seg->{from_price});
@@ -149,6 +151,7 @@ sub draw {
                 [$ch->{from_price_lower}, $ch->{to_price_lower}],
             ) {
                 my ($p1, $p2) = @$pair;
+                next unless defined $p1 && defined $p2;
                 my $y1 = $scales->value_to_y($p1);
                 my $y2 = $scales->value_to_y($p2);
                 $canvas->createLine(

@@ -101,6 +101,14 @@ sub compute_visible {
     $self->{_fibs}   = [ grep { $_->{index} <= $end } @{$ind->get_fibonacci()} ];
     $self->{_major}  = [ grep { $_->{index} <= $end } @{$ind->get_major()} ];
 
+    my $last_real;
+    if ($market_data && $market_data->can('last_index')) {
+        $last_real = $market_data->last_index();
+    } elsif ($market_data && $market_data->can('size')) {
+        $last_real = $market_data->size() - 1;
+    }
+    $self->{_last_real_index} = $last_real;
+
     return $self;
 }
 
@@ -202,6 +210,14 @@ sub draw {
 
     my $tag = $self->tag();
     my $w   = $scales->{width} || $scales->plot_width();
+    my $range = $self->{_compute_range};
+    my $win_end = $range ? ($range->[1] // 0) : 0;
+    my $right_idx = $win_end;
+    my $last_real = $self->{_last_real_index};
+    $right_idx = $last_real if defined $last_real && $last_real < $right_idx;
+    my $x_right = $scales->index_to_center_x($self->_local_index($right_idx));
+    $x_right = $w if $x_right > $w;
+    $x_right = 0 if $x_right < 0;
 
     # --- Fibonacci primero (quedan al fondo); 0.618 destacado -----------------
     for my $fib (@{ $self->{_fibs} }) {
@@ -242,7 +258,7 @@ sub draw {
         # Rectángulo: (x0, y_hi) -> (w, y_lo). Su altura = |y_hi - y_lo| =
         # (hi - lo) escalado → más pequeño cuanto mayor mitig.
         $canvas->createRectangle(
-            $x0, $y_hi, $w, $y_lo,
+            $x0, $y_hi, $x_right, $y_lo,
             -fill    => $is_up ? $self->_color('smc_fvg_up', '#26a69a')
                                : $self->_color('smc_fvg_down', '#ef5350'),
             -outline => $self->_color('smc_fvg_outline', '#787b86'),
@@ -254,8 +270,9 @@ sub draw {
     # --- Etiquetas de pivotes HH/HL/LL/LH ------------------------------------
     for my $p (@{ $self->{_pivots} }) {
         next unless defined $p->{index} && defined $p->{type};
+        next unless defined $p->{price};
         my $x = $scales->index_to_center_x($self->_local_index($p->{index}));
-        my $y = defined $p->{price} ? $scales->value_to_y($p->{price}) : 0;
+        my $y = $scales->value_to_y($p->{price});
         $canvas->createText(
             $x, $y,
             -text   => $p->{type},
@@ -271,7 +288,8 @@ sub draw {
         next unless defined $e->{index} && defined $e->{type};
         next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
         
-        my $y = defined $e->{price} ? $scales->value_to_y($e->{price}) : 0;
+        next unless defined $e->{price};
+        my $y = $scales->value_to_y($e->{price});
         my ($label, $color, $dash);
         my $dir = $e->{dir} // 'up';
         my $dir_color = $dir eq 'up' ? '#26a69a' : '#ef5350';

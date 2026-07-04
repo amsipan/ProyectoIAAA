@@ -1,5 +1,8 @@
 # Task 0039: [MEDIO] Bugs de render en overlays (SuperTrend, whitespace, elementos no dibujados)
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - Auditoría de arquitecto (04/07), overlays en `Market/Overlays/`.
 

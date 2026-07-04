@@ -51,6 +51,13 @@ sub is_element_visible {
     return $self->{_elements}->{$elem} ? 1 : 0;
 }
 
+sub set_element_visible {
+    my ($self, $elem, $on) = @_;
+    return $self unless defined $elem && exists $self->{_elements}->{$elem};
+    $self->{_elements}->{$elem} = $on ? 1 : 0;
+    return $self;
+}
+
 sub _local_index {
     my ($self, $global_idx) = @_;
     return $global_idx - ($self->{_start} // 0);
@@ -67,6 +74,8 @@ sub draw {
     my ($self, $canvas, $scales) = @_;
     return $self unless $self->is_visible() && $self->{indicator};
     return $self unless $canvas && $scales;
+    return $self unless defined $scales->{height} && $scales->{height} > 0;
+    return $self unless $self->is_element_visible('VWAP_LINE');
 
     my $tag   = $self->tag();
     $self->clear($canvas);
@@ -78,7 +87,7 @@ sub draw {
     my $end   = $self->{_end}   // 0;
 
     for my $i ($start .. $end - 1) {
-        next if $i < 0 || $i + 1 < 0; # Guard against Perl negative array wrapping
+        next if $i < 0 || $i + 1 < 0;
         next unless defined $vwap->[$i] && defined $vwap->[$i+1];
         next unless defined $vwap->[$i]->{value} && defined $vwap->[$i+1]->{value};
 
@@ -89,7 +98,7 @@ sub draw {
 
         $canvas->createLine(
             $x1, $y1, $x2, $y2,
-            -fill  => '#ff9800', # Orange VWAP curve
+            -fill  => '#ff9800',
             -width => 2,
             -tags  => $tag,
         );

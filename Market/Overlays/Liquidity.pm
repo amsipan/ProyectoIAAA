@@ -174,6 +174,14 @@ sub compute_visible {
     # Eventos son etiquetas en el punto de ruptura, usamos filtro estándar
     $self->{_events} = _window_filter($events, $start, $end);
 
+    my $last_real;
+    if ($market_data && $market_data->can('last_index')) {
+        $last_real = $market_data->last_index();
+    } elsif ($market_data && $market_data->can('size')) {
+        $last_real = $market_data->size() - 1;
+    }
+    $self->{_last_real_index} = $last_real;
+
     return $self;
 }
 
@@ -242,7 +250,10 @@ sub draw {
     my $ev  = $self->{_elem_visible};
 
     # --- BSL / SSL: bandas agrupadas (default) o líneas sueltas (task 0027) ----
-    my $x_right = $scales->index_to_center_x($self->_local_index($self->{_draw_end_idx} // 0));
+    my $right_idx = $self->{_draw_end_idx} // 0;
+    my $last_real = $self->{_last_real_index};
+    $right_idx = $last_real if defined $last_real && $last_real < $right_idx;
+    my $x_right = $scales->index_to_center_x($self->_local_index($right_idx));
     $x_right = $w if $x_right > $w;
     $x_right = 0 if $x_right < 0;
     my $atr = ($self->{indicator} && $self->{indicator}->can('current_atr'))
@@ -417,6 +428,7 @@ sub _draw_bsl_ssl_band {
 sub _draw_hline_label {
     my ($self, $canvas, $scales, $tag, $w, $lvl, $label, $line_color, $text_color) = @_;
     my $price = $lvl->{price};
+    return unless defined $price;
     my $y = $scales->value_to_y($price);
     
     my $x_start = $scales->index_to_center_x($self->_local_index($lvl->{index}));
@@ -553,7 +565,8 @@ sub _draw_event_marker {
     my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
 
     my $price = $e->{extreme} // $e->{price};
-    my $y = defined $price ? $scales->value_to_y($price) : 0;
+    return unless defined $price;
+    my $y = $scales->value_to_y($price);
     my $dir = $e->{dir} // 'up';
 
     # ORDEN 12 (task 0024): apilar verticalmente marcadores de la misma vela para

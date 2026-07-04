@@ -456,4 +456,38 @@ sub make_scales {
     ok(abs($lines[0]->[3] - $x_right) < 0.01, 'downsample: x_end alineado por pixel');
 }
 
+{
+    package WhitespaceMD;
+    sub new { bless {}, shift }
+    sub last_index { 9 }
+    sub size { 10 }
+}
+
+# =============================================================================
+# Test 12 (task 0039-B): FVG corta en última vela real, no en whitespace derecho.
+# =============================================================================
+{
+    package main;
+    my $ind = TestIndicator->new(
+        fvgs => [ { index => 2, type => 'FVG_up', hi => 16, lo => 14 } ],
+    );
+    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 15);
+    my $md     = WhitespaceMD->new();
+
+    $ov->compute_visible($md, $ind, 0, 14);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    is(scalar(@rects), 1, 'FVG whitespace: una caja');
+    my $x_right_cap = $scales->index_to_center_x(9);
+    my $x_end_whitespace = $scales->index_to_center_x(14);
+    ok($rects[0]->[3] <= $x_right_cap + 1,
+       'FVG whitespace: borde derecho <= última vela real');
+    ok($rects[0]->[3] < $x_end_whitespace,
+       'FVG whitespace: no se extiende al whitespace');
+}
+
 done_testing();
