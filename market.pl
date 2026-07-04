@@ -139,6 +139,7 @@ my $chart_engine = Market::ChartEngine->new(
     time_axis_canvas  => $time_axis_canvas,
     scale_mode_callback => sub { $scale_mode = $_[0] },
     atr_scale_mode_callback => sub { $atr_scale_mode = $_[0] },
+    replay_select_mode_callback => sub { $replay_select_mode = $_[0] ? 1 : 0 },
     theme             => \%theme
 );
 

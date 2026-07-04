@@ -87,12 +87,12 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 | 0037 | [CRÍTICO] Zoom/Replay deja eje Y corrupto → velas desaparecen | ✅ hecho |
 | 0038 | [ALTO] Fuga de futuro en Liquidity Zone 6/7 rompe Replay | ✅ hecho |
 | 0039 | [MEDIO] Bugs de render en overlays (SuperTrend flip, whitespace, toggles muertos) | pendiente |
-| 0040 | [MEDIO] Estado residual Replay/Select Bar/cambio de TF | pendiente |
+| 0040 | [MEDIO] Estado residual Replay/Select Bar/cambio de TF | ✅ hecho |
 
 ### Lote de CORRECCIÓN de bugs (auditoría arquitecto 04/07) — orden para implementor
 1. ~~**0037** — CRÍTICO: el zoom deja pantalla en blanco~~ ✅
 2. ~~**0038** — ALTO: fuga de futuro en Liquidity~~ ✅
-3. **0040** — MEDIO: estado residual de Replay/Select Bar/TF (alimenta el 0037).
+3. ~~**0040** — MEDIO: estado residual de Replay/Select Bar/TF~~ ✅
 4. **0039** — MEDIO: bugs de render de overlays (SuperTrend, whitespace, toggles).
 
 ### Orden recomendado para el implementor (lote restante)

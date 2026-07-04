@@ -810,6 +810,43 @@ sub _redraw_pointer_symbol {
 sub set_replay_select_mode {
     my ($self, $on) = @_;
     $self->{_replay_select_mode} = $on ? 1 : 0;
+    if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
+        $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
+    }
+    return $self;
+}
+
+sub clear_replay_select_mode {
+    my ($self) = @_;
+    return $self->set_replay_select_mode(0);
+}
+
+sub clear_replay_select_state {
+    my ($self) = @_;
+    $self->{_selected_bar} = undef;
+    return $self->clear_replay_select_mode();
+}
+
+# task 0040-B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
+sub frame_replay_view_at {
+    my ($self, $index) = @_;
+
+    my $total = $self->{market_data} ? ($self->{market_data}->size() || 0) : 0;
+    return $self unless $total > 0;
+
+    $index = 0 if !defined $index || $index < 0;
+    $index = $total - 1 if $index > $total - 1;
+
+    my $vis = $self->{visible_bars} || 60;
+    $vis = MIN_VISIBLE_BARS if $vis < MIN_VISIBLE_BARS;
+    if ($total < MAX_VISIBLE_BARS) {
+        $vis = $total if $vis > $total;
+    } else {
+        $vis = MAX_VISIBLE_BARS if $vis > MAX_VISIBLE_BARS;
+    }
+    $self->{visible_bars} = $vis;
+    $self->{offset} = 0;
+    $self->{ctrl_zoom_x_shift} = 0;
     return $self;
 }
 
@@ -831,6 +868,8 @@ sub set_selected_bar {
     $idx = 0 if $idx < 0;
     $idx = $last if $idx > $last;
     $self->{_selected_bar} = $idx;
+    # task 0040-C: tras elegir vela, volver a paneo normal (modo OFF, conservar selección).
+    $self->clear_replay_select_mode();
     return $self;
 }
 
@@ -2125,6 +2164,12 @@ sub set_timeframe {
             warn "Temporalidad '$tf' no soportada por el sistema.";
             return;
     }
+
+    # task 0040-D: cambio de TF normaliza replay/selección (Play se detiene en Callbacks).
+    if ($self->{replay_controller}) {
+        $self->{replay_controller}->exit();
+    }
+    $self->clear_replay_select_state();
 
     $self->{market_data}->build_tf_candles($tf) if $tf ne '1m';
     $self->{market_data}->set_timeframe($tf);

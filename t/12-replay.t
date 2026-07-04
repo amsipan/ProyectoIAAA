@@ -175,4 +175,25 @@ is($rc->current_index(), 0, 'start(-5) clampa a 0');
 $rc->start(200);
 is($rc->current_index(), 99, 'start(200) clampa a last_index=99');
 
+# ===========================================================================
+# Test 7: task 0040 — frame_replay_view_at evita ventana inválida con offset heredado.
+# ===========================================================================
+$rc->exit();
+$chart->{offset} = 80;
+$chart->frame_replay_view_at(10);
+$rc->start(10);
+($s, $e) = $chart->compute_window();
+ok($s <= $e, 'frame+start: ventana válida tras offset heredado grande');
+is($chart->{offset}, 0, 'frame_replay_view_at: offset=0');
+ok($e <= 10, 'frame+start: end <= replay_idx');
+
+# ===========================================================================
+# Test 8: task 0040-A — clear_replay_select_state limpia marcador/selección.
+# ===========================================================================
+$chart->set_selected_bar(50);
+$chart->set_replay_select_mode(1);
+$chart->clear_replay_select_state();
+ok(!defined $chart->selected_bar(), 'clear_replay_select_state: sin selected_bar');
+ok(!$chart->is_replay_select_mode(), 'clear_replay_select_state: modo OFF');
+
 done_testing();

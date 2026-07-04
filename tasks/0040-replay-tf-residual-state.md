@@ -1,5 +1,8 @@
 # Task 0040: [MEDIO] Estado residual de Replay / Select Bar / cambio de TF
 
+## Estado
+✅ **Hecho** (2026-07-04)
+
 ## Origen
 - Auditoría de arquitecto (04/07): `ChartEngine.pm`, `ReplayController.pm`,
   `Market/UI/Callbacks.pm`.

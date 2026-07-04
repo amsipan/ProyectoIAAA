@@ -84,6 +84,7 @@ sub make_tf_callback {
     die "make_tf_callback: requiere \$tf"   unless defined $tf;
     my $ref = ref($vars) eq 'HASH' ? $vars->{active_tf} : undef;
     return sub {
+        _sync_replay_ui_cleanup($chart, $vars);
         $chart->set_timeframe($tf);
         ${$ref} = $tf if $ref;
     };
@@ -101,6 +102,35 @@ sub make_tf_callback {
 sub _replay {
     my ($chart) = @_;
     return $chart->{replay_controller};
+}
+
+# _sync_replay_ui_cleanup($chart, $vars) — task 0040: detiene Play, sale de Replay
+# y limpia selección; sincroniza vars UI (replay_on, replay_select_mode).
+sub _sync_replay_ui_cleanup {
+    my ($chart, $vars) = @_;
+    return unless $chart;
+    _stop_play_schedule($chart);
+    my $rc = _replay($chart);
+    $rc->exit() if $rc;
+    if ($chart->can('clear_replay_select_state')) {
+        $chart->clear_replay_select_state();
+    }
+    if (ref($vars) eq 'HASH') {
+        ${ $vars->{replay_on} } = 0 if $vars->{replay_on};
+        ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
+    }
+    return;
+}
+
+# _replay_begin($chart, $start_idx) — task 0040-B: encuadra vista y arranca replay.
+sub _replay_begin {
+    my ($chart, $start_idx) = @_;
+    return unless $chart;
+    $chart->frame_replay_view_at($start_idx) if $chart->can('frame_replay_view_at');
+    my $rc = _replay($chart);
+    $rc->start($start_idx) if $rc && defined $start_idx;
+    $chart->clear_replay_select_mode() if $chart->can('clear_replay_select_mode');
+    return $rc;
 }
 
 # _replay_start_index($chart) — índice inicial para Replay (task 0030).
@@ -125,9 +155,8 @@ sub make_replay_start {
     die "make_replay_start: requiere \$chart" unless $chart;
     my $ref = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
     return sub {
-        my $rc = _replay($chart);
-        return unless $rc;
-        $rc->start(_replay_start_index($chart));
+        my $start_idx = _replay_start_index($chart);
+        _replay_begin($chart, $start_idx);
         ${$ref} = 1 if $ref;
         $chart->request_render();
     };
@@ -160,7 +189,7 @@ sub make_replay_play {
         # Si el replay no está activo, lo arrancamos en el último índice
         # visibilizable para que play tenga efecto desde la UI.
         if (!$rc->is_active()) {
-            $rc->start(_replay_start_index($chart));
+            _replay_begin($chart, _replay_start_index($chart));
         }
         my $tick = sub {
             my $idx = $rc->step_forward();
@@ -228,7 +257,7 @@ sub make_replay_step_fwd {
         # Si no hay replay activo, arrancamos en el índice visible actual
         # (mismo criterio que play/start) para que step funcione desde la UI.
         if (!$rc->is_active()) {
-            $rc->start(_replay_start_index($chart));
+            _replay_begin($chart, _replay_start_index($chart));
         }
         $rc->step_forward();
         $chart->request_render();
@@ -243,7 +272,7 @@ sub make_replay_step_back {
         my $rc = _replay($chart);
         return unless $rc;
         if (!$rc->is_active()) {
-            $rc->start(_replay_start_index($chart));
+            _replay_begin($chart, _replay_start_index($chart));
         }
         $rc->step_backward();
         $chart->request_render();
@@ -261,7 +290,7 @@ sub make_replay_fast_fwd {
         my $rc = _replay($chart);
         return unless $rc;
         if (!$rc->is_active()) {
-            $rc->start(_replay_start_index($chart));
+            _replay_begin($chart, _replay_start_index($chart));
         }
         $rc->fast_forward($n);
         $chart->request_render();
@@ -275,10 +304,7 @@ sub make_replay_exit {
     die "make_replay_exit: requiere \$chart" unless $chart;
     my $ref = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
     return sub {
-        my $rc = _replay($chart);
-        return unless $rc;
-        $rc->exit();
-        _stop_play_schedule($chart);
+        _sync_replay_ui_cleanup($chart, $vars);
         ${$ref} = 0 if $ref;
         $chart->request_render();
     };
