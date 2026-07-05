@@ -46,3 +46,17 @@
 Cada task: `perl -I. -c` de archivos tocados + `prove -l t` COMPLETO verde + test propio en `t/`.
 Los cambios de UI que no se puedan testear headless se cubren con test de la lógica subyacente
 (estado, cálculo de posición del velo, mapeo velocidad→ms) + validación visual del usuario en WSLg.
+
+## IMPORTANTE — El implementor NO puede ver imágenes
+El agente implementor procesa **solo texto**; no puede abrir las capturas del usuario. Por tanto:
+- La **fuente de verdad para el implementor** es la descripción textual de las 5 capturas en
+  `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` **§19** (layout, orden de botones, etiquetas exactas,
+  colores, glyphs). Cuando una task diga "comparar con captura N", el implementor debe leer la
+  descripción de esa captura en §19, no intentar abrir la imagen.
+- La **comparación contra las imágenes reales** (¿se ve idéntico a TradingView?) la hace el
+  **arquitecto**, que SÍ procesa imágenes: lanza `market.pl` en WSLg, captura a PNG
+  (`scratch/capture_app.sh`, usa ImageMagick `import`) y lee el PNG para comparar con las capturas
+  de referencia. Esa validación visual NO es responsabilidad del implementor. Bryan da el visto
+  bueno final.
+- Si algo del aspecto no está descrito en §19 con suficiente detalle, el implementor PARA y lo
+  pregunta al arquitecto en vez de adivinar.

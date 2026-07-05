@@ -544,7 +544,11 @@ Menú al pulsar el botón `D` (a la derecha de la velocidad):
 - Toggle inferior: **Auto select interval** (ON por defecto).
 - El icono `?` abre ayuda.
 
-> Estas 5 capturas son la **fuente de verdad visual** para el calque. Cualquier duda de layout/orden/etiquetas se resuelve mirándolas.
+> **Fuente de verdad:** para el **implementor** (que solo lee texto), la fuente de verdad es la
+> descripción textual de arriba (§19) + los detalles de color/técnica en cada `tasks/004N-*.md`.
+> Para **Bryan** (validación visual en WSLg), la fuente de verdad son las imágenes reales.
+> Cualquier duda de layout/orden/etiquetas que no esté en el texto: el implementor PARA y pregunta
+> al arquitecto en vez de adivinar.
 
 ---
 
