@@ -1050,40 +1050,14 @@ sub _global_index_from_x {
     return $start + $local;
 }
 
+# TradingView no muestra línea fija en la vela ya elegida; solo el hover azul en select mode.
 sub _draw_replay_select_marker {
     my ($self) = @_;
     my $tag = 'replay_select_marker';
     for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
         eval { $canvas->delete($tag) } if $canvas;
     }
-    return unless defined $self->{_selected_bar};
-
-    my ($start, $end) = $self->compute_window();
-    my $global = $self->{_selected_bar};
-    return if $global < $start || $global > $end;
-
-    my $local = $global - $start;
-    my $bars = $end - $start + 1;
-    my $scale = Market::Panels::Scales->new(
-        bars         => $bars,
-        right_margin => RIGHT_MARGIN,
-    );
-    $scale->{width} = $self->_canvas_width($self->{price_canvas});
-    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
-    my $x = $scale->index_to_center_x($local);
-    my $color = $self->{theme}{replay_select} // '#e67e22';
-
-    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
-        next unless $canvas;
-        my (undef, $h) = $self->_canvas_size($canvas);
-        next unless defined $h && $h > 0;
-        eval {
-            $canvas->createLine(
-                $x, 0, $x, $h,
-                -fill => $color, -width => 2, -dash => '.', -tags => $tag,
-            );
-        };
-    }
+    return;
 }
 
 # task 0042: hover visual estilo TradingView (línea azul, velo, Re:, tijeras).
