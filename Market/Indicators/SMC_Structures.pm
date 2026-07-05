@@ -43,8 +43,12 @@ sub new {
     die "SMC_Structures: k must be a positive integer"
         unless defined $k && $k =~ /^\d+$/ && $k > 0;
 
+    my $swing_atr_factor = defined $opts{swing_atr_factor} ? $opts{swing_atr_factor} : 0;
+
     my $self = {
-        k              => $k,
+        k                => $k,
+        swing_atr_factor => $swing_atr_factor,
+        atr_period       => 14,
         _highs         => [],
         _lows          => [],
         _opens         => [],
@@ -71,6 +75,11 @@ sub new {
         _last_ll_broken => undef,
         _last_hl_broken => undef,
         _last_lh_broken => undef,
+        _atr_vals           => [],
+        _tr_sum             => 0,
+        _atr_last           => undef,
+        _filter_last_high   => undef,
+        _filter_last_low    => undef,
     };
     bless $self, $class;
     return $self;
@@ -93,6 +102,8 @@ sub update_last {
     $self->{_opens}->[$index]  = $open;
     $self->{_closes}->[$index] = $close;
     $self->{_values}->[$index] = undef;
+
+    $self->_update_atr($index, $high, $low, $close);
 
     my $k = $self->{k};
     my $j = $index - $k;
@@ -181,6 +192,49 @@ sub _process_swing {
     return;
 }
 
+sub _update_atr {
+    my ($self, $index, $high, $low, $close) = @_;
+    my $p = $self->{atr_period};
+    my $tr = $high - $low;
+    if ($index > 0) {
+        my $pc = $self->{_closes}->[$index - 1];
+        if (defined $pc) {
+            my $a = abs($high - $pc);
+            my $b = abs($low  - $pc);
+            $tr = $a if $a > $tr;
+            $tr = $b if $b > $tr;
+        }
+    }
+    if ($index < $p) {
+        $self->{_tr_sum} += $tr;
+        $self->{_atr_last} = $self->{_tr_sum} / ($index + 1);
+    } else {
+        my $prev = $self->{_atr_last} // $tr;
+        $self->{_atr_last} = ($prev * ($p - 1) + $tr) / $p;
+    }
+    $self->{_atr_vals}->[$index] = $self->{_atr_last};
+    return;
+}
+
+# true si el pivote merece etiqueta HH/HL/LH/LL: |price - opuesto| >= factor * ATR.
+# factor <= 0, sin opuesto o sin ATR → aceptar (no censurar inicio del dataset).
+sub _pivot_significant {
+    my ($self, $cand) = @_;
+    my $factor = $self->{swing_atr_factor} // 0;
+    return 1 if $factor <= 0;
+
+    my $opposite = $cand->{type} eq 'high'
+        ? $self->{_filter_last_low}
+        : $self->{_filter_last_high};
+    return 1 unless defined $opposite;
+
+    my $atr = $self->{_atr_vals}->[ $cand->{index} ];
+    $atr //= $self->{_atr_last};
+    return 1 unless defined $atr && $atr > 0;
+
+    return (abs($cand->{price} - $opposite) >= $factor * $atr) ? 1 : 0;
+}
+
 sub _label_for {
     my ($cand, $last_high, $last_low) = @_;
     my $label;
@@ -207,6 +261,8 @@ sub _label_for {
 
 sub _confirm_pivot {
     my ($self, $cand) = @_;
+    return unless $self->_pivot_significant($cand);
+
     my ($label, $new_lh, $new_ll) = _label_for($cand, $self->{_last_high}, $self->{_last_low});
     
     $self->{_last_high} = $new_lh;
@@ -239,6 +295,12 @@ sub _confirm_pivot {
     my $pivot = { index => $cand->{index}, type => $label, price => $cand->{price} };
     push @{ $self->{_pivots} }, $pivot;
     $self->{_values}->[ $cand->{index} ] = $label;
+
+    if ($cand->{type} eq 'high') {
+        $self->{_filter_last_high} = $cand->{price};
+    } else {
+        $self->{_filter_last_low} = $cand->{price};
+    }
     return;
 }
 
@@ -516,40 +578,44 @@ sub _get_effective_majors {
 
     if (defined $self->{_current}) {
         my $cand = $self->{_current};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
 
-        if ($cand->{type} eq 'high') {
-            if ($label eq 'HH') {
-                if (!defined $major_high || $cand->{price} > $major_high->{price}) {
-                    $major_high = { index => $cand->{index}, price => $cand->{price} };
+            if ($cand->{type} eq 'high') {
+                if ($label eq 'HH') {
+                    if (!defined $major_high || $cand->{price} > $major_high->{price}) {
+                        $major_high = { index => $cand->{index}, price => $cand->{price} };
+                    }
                 }
-            }
-        } else {
-            if ($label eq 'LL') {
-                if (!defined $major_low || $cand->{price} < $major_low->{price}) {
-                    $major_low = { index => $cand->{index}, price => $cand->{price} };
+            } else {
+                if ($label eq 'LL') {
+                    if (!defined $major_low || $cand->{price} < $major_low->{price}) {
+                        $major_low = { index => $cand->{index}, price => $cand->{price} };
+                    }
                 }
             }
         }
     }
     if (defined $self->{_trailing}) {
         my $cand = $self->{_trailing};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
 
-        if ($cand->{type} eq 'high') {
-            if ($label eq 'HH') {
-                if (!defined $major_high || $cand->{price} > $major_high->{price}) {
-                    $major_high = { index => $cand->{index}, price => $cand->{price} };
+            if ($cand->{type} eq 'high') {
+                if ($label eq 'HH') {
+                    if (!defined $major_high || $cand->{price} > $major_high->{price}) {
+                        $major_high = { index => $cand->{index}, price => $cand->{price} };
+                    }
                 }
-            }
-        } else {
-            if ($label eq 'LL') {
-                if (!defined $major_low || $cand->{price} < $major_low->{price}) {
-                    $major_low = { index => $cand->{index}, price => $cand->{price} };
+            } else {
+                if ($label eq 'LL') {
+                    if (!defined $major_low || $cand->{price} < $major_low->{price}) {
+                        $major_low = { index => $cand->{index}, price => $cand->{price} };
+                    }
                 }
             }
         }
@@ -566,17 +632,21 @@ sub get_pivots {
 
     if (defined $self->{_current}) {
         my $cand = $self->{_current};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
-        push @pivs, { index => $cand->{index}, type => $label, price => $cand->{price} };
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
+            push @pivs, { index => $cand->{index}, type => $label, price => $cand->{price} };
+        }
     }
     if (defined $self->{_trailing}) {
         my $cand = $self->{_trailing};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
-        push @pivs, { index => $cand->{index}, type => $label, price => $cand->{price} };
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
+            push @pivs, { index => $cand->{index}, type => $label, price => $cand->{price} };
+        }
     }
     return \@pivs;
 }
@@ -655,17 +725,21 @@ sub get_values {
 
     if (defined $self->{_current}) {
         my $cand = $self->{_current};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
-        $vals[ $cand->{index} ] = $label;
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
+            $vals[ $cand->{index} ] = $label;
+        }
     }
     if (defined $self->{_trailing}) {
         my $cand = $self->{_trailing};
-        my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
-        $lh = $new_lh;
-        $ll = $new_ll;
-        $vals[ $cand->{index} ] = $label;
+        if ($self->_pivot_significant($cand)) {
+            my ($label, $new_lh, $new_ll) = _label_for($cand, $lh, $ll);
+            $lh = $new_lh;
+            $ll = $new_ll;
+            $vals[ $cand->{index} ] = $label;
+        }
     }
     return \@vals;
 }
@@ -698,6 +772,11 @@ sub reset {
     $self->{_last_ll_broken} = undef;
     $self->{_last_hl_broken} = undef;
     $self->{_last_lh_broken} = undef;
+    $self->{_atr_vals}         = [];
+    $self->{_tr_sum}           = 0;
+    $self->{_atr_last}         = undef;
+    $self->{_filter_last_high} = undef;
+    $self->{_filter_last_low}  = undef;
     return;
 }
 

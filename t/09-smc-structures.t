@@ -714,4 +714,86 @@ sub events_of_type {
     is(scalar(@bos_up), 1, 'BOS single-trigger: solo se emite exactamente un BOS up para el nivel 15');
 }
 
+# =============================================================================
+# TASK 0056: swing_atr_factor — menos pivotes HH/HL/LH/LL en ruido, conservar swings grandes
+# =============================================================================
+sub pivot_count_for {
+    my ($candles, %opts) = @_;
+    my $md  = build_ohlc($candles);
+    my $smc = Market::Indicators::SMC_Structures->new(
+        k                => 1,
+        swing_atr_factor => $opts{swing_atr_factor} // 0,
+    );
+    $smc->update_last($md, $_) for 0 .. $md->last_index;
+    return scalar @{ $smc->get_pivots() };
+}
+
+sub build_noisy_then_big_swings {
+    my @c;
+    for my $i (0 .. 59) {
+        my $p = $i % 4;
+        my $base = 100 + ($i % 2 ? 1 : -1);
+        if    ($p == 0) { push @c, [$base,     $base + 2, $base - 1, $base + 1]; }
+        elsif ($p == 1) { push @c, [$base + 1, $base + 3, $base,     $base + 2]; }
+        elsif ($p == 2) { push @c, [$base + 2, $base + 2, $base - 2, $base - 1]; }
+        else            { push @c, [$base - 1, $base,     $base - 3, $base - 2]; }
+    }
+    return \@c;
+}
+
+sub build_large_swing_fixture {
+    my @peaks = (100, 80, 110, 70, 120, 60, 130);
+    my @c;
+    my $prev = 90;
+    for my $target (@peaks) {
+        my $step = ($target - $prev) / 5;
+        for my $k (1 .. 5) {
+            my $p = $prev + $step * $k;
+            push @c, [$p, $p + 1, $p - 1, $p];
+        }
+        $prev = $target;
+    }
+    return \@c;
+}
+
+{
+    my $candles = build_noisy_then_big_swings();
+    my $n0 = pivot_count_for($candles, swing_atr_factor => 0);
+    my $n20 = pivot_count_for($candles, swing_atr_factor => 2.0);
+    ok($n0 > $n20, "0056 ruido: factor 0 produce más pivotes ($n0) que factor 2.0 ($n20)");
+    ok($n20 >= 2, '0056 ruido: factor 2.0 conserva al menos algunos swings relevantes');
+}
+
+{
+    my $candles = build_large_swing_fixture();
+    my $md  = build_ohlc($candles);
+    my $smc = Market::Indicators::SMC_Structures->new(k => 1, swing_atr_factor => 2.0);
+    $smc->update_last($md, $_) for 0 .. $md->last_index;
+    my $pivots = $smc->get_pivots();
+
+    my ($hi_pivot) = grep { $_->{price} == 131 } @$pivots;
+    my ($lo_pivot) = grep { $_->{price} == 59 } @$pivots;
+    ok(defined $hi_pivot, '0056 swings grandes: pivote en máximo 131 conservado');
+    ok(defined $lo_pivot,  '0056 swings grandes: pivote en mínimo 59 conservado');
+    ok(($hi_pivot->{type} eq 'HH' || $hi_pivot->{type} eq 'LH'),
+       '0056 swings grandes: máximo 130 etiquetado HH o LH');
+    ok(($lo_pivot->{type} eq 'LL' || $lo_pivot->{type} eq 'HL'),
+       '0056 swings grandes: mínimo 59 etiquetado LL o HL');
+}
+
+{
+    my $smc = Market::Indicators::SMC_Structures->new(swing_atr_factor => 1.5);
+    $smc->{_atr_last} = 10;
+    my $hi = { index => 5, price => 120, type => 'high' };
+    my $lo = { index => 6, price => 100, type => 'low' };
+    $smc->{_filter_last_low} = 100;
+    is($smc->_pivot_significant($hi), 1, '0056 helper: recorrido 20 >= 1.5*10');
+    $smc->{_filter_last_low} = 115;
+    is($smc->_pivot_significant($hi), 0, '0056 helper: recorrido 5 < 1.5*10');
+    is($smc->_pivot_significant($lo), 1, '0056 helper: sin opuesto high aún acepta');
+    my $off = Market::Indicators::SMC_Structures->new(swing_atr_factor => 0);
+    $off->{_filter_last_low} = 115;
+    is($off->_pivot_significant($hi), 1, '0056 helper: factor 0 desactiva filtro');
+}
+
 done_testing();

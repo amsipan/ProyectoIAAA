@@ -1,7 +1,15 @@
 # Task 0056: Reducir HH/HL del SMC — alinear estructura con el ZigZag (pocos pivotes)
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+fixtures y factor runtime ajustados por arquitecto. 1196 PASS.
+
+Notas:
+- Enfoque implementado: filtro conservador por `swing_atr_factor` en `SMC_Structures`, sin acoplar
+  directamente a ZigZag todavía.
+- ChartEngine usa `swing_atr_factor=>2.0` en runtime para reducir ruido real.
+- Tests nuevos en `t/09-smc-structures.t`: ruido factor 0 vs 2.0, swings grandes conservados,
+  helper `_pivot_significant`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` punto 11, audio 2.

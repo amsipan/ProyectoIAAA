@@ -134,7 +134,7 @@ refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
 |---|------|---------------|--------|
 | 0054 | Reducir ruido BSL/SSL en ORIGEN (subir k + filtro significancia de niveles) | refina 0027 | ✅ HECHO + VERIF. arq. (grok composer-fast + fix arq.; 1177 PASS) |
 | 0055 | Anclar run/sweep/grab a swings del SMC (no fractal propio) | — (arquitectónica) | ✅ HECHO + VERIF. arq. (grok composer-fast + fix arq.; 1186 PASS) |
-| 0056 | Reducir HH/HL del SMC — alinear con pocos pivotes del ZigZag | — | 🔲 ABIERTA |
+| 0056 | Reducir HH/HL del SMC — alinear con pocos pivotes del ZigZag | — | ✅ HECHO + VERIF. arq. (filtro ATR SMC; grok composer-fast + fix arq.; 1196 PASS) |
 | 0057 | EQH/EQL interno vs externo: verificar + garantizar render en runtime | — (verificación) | 🔲 ABIERTA |
 | 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | 🔲 ABIERTA |
 | 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |

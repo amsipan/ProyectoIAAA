@@ -136,7 +136,10 @@ sub new {
     # spec 0004 / task 0008: overlay SMC_Structures. Consume el indicador de
     # cálculo (capa Indicators). El indicador se alimenta incrementalmente en
     # render() hasta el tope efectivo (respeta replay_idx). El overlay solo lee.
-    $self->{smc_indicator} = Market::Indicators::SMC_Structures->new(k => 3);
+    $self->{smc_indicator} = Market::Indicators::SMC_Structures->new(
+        k                => 3,
+        swing_atr_factor => 2.0,
+    );
     $self->{smc_overlay} = Market::Overlays::SMC_Structures->new(
         indicator => $self->{smc_indicator},
         theme     => $self->{theme},
