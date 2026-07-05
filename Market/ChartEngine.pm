@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use Time::Moment;
+use File::Spec ();
 use Market::Panels::Scales;
 use Market::Panels::PricePanel;
 use Market::Panels::ATRPanel;
@@ -866,11 +867,15 @@ sub set_replay_select_mode {
         delete $self->{last_mouse_y};
         $self->_clear_replay_select_hover();
         $self->_clear_chart_crosshair();
+        delete $self->{_select_blank_cursor};
+    }
+    else {
+        delete $self->{_select_blank_cursor};
     }
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
     }
-    $self->_apply_select_mode_cursor();
+    $self->_apply_select_mode_cursor(1);
     return $self;
 }
 
@@ -1005,38 +1010,67 @@ sub focus_price_canvas_for_replay {
     return $self;
 }
 
+# _blank_cursor_xbm_path — assets/blank_cursor.xbm (16x16 transparente, fiable en WSLg/X11).
+sub _blank_cursor_xbm_path {
+    my ($self) = @_;
+    return $self->{_blank_cursor_xbm_path} if $self->{_blank_cursor_xbm_path};
+
+    my ($vol, $dirs, $file) = File::Spec->splitpath(__FILE__);
+    my $path = File::Spec->rel2abs(File::Spec->catfile($dirs, File::Spec->updir(), 'assets', 'blank_cursor.xbm'));
+    if (-f $path) {
+        $self->{_blank_cursor_xbm_path} = $path;
+    }
+    return $self->{_blank_cursor_xbm_path};
+}
+
 # task 0053/UX: cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
 sub _select_mode_blank_cursor {
     my ($self) = @_;
     return $self->{_select_blank_cursor} if $self->{_select_blank_cursor};
 
     my $canvas = $self->{price_canvas};
+    my $xbm = $self->_blank_cursor_xbm_path();
+    if ($xbm && $canvas) {
+        for my $spec (['@', $xbm, $xbm], ['@', $xbm]) {
+            my $ok = eval { $canvas->configure(-cursor => $spec); 1 };
+            if ($ok) {
+                $self->{_select_blank_cursor} = $spec;
+                $self->{_select_blank_cursor_kind} = 'xbm';
+                return $spec;
+            }
+        }
+    }
+
     for my $try (qw(none blank)) {
         next unless $canvas;
         my $ok = eval { $canvas->configure(-cursor => $try); 1 };
         if ($ok) {
             $self->{_select_blank_cursor} = $try;
+            $self->{_select_blank_cursor_kind} = $try;
             return $try;
         }
     }
 
-    # Bitmap 1x1 vacio: oculta puntero OS cuando none/blank no bastan (WSLg/X11).
     if ($canvas) {
         my $bmp = eval {
             $canvas->Bitmap(
-                -data => "#define invisible_width 1\n#define invisible_height 1\n"
-                    . "static unsigned char invisible_bits[] = { 0x00 };\n",
-                -maskdata => "#define invisible_width 1\n#define invisible_height 1\n"
-                    . "static unsigned char invisible_mask_bits[] = { 0x00 };\n",
+                -data => "#define invisible_width 16\n#define invisible_height 16\n"
+                    . "static unsigned char invisible_bits[] = {"
+                    . join(', ', ('0x00') x 32) . "};\n",
+                -maskdata => "#define invisible_width 16\n#define invisible_height 16\n"
+                    . "static unsigned char invisible_mask_bits[] = {"
+                    . join(', ', ('0x00') x 32) . "};\n",
             );
         };
         if ($bmp) {
             $self->{_select_blank_cursor} = $bmp;
+            $self->{_select_blank_cursor_kind} = 'bitmap';
             return $bmp;
         }
     }
 
     $self->{_select_blank_cursor} = 'none';
+    $self->{_select_blank_cursor_kind} = 'none-fallback';
     return 'none';
 }
 
@@ -1046,11 +1080,36 @@ sub _chart_plot_cursor {
     return 'crosshair';
 }
 
-sub _apply_select_mode_cursor {
+sub _plot_cursor_targets {
     my ($self) = @_;
-    my $cursor = $self->_chart_plot_cursor();
-    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
-        $self->_set_cursor($canvas, $cursor) if $canvas;
+    my @out;
+    my %seen;
+    for my $w (
+        $self->{price_canvas},
+        $self->{atr_canvas},
+        @{ $self->{plot_frames} // [] },
+    ) {
+        next unless $w;
+        my $key = "$w";
+        next if $seen{$key}++;
+        push @out, $w;
+    }
+    return @out;
+}
+
+sub _apply_select_mode_cursor {
+    my ($self, $force_probe) = @_;
+    delete $self->{_select_blank_cursor} if $force_probe;
+
+    if ($self->{_replay_select_mode}) {
+        my $cursor = $self->_chart_plot_cursor();
+        for my $w ($self->_plot_cursor_targets()) {
+            $self->_set_cursor($w, $cursor);
+        }
+    }
+    else {
+        $self->_set_cursor($self->{price_canvas}, 'crosshair') if $self->{price_canvas};
+        $self->_set_cursor($self->{atr_canvas}, 'crosshair') if $self->{atr_canvas};
     }
     return $self;
 }
@@ -2506,6 +2565,7 @@ sub _on_mouse_move {
     $self->{active_canvas} = $widget;
     
     if ($self->{_replay_select_mode}) {
+        $self->_apply_select_mode_cursor();
         $self->_clear_chart_crosshair();
         $self->_draw_replay_select_hover($widget, $pixel_x, $pixel_y);
     }

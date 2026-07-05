@@ -149,6 +149,7 @@ my $chart_engine = Market::ChartEngine->new(
 );
 
 $chart_engine->{replay_watermark_on_ref} = \$replay_watermark_on;
+$chart_engine->{plot_frames} = [$price_frame, $atr_frame];
 
 $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);

@@ -532,6 +532,10 @@ sub r42_build_chart {
 {
     my $chart = r42_build_chart();
     $chart->set_replay_select_mode(1);
+    use Market::ChartEngine;
+    my $ce_probe = bless {}, 'Market::ChartEngine';
+    ok($ce_probe->_blank_cursor_xbm_path(), '0053: assets/blank_cursor.xbm disponible');
+
     isnt($chart->{price_canvas}{cursor}, 'crosshair',
         '0053: select mode NO usa cursor crosshair nativo en price');
     isnt($chart->{atr_canvas}{cursor}, 'crosshair',
