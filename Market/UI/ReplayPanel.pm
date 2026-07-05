@@ -60,16 +60,26 @@ sub _media_frame_opts {
     );
 }
 
+sub _media_tk_bind {
+    my ($w, $seq, $cb) = @_;
+    return unless $w && ref($cb) eq 'CODE';
+    eval { $w->Tk::bind($seq, $cb) };
+    return;
+}
+
 sub _media_wire_command {
     my ($widget, $cb) = @_;
     my $cmd = ref($cb) eq 'CODE' ? $cb : sub { };
     $widget->{_command} = $cmd;
     $widget->{hit}->configure(-command => $cmd) if $widget->{hit};
-    if ($widget->{canvas}) {
-        eval { $widget->{canvas}->bind('<Button-1>', $cmd) };
-    }
-    if ($widget->{label}) {
-        eval { $widget->{label}->bind('<Button-1>', $cmd) };
+    for my $w (grep { $_ } (
+        $widget->{frame},
+        $widget->{inner},
+        $widget->{hit},
+        $widget->{canvas},
+        $widget->{label},
+    )) {
+        _media_tk_bind($w, '<Button-1>', $cmd);
     }
     return;
 }
@@ -86,7 +96,6 @@ sub _make_media_button {
         -cursor => 'hand2',
     );
 
-    # Hit-area debajo del contenido (el Button encima tapaba el Canvas en Fedora35).
     my $hit = $outer->Button(
         -text               => '',
         -command            => sub { },
@@ -122,16 +131,20 @@ sub _make_media_button {
             -background => $face,
             -foreground => MEDIA_ICON,
             -font       => 'Helvetica 9 bold',
-            -width      => 3,
         );
-        $lbl->pack(-padx => 4, -pady => 2);
+        $lbl->pack(-padx => (length($text_label) > 4 ? 6 : 4), -pady => 2);
     }
 
-    $hit->bind('<ButtonPress-1>', sub { $outer->configure(-relief => 'sunken') });
-    $hit->bind('<ButtonRelease-1>', sub { $outer->configure(-relief => 'raised') });
+    my $press = sub { $outer->configure(-relief => 'sunken') };
+    my $release = sub { $outer->configure(-relief => 'raised') };
+    for my $w (grep { $_ } ($outer, $hit, $inner, $c, $lbl)) {
+        _media_tk_bind($w, '<ButtonPress-1>', $press);
+        _media_tk_bind($w, '<ButtonRelease-1>', $release);
+    }
 
     my $self = ReplayMediaWidget->new(
         frame  => $outer,
+        inner  => $inner,
         label  => $lbl,
         canvas => $c,
         hit    => $hit,
@@ -221,7 +234,7 @@ sub new {
 
     my $sel_box = $inner->Frame(-background => $bg)->pack(-side => 'left', -padx => 1);
     $pack_btn->(
-        _make_media_button($sel_box, $callbacks->{select_bar}, \&_draw_select_bar),
+        _make_media_text_button($sel_box, 'Select bar', $callbacks->{select_bar}),
         -in => $sel_box,
     );
 
@@ -374,11 +387,11 @@ sub frame     { shift->{frame} }
 sub callbacks { shift->{callbacks} }
 
 sub expected_text_button_labels {
-    return ('1x', 'D');
+    return ('Select bar', '1x', 'D');
 }
 
 sub expected_media_icon_count {
-    return 7;
+    return 6;
 }
 
 sub has_play_icon_button {

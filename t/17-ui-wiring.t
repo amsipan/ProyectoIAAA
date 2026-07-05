@@ -805,7 +805,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 
     my @texts = _collect_button_texts($built->frame);
     is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_text_button_labels() ],
-        '0048: etiquetas texto del panel (1x/D) coinciden con ASCII esperado');
+        '0048: etiquetas texto del panel (Select bar/1x/D) coinciden con ASCII esperado');
 
     for my $t (@texts) {
         ok($t !~ /[^\x00-\x7F]/, "0048: etiqueta '$t' es ASCII puro");
@@ -825,7 +825,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     };
     $walk->($built->frame);
     is($icon_canvases, Market::UI::ReplayPanel::expected_media_icon_count(),
-        '0046-prep: canvas con iconos multimedia (select/goto/transport/jump/exit)');
+        '0046-prep: canvas con iconos multimedia (goto/transport/jump/exit)');
 }
 
 done_testing();
