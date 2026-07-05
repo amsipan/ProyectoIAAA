@@ -1,7 +1,7 @@
 # Task 0051: Replay — atajos extra (no-TV): Step Back, Escape, Toggle marca de agua
 
-**Estado:** ✅ AUTORIZADA por Bryan (2026-07-05). Atajos que TradingView NO documenta pero Bryan
-quiere como mejora propia. Independiente de 0050 (calque TV puro); esta es la capa "extra".
+**Estado:** ✅ HECHO (2026-07-05). Shift+Left step back, Escape exit, M toggle Mark; 1153 PASS.
+Autorizado por Bryan (2026-07-05). Capa extra independiente de 0050 (calque TV puro).
 
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §6 (§ nota: TV no tiene step-back oficial; la comunidad

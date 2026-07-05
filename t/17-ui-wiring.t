@@ -37,6 +37,12 @@ use Market::ReplayController;
 #   7. El toggle HTF alterna su estado ($htf_enabled) y pide re-render.
 # =============================================================================
 
+# Canvas stub: request_render programa after(20) — sin servidor grafico, no-op.
+{
+    package StubAfterCanvas;
+    sub after { return }
+}
+
 # --- MockMarketData: dataset sintético de N velas 1m ---
 {
     package MockMarketData;
@@ -50,6 +56,15 @@ use Market::ReplayController;
         return bless { data => \@data }, $class;
     }
     sub size { scalar @{ shift->{data} } }
+    sub get_candle { my ($s, $i) = @_; return $s->{data}->[$i] }
+    sub get_slice {
+        my ($self, $s, $e) = @_;
+        my @out;
+        for my $i ($s .. $e) {
+            push @out, ($i >= 0 && $i < $self->size) ? $self->{data}->[$i] : undef;
+        }
+        return \@out;
+    }
 }
 
 # --- MockLiqOverlay: registra set_element_visible / set_visible ---
@@ -873,6 +888,131 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     ok(!$ce->_replay_watermark_visible(), '0046: watermark oculta con flag OFF');
     $rc->exit();
     ok(!$ce->_replay_watermark_visible(), '0046: watermark oculta sin replay activo');
+}
+
+# =============================================================================
+# Test 18 (task 0050): atajos TV Shift+Down toggle, Shift+Right precedencia.
+# =============================================================================
+{
+    use Market::ChartEngine;
+
+    my $md    = MockMarketData->new(100);
+    my $rc    = Market::ReplayController->new(market_data => $md);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => $rc,
+        visible_bars      => 20,
+        _replay_select_mode => 0,
+        _selected_bar     => undef,
+        price_canvas      => bless({}, 'StubAfterCanvas'),
+        ctrl_zoom_x_shift => 0,
+        offset            => 0,
+    }, 'Market::ChartEngine';
+
+    my $step_fwd = Market::UI::Callbacks->make_replay_step_fwd($chart);
+    $chart->{replay_keyboard_callbacks} = { step_fwd => $step_fwd };
+
+    $rc->start(40);
+    $chart->_replay_shift_right_key();
+    is($rc->current_index(), 41, '0050: Shift+Right avanza replay activo (step_fwd real)');
+
+    $rc->exit();
+    $chart->set_replay_select_mode(1);
+    $chart->{_selected_bar} = 50;
+    $chart->{replay_keyboard_callbacks}{step_fwd} = sub { die 'step_fwd no debe llamarse en select' };
+    $chart->_replay_shift_right_key();
+    is($chart->selected_bar(), 51, '0050: Shift+Right mueve seleccion en Select Bar');
+    ok(!$chart->is_replay_select_mode(), '0050: Shift+Right en select no invoca step_fwd');
+
+    $rc->start(30);
+    my $mw = MockMW->new();
+    $chart->{replay_keyboard_callbacks}{toggle_play} =
+        Market::UI::Callbacks->make_replay_toggle_play($chart, $mw, {});
+    $chart->_replay_shift_down_key();
+    ok($rc->{playing}, '0050: Shift+Down toggle play con replay activo');
+    $chart->_replay_shift_down_key();
+    ok(!$rc->{playing}, '0050: Shift+Down toggle pause');
+
+    $rc->exit();
+    ok(!$rc->is_active(), '0050: replay inactivo tras exit');
+    eval { $chart->_replay_shift_down_key() };
+    ok(!$@, '0050: Shift+Down sin replay activo no hace nada');
+    ok(!$rc->{playing}, '0050: Shift+Down sin replay no arranca play');
+}
+
+# =============================================================================
+# Test 19 (task 0051): Shift+Left precedencia, toggle watermark, Key-m, Escape.
+# =============================================================================
+{
+    use Market::ChartEngine;
+
+    my $md    = MockMarketData->new(100);
+    my $rc    = Market::ReplayController->new(market_data => $md);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => $rc,
+        visible_bars      => 20,
+        _replay_select_mode => 0,
+        _selected_bar     => undef,
+        price_canvas      => bless({}, 'StubAfterCanvas'),
+        is_auto_scale     => 1,
+        ctrl_zoom_x_shift => 0,
+        offset            => 0,
+    }, 'Market::ChartEngine';
+
+    my $step_back = Market::UI::Callbacks->make_replay_step_back($chart);
+    $chart->{replay_keyboard_callbacks} = { step_back => $step_back };
+
+    $rc->start(40);
+    $chart->_replay_shift_left_key();
+    is($rc->current_index(), 39, '0051: Shift+Left retrocede replay activo (step_back real)');
+
+    $rc->exit();
+    $chart->set_replay_select_mode(1);
+    $chart->{_selected_bar} = 50;
+    $chart->{replay_keyboard_callbacks}{step_back} = sub { die 'step_back no debe llamarse en select' };
+    $chart->_replay_shift_left_key();
+    is($chart->selected_bar(), 49, '0051: Shift+Left mueve seleccion en Select Bar');
+
+    my $wm_on = 1;
+    my $mark_panel = bless {}, 'Market::UI::ReplayPanel';
+    my $mark_text;
+    no warnings 'redefine';
+    *Market::UI::ReplayPanel::sync_mark_button = sub {
+        my ($self, $on) = @_;
+        $mark_text = $on ? 'Mark: on' : 'Mark: off';
+        return $self;
+    };
+    my %vars = (
+        replay_watermark_on => \$wm_on,
+        replay_panel        => \$mark_panel,
+    );
+    my $toggle_wm = Market::UI::Callbacks->make_replay_toggle_watermark($chart, \%vars);
+    ok(ref($toggle_wm) eq 'CODE', '0051: make_replay_toggle_watermark es CODE');
+    $toggle_wm->();
+    is($wm_on, 0, '0051: toggle watermark apaga flag');
+    is($mark_text, 'Mark: off', '0051: toggle sincroniza texto Mark');
+    $toggle_wm->();
+    is($wm_on, 1, '0051: toggle watermark enciende flag');
+
+    $rc->start(40);
+    $chart->{replay_keyboard_callbacks}{toggle_watermark} = $toggle_wm;
+    $chart->_replay_key_m('price');
+    is($wm_on, 0, '0051: tecla M en replay conmuta marca');
+
+    $rc->exit();
+    ok($chart->{is_auto_scale}, '0051: escala auto antes de M fuera replay');
+    $chart->_replay_key_m('price');
+    ok(!$chart->{is_auto_scale}, '0051: M fuera replay pone escala manual precio');
+
+    $rc->start(50);
+    my $replay_on = 1;
+    %vars = ( replay_on => \$replay_on );
+    $chart->{replay_keyboard_callbacks}{exit} =
+        Market::UI::Callbacks->make_replay_exit($chart, \%vars);
+    $chart->_replay_escape_key();
+    ok(!$rc->is_active(), '0051: Escape sale del replay (is_active==0)');
+    is($replay_on, 0, '0051: Escape marca replay_on=0');
 }
 
 done_testing();

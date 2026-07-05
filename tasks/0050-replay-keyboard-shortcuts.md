@@ -1,6 +1,6 @@
 # Task 0050: Replay — atajos de teclado oficiales TradingView
 
-**Estado:** ✅ AUTORIZADA por Bryan (2026-07-05). "Dejemos todo tal cual como TradingView."
+**Estado:** ✅ HECHO (2026-07-05). Shift+Down toggle, Shift+Right precedencia; 1153 PASS.
 Alcance CERRADO a los 2 atajos oficiales de TV. No añadir extras sin pedido explícito.
 
 ## Referencia

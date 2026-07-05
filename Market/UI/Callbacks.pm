@@ -191,6 +191,18 @@ sub _sync_replay_play_icon {
     return;
 }
 
+# _sync_replay_mark_button — task 0051: texto Mark: on/off tras toggle (boton o tecla M).
+sub _sync_replay_mark_button {
+    my ($chart, $vars) = @_;
+    return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
+    my $panel = ${ $vars->{replay_panel} };
+    return unless $panel && ref($panel) && $panel->can('sync_mark_button');
+    my $ref = $vars->{replay_watermark_on};
+    my $on = ($ref && ${ $ref }) ? 1 : 0;
+    $panel->sync_mark_button($on);
+    return;
+}
+
 # _replay_begin($chart, $start_idx, $opts) — task 0040-B: encuadra vista y arranca replay.
 # $opts->{anchor} => 1: ultima vela ~80% del plot (Select Bar estilo TradingView).
 sub _replay_begin {
@@ -682,6 +694,21 @@ sub make_replay_exit {
     return sub {
         _sync_replay_ui_cleanup($chart, $vars);
         ${$ref} = 0 if $ref;
+        $chart->request_render();
+    };
+}
+
+# make_replay_toggle_watermark — task 0051: flip marca "Replay" (boton Mark y tecla M).
+sub make_replay_toggle_watermark {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_toggle_watermark: requiere \$chart" unless $chart;
+    my $ref = (ref($vars) eq 'HASH' && $vars->{replay_watermark_on})
+        ? $vars->{replay_watermark_on}
+        : $chart->{replay_watermark_on_ref};
+    return sub {
+        return unless $ref;
+        ${ $ref } = ${ $ref } ? 0 : 1;
+        _sync_replay_mark_button($chart, $vars);
         $chart->request_render();
     };
 }

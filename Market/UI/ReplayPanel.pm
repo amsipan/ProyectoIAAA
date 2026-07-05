@@ -310,17 +310,20 @@ sub new {
         : do { my $x = 1; \$x };
     ${ $mark_ref } = 1 unless defined ${ $mark_ref };
 
-    my $mark_btn;
-    $mark_btn = _make_media_text_button(
+    my $mark_btn = _make_media_text_button(
         $inner,
         ${ $mark_ref } ? 'Mark: on' : 'Mark: off',
-        sub {
-            ${ $mark_ref } = ${ $mark_ref } ? 0 : 1;
-            $mark_btn->configure(-text => ${ $mark_ref } ? 'Mark: on' : 'Mark: off');
-            $chart->request_render();
-        },
+        $callbacks->{toggle_watermark},
     );
     $pack_btn->($mark_btn);
+
+    $chart->{replay_keyboard_callbacks} = {
+        toggle_play      => $callbacks->{play},
+        step_fwd         => $callbacks->{step_fwd},
+        step_back        => $callbacks->{step_back},
+        exit             => $callbacks->{exit},
+        toggle_watermark => $callbacks->{toggle_watermark},
+    };
 
     my $self = bless {
         frame          => $frame,
@@ -366,8 +369,9 @@ sub callback_factories {
         step_back     => Market::UI::Callbacks->make_replay_step_back($chart),
         speed_menu    => Market::UI::Callbacks->make_replay_speed_menu_stub($chart, $vars),
         interval_menu => Market::UI::Callbacks->make_replay_interval_menu_stub($chart, $vars),
-        jump_real     => Market::UI::Callbacks->make_replay_jump_real($chart, $vars),
-        exit          => Market::UI::Callbacks->make_replay_exit($chart, $vars),
+        jump_real        => Market::UI::Callbacks->make_replay_jump_real($chart, $vars),
+        exit             => Market::UI::Callbacks->make_replay_exit($chart, $vars),
+        toggle_watermark => Market::UI::Callbacks->make_replay_toggle_watermark($chart, $vars),
     };
 }
 
@@ -425,6 +429,15 @@ sub sync_play_button_icon {
     return $self unless $btn && $btn->can('redraw_icon');
     my $draw = $playing ? \&_draw_pause : \&_draw_play;
     $btn->redraw_icon($draw);
+    return $self;
+}
+
+sub sync_mark_button {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    my $btn = $self->{mark_btn};
+    return $self unless $btn && $btn->can('configure');
+    $btn->configure(-text => $on ? 'Mark: on' : 'Mark: off');
     return $self;
 }
 

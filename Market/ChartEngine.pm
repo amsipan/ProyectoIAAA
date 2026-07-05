@@ -914,6 +914,72 @@ sub restore_after_replay_exit {
     return $self;
 }
 
+# task 0050/0051: atajos replay en canvas precio/ATR (guards por estado; sin binds dinamicos).
+# Precedencia Shift+flechas: select_mode > replay activo > nada.
+
+sub _replay_shift_down_key {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return unless $rc && $rc->is_active();
+    my $cb = $self->{replay_keyboard_callbacks}{toggle_play};
+    $cb->() if ref($cb) eq 'CODE';
+    return $self;
+}
+
+sub _replay_shift_right_key {
+    my ($self) = @_;
+    if ($self->{_replay_select_mode}) {
+        $self->adjust_selected_bar(1);
+        $self->request_render();
+        return $self;
+    }
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    my $cb = $self->{replay_keyboard_callbacks}{step_fwd};
+    $cb->() if ref($cb) eq 'CODE';
+    return $self;
+}
+
+sub _replay_shift_left_key {
+    my ($self) = @_;
+    if ($self->{_replay_select_mode}) {
+        $self->adjust_selected_bar(-1);
+        $self->request_render();
+        return $self;
+    }
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    my $cb = $self->{replay_keyboard_callbacks}{step_back};
+    $cb->() if ref($cb) eq 'CODE';
+    return $self;
+}
+
+sub _replay_escape_key {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    my $cb = $self->{replay_keyboard_callbacks}{exit};
+    $cb->() if ref($cb) eq 'CODE';
+    return $self;
+}
+
+sub _replay_key_m {
+    my ($self, $panel) = @_;
+    my $rc = $self->{replay_controller};
+    if ($rc && $rc->is_active()) {
+        my $cb = $self->{replay_keyboard_callbacks}{toggle_watermark};
+        $cb->() if ref($cb) eq 'CODE';
+        return $self;
+    }
+    if (($panel // 'price') eq 'atr') {
+        $self->set_atr_scale_mode('manual');
+    }
+    else {
+        $self->set_scale_mode('manual');
+    }
+    return $self;
+}
+
 # _replay_anchor_x_shift($x_bars, $plot_width, $frac) — desplazamiento px para dejar
 # un hueco derecho fijo (REPLAY_RIGHT_GAP_FRAC del plot), igual en todo zoom.
 sub _replay_anchor_x_shift {
@@ -1294,21 +1360,15 @@ sub _bind_all_canvas {
         $p_canvas->Tk::bind('<Double-Button-1>', sub { $self->reset_view(); });
         $p_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($p_canvas); });
         $p_canvas->Tk::bind('<Key-a>', sub { $self->set_scale_mode('auto'); });
-        $p_canvas->Tk::bind('<Key-m>', sub { $self->set_scale_mode('manual'); });
+        $p_canvas->Tk::bind('<Key-m>', sub { $self->_replay_key_m('price'); });
         $p_canvas->Tk::bind('<Key-plus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(0.9); });
         $p_canvas->Tk::bind('<Key-minus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(1.1); });
         $p_canvas->Tk::bind('<Up>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(-10); });
         $p_canvas->Tk::bind('<Down>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(10); });
-        $p_canvas->Tk::bind('<Shift-Left>', sub {
-            return unless $self->{_replay_select_mode};
-            $self->adjust_selected_bar(-1);
-            $self->request_render();
-        });
-        $p_canvas->Tk::bind('<Shift-Right>', sub {
-            return unless $self->{_replay_select_mode};
-            $self->adjust_selected_bar(1);
-            $self->request_render();
-        });
+        $p_canvas->Tk::bind('<Shift-Down>', sub { $self->_replay_shift_down_key(); });
+        $p_canvas->Tk::bind('<Shift-Left>', sub { $self->_replay_shift_left_key(); });
+        $p_canvas->Tk::bind('<Shift-Right>', sub { $self->_replay_shift_right_key(); });
+        $p_canvas->Tk::bind('<Escape>', sub { $self->_replay_escape_key(); });
         $p_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($p_canvas, 'crosshair'); $p_canvas->focus; });
         $p_canvas->Tk::bind('<Leave>', sub {
             $self->_set_cursor($p_canvas, 'crosshair');
@@ -1354,21 +1414,15 @@ sub _bind_all_canvas {
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $a_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($a_canvas); });
         $a_canvas->Tk::bind('<Key-a>', sub { $self->set_atr_scale_mode('auto'); });
-        $a_canvas->Tk::bind('<Key-m>', sub { $self->set_atr_scale_mode('manual'); });
+        $a_canvas->Tk::bind('<Key-m>', sub { $self->_replay_key_m('atr'); });
         $a_canvas->Tk::bind('<Key-plus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(0.9); });
         $a_canvas->Tk::bind('<Key-minus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(1.1); });
         $a_canvas->Tk::bind('<Up>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(-10); });
         $a_canvas->Tk::bind('<Down>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(10); });
-        $a_canvas->Tk::bind('<Shift-Left>', sub {
-            return unless $self->{_replay_select_mode};
-            $self->adjust_selected_bar(-1);
-            $self->request_render();
-        });
-        $a_canvas->Tk::bind('<Shift-Right>', sub {
-            return unless $self->{_replay_select_mode};
-            $self->adjust_selected_bar(1);
-            $self->request_render();
-        });
+        $a_canvas->Tk::bind('<Shift-Down>', sub { $self->_replay_shift_down_key(); });
+        $a_canvas->Tk::bind('<Shift-Left>', sub { $self->_replay_shift_left_key(); });
+        $a_canvas->Tk::bind('<Shift-Right>', sub { $self->_replay_shift_right_key(); });
+        $a_canvas->Tk::bind('<Escape>', sub { $self->_replay_escape_key(); });
         $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); $a_canvas->focus; });
         $a_canvas->Tk::bind('<Leave>', sub {
             $self->_set_cursor($a_canvas, 'crosshair');
