@@ -1,42 +1,72 @@
-# Task 0050: Replay — atajos de teclado (DIFERIDO)
+# Task 0050: Replay — atajos de teclado oficiales TradingView
 
-**Estado:** ⏸ diferido por Bryan (2026-07-05). "Tal vez faltarían los atajos de teclado pero lo
-dejaremos para luego". Anotado para no perderlo. NO empezar sin autorización.
+**Estado:** ✅ AUTORIZADA por Bryan (2026-07-05). "Dejemos todo tal cual como TradingView."
+Alcance CERRADO a los 2 atajos oficiales de TV. No añadir extras sin pedido explícito.
 
 ## Referencia
-- `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §7 (atajos oficiales TradingView).
-- Depende de 0046 (toggle Play/Pause y step forward ya cableados).
-- Originalmente parte de 0046; se separó porque Bryan lo dejó para después.
+- `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §6 (atajos oficiales) y §7.
+- Depende de 0046 (toggle Play/Pause `make_replay_toggle_play` y step `make_replay_step_fwd` ya existen).
+- Se separó de 0046 porque Bryan lo difirió; ahora autorizado.
 
 ## Objetivo
-Atajos de teclado oficiales del Bar Replay, activos solo con el modo replay ON:
-- `Shift+↓` → toggle Play/Pause.
-- `Shift+→` → step forward (una vela / un intervalo).
+Solo los 2 atajos que TradingView documenta oficialmente, activos solo con la pestaña Replay activa:
+- **`Shift+↓`** (`<Shift-Down>`) → toggle Play/Pause.
+- **`Shift+→`** (`<Shift-Right>`) → avanzar un paso (step forward).
 
-## Precedencia crítica (no romper Select Bar)
-- Con `_replay_select_mode` ON: `Shift+←/→` SIGUEN moviendo la vela seleccionada (0042). NO tocar.
-- Con replay activo y NO en select mode: `Shift+→` avanza el replay un paso.
-- Documentar la precedencia en el código y en el test.
+NO implementar `Shift+←` (step back), ni Espacio, ni jump, ni velocidad por teclado: TV no los tiene
+oficiales y Bryan pidió calcar TV exacto.
 
-## Notas de implementación (heredar lecciones)
-- API Tk Fedora35 (0049): usar `$w->Tk::bind($seq,$cb)` sin modo `'+'`; desbindear con
-  `$w->Tk::bind($seq,'')` al salir del replay. Bind en la ventana o en los canvas de precio/ATR.
-- Instalar los binds al entrar en replay, quitarlos al salir (reusar la limpieza de 0040/0046).
-- ASCII/estética: no aplica (sin UI nueva).
+## Estado actual (ya en el código)
+- `Market/ChartEngine.pm` ~1302 y ~1362: `<Shift-Left>`/`<Shift-Right>` YA bindeados en el canvas de
+  precio y en el de ATR, con `return unless $self->{_replay_select_mode};` → solo mueven la selección
+  en modo Select Bar (`adjust_selected_bar(±1)`).
+- `<Shift-Down>` NO existe todavía.
+- Funciones listas para cablear: `Market::UI::Callbacks::make_replay_toggle_play`,
+  `make_replay_step_fwd`; `ReplayController` tiene `step_forward`/`advance_one_tick`/`is_active`;
+  `ChartEngine::is_replay_select_mode`.
+
+## Diseño
+1. **`<Shift-Down>` (toggle Play/Pause):** bindear en los MISMOS dos canvas (precio + ATR), llamando
+   al toggle ya existente. El bind debe actuar solo si el replay está activo (`is_active` /
+   `replay_on`); si no, no hacer nada. Reutilizar la lógica de `make_replay_toggle_play` (no duplicar
+   el play/pause; invocar el callback o factorizar un helper interno que ambos usen).
+2. **`<Shift-Right>` (step forward) — extender el bind existente con precedencia:**
+   - Si `_replay_select_mode` ON → seguir moviendo la selección (`adjust_selected_bar(1)`), como HOY.
+     NO tocar ese comportamiento.
+   - Si replay activo y NO en select mode → avanzar un paso del replay (equivalente a
+     `make_replay_step_fwd`). Reutilizar la misma función del botón Forward, no reimplementar.
+   - Si nada activo → no hacer nada.
+   - Documentar la precedencia (select > replay-activo > nada) en un comentario.
+3. **`<Shift-Left>`:** SIN CAMBIOS. Sigue solo para mover selección en Select Bar (TV no tiene
+   step-back oficial). Dejarlo como está.
+
+## Notas de implementación (lecciones 0049 — obligatorias)
+- API Tk Fedora35: `$w->Tk::bind($seq, $cb)` sin modo `'+'`. Los canvas ya reciben `focus` en
+  `<Enter>`, así que los binds de teclado responden cuando el cursor está sobre el chart.
+- Bindear en precio Y ATR (igual que los Shift+flechas actuales) para que funcione en ambos paneles.
+- No hace falta instalar/quitar binds dinámicamente: el guard por estado (`is_active`/select_mode)
+  dentro del callback basta y evita atajos huérfanos (mismo patrón que los Shift+flechas actuales).
+- Sin UI nueva → criterio ASCII 0048 no aplica.
 
 ## Criterios de aceptación
-- `Shift+↓` alterna autoplay; `Shift+→` avanza un paso; ninguno interfiere con Select Bar.
-- Al salir del replay los binds se retiran (no quedan atajos huérfanos).
-- `prove -l t` verde; test en `t/17-ui-wiring.t` o `t/25-replay-select-bar.t`: precedencia de
-  `Shift+→` según modo (select vs replay-activo).
+- `Shift+↓` alterna Play↔Pause solo con replay activo; el icono del botón triángulo refleja el cambio
+  (reusa `_sync_replay_play_icon`).
+- `Shift+→` mueve selección en Select Bar; avanza el replay cuando está corriendo y NO en select.
+- `Shift+←` sigue solo moviendo selección (sin regresión).
+- No quedan atajos activos fuera del modo replay.
+- `prove -l t` verde; test en `t/17-ui-wiring.t` o `t/25-replay-select-bar.t` que verifique la
+  PRECEDENCIA de `Shift+→` según modo (select vs replay-activo) invocando el callback real, no lógica
+  reimplementada.
 
 ## Verificación
 ```bash
-wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c market.pl && perl -I. -c Market/UI/Callbacks.pm && prove -l t"
+wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c market.pl && perl -I. -c Market/ChartEngine.pm && perl -I. -c Market/UI/Callbacks.pm && prove -l t"
 ```
-**OBLIGATORIO (0049):** arrancar la app real y probar los atajos en runtime; `perl -c` + mocks no
-detectan errores de bind de Tk.
+**OBLIGATORIO (0049):** arrancar la app real (`perl -I. market.pl`), entrar en Replay y probar los
+atajos EN RUNTIME (Shift+↓ pausa/reanuda, Shift+→ avanza). `perl -c` + mocks no detectan errores de
+bind de Tk.
 
 ## Qué no tocar
-- No romper Select Bar (0042) ni sus atajos `Shift+←/→`.
-- No romper el toggle Play/Pause ni el step de 0046.
+- No romper Select Bar (0042) ni el `<Shift-Left>`/`<Shift-Right>` de selección.
+- No romper el toggle Play/Pause, el Jump ni el Mark de 0046.
+- No añadir atajos que TradingView no documenta (decisión de Bryan: calcar TV exacto).

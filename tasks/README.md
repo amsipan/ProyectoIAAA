@@ -118,7 +118,7 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
 | 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
-| 0050 | [DIFERIDO] Atajos de teclado replay (Shift+↓ toggle, Shift+→ step) | 0046 | pendiente (post-0046, pedido Bryan) |
+| 0050 | Atajos de teclado oficiales TV (Shift+↓ toggle, Shift+→ step) | 0046 | AUTORIZADA (lista para implementor; calque TV exacto) |
  
 **Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → 0045 → 0046 → **0050**. (0047 pulido, baja prio.)
 
