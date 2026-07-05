@@ -595,6 +595,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         return $w;
     }
     sub pack { return shift }
+    sub lower { return shift }
+    sub raise { return shift }
     sub place {
         my ($s, %o) = @_;
         $s->{placed} = 1;
@@ -619,6 +621,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     sub pack { return shift }
     sub bind { return shift }
     sub place { return shift }
+    sub lower { return shift }
+    sub raise { return shift }
     sub createPolygon { my ($s) = @_; push @{ $s->{items} }, 'polygon'; return 'icon' }
     sub createRectangle { my ($s) = @_; push @{ $s->{items} }, 'rect'; return 'icon' }
     sub createLine { my ($s) = @_; push @{ $s->{items} }, 'line'; return 'icon' }
@@ -727,6 +731,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         return $w;
     }
     sub pack { return shift }
+    sub lower { return shift }
+    sub raise { return shift }
     sub place { my ($s) = @_; $s->{placed} = 1; return $s }
     sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
     sub update_idletasks { return }
@@ -745,6 +751,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     sub pack { return shift }
     sub bind { return shift }
     sub place { return shift }
+    sub lower { return shift }
+    sub raise { return shift }
     sub createPolygon {
         my ($s, @coords) = @_;
         push @{ $s->{items} }, { type => 'polygon', coords => \@coords };

@@ -12,9 +12,9 @@ use Market::UI::ReplayIntervalMenu;
 # Botones estilo reproductor multimedia: Canvas + hit-area Button (-command).
 
 use constant {
-    MEDIA_FACE        => '#ececec',
-    MEDIA_FACE_ACTIVE => '#d4d4d4',
-    MEDIA_ICON        => '#363a45',
+    MEDIA_FACE        => '#d8d8d8',
+    MEDIA_FACE_ACTIVE => '#c0c0c0',
+    MEDIA_ICON        => '#1e222d',
     MEDIA_CANVAS_W    => 28,
     MEDIA_CANVAS_H    => 24,
 };
@@ -36,8 +36,8 @@ sub _media_colors {
             $self->{label}->configure(-text => $opts{-text});
             $self->{_text} = $opts{-text};
         }
-        if (exists $opts{-command} && $self->{hit}) {
-            $self->{hit}->configure(-command => $opts{-command});
+        if (exists $opts{-command}) {
+            Market::UI::ReplayPanel::_media_wire_command($self, $opts{-command});
         }
         return $self;
     }
@@ -51,29 +51,70 @@ sub _media_colors {
     }
 }
 
+sub _media_frame_opts {
+    my ($face) = @_;
+    return (
+        -background         => $face,
+        -highlightbackground => $face,
+        -highlightcolor      => $face,
+    );
+}
+
+sub _media_wire_command {
+    my ($widget, $cb) = @_;
+    my $cmd = ref($cb) eq 'CODE' ? $cb : sub { };
+    $widget->{_command} = $cmd;
+    $widget->{hit}->configure(-command => $cmd) if $widget->{hit};
+    if ($widget->{canvas}) {
+        eval { $widget->{canvas}->bind('<Button-1>', $cmd) };
+    }
+    if ($widget->{label}) {
+        eval { $widget->{label}->bind('<Button-1>', $cmd) };
+    }
+    return;
+}
+
 sub _make_media_button {
     my ($parent, $cb, $draw, $text_label) = @_;
     my ($face, $face_active, $icon_color) = _media_colors();
+    my %fopts = _media_frame_opts($face);
 
     my $outer = $parent->Frame(
-        -relief     => 'raised',
-        -bd         => 2,
-        -background => $face,
-        -cursor     => 'hand2',
+        %fopts,
+        -relief => 'raised',
+        -bd     => 2,
+        -cursor => 'hand2',
     );
-    my $inner = $outer->Frame(-background => $face)->pack(-padx => 1, -pady => 1);
 
-    my $lbl;
+    # Hit-area debajo del contenido (el Button encima tapaba el Canvas en Fedora35).
+    my $hit = $outer->Button(
+        -text               => '',
+        -command            => sub { },
+        -background         => $face,
+        -activebackground   => $face_active,
+        -relief             => 'flat',
+        -borderwidth        => 0,
+        -highlightthickness => 0,
+        -cursor             => 'hand2',
+    );
+    $hit->place(-relx => 0, -rely => 0, -relwidth => 1, -relheight => 1);
+    eval { $hit->lower };
+
+    my $inner = $outer->Frame(%fopts)->pack(-padx => 1, -pady => 1);
+    eval { $inner->raise($hit) };
+
+    my ($c, $lbl);
     if ($draw) {
-        my $c = $inner->Canvas(
+        $c = $inner->Canvas(
+            %fopts,
             -width             => MEDIA_CANVAS_W,
             -height            => MEDIA_CANVAS_H,
-            -background         => $face,
             -highlightthickness => 0,
             -borderwidth        => 0,
         );
         $c->pack();
         $draw->($c, $icon_color);
+        eval { $c->raise };
     }
     elsif (defined $text_label) {
         $lbl = $inner->Label(
@@ -86,32 +127,18 @@ sub _make_media_button {
         $lbl->pack(-padx => 4, -pady => 2);
     }
 
-    my $hit = _media_hit_button($outer, $face, $face_active, $cb);
-    return ReplayMediaWidget->new(
-        frame => $outer,
-        label => $lbl,
-        hit   => $hit,
-        _text => $text_label,
-    );
-}
-
-sub _media_hit_button {
-    my ($outer, $face, $face_active, $cb) = @_;
-    my $cmd = ref($cb) eq 'CODE' ? $cb : sub { };
-    my $hit = $outer->Button(
-        -text               => '',
-        -command            => $cmd,
-        -background         => $face,
-        -activebackground   => $face_active,
-        -relief             => 'flat',
-        -borderwidth        => 0,
-        -highlightthickness => 0,
-        -cursor             => 'hand2',
-    );
-    $hit->place(-relx => 0, -rely => 0, -relwidth => 1, -relheight => 1);
     $hit->bind('<ButtonPress-1>', sub { $outer->configure(-relief => 'sunken') });
     $hit->bind('<ButtonRelease-1>', sub { $outer->configure(-relief => 'raised') });
-    return $hit;
+
+    my $self = ReplayMediaWidget->new(
+        frame  => $outer,
+        label  => $lbl,
+        canvas => $c,
+        hit    => $hit,
+        _text  => $text_label,
+    );
+    _media_wire_command($self, $cb);
+    return $self;
 }
 
 sub _draw_play {
