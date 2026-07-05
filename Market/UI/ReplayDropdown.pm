@@ -4,6 +4,8 @@ use warnings;
 use utf8;
 
 # Market::UI::ReplayDropdown — base place/toggle/click-outside (tasks 0044/0045/0049).
+# Fedora35: el bind de click-fuera se difiere con after(1) para no cerrar en el mismo
+# clic que abre el menu (race conocida de Tk::bind <Button-1> sincrono).
 
 sub new {
     my ($class, %args) = @_;
@@ -55,12 +57,13 @@ sub show {
         -anchor => 'sw',
     );
     $self->{visible} = 1;
-    $self->_install_outside_bind();
+    $self->_schedule_outside_bind();
     return $self;
 }
 
 sub hide {
     my ($self) = @_;
+    $self->_cancel_outside_bind_schedule();
     $self->{frame}->placeForget();
     $self->{visible} = 0;
     $self->_remove_outside_bind();
@@ -70,6 +73,47 @@ sub hide {
 sub is_visible {
     my ($self) = @_;
     return $self->{visible} ? 1 : 0;
+}
+
+# _widget_contains($leaf, $ancestor) — true si $leaf es $ancestor o descendiente.
+sub _widget_contains {
+    my ($leaf, $ancestor) = @_;
+    return 0 unless defined $leaf && defined $ancestor;
+    my $w = $leaf;
+    while (defined $w) {
+        return 1 if $w == $ancestor;
+        my $parent = eval { $w->Parent };
+        last if !defined $parent || $w eq $parent;
+        $w = $parent;
+    }
+    return 0;
+}
+
+sub _schedule_outside_bind {
+    my ($self) = @_;
+    $self->_cancel_outside_bind_schedule();
+    my $root = $self->{root};
+    return unless $root && eval { $root->exists };
+
+    if ($root->can('after')) {
+        $self->{_outside_after_id} = $root->after(1, sub {
+            delete $self->{_outside_after_id};
+            $self->_install_outside_bind() if $self->{visible};
+        });
+        return;
+    }
+    $self->_install_outside_bind();
+    return;
+}
+
+sub _cancel_outside_bind_schedule {
+    my ($self) = @_;
+    my $id = delete $self->{_outside_after_id};
+    return unless defined $id;
+    my $root = $self->{root};
+    return unless $root && eval { $root->exists };
+    eval { $root->afterCancel($id) };
+    return;
 }
 
 sub _install_outside_bind {
@@ -83,13 +127,8 @@ sub _install_outside_bind {
     $self->{_outside_cb} = sub {
         return unless $self->{visible};
         my $w = eval { $root->containing($root->pointerx, $root->pointery) };
-        while (defined $w) {
-            return if defined $menu && $w == $menu;
-            return if defined $anchor && $w == $anchor;
-            my $parent = eval { $w->Parent };
-            last if !defined $parent || $w eq $parent;
-            $w = $parent;
-        }
+        return if _widget_contains($w, $menu);
+        return if _widget_contains($w, $anchor);
         $self->hide();
     };
     $root->Tk::bind('<Button-1>', $self->{_outside_cb});

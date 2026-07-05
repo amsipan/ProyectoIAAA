@@ -66,8 +66,7 @@ sub new {
         ui_vars => $vars,
     );
     my $goto_btn;
-    $goto_btn = $btn_opts->('v', sub { $goto_menu->toggle($goto_btn) })
-        ->pack(-side => 'left', -in => $sel_box);
+    $goto_btn = $btn_opts->('v', sub { })->pack(-side => 'left', -in => $sel_box);
     $goto_menu->set_anchor($goto_btn);
 
     $btn_opts->('|<', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
@@ -83,7 +82,7 @@ sub new {
         panel_btn => $speed_btn,
         ui_vars   => $vars,
     );
-    $speed_btn->configure(-command => sub { $speed_menu->toggle($speed_btn) });
+    $speed_btn->configure(-command => sub { });
 
     my $interval_btn = $btn_opts->('D', sub { });
     $interval_btn->pack(-side => 'left', -padx => 1);
@@ -94,7 +93,21 @@ sub new {
         panel_btn => $interval_btn,
         ui_vars   => $vars,
     );
-    $interval_btn->configure(-command => sub { $interval_menu->toggle($interval_btn) });
+    $interval_btn->configure(-command => sub { });
+
+    my $toggle_menu = sub {
+        my ($menu, $btn) = @_;
+        for my $other (
+            grep { $_ && $_ != $menu }
+            ($goto_menu, $speed_menu, $interval_menu)
+        ) {
+            $other->hide() if $other->can('hide');
+        }
+        $menu->toggle($btn);
+    };
+    $goto_btn->configure(-command => sub { $toggle_menu->($goto_menu, $goto_btn) });
+    $speed_btn->configure(-command => sub { $toggle_menu->($speed_menu, $speed_btn) });
+    $interval_btn->configure(-command => sub { $toggle_menu->($interval_menu, $interval_btn) });
 
     $btn_opts->('>>', $callbacks->{fast_fwd})->pack(-side => 'left', -padx => 1);
     $btn_opts->('X', $callbacks->{exit})->pack(-side => 'left', -padx => 4);
@@ -146,11 +159,20 @@ sub is_inline {
     return $self->{inline} ? 1 : 0;
 }
 
+sub replay_menus {
+    my ($self) = @_;
+    return grep { $_ } (
+        $self->{goto_menu},
+        $self->{speed_menu},
+        $self->{interval_menu},
+    );
+}
+
 sub hide_menus {
     my ($self) = @_;
-    $self->{goto_menu}->hide()     if $self->{goto_menu}     && $self->{goto_menu}->can('hide');
-    $self->{speed_menu}->hide()    if $self->{speed_menu}    && $self->{speed_menu}->can('hide');
-    $self->{interval_menu}->hide() if $self->{interval_menu} && $self->{interval_menu}->can('hide');
+    for my $menu ($self->replay_menus()) {
+        $menu->hide() if $menu->can('hide');
+    }
     return $self;
 }
 
