@@ -111,7 +111,7 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 |---|------|---------|--------|
 | 0041 | Backend velocidad (9 mult.) + intervalo de replay | — | ✅ hecho (verif. arq., 970 tests) |
 | 0042 | Modo selección visual: línea azul, `Re:`, velo blanco | — | ✅ hecho (verif. arq. visual; tijeras → 0047) |
-| 0043 | Panel flotante media-player (layout TV) | 0041 | pendiente |
+| 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho |
 | 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | pendiente |
 | 0045 | Dropdowns velocidad + intervalo cableados | 0041,0043 | pendiente |
 | 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |

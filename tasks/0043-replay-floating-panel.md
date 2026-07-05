@@ -1,5 +1,7 @@
 # Task 0043: Replay — panel flotante media-player (layout TradingView)
 
+**Estado:** ✅ hecho
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §3, §19 capturas 1 y 2.
 - Depende de 0041 (backend velocidad/intervalo) para poder etiquetar los botones de speed/intervalo.

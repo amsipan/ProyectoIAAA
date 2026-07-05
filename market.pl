@@ -10,6 +10,7 @@ use Market::IndicatorManager;
 use Market::Indicators::ATR;
 use Market::ChartEngine;
 use Market::UI::Callbacks;   # factorías de callbacks de la barra (TF/Replay/Overlays)
+use Market::UI::ReplayPanel; # panel flotante Replay estilo TradingView (task 0043)
 
 print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
 
@@ -124,9 +125,11 @@ my $active_tf = '1m';
 my $htf_enabled = 0;
 my $replay_on   = 0;
 my $replay_select_mode = 0;
+my $replay_panel;
 my %ui_vars = (
     active_tf => \$active_tf, htf_enabled => \$htf_enabled, replay_on => \$replay_on,
     replay_select_mode => \$replay_select_mode,
+    replay_panel       => \$replay_panel,
 );
 
 my $chart_engine = Market::ChartEngine->new(
@@ -141,6 +144,13 @@ my $chart_engine = Market::ChartEngine->new(
     atr_scale_mode_callback => sub { $atr_scale_mode = $_[0] },
     replay_select_mode_callback => sub { $replay_select_mode = $_[0] ? 1 : 0 },
     theme             => \%theme
+);
+
+$replay_panel = Market::UI::ReplayPanel->new(
+    parent  => $chart_frame,
+    chart   => $chart_engine,
+    mw      => $mw,
+    ui_vars => \%ui_vars,
 );
 
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
@@ -316,24 +326,19 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         ->pack(-side => 'left', -padx => 10);
 }
 
-# ---- Panel "Replay": controles de reproducción ----
+# ---- Panel "Replay": disparador TV + panel flotante sobre el chart (task 0043) ----
 {
     my $p = $panel{Replay};
     $p->Label(-text => 'Replay:')->pack(-side => 'left', -padx => 3);
-    my %rep_btn = (
-        'Select Bar' => Market::UI::Callbacks->make_replay_select_bar($chart_engine, \%ui_vars),
-        'Inicio'     => Market::UI::Callbacks->make_replay_start($chart_engine, \%ui_vars),
-        'Play'       => Market::UI::Callbacks->make_replay_play($chart_engine, $mw, \%ui_vars),
-        'Pause'      => Market::UI::Callbacks->make_replay_pause($chart_engine, \%ui_vars),
-        '>'          => Market::UI::Callbacks->make_replay_step_fwd($chart_engine),
-        '<'          => Market::UI::Callbacks->make_replay_step_back($chart_engine),
-        '>>'         => Market::UI::Callbacks->make_replay_fast_fwd($chart_engine, $mw, \%ui_vars),
-        'Salir'      => Market::UI::Callbacks->make_replay_exit($chart_engine, \%ui_vars),
-    );
-    for my $lbl ('Select Bar', 'Inicio', 'Play', 'Pause', '<', '>', '>>', 'Salir') {
-        $p->Button(-text => $lbl, -command => $rep_btn{$lbl}, -padx => 3)
-            ->pack(-side => 'left', -padx => 1);
-    }
+    $p->Button(
+        -text    => '◀◀ Bar Replay',
+        -command => Market::UI::Callbacks->make_replay_activate($chart_engine, \%ui_vars),
+        -padx    => 6,
+    )->pack(-side => 'left', -padx => 4);
+    $p->Label(
+        -text => '(controles en panel flotante inferior del chart)',
+        -font => 'Helvetica 8',
+    )->pack(-side => 'left', -padx => 4);
 }
 
 # Mostrar la pestaña inicial.

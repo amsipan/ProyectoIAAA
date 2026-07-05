@@ -4,6 +4,7 @@ use Test::More;
 
 use lib '.';
 use Market::UI::Callbacks;
+use Market::UI::ReplayPanel;
 use Market::ReplayController;
 
 # =============================================================================
@@ -138,6 +139,29 @@ use Market::ReplayController;
         return $s;
     }
     sub selected_bar { shift->{_selected_bar} }
+    sub set_replay_select_mode {
+        my ($s, $on) = @_;
+        $s->{_replay_select_mode} = $on ? 1 : 0;
+        push @{ $s->{_calls} }, [ set_replay_select_mode => $on ? 1 : 0 ];
+        return $s;
+    }
+    sub is_replay_select_mode {
+        my ($s) = @_;
+        return $s->{_replay_select_mode} ? 1 : 0;
+    }
+    sub clear_replay_select_mode {
+        my ($s) = @_;
+        $s->{_replay_select_mode} = 0;
+        return $s;
+    }
+    sub frame_replay_view_at { shift }
+    sub replay_start_index {
+        my ($s) = @_;
+        my $last = $s->{market_data}->size() - 1;
+        my $vis = $s->{visible_bars} || 20;
+        my $start = $last - $vis;
+        return $start < 0 ? 0 : $start;
+    }
 }
 
 # Helper: un MockMW que NO ejecuta el callback (para probar que play/fast_fwd
@@ -460,6 +484,115 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     eval { Market::UI::Callbacks->make_replay_play(undef); };
     like($@, qr'requiere \$chart', 'make_replay_play sin $chart muere claro')
         or diag("got: $@");
+}
+
+# =============================================================================
+# Test 14 (task 0043): factorías del panel flotante Replay existen y son CODE.
+# =============================================================================
+{
+    my $chart = MockChart->new();
+    my $cbs = Market::UI::ReplayPanel::callback_factories($chart, undef, {});
+    my @keys = qw(select_bar goto_menu play step_fwd step_back speed_menu interval_menu fast_fwd exit);
+    for my $k (@keys) {
+        ok(exists $cbs->{$k}, "0043: callback_factories tiene $k");
+        ok(ref($cbs->{$k}) eq 'CODE', "0043: $k es CODE");
+    }
+    ok(ref(Market::UI::Callbacks->make_replay_activate($chart, {})) eq 'CODE',
+       '0043: make_replay_activate es CODE');
+    ok(ref(Market::UI::Callbacks->make_replay_goto_menu_stub($chart, {})) eq 'CODE',
+       '0043: make_replay_goto_menu_stub es CODE');
+    ok(ref(Market::UI::Callbacks->make_replay_speed_menu_stub($chart, {})) eq 'CODE',
+       '0043: make_replay_speed_menu_stub es CODE');
+    ok(ref(Market::UI::Callbacks->make_replay_interval_menu_stub($chart, {})) eq 'CODE',
+       '0043: make_replay_interval_menu_stub es CODE');
+}
+
+# =============================================================================
+# Test 15 (task 0043): smoke build del panel; activate/exit show/hide.
+# =============================================================================
+{
+    package MockReplayPanel;
+    sub new { bless { visible => 0 }, shift }
+    sub show { my ($s) = @_; $s->{visible} = 1; return $s }
+    sub hide { my ($s) = @_; $s->{visible} = 0; return $s }
+    sub is_visible { shift->{visible} ? 1 : 0 }
+
+    package MockTkParent;
+    sub new { bless { children => [] }, shift }
+    sub Frame {
+        my ($p, %o) = @_;
+        my $f = bless { parent => $p, opts => \%o, children => [], placed => 0 }, 'MockTkFrame';
+        push @{ $p->{children} }, $f;
+        return $f;
+    }
+
+    package MockTkFrame;
+    sub Frame {
+        my ($p, %o) = @_;
+        my $f = bless { parent => $p, opts => \%o, children => [], placed => 0 }, 'MockTkFrame';
+        push @{ $p->{children} }, $f;
+        return $f;
+    }
+    sub Label {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Label' }, 'MockTkWidget';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
+    sub Button {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Button' }, 'MockTkWidget';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
+    sub pack { return shift }
+    sub place {
+        my ($s, %o) = @_;
+        $s->{placed} = 1;
+        $s->{place_opts} = \%o;
+        return $s;
+    }
+    sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
+
+    package MockTkWidget;
+    sub pack { return shift }
+
+    package main;
+
+    my $chart = MockChart->new();
+    my $built_panel;
+    my %build_vars = ( replay_panel => \$built_panel );
+
+    my $built = Market::UI::ReplayPanel->new(
+        parent  => MockTkParent->new(),
+        chart   => $chart,
+        ui_vars => \%build_vars,
+    );
+    ok($built, '0043: ReplayPanel->new smoke sin error');
+    ok(!$built->is_visible(), '0043: panel oculto tras build');
+    ok(ref($built->callbacks()) eq 'HASH', '0043: panel expone callbacks');
+    $built->show();
+    ok($built->is_visible(), '0043: show() marca visible');
+    $built->hide();
+    ok(!$built->is_visible(), '0043: hide() marca oculto');
+
+    my $replay_on = 0;
+    my $replay_select_mode = 0;
+    my $panel_obj = MockReplayPanel->new();
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+        replay_panel       => \$panel_obj,
+    );
+
+    Market::UI::Callbacks->make_replay_activate($chart, \%vars)->();
+    is($replay_on, 1, '0043: activate marca replay_on=1');
+    is($replay_select_mode, 1, '0043: activate entra en select mode');
+    ok($panel_obj->is_visible(), '0043: activate muestra panel');
+
+    Market::UI::Callbacks->make_replay_exit($chart, \%vars)->();
+    is($replay_on, 0, '0043: exit marca replay_on=0');
+    ok(!$panel_obj->is_visible(), '0043: exit oculta panel');
 }
 
 done_testing();

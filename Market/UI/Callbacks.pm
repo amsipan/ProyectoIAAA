@@ -104,6 +104,23 @@ sub _replay {
     return $chart->{replay_controller};
 }
 
+# _show_replay_panel / _hide_replay_panel — task 0043: visibilidad del panel flotante.
+sub _show_replay_panel {
+    my ($vars) = @_;
+    return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
+    my $panel = ${ $vars->{replay_panel} };
+    $panel->show() if $panel && ref($panel) && $panel->can('show');
+    return;
+}
+
+sub _hide_replay_panel {
+    my ($vars) = @_;
+    return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
+    my $panel = ${ $vars->{replay_panel} };
+    $panel->hide() if $panel && ref($panel) && $panel->can('hide');
+    return;
+}
+
 # _sync_replay_ui_cleanup($chart, $vars) — task 0040: detiene Play, sale de Replay
 # y limpia selección; sincroniza vars UI (replay_on, replay_select_mode).
 sub _sync_replay_ui_cleanup {
@@ -118,6 +135,7 @@ sub _sync_replay_ui_cleanup {
     if (ref($vars) eq 'HASH') {
         ${ $vars->{replay_on} } = 0 if $vars->{replay_on};
         ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
+        _hide_replay_panel($vars);
     }
     return;
 }
@@ -160,6 +178,43 @@ sub make_replay_start {
         ${$ref} = 1 if $ref;
         $chart->request_render();
     };
+}
+
+# make_replay_activate($chart, $vars) — task 0043: flujo TV (abrir Replay = modo selección).
+# Muestra el panel flotante y entra en Select Bar sin arrancar ReplayController->start.
+sub make_replay_activate {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_activate: requiere \$chart" unless $chart;
+    my $ref_on   = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
+    my $mode_ref = ref($vars) eq 'HASH' ? $vars->{replay_select_mode} : undef;
+    return sub {
+        ${$ref_on} = 1 if $ref_on;
+        ${$mode_ref} = 1 if $mode_ref;
+        $chart->set_replay_select_mode(1) if $chart->can('set_replay_select_mode');
+        _show_replay_panel($vars);
+        $chart->request_render();
+    };
+}
+
+# make_replay_goto_menu_stub — placeholder menú Go-to (task 0044).
+sub make_replay_goto_menu_stub {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_goto_menu_stub: requiere \$chart" unless $chart;
+    return sub { };
+}
+
+# make_replay_speed_menu_stub — placeholder dropdown velocidad (task 0045).
+sub make_replay_speed_menu_stub {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_speed_menu_stub: requiere \$chart" unless $chart;
+    return sub { };
+}
+
+# make_replay_interval_menu_stub — placeholder dropdown intervalo (task 0045).
+sub make_replay_interval_menu_stub {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_interval_menu_stub: requiere \$chart" unless $chart;
+    return sub { };
 }
 
 # make_replay_select_bar($chart, $vars) — activa/desactiva modo Select Bar (task 0030).
