@@ -111,17 +111,17 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 |---|------|---------|--------|
 | 0041 | Backend velocidad (9 mult.) + intervalo de replay | — | ✅ hecho (verif. arq., 970 tests) |
 | 0042 | Modo selección visual: línea azul, `Re:`, velo blanco | — | ✅ hecho (verif. arq. visual; tijeras → 0047) |
-| 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ estructura hecha (glyphs rotos → 0048) |
+| 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho (verif. arq. visual; glyphs → 0048) |
 | 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | pendiente |
 | 0045 | Dropdowns velocidad + intervalo cableados | 0041,0043 | pendiente |
 | 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
-| 0048 | [ALTO] Panel Replay mojibake: falta `use utf8` + glyphs sin fuente → etiquetas legibles | 0043 | ✅ hecho |
+| 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
+ 
+**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → **0044** → 0045 → 0046. (0047 al final, pulido.)
 
-**Orden de ejecución:** 0041 → 0042 → 0043 → **0048** → 0044 → 0045 → 0046. (0047 al final, pulido.)
-
-⚠️ **0048 va ANTES de 0044**: corrige el mojibake del panel y fija el criterio de etiquetas legibles
-(sin glyphs unicode que la fuente de Fedora35 no tiene) que 0044/0045 deben seguir en sus dropdowns.
+**Criterio fijado por 0048:** etiquetas ASCII legibles (no glyphs unicode que la fuente de
+Fedora35 no tiene). 0044/0045 deben seguir el mismo criterio en sus menús/dropdowns.
 
 Fuera de alcance de este lote (mejora futura): sesión Continue/Start new, multi-chart sync,
 Replay Trading (P&L), calendario gráfico completo en Select date.
