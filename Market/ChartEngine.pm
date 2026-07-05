@@ -817,9 +817,39 @@ sub set_replay_select_mode {
         $self->_clear_replay_select_hover();
     }
     $self->{_replay_select_mode} = $on;
+    if ($on) {
+        $self->_seed_replay_select_hover();
+    }
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
     }
+    return $self;
+}
+
+# _seed_replay_select_hover — posición inicial de la línea azul al entrar en select
+# mode sin esperar Motion (pedido UX: activar Replay muestra el cursor de inmediato).
+sub _seed_replay_select_hover {
+    my ($self) = @_;
+    return unless $self->{_replay_select_mode};
+    return if defined $self->{last_mouse_x};
+
+    my ($start, $end) = eval { $self->compute_window() };
+    return unless defined $end && defined $start && $end >= $start;
+
+    my $local = $end - $start;
+    my $bars  = $end - $start + 1;
+    my $scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width}   = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $x = $scale->index_to_center_x($local);
+    return unless defined $x;
+
+    $self->{last_mouse_x} = $self->round($x);
+    my (undef, $h) = $self->_canvas_size($self->{price_canvas});
+    $self->{last_mouse_y} = defined $h ? int($h / 2) : undef;
     return $self;
 }
 
@@ -1135,7 +1165,7 @@ sub _draw_replay_select_hover {
             $self->{price_canvas}->createText(
                 $x, $scissor_y,
                 -text => "\x{2702}", -anchor => 'center',
-                -font => 'Helvetica 14', -fill => $color,
+                -font => 'Helvetica 18', -fill => $color,
                 -tags => 'replay_select_scissors',
             );
         };
@@ -1664,6 +1694,9 @@ sub _start_horizontal_drag {
         my $idx = $self->_global_index_from_x($x);
         if (defined $idx) {
             $self->set_selected_bar($idx);
+            if (ref($self->{replay_bar_selected_callback}) eq 'CODE') {
+                $self->{replay_bar_selected_callback}->($idx);
+            }
             $self->request_render();
         }
         return;

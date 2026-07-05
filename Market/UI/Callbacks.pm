@@ -182,6 +182,7 @@ sub make_replay_start {
 
 # make_replay_activate($chart, $vars) — task 0043: flujo TV (abrir Replay = modo selección).
 # Muestra el panel flotante y entra en Select Bar sin arrancar ReplayController->start.
+# La línea azul aparece de inmediato (_seed_replay_select_hover en ChartEngine).
 sub make_replay_activate {
     my ($class, $chart, $vars) = @_;
     die "make_replay_activate: requiere \$chart" unless $chart;
@@ -194,6 +195,21 @@ sub make_replay_activate {
         _show_replay_panel($vars);
         $chart->request_render();
     };
+}
+
+# replay_confirm_bar_selection($chart, $vars) — task UX: al clic en una vela en modo
+# tijeras, arranca replay en selected-1 (trunca futuro) y encuadra; espera Play.
+sub replay_confirm_bar_selection {
+    my ($class, $chart, $vars) = @_;
+    die "replay_confirm_bar_selection: requiere \$chart" unless $chart;
+    my $start_idx = _replay_start_index($chart);
+    _replay_begin($chart, $start_idx);
+    if (ref($vars) eq 'HASH') {
+        ${ $vars->{replay_on} } = 1 if $vars->{replay_on};
+        ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
+    }
+    $chart->request_render();
+    return;
 }
 
 # _replay_goto_begin — arranca replay en $start_idx y sincroniza UI (task 0044).

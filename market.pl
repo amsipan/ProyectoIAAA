@@ -146,6 +146,10 @@ my $chart_engine = Market::ChartEngine->new(
     theme             => \%theme
 );
 
+$chart_engine->{replay_bar_selected_callback} = sub {
+    Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);
+};
+
 $replay_panel = Market::UI::ReplayPanel->new(
     parent  => $chart_frame,
     chart   => $chart_engine,

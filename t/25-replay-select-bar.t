@@ -385,6 +385,7 @@ sub r42_build_chart {
 
     my @sci_ops = grep { $_->[0] eq 'createText' && r42_op_tag($_) eq 'replay_select_scissors' } @{ $price->{ops} };
     ok(@sci_ops >= 1, '0042: dibuja símbolo tijeras en canvas');
+    is(r42_op_opt($sci_ops[0], '-font'), 'Helvetica 18', 'UX: tijeras un poco mas grandes (18pt)');
 
     my $time = $chart->{time_axis_canvas};
     my @re_ops = grep { $_->[0] eq 'createText' && r42_op_tag($_) eq 'replay_select_re_label' } @{ $time->{ops} };
@@ -425,6 +426,52 @@ sub r42_build_chart {
     my @del = grep { $_->[0] eq 'delete' } @{ $chart->{price_canvas}{ops} };
     ok((grep { $_ eq 'replay_select_veil' } map { $_->[1] } @del),
        '0042: selección borra velo/línea hover');
+}
+
+# =============================================================================
+# UX (pedido usuario): activar Replay muestra linea azul al instante; click trunca.
+# =============================================================================
+
+{
+    my $chart = r42_build_chart(visible_bars => 60);
+    $chart->{replay_controller} = Market::ReplayController->new(
+        market_data => $chart->{market_data},
+    );
+    my $replay_on = 0;
+    my $replay_select_mode = 0;
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+    );
+    $chart->{replay_bar_selected_callback} = sub {
+        Market::UI::Callbacks->replay_confirm_bar_selection($chart, \%vars);
+    };
+
+    $chart->set_replay_select_mode(1);
+    ok(defined $chart->{last_mouse_x}, 'UX: activar select mode siembra linea azul (last_mouse_x)');
+    ok(defined $chart->{last_mouse_y}, 'UX: activar select mode siembra Y del cursor');
+
+    use Market::Panels::Scales;
+    my ($start, $end) = $chart->compute_window();
+    my $target = 50;
+    my $local  = $target - $start;
+    my $scale  = Market::Panels::Scales->new(bars => $end - $start + 1, right_margin => 0);
+    $scale->{width} = 900;
+    my $raw_x = $scale->index_to_center_x($local);
+
+    $chart->set_replay_select_mode(1);
+    $chart->_start_horizontal_drag($chart->{price_canvas}, $raw_x, 250);
+
+    my $rc = $chart->{replay_controller};
+    ok($rc->is_active(), 'UX: click en vela arranca replay sin esperar Play');
+    is($rc->current_index(), 49, 'UX: trunca en selected-1 (vela 50 -> replay_idx 49)');
+    is($chart->selected_bar(), 50, 'UX: conserva vela seleccionada');
+    is($replay_on, 1, 'UX: click marca replay_on=1');
+    ok(!$chart->is_replay_select_mode(), 'UX: click apaga modo tijeras');
+
+    my ($s, $e) = $chart->compute_window();
+    is($e, 49, 'UX: ultima vela visible es la anterior a la seleccionada');
+    ok($s <= $e, 'UX: ventana valida tras truncar');
 }
 
 # =============================================================================
