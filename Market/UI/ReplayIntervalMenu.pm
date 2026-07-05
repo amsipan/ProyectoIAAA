@@ -62,10 +62,9 @@ sub new {
         -variable   => \$auto_var,
         -anchor     => 'w',
         -padx       => 6,
-        -pady       => [4, 4],
         -background => '#ffffff',
         -command    => sub { $self->_toggle_auto($auto_var) },
-    )->pack(-fill => 'x');
+    )->pack(-fill => 'x', -pady => [4, 4]);
     $self->{auto_var} = \$auto_var;
 
     $frame->placeForget();

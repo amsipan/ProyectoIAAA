@@ -12,6 +12,15 @@ use Market::UI::ReplayIntervalMenu;
 # Modo inline: empaquetada en la pestaña Replay de market.pl (sin place flotante).
 # Etiquetas ASCII estilo control remoto (task 0048).
 
+sub _panel_background {
+    my ($widget) = @_;
+    return '#f0f0f0' unless $widget && eval { $widget->exists };
+    my $bg = eval { $widget->cget('-background') };
+    return '#f0f0f0' unless defined $bg && length $bg;
+    return '#f0f0f0' if ref($bg) || $bg =~ /^Tk::/ || $bg =~ /^\./;
+    return $bg;
+}
+
 sub new {
     my ($class, %args) = @_;
     my $parent = $args{parent} or die "ReplayPanel: requiere parent";
@@ -24,12 +33,13 @@ sub new {
 
     my $callbacks = callback_factories($chart, $mw, $vars);
 
+    my $bg = $inline ? _panel_background($parent) : '#f0f0f0';
     my $frame = $parent->Frame(
-        -background => $inline ? $parent : '#f0f0f0',
+        -background => $bg,
         -relief     => $inline ? 'flat' : 'groove',
         -bd         => $inline ? 0 : 2,
     );
-    my $inner = $frame->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 2, -pady => 1);
+    my $inner = $frame->Frame(-background => $bg)->pack(-side => 'left', -padx => 2, -pady => 1);
 
     my $btn_opts = sub {
         my ($text, $cb) = @_;
@@ -39,13 +49,13 @@ sub new {
             -relief           => 'flat',
             -padx             => 6,
             -pady             => 2,
-            -background       => '#f0f0f0',
+            -background       => $bg,
             -activebackground => '#e0e0e0',
         );
     };
 
     # Select bar + Go-to |  |<  >  >|  1x  D  >>  X
-    my $sel_box = $inner->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 1);
+    my $sel_box = $inner->Frame(-background => $bg)->pack(-side => 'left', -padx => 1);
     $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
 
     my $goto_menu = Market::UI::ReplayGotoMenu->new(
