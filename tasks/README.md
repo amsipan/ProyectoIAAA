@@ -102,6 +102,25 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 4. ~~**0027** — BSL/SSL en banda~~ ✅
 5. ~~**0025** — Colorear velas de liquidity RUN~~ ✅
 
+### Lote CALQUE Bar Replay TradingView (plan `docs/PLAN_REPLAY_TRADINGVIEW.md`)
+
+Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX + 5 capturas en
+`docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md`.
+
+| # | Task | Depende | Estado |
+|---|------|---------|--------|
+| 0041 | Backend velocidad (9 mult.) + intervalo de replay | — | pendiente |
+| 0042 | Modo selección visual: tijeras, línea azul, `Re:`, velo blanco | — | pendiente |
+| 0043 | Panel flotante media-player (layout TV) | 0041 | pendiente |
+| 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | pendiente |
+| 0045 | Dropdowns velocidad + intervalo cableados | 0041,0043 | pendiente |
+| 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |
+
+**Orden de ejecución:** 0041 → 0042 → 0043 → 0044 → 0045 → 0046.
+
+Fuera de alcance de este lote (mejora futura): sesión Continue/Start new, multi-chart sync,
+Replay Trading (P&L), calendario gráfico completo en Select date.
+
 ## Plantilla
 
 ```
