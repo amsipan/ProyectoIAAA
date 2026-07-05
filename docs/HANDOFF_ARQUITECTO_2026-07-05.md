@@ -33,9 +33,9 @@ El arquitecto reportó en `c58cb8a`:
 | `83da0ff` | Fix crash Tk Fedora35: `-background` no puede ser widget; `pady` arrayref solo en `pack`, no en `Checkbutton` |
 | `79373cc` | Fix dropdowns multi-clic: `after(1)` antes del bind click-fuera; cerrar menús hermanos; `ReplayGotoMenu` hereda `ReplayDropdown`; `t/26-replay-dropdown.t` |
 | `eb4757c` | Este handoff document creado |
-| *(siguiente)* | Ancla Select Bar ~80% (TradingView) — ver §3 sesión E |
+| `1df6337` | Ancla Select Bar ~80% (TradingView) — ver §3 sesión E |
 
-**Evolución tests:** 1090 (c58cb8a) → 1100 → 1113 → *(+tests anchor en t/25)*.
+**Evolución tests:** 1090 (c58cb8a) → 1100 → 1113 → **1117** (+4 tests anchor en `t/25`).
 
 ---
 
@@ -229,4 +229,4 @@ actualización de este documento.
 ---
 
 *Generado: 2026-07-05. Autor: implementor (rol arquitecto temporal por instrucción del arquitecto a Bryan).*
-*Base: `c58cb8a` → `79373cc`.*
+*Base: `c58cb8a` → `1df6337`.*
