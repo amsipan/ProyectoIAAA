@@ -120,8 +120,8 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
 | 0050 | Atajos de teclado oficiales TV (Shift+↓ toggle, Shift+→ step) | 0046 | ✅ hecho + APROBADO arq. (a64e21f; 1153 PASS; precedencia select>replay verificada) |
 | 0051 | Atajos extra no-TV: Shift+← step back, Esc salir, M toggle marca de agua | 0046 | ✅ hecho + APROBADO arq. (a64e21f; M ramifica: replay→marca, fuera→escala manual, sin regresión) |
-| 0052 | [BUG] Atajos replay no responden en runtime (foco → bind all ventana) | 0050,0051 | ✅ código hecho (bind all $mw + focus canvas; 1170 PASS, Test 20). Falta confirmación de tecla en vivo por Bryan (xdotool no inyecta teclas fiable en WSLg) |
-| 0053 | Select Bar: tijera reemplaza cursor cruz, negra Helvetica 22 | 0042 | ✅ hecho + APROBADO arq. (1a4d9df; cursor invisible = XBM fuente+máscara todo-ceros CON hotspot, NO ''/none; verificado por captura + Bryan) |
+| 0052 | Atajos de teclado replay (bind all a nivel ventana) | 0050,0051 | ✅ HECHO + CONFIRMADO por Bryan en vivo (Shift+↓/→/←, Esc, M funcionan) |
+| 0053 | Select Bar: tijera negra Helvetica 22 (✅) + cursor SO invisible (⏸ PAUSADO) | 0042 | ⏸ PARCIAL: tijera negra/tamaño OK; ocultar cursor del SO NO logrado en WSLg (flecha fantasma semitransparente persiste pese a XBM+hotspot). PAUSADO por Bryan |
  
 **Orden de ejecución:** 0041 → … → 0046 → **0050 → 0051 → 0052 → 0053** ✅. (0047 pulido, baja prio.)
 

@@ -1,14 +1,24 @@
 # Task 0053: Replay Select Bar — tijera reemplaza al cursor, negra y ligeramente más grande
 
-**Estado:** ✅ HECHO + APROBADO arquitecto (2026-07-05, commit 1a4d9df). Tijera negra Helvetica 22 +
-cursor del SO INVISIBLE en Select Bar. Verificado por captura (arquitecto) y por Bryan.
+**Estado:** ⏸ PARCIAL / PAUSADO por Bryan (2026-07-05).
+- ✅ **Tijera negra Helvetica 22:** HECHO y verificado (captura + Bryan). Se ve como se pidió.
+- ⏸ **Ocultar el cursor del SO en Select Bar:** NO LOGRADO en WSLg. PAUSADO tras muchos intentos.
 
-**Fix real del cursor invisible (arquitecto):** el intento del implementor con `-cursor => ''`
-dejaba `cget=undef` y WSLg mostraba una flecha fantasma semitransparente. La solución que SÍ oculta
-el puntero en Fedora35/WSLg (Tk 804.036): cursor XBM **fuente + máscara todo-ceros CON hotspot**
-(`#define *_x_hot 0` / `*_y_hot 0` — sin hotspot: `bad hot spot in bitmap file`). Spec arrayref
-`['@'.$src, $mask, 'black', 'black']` pasado tal cual a `configure`. Assets:
-`assets/blank_cursor.xbm` + `assets/blank_cursor_mask.xbm`. `none`/`blank` no existen en este Tk.
+**Por qué se pausó (para retomar después):** En Fedora35/WSLg (Tk 804.036) NADA logró ocultar del
+todo el puntero del SO sobre el chart: sigue mostrándose una flecha de mouse normal, ligeramente
+transparente (varía). Intentos fallidos documentados:
+- `-cursor => 'none'` / `'blank'` → no existen en este Tk (`bad cursor spec`).
+- `-cursor => ''` → `cget=undef`; WSLg pinta flecha fantasma semitransparente.
+- XBM fuente+máscara todo-ceros CON hotspot (`['@'.$src,$mask,'black','black']`) → Tk lo ACEPTA
+  (probe headless OK) pero WSLg/XWayland igual muestra la flecha fantasma. Aplicado también a los
+  frames ancestros (`plot_frames`) sin éxito.
+- Hipótesis pendiente: XWayland ignora el cursor Tk vacío y usa el del compositor; probablemente
+  requiera XFixesHideCursor vía X11 directo (no expuesto por Perl/Tk 8.x aquí), o un workaround a
+  nivel de compositor. Ver `scratch/probe_cursor_*.pl` y la lección en `tasks/README.md`.
+
+**Al retomar:** el código actual (assets XBM + `_select_mode_blank_cursor` con arrayref+hotspot)
+queda como base; NO se revierte (es lo más cerca que se llegó y no rompe nada). La tijera negra
+funciona. Solo falta resolver la ocultación real del puntero del SO.
 
 **Estado anterior:** ✅ AUTORIZADA (pedido Bryan 2026-07-05). Pulido visual del modo Select Bar. Ojo: la
 0047 (tijeras VECTORIALES) sigue sin autorizar; esto es solo color/tamaño/cursor del glyph actual.
