@@ -2,7 +2,12 @@
 
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §4, §19 captura 3.
-- Depende de 0043 (panel flotante con disparador `Select bar ▾`).
+- Depende de 0043 (panel flotante). Disparador: botón `v` del panel (callback `goto_menu`).
+
+## CRITERIO FIJO (heredado de 0048)
+Etiquetas ASCII legibles, **NO glyphs unicode** (la fuente de Tk en Fedora35 no los tiene → mojibake).
+Filas del menú: `Bar`, `Date...`, `First available date`, `Random bar` (prefijo ASCII opcional tipo
+`| Bar`). Título del dropdown: `SELECT STARTING POINT`. Nada de `▾ ▷ ✂` etc. en el UI.
 
 ## Objetivo
 Calcar el dropdown "SELECT STARTING POINT" (captura 3) con 4 opciones:
@@ -15,8 +20,8 @@ Calcar el dropdown "SELECT STARTING POINT" (captura 3) con 4 opciones:
 - Solo existe "Select Bar" (activa el modo selección). No hay Date/First/Random.
 
 ## Diseño
-1. **Dropdown:** Frame flotante posicionado con `place` justo encima del botón `Select bar ▾`
-   (sin `Optionmenu`). Título gris "SELECT STARTING POINT" + 4 filas clicables con icono textual.
+1. **Dropdown:** Frame flotante posicionado con `place` justo encima del botón `v` del panel
+   (sin `Optionmenu`). Título gris "SELECT STARTING POINT" + 4 filas clicables con etiqueta ASCII.
    Se cierra al elegir o al hacer click fuera (bind `<Button-1>` global temporal).
 2. **Callbacks nuevos en `Market/UI/Callbacks.pm`:**
    - `make_replay_goto_bar` → `set_replay_select_mode(1)` (modo tijeras).
