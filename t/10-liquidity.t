@@ -1121,4 +1121,98 @@ SKIP: {
     is(($c2{EQH}//0), ($c{EQH}//0), 'ORDEN6: EQH externos identicos con/sin internos');
 }
 
+# =============================================================================
+# task 0054: densidad BSL/SSL — k default, level_atr_factor, menos ruido
+# =============================================================================
+
+sub count_bsl_ssl {
+    my ($levels) = @_;
+    return scalar grep { $_->{type} eq 'BSL' || $_->{type} eq 'SSL' } @$levels;
+}
+
+{
+    my @noisy;
+    for my $i (0 .. 39) {
+        my $p = $i % 6;
+        if    ($p == 0) { push @noisy, [100, 101, 99, 100]; }
+        elsif ($p == 1) { push @noisy, [100, 103, 99, 102]; }
+        elsif ($p == 2) { push @noisy, [102, 104, 101, 103]; }
+        elsif ($p == 3) { push @noisy, [103, 103, 98,  99]; }
+        elsif ($p == 4) { push @noisy, [ 99, 100, 96,  97]; }
+        else            { push @noisy, [ 97,  98, 95,  96]; }
+    }
+    my $md = build_ohlc(\@noisy);
+
+    my $liq_k1 = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0,
+    );
+    $liq_k1->update_last($md, $_) for 0 .. $md->last_index;
+    my $n_k1 = count_bsl_ssl($liq_k1->get_levels());
+
+    my $liq_k3 = Market::Indicators::Liquidity->new(
+        k => 3, atr_period => 3, level_atr_factor => 0,
+    );
+    $liq_k3->update_last($md, $_) for 0 .. $md->last_index;
+    my $n_k3 = count_bsl_ssl($liq_k3->get_levels());
+
+    ok($n_k1 > $n_k3, "0054: k=1 genera mas niveles BSL/SSL ($n_k1) que k=3 ($n_k3) en serie ruidosa");
+
+    my $liq_def = Market::Indicators::Liquidity->new(atr_period => 3);
+    is($liq_def->{k}, 3, '0054: default k=3');
+    is($liq_def->{level_atr_factor}, 1.0, '0054: default level_atr_factor=1.0 sin k explicito');
+    $liq_def->update_last($md, $_) for 0 .. $md->last_index;
+    my $n_def = count_bsl_ssl($liq_def->get_levels());
+    ok($n_def <= $n_k1, "0054: defaults (k=3,factor=1) producen <= niveles que k=1/factor=0 ($n_def vs $n_k1)");
+}
+
+{
+    my @noisy;
+    for my $i (0 .. 39) {
+        my $p = $i % 6;
+        if    ($p == 0) { push @noisy, [100, 101, 99, 100]; }
+        elsif ($p == 1) { push @noisy, [100, 103, 99, 102]; }
+        elsif ($p == 2) { push @noisy, [102, 104, 101, 103]; }
+        elsif ($p == 3) { push @noisy, [103, 103, 98,  99]; }
+        elsif ($p == 4) { push @noisy, [ 99, 100, 96,  97]; }
+        else            { push @noisy, [ 97,  98, 95,  96]; }
+    }
+    my $md = build_ohlc(\@noisy);
+
+    my $liq0 = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0,
+    );
+    $liq0->update_last($md, $_) for 0 .. $md->last_index;
+    my $n0 = count_bsl_ssl($liq0->get_levels());
+
+    my $liq1 = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 3.0,
+    );
+    $liq1->update_last($md, $_) for 0 .. $md->last_index;
+    my $n1 = count_bsl_ssl($liq1->get_levels());
+
+    ok($n0 > $n1, "0054: level_atr_factor=3 reduce BSL/SSL ($n1) vs factor=0 ($n0) con k=1");
+}
+
+{
+    my @c = (
+        [ 9, 10,  9, 10],
+        [10, 15, 10, 15],
+        [12, 12, 11, 12],
+        [11, 14, 11, 14],
+        [13, 13, 12, 13],
+        [12, 18, 12, 18],
+        [15, 15, 14, 15],
+    );
+    my $md  = build_ohlc(\@c);
+    my $liq = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 1.0,
+    );
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my @bsl = levels_of_type($liq->get_levels(), 'BSL');
+    ok(scalar(grep { abs($_->{price} - 15) < 0.001 } @bsl),
+       '0054: BSL swing grande price=15 conservado con level_atr_factor=1');
+    ok(scalar(grep { abs($_->{price} - 18) < 0.001 } @bsl),
+       '0054: BSL swing grande price=18 conservado con level_atr_factor=1');
+}
+
 done_testing();

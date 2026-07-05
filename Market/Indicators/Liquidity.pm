@@ -30,7 +30,8 @@ use Time::Moment;
 
 sub new {
     my ($class, %opts) = @_;
-    my $k         = $opts{k}         // 1;
+    my $k_explicit = exists $opts{k};
+    my $k         = $opts{k}         // 3;
     my $atr_period= $opts{atr_period}// 14;
     my $tol_factor= $opts{tol_factor}// 0.10;
     my $N         = $opts{N}         // 3;
@@ -50,6 +51,11 @@ sub new {
     # es >= sweep_atr_factor * ATR local. El overlay puede filtrar por relevancia
     # para no saturar (5000 eventos en 1m). 0 desactiva (todo relevante).
     my $sweep_atr_factor = defined $opts{sweep_atr_factor} ? $opts{sweep_atr_factor} : 1.0;
+    # task 0054: filtro BSL/SSL por recorrido vs pivote opuesto. Default 1.0 cuando k es el
+    # default (3); con k explicito en opts (fixtures/regresion) default 0 para no romper tests.
+    my $level_atr_factor = defined $opts{level_atr_factor}
+        ? $opts{level_atr_factor}
+        : ($k_explicit ? 0 : 1.0);
     die "Liquidity: k must be a positive integer"
         unless defined $k && $k =~ /^\d+$/ && $k > 0;
     die "Liquidity: atr_period must be a positive integer"
@@ -70,6 +76,7 @@ sub new {
         eqhl_int_size   => $eqhl_int_size,
         eqhl_atr_period => $eqhl_atr_period,
         sweep_atr_factor => $sweep_atr_factor,
+        level_atr_factor => $level_atr_factor,
         # FSM "leg" de EQH/EQL (paridad LuxAlgo). leg: 0=BEARISH, 1=BULLISH.
         # Dos conjuntos de estado: 'ext' (externo, EQH/EQL) e 'int' (I-EQH/I-EQL).
         _eq_leg        => { ext => 0, int => 0 },
@@ -280,6 +287,18 @@ sub _is_swing_low {
     return 1;
 }
 
+# _level_significant($price, $opposite_price, $index) — task 0054: un nivel BSL/SSL solo se
+# registra si |price - pivote opuesto| >= level_atr_factor * ATR local. Factor 0, o sin ATR /
+# pivote opuesto → significativo (no censurar al inicio del dataset).
+sub _level_significant {
+    my ($self, $price, $opposite_price, $index) = @_;
+    my $factor = $self->{level_atr_factor} // 0;
+    return 1 if $factor <= 0;
+    my $atr = $self->_get_atr_at($index);
+    return 1 unless defined $atr && $atr > 0 && defined $opposite_price;
+    return (abs($price - $opposite_price) >= $factor * $atr) ? 1 : 0;
+}
+
 # --- EQH/EQL + BSL/SSL ---
 sub _process_swing_high {
     my ($self, $j) = @_;
@@ -288,15 +307,18 @@ sub _process_swing_high {
     if (defined $self->{_last_sh}) {
         my $prev_price = $self->{_last_sh}->{price};
         my $prev_index = $self->{_last_sh}->{index};
+        my $opp = defined $self->{_last_sl} ? $self->{_last_sl}->{price} : undef;
 
-        # BSL: liquidez por encima del swing high previo
-        my $lvl = {
-            index => $prev_index,
-            type  => 'BSL',
-            price => $prev_price,
-        };
-        push @{ $self->{_levels} }, $lvl;
-        $self->_register_level_ref($lvl);
+        if ($self->_level_significant($prev_price, $opp, $j)) {
+            # BSL: liquidez por encima del swing high previo
+            my $lvl = {
+                index => $prev_index,
+                type  => 'BSL',
+                price => $prev_price,
+            };
+            push @{ $self->{_levels} }, $lvl;
+            $self->_register_level_ref($lvl);
+        }
     }
 
     $self->{_last_sh_prev} = $self->{_last_sh};
@@ -311,15 +333,18 @@ sub _process_swing_low {
     if (defined $self->{_last_sl}) {
         my $prev_price = $self->{_last_sl}->{price};
         my $prev_index = $self->{_last_sl}->{index};
+        my $opp = defined $self->{_last_sh} ? $self->{_last_sh}->{price} : undef;
 
-        # SSL: liquidez por debajo del swing low previo
-        my $lvl = {
-            index => $prev_index,
-            type  => 'SSL',
-            price => $prev_price,
-        };
-        push @{ $self->{_levels} }, $lvl;
-        $self->_register_level_ref($lvl);
+        if ($self->_level_significant($prev_price, $opp, $j)) {
+            # SSL: liquidez por debajo del swing low previo
+            my $lvl = {
+                index => $prev_index,
+                type  => 'SSL',
+                price => $prev_price,
+            };
+            push @{ $self->{_levels} }, $lvl;
+            $self->_register_level_ref($lvl);
+        }
     }
 
     $self->{_last_sl_prev} = $self->{_last_sl};

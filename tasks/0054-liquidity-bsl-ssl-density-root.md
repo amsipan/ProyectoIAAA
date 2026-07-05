@@ -1,7 +1,13 @@
 # Task 0054: Reducir ruido de BSL/SSL en origen (densidad de niveles de liquidez)
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+fix de test/fixture y activación runtime en ChartEngine hechos por arquitecto. 1177 PASS.
+
+Notas:
+- Default `k` del indicador ahora es 3 (k=1 sigue en tests cuando se pasa explícito).
+- Nuevo `level_atr_factor`; en app real `ChartEngine` instancia Liquidity con `level_atr_factor=>1.0`.
+- `t/10-liquidity.t` añade tests de densidad k=1 vs k=3 y filtro ATR.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` puntos 1, 3, 6.
