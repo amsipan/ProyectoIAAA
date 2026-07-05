@@ -895,6 +895,53 @@ sub adjust_selected_bar {
     return $self->set_selected_bar($idx);
 }
 
+# index_for_timestamp($ts_str) — índice de vela con timestamp más cercano (task 0044).
+sub index_for_timestamp {
+    my ($self, $ts_str) = @_;
+    return undef unless defined $ts_str && length $ts_str;
+
+    my $md = $self->{market_data};
+    return undef unless $md && $md->can('size') && $md->can('get_timestamp');
+
+    my $size = $md->size() || 0;
+    return undef unless $size > 0;
+
+    my $target = eval { Time::Moment->from_string($ts_str) };
+    if (!$target && $ts_str =~ /^(\d{4}-\d{2}-\d{2})$/) {
+        $target = eval { Time::Moment->from_string("$1T00:00:00-05:00") };
+        $target //= eval { Time::Moment->from_string("$1T00:00:00") };
+    }
+    return undef unless $target;
+
+    my $target_epoch = $target->epoch;
+    my $best_idx = 0;
+    my $best_dist;
+    for my $i (0 .. $size - 1) {
+        my $ts = $md->get_timestamp($i);
+        next unless defined $ts;
+        my $tm = eval { Time::Moment->from_string($ts) };
+        next unless $tm;
+        my $dist = abs($tm->epoch - $target_epoch);
+        if (!defined $best_dist || $dist < $best_dist) {
+            $best_dist = $dist;
+            $best_idx  = $i;
+        }
+    }
+    return $best_idx;
+}
+
+# replay_random_start_index — índice aleatorio válido para Go-to Random (task 0044).
+sub replay_random_start_index {
+    my ($self) = @_;
+    my $md = $self->{market_data};
+    my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
+    return 0 if $last < MIN_VISIBLE_BARS;
+    my $lo = MIN_VISIBLE_BARS;
+    my $hi = $last - 1;
+    return $lo if $hi <= $lo;
+    return $lo + int(rand($hi - $lo + 1));
+}
+
 # replay_start_index — índice para ReplayController->start: selected-1 o auto.
 sub replay_start_index {
     my ($self) = @_;

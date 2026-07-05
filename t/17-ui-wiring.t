@@ -5,6 +5,7 @@ use Test::More;
 use lib '.';
 use Market::UI::Callbacks;
 use Market::UI::ReplayPanel;
+use Market::UI::ReplayGotoMenu;
 use Market::ReplayController;
 
 # =============================================================================
@@ -501,6 +502,15 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
        '0043: make_replay_activate es CODE');
     ok(ref(Market::UI::Callbacks->make_replay_goto_menu_stub($chart, {})) eq 'CODE',
        '0043: make_replay_goto_menu_stub es CODE');
+    for my $factory (qw(make_replay_goto_bar make_replay_goto_first make_replay_goto_random)) {
+        ok(ref(Market::UI::Callbacks->$factory($chart, {})) eq 'CODE',
+           "0044: $factory es CODE");
+    }
+    ok(ref(Market::UI::Callbacks->make_replay_goto_date($chart, undef, {})) eq 'CODE',
+       '0044: make_replay_goto_date es CODE');
+    is_deeply([ Market::UI::ReplayGotoMenu::expected_menu_labels() ],
+              [ 'SELECT STARTING POINT', '| Bar', 'Date...', 'First available date', 'Random bar' ],
+              '0044: etiquetas ASCII del menu Go-to');
     ok(ref(Market::UI::Callbacks->make_replay_speed_menu_stub($chart, {})) eq 'CODE',
        '0043: make_replay_speed_menu_stub es CODE');
     ok(ref(Market::UI::Callbacks->make_replay_interval_menu_stub($chart, {})) eq 'CODE',
@@ -607,6 +617,12 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         push @{ $p->{children} }, $f;
         return $f;
     }
+    sub bind { return }
+    sub unbind { return }
+    sub pointerx { return 0 }
+    sub pointery { return 0 }
+    sub winfo_containing { return undef }
+    sub winfo_exists { return 1 }
 
     package MockTkFrame48;
     sub Frame {
@@ -630,9 +646,23 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     sub pack { return shift }
     sub place { my ($s) = @_; $s->{placed} = 1; return $s }
     sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
+    sub update_idletasks { return }
+    sub reqheight { return 120 }
+    sub winfo_rootx { return 100 }
+    sub winfo_rooty { return 500 }
+    sub winfo_exists { return 1 }
+    sub Parent { my ($s) = @_; return $s->{parent} }
+    sub bind { return }
+    sub unbind { return }
+    sub pointerx { return 0 }
+    sub pointery { return 0 }
+    sub winfo_containing { return undef }
 
     package MockTkWidget48;
     sub pack { return shift }
+    sub winfo_exists { return 1 }
+    sub winfo_rootx { return 200 }
+    sub winfo_rooty { return 520 }
 
     package main;
 
@@ -651,13 +681,13 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 
     my $parent = MockTkParent48->new();
     my $built_panel;
-    Market::UI::ReplayPanel->new(
+    my $built = Market::UI::ReplayPanel->new(
         parent  => $parent,
         chart   => MockChart->new(),
         ui_vars => { replay_panel => \$built_panel },
     );
 
-    my @texts = _collect_button_texts($parent);
+    my @texts = _collect_button_texts($built->frame);
     is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_button_labels() ],
         '0048: etiquetas del panel coinciden con ASCII esperado');
 

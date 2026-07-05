@@ -1,5 +1,7 @@
 # Task 0044: Replay — menú "Go to" (Select bar / Date / Random / First available)
 
+**Estado:** ✅ hecho
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §4, §19 captura 3.
 - Depende de 0043 (panel flotante). Disparador: botón `v` del panel (callback `goto_menu`).

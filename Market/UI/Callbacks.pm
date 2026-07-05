@@ -196,11 +196,102 @@ sub make_replay_activate {
     };
 }
 
-# make_replay_goto_menu_stub — placeholder menú Go-to (task 0044).
+# _replay_goto_begin — arranca replay en $start_idx y sincroniza UI (task 0044).
+sub _replay_goto_begin {
+    my ($chart, $vars, $start_idx) = @_;
+    return unless $chart && defined $start_idx;
+    _replay_begin($chart, $start_idx);
+    if (ref($vars) eq 'HASH') {
+        ${ $vars->{replay_on} } = 1 if $vars->{replay_on};
+        ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
+    }
+    $chart->clear_replay_select_mode() if $chart->can('clear_replay_select_mode');
+    $chart->request_render();
+    return;
+}
+
+# make_replay_goto_menu_stub — noop legacy (tests 0043); el toggle real vive en ReplayGotoMenu.
 sub make_replay_goto_menu_stub {
     my ($class, $chart, $vars) = @_;
     die "make_replay_goto_menu_stub: requiere \$chart" unless $chart;
     return sub { };
+}
+
+# make_replay_goto_bar — modo selección manual (task 0044).
+sub make_replay_goto_bar {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_goto_bar: requiere \$chart" unless $chart;
+    my $mode_ref = ref($vars) eq 'HASH' ? $vars->{replay_select_mode} : undef;
+    my $on_ref   = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
+    return sub {
+        ${$on_ref} = 1 if $on_ref;
+        ${$mode_ref} = 1 if $mode_ref;
+        $chart->set_replay_select_mode(1) if $chart->can('set_replay_select_mode');
+        _show_replay_panel($vars);
+        $chart->request_render();
+    };
+}
+
+# make_replay_goto_first — primera vela disponible (índice 0; task 0044).
+sub make_replay_goto_first {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_goto_first: requiere \$chart" unless $chart;
+    return sub {
+        _replay_goto_begin($chart, $vars, 0);
+    };
+}
+
+# make_replay_goto_random — vela aleatoria en [MIN_VISIBLE_BARS, last-1] (task 0044).
+sub make_replay_goto_random {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_goto_random: requiere \$chart" unless $chart;
+    return sub {
+        my $idx = $chart->can('replay_random_start_index')
+            ? $chart->replay_random_start_index()
+            : 0;
+        _replay_goto_begin($chart, $vars, $idx);
+    };
+}
+
+# _replay_date_prompt($mw) — Entry simple para Go-to Date (task 0044).
+sub _replay_date_prompt {
+    my ($mw) = @_;
+    return undef unless $mw && eval { $mw->winfo_exists };
+
+    my $result;
+    my $top = $mw->Toplevel(-title => 'Go to date');
+    $top->transient($mw);
+    $top->Label(
+        -text => 'Enter date (YYYY-MM-DD or YYYY-MM-DDTHH:MM):',
+    )->pack(-padx => 10, -pady => (8, 4));
+    my $entry_var = '';
+    $top->Entry(-textvariable => \$entry_var, -width => 28)->pack(-padx => 10, -pady => 4);
+    my $finish = sub {
+        my ($ok) = @_;
+        $result = $ok ? $entry_var : undef;
+        $top->destroy();
+    };
+    my $btn_row = $top->Frame()->pack(-pady => 8);
+    $btn_row->Button(-text => 'Ok', -command => sub { $finish->(1) })->pack(-side => 'left', -padx => 4);
+    $btn_row->Button(-text => 'Cancel', -command => sub { $finish->(0) })->pack(-side => 'left', -padx => 4);
+    eval { $top->grab() };
+    $top->wait($top);
+    $result = undef if defined $result && $result !~ /\S/;
+    return $result;
+}
+
+# make_replay_goto_date — salta a la vela más cercana a la fecha (task 0044).
+# $prompt_fn opcional para tests headless (devuelve string de fecha o undef).
+sub make_replay_goto_date {
+    my ($class, $chart, $mw, $vars, $prompt_fn) = @_;
+    die "make_replay_goto_date: requiere \$chart" unless $chart;
+    return sub {
+        my $input = ref($prompt_fn) eq 'CODE' ? $prompt_fn->() : _replay_date_prompt($mw);
+        return unless defined $input && $input =~ /\S/;
+        my $idx = $chart->can('index_for_timestamp') ? $chart->index_for_timestamp($input) : undef;
+        return unless defined $idx;
+        _replay_goto_begin($chart, $vars, $idx);
+    };
 }
 
 # make_replay_speed_menu_stub — placeholder dropdown velocidad (task 0045).

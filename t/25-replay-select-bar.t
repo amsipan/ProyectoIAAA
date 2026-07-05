@@ -295,6 +295,8 @@ use Market::ReplayController;
         push @{ $s->{ops} }, [ createText => @a ];
         return scalar @{ $s->{ops} };
     }
+    sub after { return }
+    sub configure { return }
 }
 
 sub r42_op_tag {
@@ -423,6 +425,77 @@ sub r42_build_chart {
     my @del = grep { $_->[0] eq 'delete' } @{ $chart->{price_canvas}{ops} };
     ok((grep { $_ eq 'replay_select_veil' } map { $_->[1] } @del),
        '0042: selección borra velo/línea hover');
+}
+
+# =============================================================================
+# task 0044: Go-to — index_for_timestamp, random, first, bar, date.
+# =============================================================================
+
+sub r44_chart {
+    my $chart = r42_build_chart();
+    $chart->{replay_controller} = Market::ReplayController->new(
+        market_data => $chart->{market_data},
+    );
+    return $chart;
+}
+
+{
+    my $chart = r44_chart();
+    is($chart->index_for_timestamp('2026-04-01T00:05:00-05:00'), 5,
+       '0044: index_for_timestamp coincide con vela 5');
+    is($chart->index_for_timestamp('2026-04-01T00:05:10-05:00'), 5,
+       '0044: index_for_timestamp elige vela mas cercana');
+    is($chart->index_for_timestamp('2026-04-01'), 0,
+       '0044: fecha sin hora usa medianoche -> indice 0');
+}
+
+{
+    my $chart = r44_chart();
+    my $last = $chart->{market_data}->size() - 1;
+    my $lo = 2;
+    my $hi = $last - 1;
+    for (1 .. 30) {
+        my $idx = $chart->replay_random_start_index();
+        ok($idx >= $lo && $idx <= $hi, "0044: random $idx en [$lo,$hi]");
+    }
+}
+
+{
+    my $chart = r44_chart();
+    my $last = $chart->{market_data}->size() - 1;
+    my $replay_on = 0;
+    my $replay_select_mode = 0;
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+    );
+    my $rc = $chart->{replay_controller};
+
+    Market::UI::Callbacks->make_replay_goto_first($chart, \%vars)->();
+    ok($rc->is_active(), '0044: First activa replay');
+    is($rc->current_index(), 0, '0044: First arranca en indice 0');
+    is($replay_on, 1, '0044: First marca replay_on=1');
+    ok(!$chart->is_replay_select_mode(), '0044: First apaga select mode');
+
+    $rc->exit();
+    Market::UI::Callbacks->make_replay_goto_random($chart, \%vars)->();
+    ok($rc->is_active(), '0044: Random activa replay');
+    ok($rc->current_index() >= 2 && $rc->current_index() <= $last,
+       '0044: Random replay_idx en rango valido');
+
+    $rc->exit();
+    Market::UI::Callbacks->make_replay_goto_bar($chart, \%vars)->();
+    ok($chart->is_replay_select_mode(), '0044: Bar entra en modo seleccion');
+    is($replay_select_mode, 1, '0044: Bar sincroniza replay_select_mode');
+
+    $rc->exit();
+    my $date_cb = Market::UI::Callbacks->make_replay_goto_date(
+        $chart, undef, \%vars,
+        sub { return '2026-04-01T00:10:00-05:00' },
+    );
+    $date_cb->();
+    ok($rc->is_active(), '0044: Date activa replay');
+    is($rc->current_index(), 10, '0044: Date salta a vela mas cercana (10)');
 }
 
 done_testing();

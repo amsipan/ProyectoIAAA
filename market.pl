@@ -150,6 +150,7 @@ $replay_panel = Market::UI::ReplayPanel->new(
     parent  => $chart_frame,
     chart   => $chart_engine,
     mw      => $mw,
+    root    => $mw,
     ui_vars => \%ui_vars,
 );
 

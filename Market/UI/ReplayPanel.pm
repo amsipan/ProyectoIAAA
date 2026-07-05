@@ -4,6 +4,7 @@ use warnings;
 use utf8;
 
 use Market::UI::Callbacks;
+use Market::UI::ReplayGotoMenu;
 
 # Market::UI::ReplayPanel — panel flotante media-player de Replay (task 0043).
 # Frame hijo del chart con place(); sin Tk::NoteBook ni Optionmenu.
@@ -15,6 +16,15 @@ sub new {
     my $chart  = $args{chart}  or die "ReplayPanel: requiere chart";
     my $vars   = $args{ui_vars} || {};
     my $mw     = $args{mw};
+    my $root   = $args{root} || $mw || $parent;
+
+    my $goto_menu = Market::UI::ReplayGotoMenu->new(
+        parent  => $parent,
+        root    => $root,
+        chart   => $chart,
+        mw      => $mw,
+        ui_vars => $vars,
+    );
 
     my $callbacks = callback_factories($chart, $mw, $vars);
 
@@ -41,7 +51,11 @@ sub new {
     # [Select bar v]  Play  Fwd >|  |< Back  1x  D  >>  ...  X  (task 0048: ASCII)
     my $sel_box = $inner->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 1);
     $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
-    $btn_opts->('v', $callbacks->{goto_menu})->pack(-side => 'left', -in => $sel_box);
+    my $goto_btn;
+    $goto_btn = $btn_opts->('v', sub { $goto_menu->toggle($goto_btn) })
+        ->pack(-side => 'left', -in => $sel_box);
+    $goto_menu->set_anchor($goto_btn);
+    $callbacks->{goto_menu} = sub { $goto_menu->toggle($goto_btn) };
 
     $btn_opts->('Play', $callbacks->{play})->pack(-side => 'left', -padx => 1);
     $btn_opts->('Fwd >|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
@@ -63,6 +77,7 @@ sub new {
         frame        => $frame,
         parent       => $parent,
         callbacks    => $callbacks,
+        goto_menu    => $goto_menu,
         speed_label  => $speed_lbl,
         interval_lbl => $interval_lbl,
         visible      => 0,
@@ -102,6 +117,7 @@ sub show {
 
 sub hide {
     my ($self) = @_;
+    $self->{goto_menu}->hide() if $self->{goto_menu} && $self->{goto_menu}->can('hide');
     $self->{frame}->placeForget();
     $self->{visible} = 0;
     return $self;
