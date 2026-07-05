@@ -1,0 +1,145 @@
+================================================================================
+INFORME IMPLEMENTOR EPN — Lote CALQUE Bar Replay
+Para: agente arquitecto / Bryan
+HEAD: 81fcb6c | Tests: 1134 PASS (28 archivos t/*.t)
+Fecha: 2026-07-05
+================================================================================
+
+CONTEXTO
+--------
+- Stack: Perl/Tk WSL Fedora35
+- Push: solo PowerShell (backup + origin, rama main)
+- 0045: APROBADO por arquitecto (1116 PASS en su revision)
+- 0046: implementado + fixes UX Jump-to-Live y linea azul hover (este informe)
+- 0047: NO tocar (tijeras vectoriales)
+- 0050: atajos teclado DIFERIDOS por Bryan
+
+COMMITS RELEVANTES (sesion reciente)
+------------------------------------
+4314adb  feat(0046): Play/Pause toggle, jump RT, marca Replay on/off
+db19858  fix(0046): jump-to-live re-entra Select Bar estilo TradingView
+81fcb6c  fix(0046): linea azul Select Bar solo con cursor en chart (TV)
+
+(Anteriores acumulados: 47f1a5d linea precio replay_idx, c0e4f5d sin linea
+punteada vela confirmada, c4a1624 Select bar texto + Tk::bind clics, etc.)
+
+================================================================================
+0046 — IMPLEMENTADO (4 alcances, sin atajos)
+================================================================================
+
+1. TOGGLE PLAY/PAUSE (mismo boton triangulo)
+   - make_replay_toggle_play en Callbacks.pm
+   - ReplayMediaWidget.redraw_icon: triangulo (_draw_play) <-> dos barras (_draw_pause)
+   - _sync_replay_play_icon tras play/pause/toggle/exit
+   Archivos: ReplayPanel.pm, Callbacks.pm
+
+2. JUMP TO REAL-TIME (boton >>)
+   - make_replay_jump_real cableado al icono jump (antes fast_fwd)
+   - ReplayController.jump_to_end() revela hasta ultima vela
+   - FIX TV (db19858): tras >> NO sale de sesion Replay:
+     * Chart vivo (todas las velas): rc->exit + restore_after_replay_exit
+     * replay_on = 1 (pestaña Replay sigue activa)
+     * Re-entra Select Bar: set_replay_select_mode(1) (sin sembrar hover)
+     * Como recien entrar en Bar Replay — listo para elegir nueva barra
+   Distinto de Exit X: Exit sale del replay (replay_on=0); Jump muestra vivo Y re-seleccion.
+
+3. MARCA DE AGUA "Replay"
+   - ChartEngine._draw_replay_watermark: texto gris #d0d0d0, tag replay_watermark, lower detras velas
+   - Solo si replay activo Y flag ON
+
+4. BOTON Mark: on / Mark: off
+   - Barra inline ReplayPanel; default ON
+   - Toggle re-render inmediato; no toca replay_idx
+   - market.pl: replay_watermark_on = 1
+
+NO HECHO (por spec): atajos Shift+down/Shift+right -> task 0050
+
+================================================================================
+UX ACUMULADA (pedidos Bryan — debe QUEDAR)
+================================================================================
+
+- Pestaña Replay inline (no panel flotante ni << Bar Replay)
+- Select bar con TEXTO ASCII + boton v (go-to)
+- Al activar Replay: modo Select Bar inmediato; linea azul SOLO con cursor en chart (TV)
+- Clic vela N: N desaparece, N-1 ultima visible, Play revela N
+- Ancla 80% + hueco 20% derecho fijo al zoom
+- Linea precio horizontal en replay_idx (verde/rojo segun vela actual)
+- Sin linea punteada fija en vela ya confirmada
+- Botones multimedia Tk::bind (clics Fedora35)
+- Exit X restaura chart completo
+
+================================================================================
+ARQUITECTURA MODULAR (mantener)
+================================================================================
+
+ReplayController     -> replay_idx, play/pause/step, tick_ms, jump_to_end
+ChartEngine            -> compute_window, render, watermark, select hover
+PricePanel/ATRPanel    -> replay_head_candle, sin dibujar velas > replay_idx
+ReplayPanel            -> UI inline, ReplayMediaWidget, Mark toggle
+ReplayDropdown         -> base menus (after(1) click-fuera)
+Callbacks.pm           -> factorias; NO logica de dibujo
+
+Anti-patrones: bind() sin Tk::bind en Canvas; overscan futuro en replay; mezclar UI en ChartEngine.
+
+================================================================================
+FIX UX — LINEA AZUL SELECT BAR (TradingView)
+================================================================================
+
+Problema: al entrar en Replay/Select Bar la linea vertical azul aparecia de inmediato
+centrada en la ultima vela aunque el cursor NO estuviera sobre el grafico.
+
+Causa: set_replay_select_mode(1) llamaba _seed_replay_select_hover(), que fijaba
+last_mouse_x/last_mouse_y en la ultima vela sin esperar <Motion>.
+
+Fix:
+- set_replay_select_mode(1): borra last_mouse_x/y y _clear_replay_select_hover()
+- La linea ya se dibuja solo si last_mouse_x definido (render ~654-655)
+- <Leave> en price/atr/time canvas ya limpia hover al salir del chart
+- _seed_replay_select_hover queda legacy (no invocado)
+
+Archivos: ChartEngine.pm, Callbacks.pm (comentarios), t/25-replay-select-bar.t
+
+================================================================================
+VERIFICACION
+================================================================================
+
+perl -I. -c market.pl
+prove -l t                    # 1134 PASS
+timeout 20 perl -I. market.pl # smoke OK
+
+Runtime WSLg (Bryan/arquitecto):
+[ ] Triangulo alterna play/pause
+[ ] >> muestra todas las velas Y vuelve modo Select Bar
+[ ] Linea azul Select Bar solo visible con cursor dentro del chart
+[ ] Exit X sale del replay (replay_on=0) — distinto de >>
+[ ] Mark: on/off marca de agua en caliente
+[ ] Select bar truncado N-1 / linea precio en replay_idx
+
+================================================================================
+ESTADO TASKS
+================================================================================
+
+0045  APROBADO arquitecto
+0046  HECHO (81fcb6c) — pendiente validacion visual arquitecto
+0047  NO TOCAR
+0050  PENDIENTE (atajos diferidos)
+
+================================================================================
+PROMPT CORTO PARA ARQUITECTO
+================================================================================
+
+Eres arquitecto ProyectoIAAA. HEAD 81fcb6c, 1134 tests PASS.
+Lee docs/HANDOFF_ARQUITECTO_2026-07-05.md + este informe.
+
+Validar 0046 en WSLg especialmente:
+- Jump >> = chart vivo + re-entrada Select Bar (TV), NO igual que Exit X.
+- Play/pause toggle, marca Replay, Mark on/off.
+
+Si OK: marcar 0046 cerrado en tasks/README. NO autorizar 0047.
+Siguiente: 0050 atajos cuando Bryan lo pida.
+
+Reglas: 0048 ASCII, 0049 Tk Fedora35, prove -l t verde.
+
+================================================================================
+FIN INFORME
+================================================================================

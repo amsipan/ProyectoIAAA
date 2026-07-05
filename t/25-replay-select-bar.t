@@ -488,7 +488,7 @@ sub r42_build_chart {
 }
 
 # =============================================================================
-# UX (pedido usuario): activar Replay muestra linea azul al instante; click trunca.
+# UX (pedido usuario): linea azul solo con cursor en chart; click trunca.
 # =============================================================================
 
 {
@@ -507,8 +507,13 @@ sub r42_build_chart {
     };
 
     $chart->set_replay_select_mode(1);
-    ok(defined $chart->{last_mouse_x}, 'UX: activar select mode siembra linea azul (last_mouse_x)');
-    ok(defined $chart->{last_mouse_y}, 'UX: activar select mode siembra Y del cursor');
+    ok(!defined $chart->{last_mouse_x}, 'UX TV: select mode sin cursor no muestra linea azul');
+    ok(!defined $chart->{last_mouse_y}, 'UX TV: select mode sin cursor limpia last_mouse_y');
+
+    $chart->{last_mouse_x} = 450;
+    $chart->{last_mouse_y} = 200;
+    ok($chart->_replay_select_hover_layout($chart->{last_mouse_x}),
+       'UX TV: con cursor en chart el hover azul tiene layout');
 
     use Market::Panels::Scales;
     my ($start, $end) = $chart->compute_window();

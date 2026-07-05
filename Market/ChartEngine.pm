@@ -856,7 +856,10 @@ sub set_replay_select_mode {
     }
     $self->{_replay_select_mode} = $on;
     if ($on) {
-        $self->_seed_replay_select_hover();
+        # TradingView: la línea azul solo aparece con el cursor dentro del chart.
+        delete $self->{last_mouse_x};
+        delete $self->{last_mouse_y};
+        $self->_clear_replay_select_hover();
     }
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
@@ -864,8 +867,8 @@ sub set_replay_select_mode {
     return $self;
 }
 
-# _seed_replay_select_hover — posición inicial de la línea azul al entrar en select
-# mode sin esperar Motion (pedido UX: activar Replay muestra el cursor de inmediato).
+# _seed_replay_select_hover — legacy: ya no se invoca al entrar en select mode
+# (TradingView: línea azul solo con cursor sobre price/atr/time canvas).
 sub _seed_replay_select_hover {
     my ($self) = @_;
     return unless $self->{_replay_select_mode};

@@ -34,7 +34,7 @@ Estas decisiones salieron de mensajes directos de Bryan. El arquitecto las ratif
 | # | Pedido Bryan | Estado | Dónde |
 |---|--------------|--------|-------|
 | B1 | Sin botón `<< Bar Replay`; controles en barra horizontal (pestaña Replay) | ✅ Hecho | `market.pl`, `ReplayPanel` inline |
-| B2 | Al abrir pestaña Replay → modo Select bar inmediato (línea azul, sin segundo clic) | ✅ Hecho | `make_replay_activate`, `_seed_replay_select_hover` |
+| B2 | Al abrir pestaña Replay → modo Select bar inmediato (sin segundo clic); línea azul solo con cursor en chart | ✅ Hecho | `make_replay_activate`, `set_replay_select_mode` |
 | B3 | Dropdowns `v` / `1x` / `D` funcionando al primer clic | ✅ Hecho (`79373cc`) | `ReplayDropdown`, hermanos |
 | B4 | Velocidad real: 1x = 1 vela/s, 5x = 5/s, etc. | ✅ Hecho | `ReplayController::tick_ms`, `advance_one_tick` |
 | B5 | Botón **Select bar** con **texto ASCII** (no solo icono tijeras) | ✅ Hecho (`c4a1624`) | `ReplayPanel`, etiqueta `'Select bar'` |

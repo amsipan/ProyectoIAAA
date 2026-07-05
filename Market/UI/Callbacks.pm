@@ -237,7 +237,7 @@ sub make_replay_start {
 
 # make_replay_activate($chart, $vars) — task 0043/0045: pestaña Replay = modo tijeras.
 # Si el replay ya está activo (vela elegida), solo muestra la barra de controles.
-# Si no, entra en Select Bar con línea azul inmediata (_seed_replay_select_hover).
+# Si no, entra en Select Bar; la línea azul aparece al mover el cursor sobre el chart.
 sub make_replay_activate {
     my ($class, $chart, $vars) = @_;
     die "make_replay_activate: requiere \$chart" unless $chart;
