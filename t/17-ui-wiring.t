@@ -1015,4 +1015,48 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     is($replay_on, 0, '0051: Escape marca replay_on=0');
 }
 
+# =============================================================================
+# Test 20 (task 0052): atajos replay via bind all en ventana (no solo handler directo).
+# =============================================================================
+{
+    use Market::ChartEngine;
+
+    {
+        package MockBindMW;
+        sub new { bless { binds => {} }, shift }
+        sub bind {
+            my ($self, $target, $seq, $cb) = @_;
+            return unless !ref($target) && $target eq 'all';
+            $self->{binds}{$seq} = $cb;
+            return;
+        }
+    }
+
+    my $md    = MockMarketData->new(100);
+    my $rc    = Market::ReplayController->new(market_data => $md);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => $rc,
+        visible_bars      => 20,
+        price_canvas      => bless({}, 'StubAfterCanvas'),
+        ctrl_zoom_x_shift => 0,
+        offset            => 0,
+    }, 'Market::ChartEngine';
+
+    my $mw = MockBindMW->new();
+    $chart->bind_replay_window_shortcuts($mw);
+
+    my @seqs = @{ $chart->replay_window_shortcut_sequences() };
+    ok((grep { $_ eq '<Shift-Down>' } @seqs), '0052: bind all Shift-Down en ventana');
+    ok((grep { $_ eq '<Key-m>' } @seqs), '0052: bind all Key-m en ventana');
+    ok(ref($mw->{binds}{'<Shift-Down>'}) eq 'CODE', '0052: callback ventana es CODE');
+
+    $rc->start(40);
+    my $mw2 = MockMW->new();
+    $chart->{replay_keyboard_callbacks}{toggle_play} =
+        Market::UI::Callbacks->make_replay_toggle_play($chart, $mw2, {});
+    $mw->{binds}{'<Shift-Down>'}->();
+    ok($rc->{playing}, '0052: Shift+Down via bind ventana arranca play');
+}
+
 done_testing();

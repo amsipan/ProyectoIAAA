@@ -355,7 +355,12 @@ use Market::ReplayController;
         return scalar @{ $s->{ops} };
     }
     sub after { return }
-    sub configure { return }
+    sub configure {
+        my ($s, %opt) = @_;
+        $s->{cursor} = $opt{-cursor} if exists $opt{-cursor};
+        return $s;
+    }
+    sub focus { return }
 }
 
 sub r42_op_tag {
@@ -444,7 +449,8 @@ sub r42_build_chart {
 
     my @sci_ops = grep { $_->[0] eq 'createText' && r42_op_tag($_) eq 'replay_select_scissors' } @{ $price->{ops} };
     ok(@sci_ops >= 1, '0042: dibuja símbolo tijeras en canvas');
-    is(r42_op_opt($sci_ops[0], '-font'), 'Helvetica 18', 'UX: tijeras un poco mas grandes (18pt)');
+    is(r42_op_opt($sci_ops[0], '-font'), 'Helvetica 22', '0053: tijeras Helvetica 22');
+    is(r42_op_opt($sci_ops[0], '-fill'), 'black', '0053: tijeras negras (no azul linea)');
 
     my $time = $chart->{time_axis_canvas};
     my @re_ops = grep { $_->[0] eq 'createText' && r42_op_tag($_) eq 'replay_select_re_label' } @{ $time->{ops} };
@@ -485,6 +491,21 @@ sub r42_build_chart {
     my @del = grep { $_->[0] eq 'delete' } @{ $chart->{price_canvas}{ops} };
     ok((grep { $_ eq 'replay_select_veil' } map { $_->[1] } @del),
        '0042: selección borra velo/línea hover');
+}
+
+# =============================================================================
+# task 0053: Select Bar oculta cruz nativa (cursor none/blank) y restaura crosshair.
+# =============================================================================
+
+{
+    my $chart = r42_build_chart();
+    $chart->set_replay_select_mode(1);
+    like($chart->{price_canvas}{cursor}, qr/^(none|blank|tcross)$/,
+        '0053: select mode pone cursor oculto/minimo en price canvas');
+    like($chart->{atr_canvas}{cursor}, qr/^(none|blank|tcross)$/,
+        '0053: select mode pone cursor oculto/minimo en atr canvas');
+    $chart->set_replay_select_mode(0);
+    is($chart->{price_canvas}{cursor}, 'crosshair', '0053: salir select restaura crosshair');
 }
 
 # =============================================================================

@@ -1,6 +1,8 @@
 # Task 0052: Replay — atajos de teclado no responden en runtime (foco)
 
-**Estado:** 🐞 ABIERTA (reportada por Bryan 2026-07-05). Los atajos 0050/0051 pasan tests pero NO
+**Estado:** ✅ HECHO (2026-07-05). bind all en $mw + focus price_canvas al arrancar replay.
+
+**Estado anterior:** 🐞 ABIERTA (reportada por Bryan 2026-07-05). Los atajos 0050/0051 pasan tests pero NO
 funcionan al usarlos: en replay con vela ya seleccionada, `Shift+↓` no da Play ni cambia el icono
 del panel. Igual sospecha para el resto (`Shift+→/←`, `Esc`, `M`).
 

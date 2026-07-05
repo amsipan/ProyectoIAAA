@@ -39,6 +39,9 @@ use constant {
     # hueco fijo 20% del ancho (px), independiente del zoom en barras.
     REPLAY_BAR_ANCHOR_FRAC => 0.80,
     REPLAY_RIGHT_GAP_FRAC  => 0.20,
+    # task 0053: tijera Select Bar (glyph unicode; linea/velo siguen azules).
+    REPLAY_SELECT_SCISSOR_FONT => 'Helvetica 22',
+    REPLAY_SELECT_SCISSOR_FILL => 'black',
 };
 
 # Paleta de tema claro por defecto (local al módulo). Se usa solo si el llamador
@@ -864,6 +867,7 @@ sub set_replay_select_mode {
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
     }
+    $self->_apply_select_mode_cursor();
     return $self;
 }
 
@@ -978,6 +982,97 @@ sub _replay_key_m {
         $self->set_scale_mode('manual');
     }
     return $self;
+}
+
+# _replay_key_m_window — task 0052: M a nivel ventana solo toggle marca (no escala).
+sub _replay_key_m_window {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    my $cb = $self->{replay_keyboard_callbacks}{toggle_watermark};
+    $cb->() if ref($cb) eq 'CODE';
+    return $self;
+}
+
+# focus_price_canvas_for_replay — task 0052: foco teclado al chart tras arrancar replay.
+sub focus_price_canvas_for_replay {
+    my ($self) = @_;
+    my $canvas = $self->{price_canvas};
+    eval { $canvas->focus() } if $canvas;
+    return $self;
+}
+
+# task 0053: cursor plot — crosshair normal; en Select Bar ocultar cruz (tijera dibujada).
+sub _select_mode_blank_cursor {
+    my ($self) = @_;
+    return $self->{_select_blank_cursor} if $self->{_select_blank_cursor};
+
+    my $canvas = $self->{price_canvas};
+    for my $try (qw(none blank)) {
+        next unless $canvas;
+        my $ok = eval { $canvas->configure(-cursor => $try); 1 };
+        if ($ok) {
+            $self->{_select_blank_cursor} = $try;
+            return $try;
+        }
+    }
+    # Fallback Fedora35 si none/blank fallan (reportar en runtime si ocurre).
+    $self->{_select_blank_cursor} = 'tcross';
+    return 'tcross';
+}
+
+sub _chart_plot_cursor {
+    my ($self) = @_;
+    return $self->_select_mode_blank_cursor() if $self->{_replay_select_mode};
+    return 'crosshair';
+}
+
+sub _apply_select_mode_cursor {
+    my ($self) = @_;
+    my $cursor = $self->_chart_plot_cursor();
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        $self->_set_cursor($canvas, $cursor) if $canvas;
+    }
+    return $self;
+}
+
+# bind_replay_window_shortcuts($mw) — task 0052: atajos via bind all (foco en panel OK).
+sub bind_replay_window_shortcuts {
+    my ($self, $mw) = @_;
+    return $self unless $mw;
+    return $self if $self->{replay_window_shortcuts_bound};
+
+    $self->{replay_shortcut_window} = $mw;
+    $self->{replay_window_bind_sequences} = {};
+
+    my %seq_method = (
+        '<Shift-Down>'  => '_replay_shift_down_key',
+        '<Shift-Right>' => '_replay_shift_right_key',
+        '<Shift-Left>'  => '_replay_shift_left_key',
+        '<Escape>'      => '_replay_escape_key',
+    );
+    for my $seq (keys %seq_method) {
+        my $method = $seq_method{$seq};
+        $mw->bind(all => $seq, sub {
+            $self->$method();
+            return;
+        });
+        $self->{replay_window_bind_sequences}{$seq} = 1;
+    }
+    $mw->bind(all => '<Key-m>', sub {
+        $self->_replay_key_m_window();
+        return;
+    });
+    $self->{replay_window_bind_sequences}{'<Key-m>'} = 1;
+
+    $self->{replay_window_shortcuts_bound} = 1;
+    return $self;
+}
+
+sub replay_window_shortcut_sequences {
+    my ($self) = @_;
+    my $h = $self->{replay_window_bind_sequences};
+    return $h ? [ sort keys %$h ] : [];
 }
 
 # _replay_anchor_x_shift($x_bars, $plot_width, $frac) — desplazamiento px para dejar
@@ -1306,7 +1401,8 @@ sub _draw_replay_select_hover {
             $self->{price_canvas}->createText(
                 $x, $scissor_y,
                 -text => "\x{2702}", -anchor => 'center',
-                -font => 'Helvetica 18', -fill => $color,
+                -font => REPLAY_SELECT_SCISSOR_FONT,
+                -fill => REPLAY_SELECT_SCISSOR_FILL,
                 -tags => 'replay_select_scissors',
             );
         };
@@ -1360,18 +1456,21 @@ sub _bind_all_canvas {
         $p_canvas->Tk::bind('<Double-Button-1>', sub { $self->reset_view(); });
         $p_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($p_canvas); });
         $p_canvas->Tk::bind('<Key-a>', sub { $self->set_scale_mode('auto'); });
-        $p_canvas->Tk::bind('<Key-m>', sub { $self->_replay_key_m('price'); });
+        $p_canvas->Tk::bind('<Key-m>', sub {
+            my $rc = $self->{replay_controller};
+            return if $rc && $rc->is_active();
+            $self->set_scale_mode('manual');
+        });
         $p_canvas->Tk::bind('<Key-plus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(0.9); });
         $p_canvas->Tk::bind('<Key-minus>', sub { $self->set_scale_mode('manual'); $self->_vertical_zoom(1.1); });
         $p_canvas->Tk::bind('<Up>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(-10); });
         $p_canvas->Tk::bind('<Down>', sub { $self->set_scale_mode('manual'); $self->_vertical_drag(10); });
-        $p_canvas->Tk::bind('<Shift-Down>', sub { $self->_replay_shift_down_key(); });
-        $p_canvas->Tk::bind('<Shift-Left>', sub { $self->_replay_shift_left_key(); });
-        $p_canvas->Tk::bind('<Shift-Right>', sub { $self->_replay_shift_right_key(); });
-        $p_canvas->Tk::bind('<Escape>', sub { $self->_replay_escape_key(); });
-        $p_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($p_canvas, 'crosshair'); $p_canvas->focus; });
+        $p_canvas->Tk::bind('<Enter>', sub {
+            $self->_set_cursor($p_canvas, $self->_chart_plot_cursor());
+            $p_canvas->focus;
+        });
         $p_canvas->Tk::bind('<Leave>', sub {
-            $self->_set_cursor($p_canvas, 'crosshair');
+            $self->_set_cursor($p_canvas, $self->_chart_plot_cursor());
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
@@ -1414,18 +1513,21 @@ sub _bind_all_canvas {
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $a_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($a_canvas); });
         $a_canvas->Tk::bind('<Key-a>', sub { $self->set_atr_scale_mode('auto'); });
-        $a_canvas->Tk::bind('<Key-m>', sub { $self->_replay_key_m('atr'); });
+        $a_canvas->Tk::bind('<Key-m>', sub {
+            my $rc = $self->{replay_controller};
+            return if $rc && $rc->is_active();
+            $self->set_atr_scale_mode('manual');
+        });
         $a_canvas->Tk::bind('<Key-plus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(0.9); });
         $a_canvas->Tk::bind('<Key-minus>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_zoom(1.1); });
         $a_canvas->Tk::bind('<Up>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(-10); });
         $a_canvas->Tk::bind('<Down>', sub { $self->set_atr_scale_mode('manual'); $self->_atr_vertical_drag(10); });
-        $a_canvas->Tk::bind('<Shift-Down>', sub { $self->_replay_shift_down_key(); });
-        $a_canvas->Tk::bind('<Shift-Left>', sub { $self->_replay_shift_left_key(); });
-        $a_canvas->Tk::bind('<Shift-Right>', sub { $self->_replay_shift_right_key(); });
-        $a_canvas->Tk::bind('<Escape>', sub { $self->_replay_escape_key(); });
-        $a_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($a_canvas, 'crosshair'); $a_canvas->focus; });
+        $a_canvas->Tk::bind('<Enter>', sub {
+            $self->_set_cursor($a_canvas, $self->_chart_plot_cursor());
+            $a_canvas->focus;
+        });
         $a_canvas->Tk::bind('<Leave>', sub {
-            $self->_set_cursor($a_canvas, 'crosshair');
+            $self->_set_cursor($a_canvas, $self->_chart_plot_cursor());
             $self->{last_mouse_x} = undef;
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;

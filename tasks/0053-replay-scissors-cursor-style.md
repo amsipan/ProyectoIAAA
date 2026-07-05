@@ -1,6 +1,8 @@
 # Task 0053: Replay Select Bar — tijera reemplaza al cursor, negra y ligeramente más grande
 
-**Estado:** ✅ AUTORIZADA (pedido Bryan 2026-07-05). Pulido visual del modo Select Bar. Ojo: la
+**Estado:** ✅ HECHO (2026-07-05). Tijera negra Helvetica 22; cursor none/blank en Select Bar.
+
+**Estado anterior:** ✅ AUTORIZADA (pedido Bryan 2026-07-05). Pulido visual del modo Select Bar. Ojo: la
 0047 (tijeras VECTORIALES) sigue sin autorizar; esto es solo color/tamaño/cursor del glyph actual.
 
 ## Pedidos de Bryan (exactos)

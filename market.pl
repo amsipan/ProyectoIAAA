@@ -156,6 +156,8 @@ $chart_engine->{replay_bar_selected_callback} = sub {
 
 $ui_vars{mw} = $mw;
 
+$chart_engine->bind_replay_window_shortcuts($mw);
+
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
 # Estado de visibilidad de capas (overlays OFF por defecto — task 0018 F4).
