@@ -89,6 +89,8 @@ El arquitecto reportó en `c58cb8a`:
      `REPLAY_RIGHT_GAP_FRAC = 0.20` (hueco fijo en px, no depende del zoom en barras).
 6. **Play triángulo TV:** Canvas con `createPolygon` (no texto `>`).
 7. **Exit X:** `restore_after_replay_exit()` limpia anchor/shift/offset + `sync_overlay_indicators`.
+8. **Botones multimedia unificados:** cajita `raised` + iconos Canvas (back/fwd/goto/jump/exit/select)
+   + `Button` overlay con `-command` (fix Play que no respondía en Fedora35).
 
 ---
 

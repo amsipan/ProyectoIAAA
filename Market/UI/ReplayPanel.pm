@@ -8,34 +8,151 @@ use Market::UI::ReplayGotoMenu;
 use Market::UI::ReplaySpeedMenu;
 use Market::UI::ReplayIntervalMenu;
 
-# Market::UI::ReplayPanel — barra de controles Replay (task 0043/0045).
-# Modo inline: empaquetada en la pestaña Replay de market.pl (sin place flotante).
-# Etiquetas ASCII estilo control remoto (task 0048).
+# Market::UI::ReplayPanel — barra Replay inline (tasks 0043/0045/0046-prep).
+# Botones estilo reproductor multimedia: Canvas + hit-area Button (-command).
 
-# _make_play_icon_button — triangulo Play estilo TV (Canvas, sin glyph unicode).
-sub _make_play_icon_button {
-    my ($parent, $bg, $cb) = @_;
-    my $box = $parent->Frame(-background => $bg);
-    my $c = $box->Canvas(
-        -width             => 26,
-        -height            => 22,
-        -background         => $bg,
-        -highlightthickness => 0,
+use constant {
+    MEDIA_FACE        => '#ececec',
+    MEDIA_FACE_ACTIVE => '#d4d4d4',
+    MEDIA_ICON        => '#363a45',
+    MEDIA_CANVAS_W    => 28,
+    MEDIA_CANVAS_H    => 24,
+};
+
+sub _media_colors {
+    return (MEDIA_FACE, MEDIA_FACE_ACTIVE, MEDIA_ICON);
+}
+
+# ReplayMediaWidget — envoltorio con configure(-text/-command) para dropdowns.
+{
+    package ReplayMediaWidget;
+    sub new {
+        my ($class, %args) = @_;
+        return bless { %args }, $class;
+    }
+    sub configure {
+        my ($self, %opts) = @_;
+        if (exists $opts{-text} && $self->{label}) {
+            $self->{label}->configure(-text => $opts{-text});
+            $self->{_text} = $opts{-text};
+        }
+        if (exists $opts{-command} && $self->{hit}) {
+            $self->{hit}->configure(-command => $opts{-command});
+        }
+        return $self;
+    }
+    sub pack {
+        my $self = shift;
+        return $self->{frame}->pack(@_);
+    }
+    sub exists {
+        my ($self) = @_;
+        return eval { $self->{frame}->exists } ? 1 : 0;
+    }
+}
+
+sub _make_media_button {
+    my ($parent, $cb, $draw, $text_label) = @_;
+    my ($face, $face_active, $icon_color) = _media_colors();
+
+    my $outer = $parent->Frame(
+        -relief     => 'raised',
+        -bd         => 2,
+        -background => $face,
+        -cursor     => 'hand2',
+    );
+    my $inner = $outer->Frame(-background => $face)->pack(-padx => 1, -pady => 1);
+
+    my $lbl;
+    if ($draw) {
+        my $c = $inner->Canvas(
+            -width             => MEDIA_CANVAS_W,
+            -height            => MEDIA_CANVAS_H,
+            -background         => $face,
+            -highlightthickness => 0,
+            -borderwidth        => 0,
+        );
+        $c->pack();
+        $draw->($c, $icon_color);
+    }
+    elsif (defined $text_label) {
+        $lbl = $inner->Label(
+            -text       => $text_label,
+            -background => $face,
+            -foreground => MEDIA_ICON,
+            -font       => 'Helvetica 9 bold',
+            -width      => 3,
+        );
+        $lbl->pack(-padx => 4, -pady => 2);
+    }
+
+    my $hit = _media_hit_button($outer, $face, $face_active, $cb);
+    return ReplayMediaWidget->new(
+        frame => $outer,
+        label => $lbl,
+        hit   => $hit,
+        _text => $text_label,
+    );
+}
+
+sub _media_hit_button {
+    my ($outer, $face, $face_active, $cb) = @_;
+    my $cmd = ref($cb) eq 'CODE' ? $cb : sub { };
+    my $hit = $outer->Button(
+        -text               => '',
+        -command            => $cmd,
+        -background         => $face,
+        -activebackground   => $face_active,
+        -relief             => 'flat',
         -borderwidth        => 0,
+        -highlightthickness => 0,
         -cursor             => 'hand2',
     );
-    $c->pack(-padx => 2, -pady => 1);
-    $c->createPolygon(
-        8, 5, 8, 17, 20, 11,
-        -fill    => '#363a45',
-        -outline => '#363a45',
-        -tags    => 'play_icon',
-    );
-    my $invoke = sub {
-        $cb->() if ref($cb) eq 'CODE';
-    };
-    $c->bind('<Button-1>', $invoke);
-    return $box;
+    $hit->place(-relx => 0, -rely => 0, -relwidth => 1, -relheight => 1);
+    $hit->bind('<ButtonPress-1>', sub { $outer->configure(-relief => 'sunken') });
+    $hit->bind('<ButtonRelease-1>', sub { $outer->configure(-relief => 'raised') });
+    return $hit;
+}
+
+sub _draw_play {
+    my ($c, $color) = @_;
+    $c->createPolygon(9, 6, 9, 18, 21, 12, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_step_back {
+    my ($c, $color) = @_;
+    $c->createRectangle(7, 7, 9, 17, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createPolygon(18, 12, 11, 6, 11, 18, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_step_fwd {
+    my ($c, $color) = @_;
+    $c->createPolygon(10, 6, 10, 18, 17, 12, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createRectangle(18, 7, 20, 17, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_goto_chevron {
+    my ($c, $color) = @_;
+    $c->createPolygon(8, 9, 14, 17, 20, 9, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_select_bar {
+    my ($c, $color) = @_;
+    $c->createRectangle(12, 5, 16, 19, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createRectangle(8, 11, 20, 13, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_jump {
+    my ($c, $color) = @_;
+    $c->createPolygon(5, 6, 5, 18, 11, 12, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createPolygon(13, 6, 13, 18, 19, 12, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createRectangle(21, 7, 23, 17, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
+sub _draw_exit {
+    my ($c, $color) = @_;
+    $c->createLine(8, 6, 20, 18, -fill => $color, -width => 2, -tags => 'icon');
+    $c->createLine(20, 6, 8, 18, -fill => $color, -width => 2, -tags => 'icon');
 }
 
 sub _panel_background {
@@ -67,22 +184,19 @@ sub new {
     );
     my $inner = $frame->Frame(-background => $bg)->pack(-side => 'left', -padx => 2, -pady => 1);
 
-    my $btn_opts = sub {
-        my ($text, $cb) = @_;
-        return $inner->Button(
-            -text             => $text,
-            -command          => $cb,
-            -relief           => 'flat',
-            -padx             => 6,
-            -pady             => 2,
-            -background       => $bg,
-            -activebackground => '#e0e0e0',
-        );
+    my $pack_btn = sub {
+        my ($widget, %pack) = @_;
+        $pack{-side}  //= 'left';
+        $pack{-padx}  //= 2;
+        $widget->{frame}->pack(%pack);
+        return $widget;
     };
 
-    # Select bar + Go-to |  |<  [play]  >|  1x  D  >>  X
     my $sel_box = $inner->Frame(-background => $bg)->pack(-side => 'left', -padx => 1);
-    $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
+    $pack_btn->(
+        _make_media_button($sel_box, $callbacks->{select_bar}, \&_draw_select_bar),
+        -in => $sel_box,
+    );
 
     my $goto_menu = Market::UI::ReplayGotoMenu->new(
         parent  => $menu_parent,
@@ -91,16 +205,16 @@ sub new {
         mw      => $mw,
         ui_vars => $vars,
     );
-    my $goto_btn;
-    $goto_btn = $btn_opts->('v', sub { })->pack(-side => 'left', -in => $sel_box);
-    $goto_menu->set_anchor($goto_btn);
+    my $goto_btn = _make_media_button($sel_box, sub { }, \&_draw_goto_chevron);
+    $pack_btn->($goto_btn, -in => $sel_box);
+    $goto_menu->set_anchor($goto_btn->{frame});
 
-    $btn_opts->('|<', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
-    _make_play_icon_button($inner, $bg, $callbacks->{play})->pack(-side => 'left', -padx => 1);
-    $btn_opts->('>|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
+    $pack_btn->(_make_media_button($inner, $callbacks->{step_back}, \&_draw_step_back));
+    $pack_btn->(_make_media_button($inner, $callbacks->{play}, \&_draw_play));
+    $pack_btn->(_make_media_button($inner, $callbacks->{step_fwd}, \&_draw_step_fwd));
 
-    my $speed_btn = $btn_opts->('1x', sub { });
-    $speed_btn->pack(-side => 'left', -padx => 1);
+    my $speed_btn = _make_media_text_button($inner, '1x', sub { });
+    $pack_btn->($speed_btn);
     my $speed_menu = Market::UI::ReplaySpeedMenu->new(
         parent    => $menu_parent,
         root      => $root,
@@ -108,10 +222,9 @@ sub new {
         panel_btn => $speed_btn,
         ui_vars   => $vars,
     );
-    $speed_btn->configure(-command => sub { });
 
-    my $interval_btn = $btn_opts->('D', sub { });
-    $interval_btn->pack(-side => 'left', -padx => 1);
+    my $interval_btn = _make_media_text_button($inner, 'D', sub { });
+    $pack_btn->($interval_btn);
     my $interval_menu = Market::UI::ReplayIntervalMenu->new(
         parent    => $menu_parent,
         root      => $root,
@@ -119,7 +232,6 @@ sub new {
         panel_btn => $interval_btn,
         ui_vars   => $vars,
     );
-    $interval_btn->configure(-command => sub { });
 
     my $toggle_menu = sub {
         my ($menu, $btn) = @_;
@@ -129,14 +241,14 @@ sub new {
         ) {
             $other->hide() if $other->can('hide');
         }
-        $menu->toggle($btn);
+        $menu->toggle($btn->{frame});
     };
     $goto_btn->configure(-command => sub { $toggle_menu->($goto_menu, $goto_btn) });
     $speed_btn->configure(-command => sub { $toggle_menu->($speed_menu, $speed_btn) });
     $interval_btn->configure(-command => sub { $toggle_menu->($interval_menu, $interval_btn) });
 
-    $btn_opts->('>>', $callbacks->{fast_fwd})->pack(-side => 'left', -padx => 1);
-    $btn_opts->('X', $callbacks->{exit})->pack(-side => 'left', -padx => 4);
+    $pack_btn->(_make_media_button($inner, $callbacks->{fast_fwd}, \&_draw_jump));
+    $pack_btn->(_make_media_button($inner, $callbacks->{exit}, \&_draw_exit), -padx => 4);
 
     my $self = bless {
         frame          => $frame,
@@ -147,6 +259,7 @@ sub new {
         interval_menu  => $interval_menu,
         speed_label    => $speed_btn,
         interval_lbl   => $interval_btn,
+        play_btn       => 1,
         inline         => $inline,
         visible        => $inline ? 1 : 0,
     }, $class;
@@ -162,6 +275,11 @@ sub new {
     }
 
     return $self;
+}
+
+sub _make_media_text_button {
+    my ($parent, $text, $cb) = @_;
+    return _make_media_button($parent, $cb, undef, $text);
 }
 
 sub callback_factories {
@@ -228,11 +346,12 @@ sub is_visible {
 sub frame     { shift->{frame} }
 sub callbacks { shift->{callbacks} }
 
-sub expected_button_labels {
-    return (
-        'Select bar', 'v', '|<', '>|',
-        '1x', 'D', '>>', 'X',
-    );
+sub expected_text_button_labels {
+    return ('1x', 'D');
+}
+
+sub expected_media_icon_count {
+    return 7;
 }
 
 sub has_play_icon_button {

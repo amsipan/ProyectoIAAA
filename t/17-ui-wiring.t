@@ -590,7 +590,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     }
     sub Canvas {
         my ($p, %o) = @_;
-        my $w = bless { parent => $p, opts => \%o, kind => 'Canvas' }, 'MockTkWidget';
+        my $w = bless { parent => $p, opts => \%o, kind => 'Canvas', items => [] }, 'MockTkWidget';
         push @{ $p->{children} }, $w;
         return $w;
     }
@@ -618,7 +618,10 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     package MockTkWidget;
     sub pack { return shift }
     sub bind { return shift }
-    sub createPolygon { return 'play_icon' }
+    sub place { return shift }
+    sub createPolygon { my ($s) = @_; push @{ $s->{items} }, 'polygon'; return 'icon' }
+    sub createRectangle { my ($s) = @_; push @{ $s->{items} }, 'rect'; return 'icon' }
+    sub createLine { my ($s) = @_; push @{ $s->{items} }, 'line'; return 'icon' }
     sub configure { my ($s, %o) = @_; $s->{opts} = { %{ $s->{opts} || {} }, %o }; return $s }
     sub exists { return 1 }
 
@@ -628,10 +631,12 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     my $built_panel;
     my %build_vars = ( replay_panel => \$built_panel );
 
+    my $mock_parent = MockTkParent->new();
     my $built = Market::UI::ReplayPanel->new(
-        parent  => MockTkParent->new(),
-        chart   => $chart,
-        ui_vars => \%build_vars,
+        parent      => $mock_parent,
+        menu_parent => $mock_parent,
+        chart       => $chart,
+        ui_vars     => \%build_vars,
     );
     ok($built, '0043: ReplayPanel->new smoke sin error');
     ok(!$built->is_visible(), '0043: panel oculto tras build');
@@ -736,22 +741,33 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     sub pointery { return 0 }
     sub winfo_containing { return undef }
 
-    package MockTkWidget48;
-    sub pack { return shift }
-    sub configure { my ($s, %o) = @_; $s->{opts} = { %{ $s->{opts} || {} }, %o }; return $s }
-    sub exists { return 1 }
-    sub winfo_exists { return 1 }
-    sub winfo_rootx { return 200 }
-    sub winfo_rooty { return 520 }
-
     package MockTkCanvas48;
     sub pack { return shift }
     sub bind { return shift }
+    sub place { return shift }
     sub createPolygon {
         my ($s, @coords) = @_;
         push @{ $s->{items} }, { type => 'polygon', coords => \@coords };
-        return 'play_icon';
+        return 'icon';
     }
+    sub createRectangle {
+        my ($s) = @_;
+        push @{ $s->{items} }, { type => 'rect' };
+        return 'icon';
+    }
+    sub createLine {
+        my ($s) = @_;
+        push @{ $s->{items} }, { type => 'line' };
+        return 'icon';
+    }
+
+    package MockTkWidget48;
+    sub pack { return shift }
+    sub bind { return shift }
+    sub place { return shift }
+    sub configure { my ($s, %o) = @_; $s->{opts} = { %{ $s->{opts} || {} }, %o }; return $s }
+    sub exists { return 1 }
+    sub winfo_exists { return 1 }
 
     package main;
 
@@ -759,8 +775,10 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         my ($node) = @_;
         my @out;
         return @out unless ref $node;
-        if (($node->{kind} // '') eq 'Button' && ref $node->{opts} eq 'HASH') {
-            push @out, $node->{opts}{-text} if defined $node->{opts}{-text};
+        if ((($node->{kind} // '') eq 'Button' || ($node->{kind} // '') eq 'Label')
+            && ref $node->{opts} eq 'HASH') {
+            push @out, $node->{opts}{-text}
+                if defined $node->{opts}{-text} && length $node->{opts}{-text};
         }
         for my $ch (@{ $node->{children} // [] }) {
             push @out, _collect_button_texts($ch);
@@ -771,33 +789,35 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     my $parent = MockTkParent48->new();
     my $built_panel;
     my $built = Market::UI::ReplayPanel->new(
-        parent  => $parent,
-        chart   => MockChart->new(),
-        ui_vars => { replay_panel => \$built_panel },
+        parent      => $parent,
+        menu_parent => $parent,
+        chart       => MockChart->new(),
+        ui_vars     => { replay_panel => \$built_panel },
     );
 
     my @texts = _collect_button_texts($built->frame);
-    is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_button_labels() ],
-        '0048: etiquetas del panel coinciden con ASCII esperado');
+    is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_text_button_labels() ],
+        '0048: etiquetas texto del panel (1x/D) coinciden con ASCII esperado');
 
     for my $t (@texts) {
         ok($t !~ /[^\x00-\x7F]/, "0048: etiqueta '$t' es ASCII puro");
         ok($t !~ /â/, "0048: etiqueta '$t' sin mojibake latin-1");
     }
 
-    ok(Market::UI::ReplayPanel::has_play_icon_button(), '0046-prep: panel usa boton Play con icono');
-    my $has_polygon = 0;
+    ok(Market::UI::ReplayPanel::has_play_icon_button(), '0046-prep: panel usa botones multimedia');
+    my $icon_canvases = 0;
     my $walk;
     $walk = sub {
         my ($node) = @_;
         return unless ref $node;
         if (($node->{kind} // '') eq 'Canvas' && @{ $node->{items} // [] }) {
-            $has_polygon = 1;
+            $icon_canvases++;
         }
         $walk->($_) for @{ $node->{children} // [] };
     };
     $walk->($built->frame);
-    ok($has_polygon, '0046-prep: canvas Play con triangulo (polygon)');
+    is($icon_canvases, Market::UI::ReplayPanel::expected_media_icon_count(),
+        '0046-prep: canvas con iconos multimedia (select/goto/transport/jump/exit)');
 }
 
 done_testing();
