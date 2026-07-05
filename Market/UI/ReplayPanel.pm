@@ -5,10 +5,12 @@ use utf8;
 
 use Market::UI::Callbacks;
 use Market::UI::ReplayGotoMenu;
+use Market::UI::ReplaySpeedMenu;
+use Market::UI::ReplayIntervalMenu;
 
-# Market::UI::ReplayPanel — panel flotante media-player de Replay (task 0043).
-# Frame hijo del chart con place(); sin Tk::NoteBook ni Optionmenu.
-# task 0048: etiquetas ASCII (Tk/Fedora35 no tiene glyphs de reproductor ni utf8 sin use utf8).
+# Market::UI::ReplayPanel — barra de controles Replay (task 0043/0045).
+# Modo inline: empaquetada en la pestaña Replay de market.pl (sin place flotante).
+# Etiquetas ASCII estilo control remoto (task 0048).
 
 sub new {
     my ($class, %args) = @_;
@@ -17,81 +19,102 @@ sub new {
     my $vars   = $args{ui_vars} || {};
     my $mw     = $args{mw};
     my $root   = $args{root} || $mw || $parent;
+    my $inline = $args{inline} ? 1 : 0;
+    my $menu_parent = $args{menu_parent} || $root;
+
+    my $callbacks = callback_factories($chart, $mw, $vars);
+
+    my $frame = $parent->Frame(
+        -background => $inline ? $parent : '#f0f0f0',
+        -relief     => $inline ? 'flat' : 'groove',
+        -bd         => $inline ? 0 : 2,
+    );
+    my $inner = $frame->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 2, -pady => 1);
+
+    my $btn_opts = sub {
+        my ($text, $cb) = @_;
+        return $inner->Button(
+            -text             => $text,
+            -command          => $cb,
+            -relief           => 'flat',
+            -padx             => 6,
+            -pady             => 2,
+            -background       => '#f0f0f0',
+            -activebackground => '#e0e0e0',
+        );
+    };
+
+    # Select bar + Go-to |  |<  >  >|  1x  D  >>  X
+    my $sel_box = $inner->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 1);
+    $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
 
     my $goto_menu = Market::UI::ReplayGotoMenu->new(
-        parent  => $parent,
+        parent  => $menu_parent,
         root    => $root,
         chart   => $chart,
         mw      => $mw,
         ui_vars => $vars,
     );
-
-    my $callbacks = callback_factories($chart, $mw, $vars);
-
-    my $frame = $parent->Frame(
-        -background => '#f0f0f0',
-        -relief     => 'groove',
-        -bd         => 2,
-    );
-    my $inner = $frame->Frame(-background => '#f0f0f0')->pack(-padx => 4, -pady => 3);
-
-    my $btn_opts = sub {
-        my ($text, $cb) = @_;
-        return $inner->Button(
-            -text    => $text,
-            -command => $cb,
-            -relief  => 'flat',
-            -padx    => 6,
-            -pady    => 2,
-            -background => '#f0f0f0',
-            -activebackground => '#e0e0e0',
-        );
-    };
-
-    # [Select bar v]  Play  Fwd >|  |< Back  1x  D  >>  ...  X  (task 0048: ASCII)
-    my $sel_box = $inner->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 1);
-    $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
     my $goto_btn;
     $goto_btn = $btn_opts->('v', sub { $goto_menu->toggle($goto_btn) })
         ->pack(-side => 'left', -in => $sel_box);
     $goto_menu->set_anchor($goto_btn);
-    $callbacks->{goto_menu} = sub { $goto_menu->toggle($goto_btn) };
 
-    $btn_opts->('Play', $callbacks->{play})->pack(-side => 'left', -padx => 1);
-    $btn_opts->('Fwd >|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
-    # Step back extra del proyecto (TV no lo tiene): |< Back junto a Fwd.
-    $btn_opts->('|< Back', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('|<', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('>', $callbacks->{play})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('>|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
 
-    my $speed_lbl = $btn_opts->('1x', $callbacks->{speed_menu});
-    $speed_lbl->pack(-side => 'left', -padx => 1);
-    my $interval_lbl = $btn_opts->('D', $callbacks->{interval_menu});
-    $interval_lbl->pack(-side => 'left', -padx => 1);
+    my $speed_btn = $btn_opts->('1x', sub { });
+    $speed_btn->pack(-side => 'left', -padx => 1);
+    my $speed_menu = Market::UI::ReplaySpeedMenu->new(
+        parent    => $menu_parent,
+        root      => $root,
+        chart     => $chart,
+        panel_btn => $speed_btn,
+        ui_vars   => $vars,
+    );
+    $speed_btn->configure(-command => sub { $speed_menu->toggle($speed_btn) });
+
+    my $interval_btn = $btn_opts->('D', sub { });
+    $interval_btn->pack(-side => 'left', -padx => 1);
+    my $interval_menu = Market::UI::ReplayIntervalMenu->new(
+        parent    => $menu_parent,
+        root      => $root,
+        chart     => $chart,
+        panel_btn => $interval_btn,
+        ui_vars   => $vars,
+    );
+    $interval_btn->configure(-command => sub { $interval_menu->toggle($interval_btn) });
 
     $btn_opts->('>>', $callbacks->{fast_fwd})->pack(-side => 'left', -padx => 1);
-
-    $inner->Label(-text => '...', -background => '#f0f0f0')->pack(-side => 'left', -padx => 8);
-
-    $btn_opts->('X', $callbacks->{exit})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('X', $callbacks->{exit})->pack(-side => 'left', -padx => 4);
 
     my $self = bless {
-        frame        => $frame,
-        parent       => $parent,
-        callbacks    => $callbacks,
-        goto_menu    => $goto_menu,
-        speed_label  => $speed_lbl,
-        interval_lbl => $interval_lbl,
-        visible      => 0,
+        frame          => $frame,
+        parent         => $parent,
+        callbacks      => $callbacks,
+        goto_menu      => $goto_menu,
+        speed_menu     => $speed_menu,
+        interval_menu  => $interval_menu,
+        speed_label    => $speed_btn,
+        interval_lbl   => $interval_btn,
+        inline         => $inline,
+        visible        => $inline ? 1 : 0,
     }, $class;
 
     if (ref($vars) eq 'HASH' && $vars->{replay_panel}) {
         ${ $vars->{replay_panel} } = $self;
     }
 
-    $self->hide();
+    if ($inline) {
+        $frame->pack(-side => 'left', -fill => 'x');
+    } else {
+        $self->hide();
+    }
+
     return $self;
 }
 
-# callback_factories — factorías del panel (testeable headless sin construir Tk).
 sub callback_factories {
     my ($chart, $mw, $vars) = @_;
     die "callback_factories: requiere \$chart" unless $chart;
@@ -108,8 +131,22 @@ sub callback_factories {
     };
 }
 
+sub is_inline {
+    my ($self) = @_;
+    return $self->{inline} ? 1 : 0;
+}
+
+sub hide_menus {
+    my ($self) = @_;
+    $self->{goto_menu}->hide()     if $self->{goto_menu}     && $self->{goto_menu}->can('hide');
+    $self->{speed_menu}->hide()    if $self->{speed_menu}    && $self->{speed_menu}->can('hide');
+    $self->{interval_menu}->hide() if $self->{interval_menu} && $self->{interval_menu}->can('hide');
+    return $self;
+}
+
 sub show {
     my ($self) = @_;
+    return $self if $self->{inline};
     $self->{frame}->place(-relx => 0.5, -rely => 1.0, -anchor => 's', -y => -8);
     $self->{visible} = 1;
     return $self;
@@ -117,7 +154,8 @@ sub show {
 
 sub hide {
     my ($self) = @_;
-    $self->{goto_menu}->hide() if $self->{goto_menu} && $self->{goto_menu}->can('hide');
+    $self->hide_menus();
+    return $self if $self->{inline};
     $self->{frame}->placeForget();
     $self->{visible} = 0;
     return $self;
@@ -125,16 +163,16 @@ sub hide {
 
 sub is_visible {
     my ($self) = @_;
+    return 1 if $self->{inline};
     return $self->{visible} ? 1 : 0;
 }
 
-sub frame       { shift->{frame} }
-sub callbacks   { shift->{callbacks} }
+sub frame     { shift->{frame} }
+sub callbacks { shift->{callbacks} }
 
-# expected_button_labels — textos ASCII de los botones (task 0048, para tests headless).
 sub expected_button_labels {
     return (
-        'Select bar', 'v', 'Play', 'Fwd >|', '|< Back',
+        'Select bar', 'v', '|<', '>', '>|',
         '1x', 'D', '>>', 'X',
     );
 }

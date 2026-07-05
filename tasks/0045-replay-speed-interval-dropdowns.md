@@ -1,5 +1,7 @@
 # Task 0045: Replay — dropdowns de velocidad e intervalo cableados
 
+**Estado:** ✅ hecho (2026-07-05; barra inline en pestaña Replay + dropdowns cableados)
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §5, §19 capturas 4 y 5.
 - Depende de 0041 (backend speed/interval) y 0043 (panel con botones `1x` y `D`).

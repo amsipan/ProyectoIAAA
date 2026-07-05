@@ -33,6 +33,8 @@ sub new {
         speed           => $args{speed} || 1,
         speed_label     => '1x',
         replay_interval => 1,
+        auto_replay_interval => 1,
+        interval_label  => '1 hour',
         _timer_id       => undef,
         _timer_cb       => undef,
     };
@@ -176,6 +178,29 @@ sub replay_interval {
 sub set_replay_interval {
     my ($self, $n) = @_;
     $self->{replay_interval} = $n if defined $n && $n > 0;
+    return $self;
+}
+
+# auto_replay_interval — 1 = intervalo sigue al TF; 0 = manual (task 0045).
+sub auto_replay_interval {
+    my ($self) = @_;
+    return $self->{auto_replay_interval} // 1;
+}
+
+sub set_auto_replay_interval {
+    my ($self, $on) = @_;
+    $self->{auto_replay_interval} = $on ? 1 : 0;
+    return $self;
+}
+
+sub interval_label {
+    my ($self) = @_;
+    return $self->{interval_label};
+}
+
+sub set_interval_label {
+    my ($self, $label) = @_;
+    $self->{interval_label} = $label if defined $label;
     return $self;
 }
 

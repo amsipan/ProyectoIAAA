@@ -150,13 +150,7 @@ $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);
 };
 
-$replay_panel = Market::UI::ReplayPanel->new(
-    parent  => $chart_frame,
-    chart   => $chart_engine,
-    mw      => $mw,
-    root    => $mw,
-    ui_vars => \%ui_vars,
-);
+$ui_vars{mw} = $mw;
 
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
@@ -236,13 +230,22 @@ my $show_panel = sub {
     $panel{$name}->pack(-side => 'left', -fill => 'x') if $panel{$name};
 };
 
+my $cb_replay_activate = Market::UI::Callbacks->make_replay_activate($chart_engine, \%ui_vars);
+$ui_vars{show_replay_tab} = sub {
+    $active_tab = 'Replay';
+    $show_panel->('Replay');
+};
+
 # --- Botones de pestaña en la fila superior ---
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 8);
 for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     $tabs_box->Radiobutton(
         -text => $name, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
-        -command => sub { $show_panel->($name); },
+        -command => sub {
+            $show_panel->($name);
+            $cb_replay_activate->() if $name eq 'Replay';
+        },
     )->pack(-side => 'left', -padx => 1);
 }
 
@@ -331,19 +334,18 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         ->pack(-side => 'left', -padx => 10);
 }
 
-# ---- Panel "Replay": disparador TV + panel flotante sobre el chart (task 0043) ----
+# ---- Panel "Replay": barra de controles inline (task 0045; sin << Bar Replay) ----
 {
     my $p = $panel{Replay};
-    $p->Label(-text => 'Replay:')->pack(-side => 'left', -padx => 3);
-    $p->Button(
-        -text    => '<< Bar Replay',
-        -command => Market::UI::Callbacks->make_replay_activate($chart_engine, \%ui_vars),
-        -padx    => 6,
-    )->pack(-side => 'left', -padx => 4);
-    $p->Label(
-        -text => '(controles en panel flotante inferior del chart)',
-        -font => 'Helvetica 8',
-    )->pack(-side => 'left', -padx => 4);
+    $replay_panel = Market::UI::ReplayPanel->new(
+        parent      => $p,
+        menu_parent => $mw,
+        chart       => $chart_engine,
+        mw          => $mw,
+        root        => $mw,
+        ui_vars     => \%ui_vars,
+        inline      => 1,
+    );
 }
 
 # Mostrar la pestaña inicial.

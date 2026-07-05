@@ -92,12 +92,14 @@ use Market::ReplayController;
     sub after {
         my ($s, $ms, $cb) = @_;
         $s->{after_calls}++;
+        $s->{last_ms} = $ms;
         return if $s->{fired} >= $s->{max};
         return unless ref($cb) eq 'CODE';
         $s->{fired}++;
         $cb->();   # tick inmediato (limitado a max)
         return;
     }
+    sub afterCancel { return }
 }
 
 # --- MockChart: registra set_timeframe / request_render; expone el
@@ -288,6 +290,19 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     my $pause = Market::UI::Callbacks->make_replay_pause($chart, \%vars);
     $pause->();
     ok(!$rc->{playing}, 'Pause deja playing=0');
+}
+
+# =============================================================================
+# Test 4b (task 0045): Play usa tick_ms() del ReplayController (no 80ms fijo).
+# =============================================================================
+{
+    my $chart = MockChart->new(market_data => MockMarketData->new(100));
+    my $mw    = MockMW->new();
+    my $rc    = $chart->{replay_controller};
+    $rc->start(50);
+    $rc->set_speed_label('5x');
+    Market::UI::Callbacks->make_replay_play($chart, $mw, {})->();
+    is($mw->{last_ms}, 200, '0045: Play programa after con tick_ms 5x = 200ms');
 }
 
 # =============================================================================
@@ -535,6 +550,18 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         push @{ $p->{children} }, $f;
         return $f;
     }
+    sub idletasks { return }
+    sub reqheight { return 120 }
+    sub rootx { return 0 }
+    sub rooty { return 0 }
+    sub exists { return 1 }
+    sub containing { return undef }
+    sub pointerx { return 0 }
+    sub pointery { return 0 }
+    {
+        no strict 'refs';
+        *{'MockTkParent::Tk::bind'} = sub { return };
+    }
 
     package MockTkFrame;
     sub Frame {
@@ -555,6 +582,12 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         push @{ $p->{children} }, $w;
         return $w;
     }
+    sub Checkbutton {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Checkbutton' }, 'MockTkWidget';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
     sub pack { return shift }
     sub place {
         my ($s, %o) = @_;
@@ -563,9 +596,23 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         return $s;
     }
     sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
+    sub idletasks { return }
+    sub reqheight { return 120 }
+    sub rootx { return 0 }
+    sub rooty { return 0 }
+    sub exists { return 1 }
+    sub containing { return undef }
+    sub pointerx { return 0 }
+    sub pointery { return 0 }
+    {
+        no strict 'refs';
+        *{'MockTkFrame::Tk::bind'} = sub { return };
+    }
 
     package MockTkWidget;
     sub pack { return shift }
+    sub configure { my ($s, %o) = @_; $s->{opts} = { %{ $s->{opts} || {} }, %o }; return $s }
+    sub exists { return 1 }
 
     package main;
 
@@ -589,20 +636,21 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     my $replay_on = 0;
     my $replay_select_mode = 0;
     my $panel_obj = MockReplayPanel->new();
+    my $tab_switched = 0;
     my %vars = (
         replay_on          => \$replay_on,
         replay_select_mode => \$replay_select_mode,
         replay_panel       => \$panel_obj,
+        show_replay_tab    => sub { $tab_switched = 1 },
     );
 
     Market::UI::Callbacks->make_replay_activate($chart, \%vars)->();
     is($replay_on, 1, '0043: activate marca replay_on=1');
     is($replay_select_mode, 1, '0043: activate entra en select mode');
-    ok($panel_obj->is_visible(), '0043: activate muestra panel');
+    ok($tab_switched, '0045: activate cambia a pestaña Replay');
 
     Market::UI::Callbacks->make_replay_exit($chart, \%vars)->();
     is($replay_on, 0, '0043: exit marca replay_on=0');
-    ok(!$panel_obj->is_visible(), '0043: exit oculta panel');
 }
 
 # =============================================================================
@@ -621,8 +669,18 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     sub unbind { return }
     sub pointerx { return 0 }
     sub pointery { return 0 }
+    sub containing { return undef }
     sub winfo_containing { return undef }
     sub winfo_exists { return 1 }
+    sub exists { return 1 }
+    sub idletasks { return }
+    sub reqheight { return 120 }
+    sub rootx { return 0 }
+    sub rooty { return 0 }
+    {
+        no strict 'refs';
+        *{'MockTkParent48::Tk::bind'} = sub { return };
+    }
 
     package MockTkFrame48;
     sub Frame {
@@ -643,6 +701,12 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         push @{ $p->{children} }, $w;
         return $w;
     }
+    sub Checkbutton {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Checkbutton' }, 'MockTkWidget48';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
     sub pack { return shift }
     sub place { my ($s) = @_; $s->{placed} = 1; return $s }
     sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
@@ -660,6 +724,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 
     package MockTkWidget48;
     sub pack { return shift }
+    sub configure { my ($s, %o) = @_; $s->{opts} = { %{ $s->{opts} || {} }, %o }; return $s }
+    sub exists { return 1 }
     sub winfo_exists { return 1 }
     sub winfo_rootx { return 200 }
     sub winfo_rooty { return 520 }
