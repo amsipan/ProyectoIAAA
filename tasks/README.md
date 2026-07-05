@@ -114,13 +114,13 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho (verif. arq. visual; glyphs → 0048) |
 | 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | ✅ hecho + 0049 (verif. arq. visual) |
 | 0045 | Dropdowns velocidad + intervalo cableados + barra inline | 0041,0043 | ✅ hecho + fixes UX (verif. arq. + visto bueno Bryan; 1116 tests) |
-| 0046 | Play/Pause toggle + Jump-to-real-time + marca de agua (atajos → diferido) | 0043 | ✅ hecho |
+| 0046 | Play/Pause toggle + Jump-to-real-time + marca de agua + botón Mark on/off (atajos → 0050) | 0043 | ✅ hecho + APROBADO (d1c2aa5; visto bueno Bryan; 1134 tests) |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
 | 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
 | 0050 | [DIFERIDO] Atajos de teclado replay (Shift+↓ toggle, Shift+→ step) | 0046 | pendiente (post-0046, pedido Bryan) |
  
-**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → 0045 → **0046**. (0047 pulido; 0050 atajos diferido al final.)
+**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → 0045 → 0046 → **0050**. (0047 pulido, baja prio.)
 
 **Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**
 - **Panel Replay INLINE en pestaña Replay**, no flotante (0043 original). Ratificado: mejor UX, sin
@@ -128,7 +128,13 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 - **Botones de transporte con iconos Canvas** (play triángulo, back, fwd, jump, exit) dentro de
   cajita `raised`, en vez de solo texto Play/Pause (0046 original). Sigue cumpliendo 0048 (el texto
   `Select bar`/`1x`/`D` es ASCII; los iconos son dibujo vectorial Canvas, no glyphs de fuente).
-- **`>>` = Jump to real-time** (revelar todo + salir), no fast-forward +10. Se implementa en 0046.
+- **`>>` = Jump to real-time** (revela todas las velas y vuelve a modo Select Bar, como TV),
+  NO fast-forward +10 y NO sale del replay. Distinto del botón Exit X (ese sí sale, `replay_on=0`).
+  Implementado en 0046 (commit db19858).
+- **Línea azul de Select Bar solo con el cursor DENTRO del chart** (TV): al entrar en Select Bar ya
+  no se siembra hover en la última vela; se dibuja solo tras `<Motion>` real. Commit d1c2aa5.
+- **Botón `Mark: on/off`** en la barra inline para conmutar la marca de agua "Replay" en caliente
+  (pedido de Bryan). Default ON.
 - Clics resueltos con `Tk::bind` en TODOS los widgets del botón (frame/canvas/label/hit), no solo
   `-command` del Button (lección Tk #9/#10, ver handoff §5).
 
