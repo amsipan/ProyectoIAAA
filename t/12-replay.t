@@ -196,4 +196,59 @@ $chart->clear_replay_select_state();
 ok(!defined $chart->selected_bar(), 'clear_replay_select_state: sin selected_bar');
 ok(!$chart->is_replay_select_mode(), 'clear_replay_select_state: modo OFF');
 
+# ===========================================================================
+# Test 9: task 0041 — speed_options devuelve los 9 multiplicadores con ms correctos.
+# ===========================================================================
+my @opts = Market::ReplayController::speed_options();
+is(scalar(@opts), 9, 'speed_options: 9 entradas');
+is_deeply(
+    \@opts,
+    [
+        { label => '10x',  ms => 100 },
+        { label => '7x',   ms => 143 },
+        { label => '5x',   ms => 200 },
+        { label => '3x',   ms => 333 },
+        { label => '1x',   ms => 1000 },
+        { label => '0.5x', ms => 2000 },
+        { label => '0.3x', ms => 3000 },
+        { label => '0.2x', ms => 5000 },
+        { label => '0.1x', ms => 10000 },
+    ],
+    'speed_options: tabla TradingView exacta',
+);
+
+# ===========================================================================
+# Test 10: task 0041 — tick_ms según etiqueta; default 1x = 1000 ms.
+# ===========================================================================
+my $rc2 = Market::ReplayController->new(market_data => $chart->{market_data});
+is($rc2->tick_ms(), 1000, 'tick_ms default 1x = 1000');
+$rc2->set_speed_label('5x');
+is($rc2->tick_ms(), 200, 'set_speed_label(5x) => tick_ms 200');
+$rc2->set_speed_label('0.1x');
+is($rc2->tick_ms(), 10000, 'set_speed_label(0.1x) => tick_ms 10000');
+
+# ===========================================================================
+# Test 11: task 0041 — set_speed numérico sigue afectando fast_forward (retrocompat).
+# ===========================================================================
+$rc2->start(10);
+$rc2->set_speed(2);
+$rc2->fast_forward();    # default 10 * speed = 20
+is($rc2->current_index(), 30, 'set_speed(2): fast_forward default avanza 20 velas');
+
+# ===========================================================================
+# Test 12: task 0041 — replay_interval + advance_one_tick.
+# ===========================================================================
+$rc2->start(10);
+$rc2->set_replay_interval(3);
+$rc2->advance_one_tick();
+is($rc2->current_index(), 13, 'advance_one_tick con intervalo 3 avanza 3 velas');
+
+# Al llegar al tope, advance_one_tick pausa (playing=0) igual que step_forward.
+$rc2->start(97);
+$rc2->{playing} = 1;
+$rc2->set_replay_interval(5);
+$rc2->advance_one_tick();
+is($rc2->current_index(), 99, 'advance_one_tick clampa al último índice');
+ok(!$rc2->{playing}, 'advance_one_tick pausa al llegar al final');
+
 done_testing();

@@ -8,16 +8,33 @@ use warnings;
 # superar. Cuando está activo, compute_window y todo el pipeline ven el dataset
 # como si terminara en replay_idx. Sin UI aquí (task 0004).
 
+# Tabla de velocidades TradingView (task 0041): etiqueta → ms por tick de autoplay.
+my @SPEED_OPTIONS = (
+    { label => '10x',  ms => 100 },
+    { label => '7x',   ms => 143 },
+    { label => '5x',   ms => 200 },
+    { label => '3x',   ms => 333 },
+    { label => '1x',   ms => 1000 },
+    { label => '0.5x', ms => 2000 },
+    { label => '0.3x', ms => 3000 },
+    { label => '0.2x', ms => 5000 },
+    { label => '0.1x', ms => 10000 },
+);
+
+my %SPEED_MS = map { $_->{label} => $_->{ms} } @SPEED_OPTIONS;
+
 sub new {
     my ($class, %args) = @_;
     my $self = {
-        market_data => $args{market_data},
-        active      => 0,
-        replay_idx  => undef,
-        playing     => 0,
-        speed       => $args{speed} || 1,
-        _timer_id   => undef,
-        _timer_cb   => undef,
+        market_data     => $args{market_data},
+        active          => 0,
+        replay_idx      => undef,
+        playing         => 0,
+        speed           => $args{speed} || 1,
+        speed_label     => '1x',
+        replay_interval => 1,
+        _timer_id       => undef,
+        _timer_cb       => undef,
     };
     bless $self, $class;
     return $self;
@@ -121,11 +138,59 @@ sub effective_end {
     return $end;
 }
 
-# set_speed($n) — cambia la velocidad de fast_forward.
+# set_speed($n) — cambia la velocidad de fast_forward (retrocompat; no afecta tick_ms).
 sub set_speed {
     my ($self, $n) = @_;
     $self->{speed} = $n if defined $n && $n > 0;
     return $self;
+}
+
+# speed_options — lista ordenada {label, ms} para los 9 multiplicadores TV.
+sub speed_options {
+    return map { +{ label => $_->{label}, ms => $_->{ms} } } @SPEED_OPTIONS;
+}
+
+# set_speed_label($label) — selecciona velocidad de autoplay por etiqueta (p.ej. '5x').
+sub set_speed_label {
+    my ($self, $label) = @_;
+    if (defined $label && exists $SPEED_MS{$label}) {
+        $self->{speed_label} = $label;
+    }
+    return $self;
+}
+
+# tick_ms — periodo del tick de autoplay según la velocidad seleccionada.
+sub tick_ms {
+    my ($self) = @_;
+    my $label = $self->{speed_label} // '1x';
+    return $SPEED_MS{$label} // 1000;
+}
+
+# replay_interval — nº de velas avanzadas por tick de autoplay.
+sub replay_interval {
+    my ($self) = @_;
+    return $self->{replay_interval} // 1;
+}
+
+# set_replay_interval($n) — cuántas velas añade cada tick (default 1).
+sub set_replay_interval {
+    my ($self, $n) = @_;
+    $self->{replay_interval} = $n if defined $n && $n > 0;
+    return $self;
+}
+
+# advance_one_tick — avanza replay_interval pasos de step_forward (clamp + pause al final).
+sub advance_one_tick {
+    my ($self) = @_;
+    return unless $self->{active};
+    my $interval = $self->replay_interval();
+    my $last = $self->_last_index();
+    my $idx;
+    for (my $i = 0; $i < $interval; $i++) {
+        $idx = $self->step_forward();
+        last if defined $last && defined $idx && $idx >= $last;
+    }
+    return $idx;
 }
 
 # --- internals ---

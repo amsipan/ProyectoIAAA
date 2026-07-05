@@ -1,5 +1,7 @@
 # Task 0041: Replay — velocidad (9 multiplicadores) e intervalo de replay (backend)
 
+**Estado:** ✅ hecho
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §5 (velocidad vs intervalo), §19 capturas 4 y 5.
 
