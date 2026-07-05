@@ -4,10 +4,18 @@
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §6, §7, §8, §19 capturas 1 y 2.
 - Depende de 0043 (panel flotante).
 
+## CRITERIO FIJO (heredado 0048 + 0049) — LEER ANTES DE CODIFICAR
+- Etiquetas de botones ASCII legibles, NO glyphs unicode (mojibake en Fedora35). El toggle
+  Play/Pause alterna TEXTO `Play` ↔ `Pause` (no `▷`/`❚❚`). Jump = `Jump >>|` o `>>|`. Cerrar = `X`.
+- **API de Tk Fedora35 (ver lección completa en tasks/0049 y `scratch/probe_*.pl`):** métodos SIN
+  prefijo `winfo_`; `idletasks` no `update_idletasks`; `waitWindow` no `wait`; `Tk::bind($seq,$cb)`
+  sin modo `'+'`; pad asimétrico arrayref `[t,b]`.
+- La marca de agua "Replay" con `createText` es ASCII normal (texto latino), sin problema de fuente.
+
 ## Objetivo
 Cerrar el calque de comportamiento:
-1. **Play/Pause como UN botón toggle** (no dos botones separados).
-2. **Jump to real-time** (`▷▷|`): carga todo hasta el final y sale del replay al instante.
+1. **Play/Pause como UN botón toggle** (no dos botones separados), alternando texto `Play`↔`Pause`.
+2. **Jump to real-time** (`Jump >>|`): carga todo hasta el final y sale del replay al instante.
 3. **Atajos de teclado oficiales:** `Shift+↓` = Play/Pause, `Shift+→` = step forward.
 4. **Marca de agua "Replay"** gris en el centro del chart mientras el modo está activo (captura 2).
 
@@ -19,11 +27,12 @@ Cerrar el calque de comportamiento:
 ## Diseño
 En `Market/UI/Callbacks.pm` + `Market/ChartEngine.pm`:
 1. **Toggle Play/Pause:** `make_replay_toggle_play` → si `playing` pausa; si no, arranca autoplay
-   (usando `tick_ms()`/`advance_one_tick` de 0041/0045). El botón del panel alterna icono/texto
-   `▷` ↔ `❚❚` según estado. Conservar `make_replay_play`/`make_replay_pause` como internos.
+   (usando `tick_ms()`/`advance_one_tick` de 0041/0045). El botón del panel alterna el TEXTO
+   `Play` ↔ `Pause` según estado (usar `$btn->configure(-text => ...)`; ASCII, sin glyphs).
+   Conservar `make_replay_play`/`make_replay_pause` como internos.
 2. **Jump to real-time:** `make_replay_jump_real` → lleva `replay_idx` al último índice
    (`step` hasta el final o setter directo), luego `exit()` + limpiar estado (reusar
-   `_sync_replay_ui_cleanup`) → chart vuelve a vivo mostrando todas las velas. Distinto de `✕`
+   `_sync_replay_ui_cleanup`) → chart vuelve a vivo mostrando todas las velas. Distinto de `X`
    (cerrar) solo en que jump primero revela todo; documentar la diferencia.
 3. **Atajos globales** (bind en la ventana o en los canvas de precio/ATR, activos solo con replay ON):
    - `<Shift-Down>` → toggle play/pause.
@@ -47,7 +56,10 @@ En `Market/UI/Callbacks.pm` + `Market/ChartEngine.pm`:
 ```bash
 wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c market.pl && perl -I. -c Market/UI/Callbacks.pm && perl -I. -c Market/ChartEngine.pm && prove -l t/12-replay.t t/17-ui-wiring.t t/25-replay-select-bar.t t"
 ```
-Validación visual en WSLg (comparar con capturas 1 y 2).
+**OBLIGATORIO además de tests:** arrancar la app real (`perl -I. market.pl`) sin crash y comprobar
+en runtime que el toggle cambia el texto Play↔Pause, que la marca de agua aparece/desaparece, y que
+los atajos responden. Recordar 0049: `perl -c` + tests con mock NO detectan errores de API de Tk.
+Validación visual del arquitecto en WSLg (comparar con capturas 1 y 2).
 
 ## Qué no tocar
 - No romper Select Bar (0042) ni sus atajos Shift+←/→.

@@ -3,6 +3,17 @@
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §5, §19 capturas 4 y 5.
 - Depende de 0041 (backend speed/interval) y 0043 (panel con botones `1x` y `D`).
+- **PLANTILLA:** el dropdown ya está resuelto en `Market/UI/ReplayGotoMenu.pm` (task 0044/0049).
+  Reutilizar ESE patrón (Frame + place sobre el botón, `toggle/show/hide`, click-fuera con
+  `Tk::bind`, título gris + filas Button). NO reinventar. Considerar factorizar una base común
+  `ReplayDropdown` si sale natural, pero no es obligatorio.
+
+## CRITERIO FIJO (heredado 0048 + 0049)
+- Etiquetas ASCII legibles, NO glyphs unicode (mojibake en Fedora35).
+- **API de Tk Fedora35 (ver lección en tasks/0049 y `scratch/probe_*.pl`):** métodos SIN prefijo
+  `winfo_` (`exists/rootx/rooty/width/height/containing/pointerx/pointery`); `idletasks` no
+  `update_idletasks`; `waitWindow` no `wait`; `Tk::bind($seq,$cb)` sin modo `'+'`, desbindear con
+  `Tk::bind($seq,'')`; pad asimétrico con arrayref `[t,b]` nunca `(t,b)`.
 
 ## Objetivo
 Calcar los dropdowns "REPLAY SPEED" (captura 4) y "UPDATE INTERVAL" (captura 5), cableados al
@@ -42,8 +53,12 @@ backend de 0041, de modo que cambien el ritmo real del autoplay.
 ```bash
 wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c market.pl && perl -I. -c Market/UI/Callbacks.pm && perl -I. -c Market/ReplayController.pm && prove -l t/12-replay.t t/17-ui-wiring.t t"
 ```
-Validación visual en WSLg (comparar con capturas 4 y 5).
+**OBLIGATORIO además de tests:** arrancar la app real (`perl -I. market.pl`) para confirmar que NO
+crashea, y verificar que AMBOS dropdowns (velocidad `1x` e intervalo `D`) REALMENTE se despliegan
+(no basta compilar; los bugs de 0049 pasaban `perl -c` y tests pero rompían en runtime).
+Validación visual del arquitecto en WSLg (comparar con capturas 4 y 5).
 
 ## Qué no tocar
 - No romper el truncado por replay_idx ni el auto-pause al llegar al final.
 - No cambiar el modelo de velocidades de 0041 (solo consumirlo).
+- No romper el menú Go-to (0044/0049) ni el panel (0043).
