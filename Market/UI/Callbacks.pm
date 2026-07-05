@@ -165,9 +165,11 @@ sub _sync_replay_ui_cleanup {
     _stop_play_schedule($chart, $vars);
     my $rc = _replay($chart);
     $rc->exit() if $rc;
+    $chart->restore_after_replay_exit() if $chart->can('restore_after_replay_exit');
     if ($chart->can('clear_replay_select_state')) {
         $chart->clear_replay_select_state();
     }
+    $chart->sync_overlay_indicators() if $chart->can('sync_overlay_indicators');
     if (ref($vars) eq 'HASH') {
         ${ $vars->{replay_on} } = 0 if $vars->{replay_on};
         ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};

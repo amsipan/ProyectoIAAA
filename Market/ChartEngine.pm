@@ -35,9 +35,10 @@ use constant {
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
-    # TradingView Bar Replay: tras elegir barra, la ultima vela visible queda ~80% a la
-    # izquierda (hueco a la derecha para velas que apareceran con Play).
+    # TradingView Bar Replay: borde derecho de la ultima vela visible al 80% del plot;
+    # hueco fijo 20% del ancho (px), independiente del zoom en barras.
     REPLAY_BAR_ANCHOR_FRAC => 0.80,
+    REPLAY_RIGHT_GAP_FRAC  => 0.20,
 };
 
 # Paleta de tema claro por defecto (local al módulo). Se usa solo si el llamador
@@ -876,15 +877,25 @@ sub clear_replay_select_state {
     return $self->clear_replay_select_mode();
 }
 
-# _replay_anchor_x_shift($x_bars, $plot_width, $frac) — px para centrar la ultima vela
-# visible en $frac del ancho (estilo TradingView tras Select Bar).
+# restore_after_replay_exit — vuelta a chart vivo: sin truncado ni shift de replay.
+sub restore_after_replay_exit {
+    my ($self) = @_;
+    delete $self->{replay_view_anchor};
+    $self->{ctrl_zoom_x_shift} = 0;
+    $self->{offset} = 0;
+    return $self;
+}
+
+# _replay_anchor_x_shift($x_bars, $plot_width, $frac) — desplazamiento px para dejar
+# un hueco derecho fijo (REPLAY_RIGHT_GAP_FRAC del plot), igual en todo zoom.
 sub _replay_anchor_x_shift {
     my ($self, $x_bars, $plot_width, $frac) = @_;
-    $x_bars = 1 if !defined $x_bars || $x_bars < 1;
     $plot_width = 1 if !defined $plot_width || $plot_width < 1;
-    $frac = REPLAY_BAR_ANCHOR_FRAC unless defined $frac;
-    my $last_center = ($x_bars - 0.5) * $plot_width / $x_bars;
-    return $frac * $plot_width - $last_center;
+    my $gap_frac = REPLAY_RIGHT_GAP_FRAC;
+    if (defined $frac && $frac >= 0 && $frac < 1) {
+        $gap_frac = 1 - $frac;
+    }
+    return -$gap_frac * $plot_width;
 }
 
 # task 0040-B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
@@ -1514,8 +1525,7 @@ sub _zoom_anchor_x {
 sub _clear_ctrl_zoom_state {
     my ($self) = @_;
 
-    $self->{ctrl_zoom_x_shift} = 0;
-    delete $self->{replay_view_anchor};
+    $self->{ctrl_zoom_x_shift} = 0 unless defined $self->{replay_view_anchor};
     $self->{ctrl_zoom_y_lock_min} = undef;
     $self->{ctrl_zoom_y_lock_max} = undef;
 }

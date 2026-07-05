@@ -272,14 +272,42 @@ use Market::ReplayController;
 
     my ($s, $e) = $chart->compute_window();
     my $x_bars = $e - $s + 1;
-    my $shift  = $chart->_replay_anchor_x_shift($x_bars, 1000);
-    ok($shift < 0, 'anchor: x_shift negativo deja hueco a la derecha');
+    my $shift = $chart->_replay_anchor_x_shift($x_bars, 1000);
+    is($shift, -200, 'anchor: shift fijo -20% plot (1000px)');
+
+    my $shift_zoom = $chart->_replay_anchor_x_shift(15, 1000);
+    is($shift_zoom, -200, 'anchor: mismo shift con distinto zoom (15 barras)');
 
     my $scale = Market::Panels::Scales->new(min_y => 0, max_y => 1, bars => $x_bars);
     $scale->{width} = 1000;
     $scale->{x_shift} = $shift;
     my $cx = $scale->index_to_center_x($x_bars - 1);
-    ok(abs($cx - 800) < 2, "anchor: centro ultima vela ~80% plot (cx=$cx)");
+    my $bar_w = $scale->plot_width() / $x_bars;
+    my $right_edge = $cx + $bar_w / 2;
+    ok(abs($right_edge - 800) < 2, "anchor: borde derecho ultima vela ~80% plot ($right_edge)");
+}
+
+# Salir de replay restaura vista live (shift/anchor/offset).
+{
+    my $md = R40MarketData->new(100);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => Market::ReplayController->new(market_data => $md),
+        visible_bars      => 60,
+        offset            => 0,
+        ctrl_zoom_x_shift => -150,
+        replay_view_anchor => 0.80,
+    }, 'Market::ChartEngine';
+
+    $chart->{replay_controller}->start(49);
+    $chart->restore_after_replay_exit();
+    $chart->{replay_controller}->exit();
+
+    ok(!exists $chart->{replay_view_anchor}, 'exit: replay_view_anchor limpiado');
+    is($chart->{ctrl_zoom_x_shift}, 0, 'exit: ctrl_zoom_x_shift reseteado');
+    is($chart->{offset}, 0, 'exit: offset reseteado');
+    my ($s, $e) = $chart->compute_window();
+    is($e, 99, 'exit: ventana hasta ultima vela del dataset');
 }
 
 # =============================================================================

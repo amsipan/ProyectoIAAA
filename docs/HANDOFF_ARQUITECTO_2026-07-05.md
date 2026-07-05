@@ -34,8 +34,9 @@ El arquitecto reportó en `c58cb8a`:
 | `79373cc` | Fix dropdowns multi-clic: `after(1)` antes del bind click-fuera; cerrar menús hermanos; `ReplayGotoMenu` hereda `ReplayDropdown`; `t/26-replay-dropdown.t` |
 | `eb4757c` | Este handoff document creado |
 | `1df6337` | Ancla Select Bar ~80% (TradingView) — ver §3 sesión E |
+| *(ver git log)* | Gap fijo 20% zoom-independiente; Play triangulo Canvas; exit X restaura velas |
 
-**Evolución tests:** 1090 (c58cb8a) → 1100 → 1113 → **1117** (+4 tests anchor en `t/25`).
+**Evolución tests:** 1090 (c58cb8a) → … → **1122** (+tests anchor/exit/play icon).
 
 ---
 
@@ -85,7 +86,9 @@ El arquitecto reportó en `c58cb8a`:
 5. **Ancla Select Bar ~80%:** tras clic en vela, la última visible (selected-1) queda al ~80%
    del ancho del plot, con hueco a la derecha para velas futuras del Play (estilo TradingView).
    - Implementado: `frame_replay_view_at($idx, { anchor => 1 })` solo en `replay_confirm_bar_selection`;
-     `REPLAY_BAR_ANCHOR_FRAC = 0.80`; `_replay_anchor_x_shift()` en render.
+     `REPLAY_RIGHT_GAP_FRAC = 0.20` (hueco fijo en px, no depende del zoom en barras).
+6. **Play triángulo TV:** Canvas con `createPolygon` (no texto `>`).
+7. **Exit X:** `restore_after_replay_exit()` limpia anchor/shift/offset + `sync_overlay_indicators`.
 
 ---
 

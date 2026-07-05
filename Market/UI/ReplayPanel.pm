@@ -12,6 +12,32 @@ use Market::UI::ReplayIntervalMenu;
 # Modo inline: empaquetada en la pestaña Replay de market.pl (sin place flotante).
 # Etiquetas ASCII estilo control remoto (task 0048).
 
+# _make_play_icon_button — triangulo Play estilo TV (Canvas, sin glyph unicode).
+sub _make_play_icon_button {
+    my ($parent, $bg, $cb) = @_;
+    my $box = $parent->Frame(-background => $bg);
+    my $c = $box->Canvas(
+        -width             => 26,
+        -height            => 22,
+        -background         => $bg,
+        -highlightthickness => 0,
+        -borderwidth        => 0,
+        -cursor             => 'hand2',
+    );
+    $c->pack(-padx => 2, -pady => 1);
+    $c->createPolygon(
+        8, 5, 8, 17, 20, 11,
+        -fill    => '#363a45',
+        -outline => '#363a45',
+        -tags    => 'play_icon',
+    );
+    my $invoke = sub {
+        $cb->() if ref($cb) eq 'CODE';
+    };
+    $c->bind('<Button-1>', $invoke);
+    return $box;
+}
+
 sub _panel_background {
     my ($widget) = @_;
     return '#f0f0f0' unless $widget && eval { $widget->exists };
@@ -54,7 +80,7 @@ sub new {
         );
     };
 
-    # Select bar + Go-to |  |<  >  >|  1x  D  >>  X
+    # Select bar + Go-to |  |<  [play]  >|  1x  D  >>  X
     my $sel_box = $inner->Frame(-background => $bg)->pack(-side => 'left', -padx => 1);
     $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
 
@@ -70,7 +96,7 @@ sub new {
     $goto_menu->set_anchor($goto_btn);
 
     $btn_opts->('|<', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
-    $btn_opts->('>', $callbacks->{play})->pack(-side => 'left', -padx => 1);
+    _make_play_icon_button($inner, $bg, $callbacks->{play})->pack(-side => 'left', -padx => 1);
     $btn_opts->('>|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
 
     my $speed_btn = $btn_opts->('1x', sub { });
@@ -204,9 +230,13 @@ sub callbacks { shift->{callbacks} }
 
 sub expected_button_labels {
     return (
-        'Select bar', 'v', '|<', '>', '>|',
+        'Select bar', 'v', '|<', '>|',
         '1x', 'D', '>>', 'X',
     );
+}
+
+sub has_play_icon_button {
+    return 1;
 }
 
 1;
