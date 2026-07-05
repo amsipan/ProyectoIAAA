@@ -106,8 +106,13 @@ sub render {
             last;
         }
     }
+    if (defined $scale->{replay_head_candle}) {
+        $self->{_last_candle} = $scale->{replay_head_candle};
+    }
 
     my $total  = scalar(@$data);
+    my $slice_base = $scale->{slice_base_index} // 0;
+    my $replay_max = $scale->{replay_max_index};
     my $x_bars = $scale->{bars} || $total || 1;
     my $bar_w  = ($x_bars > 0) ? ($scale->plot_width() / $x_bars) : 1;
 
@@ -127,6 +132,7 @@ sub render {
 
             my ($open, $high, $low, $close);
             for my $i ($from .. $to) {
+                next if defined $replay_max && ($slice_base + $i) > $replay_max;
                 my $candle = $data->[$i];
                 next unless defined $candle;
                 $open = $candle->[1] if !defined $open;
@@ -150,6 +156,7 @@ sub render {
         my $half   = $body_w / 2;
 
         for (my $i = 0; $i < $total; $i++) {
+            next if defined $replay_max && ($slice_base + $i) > $replay_max;
             my $candle = $data->[$i];
             next unless defined $candle;
 

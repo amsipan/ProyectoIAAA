@@ -187,6 +187,9 @@ sub _replay_begin {
     my $rc = _replay($chart);
     $rc->start($start_idx) if $rc && defined $start_idx;
     $chart->clear_replay_select_mode() if $chart->can('clear_replay_select_mode');
+    # Tras confirmar Select Bar, el crosshair del cursor no debe pisar la linea de replay.
+    delete $chart->{last_mouse_x};
+    delete $chart->{last_mouse_y};
     return $rc;
 }
 

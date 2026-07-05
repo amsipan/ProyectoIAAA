@@ -103,6 +103,8 @@ sub render {
     $last_vis_idx = $#$visible_values if $last_vis_idx < 0;
 
     my $total = scalar(@$visible_values);
+    my $slice_base = $scale->{slice_base_index} // 0;
+    my $replay_max = $scale->{replay_max_index};
     my $x_bars = $scale->{bars} || $total || 1;
     my $bar_w = ($x_bars > 0) ? ($scale->plot_width() / $x_bars) : 1;
 
@@ -121,6 +123,7 @@ sub render {
 
             my ($sum, $count);
             for my $i ($from .. $to) {
+                next if defined $replay_max && ($slice_base + $i) > $replay_max;
                 my $val = $visible_values->[$i];
                 next if !defined $val;
                 $sum += $val;
@@ -138,6 +141,7 @@ sub render {
         }
     } else {
         for (my $i = 0; $i < @$visible_values; $i++) {
+            next if defined $replay_max && ($slice_base + $i) > $replay_max;
             my $val = $visible_values->[$i];
             next if !defined $val;
 
@@ -153,6 +157,9 @@ sub render {
                 last;
             }
         }
+    }
+    if (defined $scale->{replay_head_value}) {
+        $self->{_last_value} = $scale->{replay_head_value};
     }
 
     if (@points >= 4) {

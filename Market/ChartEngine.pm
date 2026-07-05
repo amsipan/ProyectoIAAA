@@ -500,8 +500,21 @@ sub render {
     # permite al panel calcular el índice local correcto (incluyendo -1 y
     # visible_bars) para posicionar las velas overscan.
     my $total = $self->{market_data}->size();
+    my $replay = $self->{replay_controller};
     my $draw_start = $start > 0 ? $start - 1 : $start;
     my $draw_end   = ($end < $total - 1) ? $end + 1 : $end;
+    my $replay_head_candle;
+    my $replay_head_atr;
+    if ($replay && $replay->is_active()) {
+        my $ridx = $replay->current_index();
+        if (defined $ridx) {
+            $replay_head_candle = $self->{market_data}->get_candle($ridx);
+            my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $ridx, $ridx);
+            $replay_head_atr = $atr_slice->[0] if $atr_slice && @$atr_slice;
+            # Replay: sin overscan hacia el futuro (la barra seleccionada no debe asomar).
+            $draw_end = $end if $draw_end > $end;
+        }
+    }
     my $draw_candles = $self->{market_data}->get_slice($draw_start, $draw_end);
     my $draw_atr     = $self->{indicator_manager}->slice_array('ATR', $draw_start, $draw_end);
     $self->_pad_visible_slice($draw_candles, $draw_start, $draw_end);
@@ -569,7 +582,6 @@ sub render {
     $x_bars = scalar(@$visible_candles) if $x_bars < 1;
     $x_bars = 1 if $x_bars < 1;
 
-    my $replay = $self->{replay_controller};
     if ($replay && $replay->is_active() && defined $self->{replay_view_anchor}) {
         my $plot_w = $shared_w - RIGHT_MARGIN;
         $plot_w = 1 if $plot_w < 1;
@@ -589,6 +601,11 @@ sub render {
     $price_scale->{tick_size} = 0.25;
     $price_scale->{draw_start_offset} = $draw_start_offset;
     $price_scale->{visible_count} = $visible_count;
+    $price_scale->{slice_base_index} = $draw_start;
+    if (defined $replay_head_candle) {
+        $price_scale->{replay_head_candle} = $replay_head_candle;
+        $price_scale->{replay_max_index} = $replay->current_index();
+    }
     $atr_scale->{width}    = $shared_w;
     $atr_scale->{height}   = $atr_h;
     $atr_scale->{draw_labels} = $self->{atr_axis_canvas} ? 0 : 1;
@@ -596,8 +613,12 @@ sub render {
     $atr_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     $atr_scale->{draw_start_offset} = $draw_start_offset;
     $atr_scale->{visible_count} = $visible_count;
+    $atr_scale->{slice_base_index} = $draw_start;
+    if (defined $replay_head_atr) {
+        $atr_scale->{replay_head_value} = $replay_head_atr;
+        $atr_scale->{replay_max_index}  = $replay->current_index();
+    }
 
-    
     $self->{price_panel}->set_scale($price_scale);
 
     $self->{atr_panel}->set_scale($atr_scale);
@@ -609,8 +630,8 @@ sub render {
     $self->{atr_panel}->render($self->{atr_canvas}, $draw_atr, $atr_scale);
     my $time_labels = $self->compute_intraday_labels();
     $self->{price_panel}->draw_time_axis($self->{price_canvas}, $time_labels, { draw_grid => 1, draw_labels => 0 });
-    $self->_render_price_axis($price_scale, $visible_candles);
-    $self->_render_atr_axis($atr_scale, $visible_atr);
+    $self->_render_price_axis($price_scale, $visible_candles, $replay_head_candle);
+    $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr);
     $self->_render_time_axis($price_scale, $time_labels);
 
     # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx
@@ -636,7 +657,7 @@ sub render {
 }
 
 sub _render_price_axis {
-    my ($self, $source_scale, $visible_candles) = @_;
+    my ($self, $source_scale, $visible_candles, $replay_head_candle) = @_;
 
     my $canvas = $self->{price_axis_canvas};
     return unless $canvas && $source_scale;
@@ -662,10 +683,11 @@ sub _render_price_axis {
     $axis_scale->{tick_size}       = $source_scale->{tick_size};
     $axis_scale->_draw_y_scale($canvas);
 
-    return unless $visible_candles && @$visible_candles;
-    my $last_candle;
-    for my $candle (@$visible_candles) {
-        $last_candle = $candle if defined $candle;
+    my $last_candle = $replay_head_candle;
+    if (!defined $last_candle && $visible_candles && @$visible_candles) {
+        for my $candle (@$visible_candles) {
+            $last_candle = $candle if defined $candle;
+        }
     }
     return unless defined $last_candle;
     my ($open, $close) = @{$last_candle}[1, 4];
@@ -751,7 +773,7 @@ sub _render_time_axis {
 }
 
 sub _render_atr_axis {
-    my ($self, $source_scale, $visible_atr) = @_;
+    my ($self, $source_scale, $visible_atr, $replay_head_atr) = @_;
 
     my $canvas = $self->{atr_axis_canvas};
     return unless $canvas && $source_scale;
@@ -776,9 +798,11 @@ sub _render_atr_axis {
     $axis_scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
     $axis_scale->_draw_y_scale($canvas);
 
-    my $last;
-    for my $v (@$visible_atr) {
-        $last = $v if defined $v;
+    my $last = $replay_head_atr;
+    if (!defined $last) {
+        for my $v (@$visible_atr) {
+            $last = $v if defined $v;
+        }
     }
     return unless defined $last;
 

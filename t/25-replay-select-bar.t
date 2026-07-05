@@ -604,4 +604,80 @@ sub r44_chart {
     is($rc->current_index(), 10, '0044: Date salta a vela mas cercana (10)');
 }
 
+# =============================================================================
+# Replay: linea de precio sigue replay_idx; sin dibujar velas futuras.
+# =============================================================================
+{
+    package R50MockCanvas;
+    sub new { bless { ops => [] }, shift }
+    sub delete { my ($s, $tag) = @_; push @{ $s->{ops} }, [ delete => $tag ]; return }
+    sub _tk_opts {
+        my (@args) = @_;
+        my %o;
+        for (my $i = 0; $i < @args; $i += 2) {
+            my $k = $args[$i];
+            $k =~ s/^-//;
+            $o{$k} = $args[$i + 1];
+        }
+        return %o;
+    }
+    sub createLine {
+        my ($s, @args) = @_;
+        my %o = _tk_opts(@args[4 .. $#args]);
+        push @{ $s->{ops} }, [ createLine => { %o } ];
+        return 'ln';
+    }
+    sub createRectangle {
+        my ($s, @args) = @_;
+        my %o = _tk_opts(@args[4 .. $#args]);
+        push @{ $s->{ops} }, [ createRectangle => { %o } ];
+        return 'r';
+    }
+    sub createText { my ($s) = @_; push @{ $s->{ops} }, [ createText => {} ]; return 't' }
+    sub lower { return shift }
+    sub raise { return shift }
+
+    package main;
+
+    use Market::Panels::PricePanel;
+
+    my $bull_candle = [ 0, 100, 110, 95, 108, 1 ];
+    my $bear_candle = [ 0, 108, 109, 90,  92,  1 ];
+    my $bull2       = [ 0,  92, 100, 91,  99,  1 ];
+    my @data = ($bull_candle, $bear_candle, $bull2);
+
+    my $panel = Market::Panels::PricePanel->new(
+        theme => { bull => '#26a69a', bear => '#ef5350' },
+        canvas => R50MockCanvas->new(),
+    );
+    my $canvas = $panel->{canvas};
+    my $scale = Market::Panels::Scales->new(
+        min_y => 80, max_y => 120, bars => 3, right_margin => 0,
+    );
+    $scale->{width} = 800;
+    $scale->{height} = 400;
+    $scale->{draw_start_offset} = 0;
+    $scale->{visible_count} = 3;
+    $scale->{slice_base_index} = 0;
+    $scale->{replay_head_candle} = $bull_candle;
+    $scale->{replay_max_index} = 0;
+    $panel->{scale} = $scale;
+
+    $panel->render($canvas, \@data, $scale);
+
+    my ($line_op) = grep {
+        $_->[0] eq 'createLine' && ($_->[1]{tags} // '') eq 'price_label'
+    } @{ $canvas->{ops} };
+    ok($line_op, 'replay: dibuja linea horizontal de precio');
+    is($line_op->[1]{fill}, '#26a69a', 'replay: color de linea = vela replay_idx (verde)');
+
+    my @candle_ops = grep {
+        ($_->[0] eq 'createLine' || $_->[0] eq 'createRectangle')
+        && ($_->[1]{tags} // '') eq 'candle'
+    } @{ $canvas->{ops} };
+    ok(scalar(@candle_ops) >= 1, 'replay: dibuja vela en replay_idx');
+    my $drew_bear = grep { ($_->[1]{fill} // '') eq '#ef5350' } @candle_ops;
+    ok(!$drew_bear, 'replay: vela futura (idx>replay_idx) no se dibuja');
+}
+
 done_testing();
