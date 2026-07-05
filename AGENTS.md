@@ -94,6 +94,17 @@ Regla dura para Fase 2: **cada task de indicador/overlay debe traer un test `.t`
 salida vía el módulo de debug contra un esperado transcrito.** Sin ese test, la task NO está
 terminada. La "validación visual" con WSLg es complementaria, nunca la única prueba.
 
+### Revisión visual de la GUI por el arquitecto (interacción + captura)
+
+El agente **arquitecto** puede verificar visualmente la app: lanzar `market.pl` en WSLg, **navegar
+con clicks/teclado** (xdotool), capturar a PNG (ImageMagick `import -window <id>`, NO `root`) y
+**leer la imagen**. Herramientas ya instaladas en Fedora35: `ImageMagick`, `xwininfo`, `xdotool`.
+Flujo completo, reglas de oro (capturar por window-id, coords de referencia, hover con doble
+mousemove, copiar PNG a `AppData/Local/Temp/opencode` para leerlo) y scripts reutilizables
+(`scratch/capture_app.sh`, `scratch/validate_0042.sh`) documentados en
+**`docs/ARQUITECTO_REVISION_VISUAL.md`**. El **implementor solo procesa texto**: la comparación
+"¿se ve como la referencia?" es responsabilidad del arquitecto; el usuario da el visto bueno final.
+
 ### Debug del eje temporal contra TradingView
 
 Antes de pedir capturas internas de la app, usar `Market/Debug/TimeAxisSnapshot.pm` vía `ChartEngine::debug_time_axis_snapshot(...)`. Permite pasar `timeframe`, `start_ts`, `end_ts` y `canvas_width` para obtener exactamente lo que la app dibujaría: `labels_text`, cadencia, índices, timestamps, coordenadas X, `bar_w`, gaps y resumen. El usuario solo debe aportar/confirmar el screenshot o rango de TradingView; la comparación de nuestra app debe hacerse por snapshot textual/estructurado.
