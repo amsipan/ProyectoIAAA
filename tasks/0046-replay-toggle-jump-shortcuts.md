@@ -18,6 +18,7 @@ Cerrar el calque de comportamiento:
    triángulo (icono Canvas); alterna play↔pause en el MISMO widget.
 2. **Jump to real-time** (botón `>>`): carga todo hasta el final y sale del replay al instante.
 3. **Marca de agua "Replay"** gris en el centro del chart mientras el modo está activo (captura 2).
+4. **Botón nuevo para activar/desactivar la marca de agua** (pedido de Bryan: por si molesta).
 
 > **Atajos de teclado (`Shift+↓`/`Shift+→`) MOVIDOS a task 0050 (DIFERIDO por Bryan, 05/07).**
 > No implementar en 0046. La precedencia con Select Bar queda documentada en 0050.
@@ -26,7 +27,7 @@ Cerrar el calque de comportamiento:
 - Transporte con **iconos Canvas** (`ReplayMediaWidget`): play (triángulo), back, fwd, jump, exit.
 - El botón de play arranca autoplay pero NO alterna a pausa en el mismo widget todavía.
 - `>>` es fast-forward, no "jump to real-time".
-- No hay marca de agua.
+- No hay marca de agua ni botón para conmutarla.
 
 ## Diseño
 En `Market/UI/Callbacks.pm` + `Market/ChartEngine.pm` + `Market/UI/ReplayPanel.pm` (widget media):
@@ -39,18 +40,33 @@ En `Market/UI/Callbacks.pm` + `Market/ChartEngine.pm` + `Market/UI/ReplayPanel.p
    último índice (`step` hasta el final o setter directo), luego `exit()` + limpiar estado (reusar
    la limpieza de exit) → chart vuelve a vivo mostrando todas las velas. Distinto del botón exit
    solo en que jump primero revela todo; documentar la diferencia.
-3. **Marca de agua:** en `render`, si el replay está activo, dibujar texto gris claro "Replay"
-   grande y centrado (createText con `-fill => '#d0d0d0'`), detrás de las velas (lower). Tag propio,
-   borrado al salir del replay. (Texto latino ASCII, sin problema de fuente.)
+3. **Marca de agua:** en `render`, si el replay está activo Y la marca está habilitada (ver #4),
+   dibujar texto gris claro "Replay" grande y centrado (createText con `-fill => '#d0d0d0'`), detrás
+   de las velas (lower). Tag propio, borrado al salir del replay. (Texto latino ASCII, sin problema
+   de fuente.)
+4. **Botón nuevo para activar/desactivar la marca de agua** (pedido explícito de Bryan 05/07: "por
+   si molesta"):
+   - Añadir en la barra inline de replay (`ReplayPanel`) un botón/toggle con etiqueta ASCII, p.ej.
+     `Mark` o `Watermark` (NO glyphs; criterio 0048). Puede ser un `Checkbutton` o un botón que
+     alterne su texto (`Mark: on` ↔ `Mark: off`).
+   - Estado por defecto: marca de agua **ON** (visible), como TradingView.
+   - Al conmutar: guardar el flag (p.ej. en el estado de replay / `ReplayController` o el hash de
+     UI) y forzar re-render para que la marca aparezca o desaparezca al instante, sin salir del
+     replay ni tocar `replay_idx`.
+   - El flag debe RESPETARSE en `render`: marca visible solo si (replay activo) Y (flag ON).
+   - `Checkbutton`: recordar lección 0049 (`-pady` va en `pack`, no en el constructor).
 
 > Atajos de teclado → task 0050 (diferido). No incluir aquí.
 
 ## Criterios de aceptación
 - Un solo botón (triángulo) alterna Play↔Pause y su icono Canvas refleja el estado.
 - Jump-to-real-time revela todas las velas y sale del replay (chart en vivo).
-- La marca de agua "Replay" aparece solo con el modo activo y desaparece al salir.
+- La marca de agua "Replay" aparece solo con el modo activo Y el toggle en ON; desaparece al salir.
+- **El botón nuevo activa/desactiva la marca de agua en caliente** (sin reiniciar el replay); su
+  etiqueta refleja el estado. Por defecto ON.
 - `prove -l t` verde; tests en `t/17-ui-wiring.t`/`t/12-replay.t`/`t/26-replay-dropdown.t`: toggle
-  cambia `playing`; jump deja `is_active==0` y replay_idx en el último.
+  Play cambia `playing`; jump deja `is_active==0` y replay_idx en el último; el flag de marca de agua
+  controla si se dibuja (verificar la condición `render` marca=ON/OFF vía snapshot o estado).
 
 ## Verificación
 ```bash
