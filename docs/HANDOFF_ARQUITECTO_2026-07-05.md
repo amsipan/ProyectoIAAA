@@ -5,9 +5,9 @@ actualizadas y prompts para el implementor. Bryan continuó trabajando con el im
 Este documento recoge **todo lo hecho desde `c58cb8a`**, los pedidos explícitos de Bryan, el estado
 real del lote CALQUE Bar Replay, y qué falta / qué revisar.
 
-**HEAD actual al escribir esto:** `79373cc` (`main`, sincronizado `backup` + `origin`).
+**HEAD actual al escribir esto:** ver último commit en §2 (actualizado tras cada sesión).
 
-**Suite de tests:** `1113 PASS` (28 archivos `t/*.t`).
+**Suite de tests:** ver §2 (objetivo: mantener verde tras cada cambio).
 
 ---
 
@@ -32,8 +32,10 @@ El arquitecto reportó en `c58cb8a`:
 | `757b432` | **0045 core:** barra Replay **inline** (pestaña Replay), sin `<< Bar Replay`; dropdowns `1x`/`D`; `tick_ms()` + `advance_one_tick()`; botones control remoto `|<` `>` `>|` |
 | `83da0ff` | Fix crash Tk Fedora35: `-background` no puede ser widget; `pady` arrayref solo en `pack`, no en `Checkbutton` |
 | `79373cc` | Fix dropdowns multi-clic: `after(1)` antes del bind click-fuera; cerrar menús hermanos; `ReplayGotoMenu` hereda `ReplayDropdown`; `t/26-replay-dropdown.t` |
+| `eb4757c` | Este handoff document creado |
+| *(siguiente)* | Ancla Select Bar ~80% (TradingView) — ver §3 sesión E |
 
-**Evolución tests:** 1090 (c58cb8a) → 1100 (+`t/25-replay-select-bar.t` UX) → 1113 (+`t/26-replay-dropdown.t`).
+**Evolución tests:** 1090 (c58cb8a) → 1100 → 1113 → *(+tests anchor en t/25)*.
 
 ---
 
@@ -71,6 +73,19 @@ El arquitecto reportó en `c58cb8a`:
 
 - Siempre `perl -I. -c` + `prove -l t` + smoke `market.pl` **antes** de reportar "hecho".
 - Informe acumulado al final de cada respuesta (este doc lo centraliza).
+
+### Sesión E — Decisiones UX + ancla 80% (Bryan, arquitecto temporal)
+
+**Decisiones confirmadas por Bryan (para 0046 y posteriores):**
+
+1. **Mantener estilo control remoto** en botones (`|<` `>|`, etc.).
+2. **Play = triángulo** (como TV), NO el símbolo `>` — pendiente implementar en 0046.
+3. **`>>` = JumpToRealTime** (revelar todo y salir del replay) — pendiente 0046.
+4. **Dropdowns `v`/`1x`/`D`:** Bryan confirma que ya funcionan bien tras `79373cc`.
+5. **Ancla Select Bar ~80%:** tras clic en vela, la última visible (selected-1) queda al ~80%
+   del ancho del plot, con hueco a la derecha para velas futuras del Play (estilo TradingView).
+   - Implementado: `frame_replay_view_at($idx, { anchor => 1 })` solo en `replay_confirm_bar_selection`;
+     `REPLAY_BAR_ANCHOR_FRAC = 0.80`; `_replay_anchor_x_shift()` en render.
 
 ---
 
@@ -114,19 +129,17 @@ El arquitecto reportó en `c58cb8a`:
 La spec 0043 y la 0046 aún hablan de "panel flotante". Bryan pidió explícitamente barra en pestaña
 inferior estilo TradingView. **Recomendación:** aprobar desviación y actualizar 0043/0046/docs.
 
-### 6.2 Botón Play en 0046 vs UI actual
+### 6.2 Botón Play en 0046 vs UI actual — **DECIDIDO por Bryan**
 
-- **Spec 0046:** un botón toggle texto `Play` ↔ `Pause` (ASCII).
-- **UI actual (`757b432`):** botón `>` (símbolo control remoto); **no hay Pause** ni toggle.
-- **Al implementar 0046:** decidir si:
-  - (A) Cambiar `>` ↔ `||` o `>` ↔ `Pause` manteniendo estilo remoto, o
-  - (B) Volver a texto `Play`/`Pause` como dice la spec original.
+- **Bryan:** mantener control remoto; Play = **triángulo ASCII** (p. ej. `>` rotado no — usar `>` triangular
+  o carácter `4`/`►` solo si Fedora35 lo renderiza; preferir dibujo/triángulo canvas o ASCII `>` estilizado
+  — validar en WSLg). Toggle Play ↔ Pause en el **mismo** botón.
+- **Spec 0046 original** decía texto `Play`/`Pause` — actualizar spec al aprobar.
 
-### 6.3 Botón `>>` en 0046
+### 6.3 Botón `>>` en 0046 — **DECIDIDO por Bryan**
 
-- **Spec 0046:** `>>` / `Jump >>|` = jump-to-real-time (revela todo y sale del replay).
-- **UI actual:** `>>` = `make_replay_fast_fwd` (+10 velas), distinto de jump.
-- **Al implementar 0046:** reasignar `>>` a jump y mover fast-forward a otro control o eliminarlo.
+- **`>>` = JumpToRealTime** (revelar todas las velas y salir del replay).
+- Fast-forward +10 actual se elimina o se mueve (decidir en 0046; TV no lo tiene en barra principal).
 
 ### 6.4 Verificación visual pendiente del arquitecto
 

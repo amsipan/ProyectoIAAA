@@ -35,6 +35,9 @@ use constant {
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
+    # TradingView Bar Replay: tras elegir barra, la ultima vela visible queda ~80% a la
+    # izquierda (hueco a la derecha para velas que apareceran con Play).
+    REPLAY_BAR_ANCHOR_FRAC => 0.80,
 };
 
 # Paleta de tema claro por defecto (local al módulo). Se usa solo si el llamador
@@ -565,6 +568,15 @@ sub render {
     $x_bars = scalar(@$visible_candles) if $x_bars < 1;
     $x_bars = 1 if $x_bars < 1;
 
+    my $replay = $self->{replay_controller};
+    if ($replay && $replay->is_active() && defined $self->{replay_view_anchor}) {
+        my $plot_w = $shared_w - RIGHT_MARGIN;
+        $plot_w = 1 if $plot_w < 1;
+        $self->{ctrl_zoom_x_shift} = $self->_replay_anchor_x_shift(
+            $x_bars, $plot_w, $self->{replay_view_anchor}
+        );
+    }
+
     my $price_scale = Market::Panels::Scales->new(min_y => $min_p, max_y => $max_p, bars => $x_bars, right_margin => RIGHT_MARGIN);
     my $atr_scale   = Market::Panels::Scales->new(min_y => $min_a, max_y => $max_a, bars => $x_bars, right_margin => RIGHT_MARGIN);
     $price_scale->{width}  = $shared_w;
@@ -864,9 +876,22 @@ sub clear_replay_select_state {
     return $self->clear_replay_select_mode();
 }
 
+# _replay_anchor_x_shift($x_bars, $plot_width, $frac) — px para centrar la ultima vela
+# visible en $frac del ancho (estilo TradingView tras Select Bar).
+sub _replay_anchor_x_shift {
+    my ($self, $x_bars, $plot_width, $frac) = @_;
+    $x_bars = 1 if !defined $x_bars || $x_bars < 1;
+    $plot_width = 1 if !defined $plot_width || $plot_width < 1;
+    $frac = REPLAY_BAR_ANCHOR_FRAC unless defined $frac;
+    my $last_center = ($x_bars - 0.5) * $plot_width / $x_bars;
+    return $frac * $plot_width - $last_center;
+}
+
 # task 0040-B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
+# $opts->{anchor} => 1 deja hueco ~20% a la derecha (ultima vela ~80% del plot).
 sub frame_replay_view_at {
-    my ($self, $index) = @_;
+    my ($self, $index, $opts) = @_;
+    $opts = {} if ref($opts) ne 'HASH';
 
     my $total = $self->{market_data} ? ($self->{market_data}->size() || 0) : 0;
     return $self unless $total > 0;
@@ -883,7 +908,12 @@ sub frame_replay_view_at {
     }
     $self->{visible_bars} = $vis;
     $self->{offset} = 0;
-    $self->{ctrl_zoom_x_shift} = 0;
+    if ($opts->{anchor}) {
+        $self->{replay_view_anchor} = REPLAY_BAR_ANCHOR_FRAC;
+    } else {
+        delete $self->{replay_view_anchor};
+        $self->{ctrl_zoom_x_shift} = 0;
+    }
     return $self;
 }
 
@@ -1485,6 +1515,7 @@ sub _clear_ctrl_zoom_state {
     my ($self) = @_;
 
     $self->{ctrl_zoom_x_shift} = 0;
+    delete $self->{replay_view_anchor};
     $self->{ctrl_zoom_y_lock_min} = undef;
     $self->{ctrl_zoom_y_lock_max} = undef;
 }

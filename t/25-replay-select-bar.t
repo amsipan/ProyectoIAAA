@@ -4,6 +4,7 @@ use Test::More;
 
 use lib '.';
 use Market::ChartEngine;
+use Market::Panels::Scales;
 use Market::UI::Callbacks;
 use Market::ReplayController;
 
@@ -249,6 +250,36 @@ use Market::ReplayController;
     ok($s <= $e, 'frame+start: ventana válida con offset previo grande');
     ok($e >= 0, 'frame+start: end no negativo');
     is($e, 79, 'frame+start: end alineado con replay_idx');
+}
+
+# UX TradingView: Select Bar ancla ultima vela ~80% (hueco derecho para Play).
+{
+    my $md = R40MarketData->new(100);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => Market::ReplayController->new(market_data => $md),
+        visible_bars      => 60,
+        offset            => 0,
+        ctrl_zoom_x_shift => 0,
+    }, 'Market::ChartEngine';
+
+    $chart->frame_replay_view_at(49);
+    ok(!exists $chart->{replay_view_anchor}, 'sin anchor: flag ausente');
+
+    $chart->frame_replay_view_at(49, { anchor => 1 });
+    is($chart->{replay_view_anchor}, 0.80, 'anchor: replay_view_anchor=0.80');
+    $chart->{replay_controller}->start(49);
+
+    my ($s, $e) = $chart->compute_window();
+    my $x_bars = $e - $s + 1;
+    my $shift  = $chart->_replay_anchor_x_shift($x_bars, 1000);
+    ok($shift < 0, 'anchor: x_shift negativo deja hueco a la derecha');
+
+    my $scale = Market::Panels::Scales->new(min_y => 0, max_y => 1, bars => $x_bars);
+    $scale->{width} = 1000;
+    $scale->{x_shift} = $shift;
+    my $cx = $scale->index_to_center_x($x_bars - 1);
+    ok(abs($cx - 800) < 2, "anchor: centro ultima vela ~80% plot (cx=$cx)");
 }
 
 # =============================================================================

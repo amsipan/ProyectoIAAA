@@ -176,11 +176,12 @@ sub _sync_replay_ui_cleanup {
     return;
 }
 
-# _replay_begin($chart, $start_idx) — task 0040-B: encuadra vista y arranca replay.
+# _replay_begin($chart, $start_idx, $opts) — task 0040-B: encuadra vista y arranca replay.
+# $opts->{anchor} => 1: ultima vela ~80% del plot (Select Bar estilo TradingView).
 sub _replay_begin {
-    my ($chart, $start_idx) = @_;
+    my ($chart, $start_idx, $opts) = @_;
     return unless $chart;
-    $chart->frame_replay_view_at($start_idx) if $chart->can('frame_replay_view_at');
+    $chart->frame_replay_view_at($start_idx, $opts) if $chart->can('frame_replay_view_at');
     my $rc = _replay($chart);
     $rc->start($start_idx) if $rc && defined $start_idx;
     $chart->clear_replay_select_mode() if $chart->can('clear_replay_select_mode');
@@ -245,7 +246,7 @@ sub replay_confirm_bar_selection {
     my ($class, $chart, $vars) = @_;
     die "replay_confirm_bar_selection: requiere \$chart" unless $chart;
     my $start_idx = _replay_start_index($chart);
-    _replay_begin($chart, $start_idx);
+    _replay_begin($chart, $start_idx, { anchor => 1 });
     if (ref($vars) eq 'HASH') {
         ${ $vars->{replay_on} } = 1 if $vars->{replay_on};
         ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
