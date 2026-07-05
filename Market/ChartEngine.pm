@@ -652,7 +652,9 @@ sub render {
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
     }
 
-    $self->_draw_crosshair_all() if defined $self->{last_mouse_x};
+    if (defined $self->{last_mouse_x}) {
+        $self->_draw_crosshair_all();
+    }
     $self->_draw_replay_select_marker();
     if ($self->{_replay_select_mode} && defined $self->{last_mouse_x}) {
         $self->_draw_replay_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
@@ -863,6 +865,7 @@ sub set_replay_select_mode {
         delete $self->{last_mouse_x};
         delete $self->{last_mouse_y};
         $self->_clear_replay_select_hover();
+        $self->_clear_chart_crosshair();
     }
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
@@ -1002,7 +1005,7 @@ sub focus_price_canvas_for_replay {
     return $self;
 }
 
-# task 0053: cursor plot — crosshair normal; en Select Bar ocultar cruz (tijera dibujada).
+# task 0053/UX: cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
 sub _select_mode_blank_cursor {
     my ($self) = @_;
     return $self->{_select_blank_cursor} if $self->{_select_blank_cursor};
@@ -1016,9 +1019,25 @@ sub _select_mode_blank_cursor {
             return $try;
         }
     }
-    # Fallback Fedora35 si none/blank fallan (reportar en runtime si ocurre).
-    $self->{_select_blank_cursor} = 'tcross';
-    return 'tcross';
+
+    # Bitmap 1x1 vacio: oculta puntero OS cuando none/blank no bastan (WSLg/X11).
+    if ($canvas) {
+        my $bmp = eval {
+            $canvas->Bitmap(
+                -data => "#define invisible_width 1\n#define invisible_height 1\n"
+                    . "static unsigned char invisible_bits[] = { 0x00 };\n",
+                -maskdata => "#define invisible_width 1\n#define invisible_height 1\n"
+                    . "static unsigned char invisible_mask_bits[] = { 0x00 };\n",
+            );
+        };
+        if ($bmp) {
+            $self->{_select_blank_cursor} = $bmp;
+            return $bmp;
+        }
+    }
+
+    $self->{_select_blank_cursor} = 'none';
+    return 'none';
 }
 
 sub _chart_plot_cursor {
@@ -1393,7 +1412,6 @@ sub _draw_replay_select_hover {
         };
     }
 
-    # ponytail: si ✂ no renderiza en WSLg, el cursor nativo crosshair sigue como respaldo.
     if ($self->{price_canvas}) {
         my (undef, $h) = $self->_canvas_size($self->{price_canvas});
         my $scissor_y = defined $y ? $y : ($h / 2);
@@ -2355,7 +2373,7 @@ sub _end_drag {
     my ($self) = @_;
 
     if (defined $self->{drag_cursor_canvas}) {
-        $self->_set_cursor($self->{drag_cursor_canvas}, 'crosshair');
+        $self->_set_cursor($self->{drag_cursor_canvas}, $self->_chart_plot_cursor());
     }
     $self->{drag_start_x} = undef;
     $self->{drag_start_y} = undef;
@@ -2487,10 +2505,12 @@ sub _on_mouse_move {
     $self->{last_mouse_y} = $pixel_y;
     $self->{active_canvas} = $widget;
     
-    $self->_draw_crosshair_all();
     if ($self->{_replay_select_mode}) {
+        $self->_clear_chart_crosshair();
         $self->_draw_replay_select_hover($widget, $pixel_x, $pixel_y);
-    } else {
+    }
+    else {
+        $self->_draw_crosshair_all();
         $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
     }
 }
@@ -2557,8 +2577,26 @@ sub _crosshair_time_label {
     return sprintf("%s %02d:%02d", $date, $tm->hour, $tm->minute);
 }
 
+# _clear_chart_crosshair — borra lineas/etiquetas crosshair (precio, ATR, ejes).
+sub _clear_chart_crosshair {
+    my ($self) = @_;
+    $self->{price_panel}->draw_crosshair(undef, undef, undef) if $self->{price_panel};
+    $self->{atr_panel}->draw_crosshair(undef, undef) if $self->{atr_panel};
+    $self->_draw_price_axis_crosshair(undef);
+    $self->_draw_atr_axis_crosshair(undef);
+    if (defined $self->{time_axis_canvas}) {
+        eval { $self->{time_axis_canvas}->delete('time_axis_crosshair') };
+    }
+    return $self;
+}
+
 sub _draw_crosshair_all {
     my ($self) = @_;
+
+    if ($self->{_replay_select_mode}) {
+        $self->_clear_chart_crosshair();
+        return;
+    }
 
     my $last_x = $self->{last_mouse_x};
     my $last_y = $self->{last_mouse_y};

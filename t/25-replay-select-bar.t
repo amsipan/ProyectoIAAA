@@ -494,16 +494,48 @@ sub r42_build_chart {
 }
 
 # =============================================================================
-# task 0053: Select Bar oculta cruz nativa (cursor none/blank) y restaura crosshair.
+# task 0053: Select Bar — sin crosshair dibujado; cursor nativo oculto; tijera sola.
 # =============================================================================
+
+{
+    package MockPricePanelCross;
+    sub new { my ($c, $calls) = @_; bless { calls => $calls }, $c }
+    sub draw_crosshair {
+        my ($s, $x, $y, $t) = @_;
+        push @{ $s->{calls} }, [ $x, $y, $t ];
+    }
+}
+
+{
+    package MockATRPanelCross;
+    sub new { my ($c, $calls) = @_; bless { calls => $calls }, $c }
+    sub draw_crosshair {
+        my ($s, $x, $y) = @_;
+        push @{ $s->{calls} }, [ 'atr', $x, $y ];
+    }
+}
+
+{
+    package main;
+    my $chart = r42_build_chart();
+    my @crosshair_calls;
+    $chart->{price_panel} = MockPricePanelCross->new(\@crosshair_calls);
+    $chart->{atr_panel}   = MockATRPanelCross->new(\@crosshair_calls);
+    $chart->{last_mouse_x} = 400;
+    $chart->{last_mouse_y} = 200;
+    $chart->set_replay_select_mode(1);
+    $chart->_draw_crosshair_all();
+    ok(@crosshair_calls >= 1, '0053: select mode limpia crosshair (draw con coords undef)');
+    ok(!defined $crosshair_calls[0][0], '0053: select mode no dibuja lineas crosshair en precio');
+}
 
 {
     my $chart = r42_build_chart();
     $chart->set_replay_select_mode(1);
-    like($chart->{price_canvas}{cursor}, qr/^(none|blank|tcross)$/,
-        '0053: select mode pone cursor oculto/minimo en price canvas');
-    like($chart->{atr_canvas}{cursor}, qr/^(none|blank|tcross)$/,
-        '0053: select mode pone cursor oculto/minimo en atr canvas');
+    isnt($chart->{price_canvas}{cursor}, 'crosshair',
+        '0053: select mode NO usa cursor crosshair nativo en price');
+    isnt($chart->{atr_canvas}{cursor}, 'crosshair',
+        '0053: select mode NO usa cursor crosshair nativo en atr');
     $chart->set_replay_select_mode(0);
     is($chart->{price_canvas}{cursor}, 'crosshair', '0053: salir select restaura crosshair');
 }
