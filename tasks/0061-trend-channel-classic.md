@@ -1,7 +1,24 @@
 # Task 0061: Canal de tendencia clásico (reemplazar el envelope ATR actual)
 
 ## Estado
-🔲 ABIERTA (2026-07-05). REABRE `tasks/0031-channel.md` (enfoque incorrecto confirmado por Bryan).
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Implementación inicial delegada a grok
+(multiagente); corregí yo el núcleo geométrico tras 2 iteraciones fallidas de grok (ver Notas).
+1170 PASS + verificación visual real (canal de tendencia clásico renderizado, ver abajo).
+
+REABRIÓ `tasks/0031-channel.md` (enfoque envelope ATR incorrecto confirmado por Bryan).
+
+## Notas de implementación (arquitecto)
+- grok generó `trend_channels`/overlay/test pero: (a) se salió de scope editando un handoff (revertido);
+  (b) su geometría definía "pierna = 1 segmento" → 0 canales; (c) su test asertaba un canal desde
+  fixtures que solo producían 2 vértices (imposible geométricamente). Entró en thrashing (1 fallo → 2).
+- CAUSA RAÍZ que grok no vio: `_ext_vertices` trae vértices DUPLICADOS (cada segmento empuja
+  inicio+fin), así que la clasificación por paridad `$i%2` se desalinea. Solución: `_dedup_ext_vertices`
+  antes de clasificar high/low, y `_trend_channel_between` que ancla la paralela al pivote opuesto más
+  extremo ENTRE los 2 pivotes del mismo lado. Fixture de test reescrita (onda triangular multi-swing,
+  `_triangle_wave_rows`) que sí produce ≥1 canal.
+- Verificado visualmente forzando (throwaway) zigzag+canal ON + `swing_length` bajo: se dibujan las
+  2 diagonales paralelas por pierna (gris) encerrando el precio, geometría del slide del profe. Todos
+  los cambios throwaway (market.pl/ChartEngine defaults) revertidos; commit solo con ZigZag+test.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` sección 5b.

@@ -139,7 +139,7 @@ refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
 | 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | 🔲 ABIERTA |
 | 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |
 | 0060 | Fibonacci: solo 3 niveles en temporalidades bajas | coord. 0029 | 🔲 ABIERTA |
-| 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | 🔲 ABIERTA |
+| 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | ✅ HECHO + VERIF. arq. (grok+fix arq.; 1170 PASS + visual) |
 | 0062 | Slider 1–100% de densidad de indicadores (idea Bryan) | — | 🔲 ABIERTA (confirmar alcance global vs por familia) |
 
 **Orden sugerido (impacto sobre queja profe/QA):** 0054 → 0055 → 0056 → 0062 → 0058 → 0061 →

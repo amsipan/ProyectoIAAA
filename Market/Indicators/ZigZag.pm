@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 # =============================================================================
-# Market::Indicators::ZigZag — dirección interna (MTF) + externa (swing/ATR)
+# Market::Indicators::ZigZag — dirección interna (MTF) + externa (swing)
 # Task 0033: dos ZigZag conviven con SMC/Mxwll; cálculo puro sin Tk.
 #
 # Interno (ZZMTF): resolución HTF configurable (default 30m), period=2.
@@ -98,31 +98,101 @@ sub get_values {
         internal_segments   => [ @{ $self->{_int_segments} } ],
         external_segments   => [ @{ $self->{_ext_segments} } ],
         external_channel    => [ @{ $self->_external_channel_list() } ],
+        trend_channels      => [ @{ $self->_trend_channels_list() } ],
         internal_direction  => [ @{ $self->{internal_direction} } ],
         external_direction  => [ @{ $self->{external_direction} } ],
     };
 }
 
-# external_channel — dos líneas paralelas ±offset por segmento externo (task 0031).
-# offset = channel_width * ATR(atr_period), mismo criterio que drawBinLevel del .pine.
+# external_channel — deprecado (task 0061); vacío; tests antiguos solo exigen la clave.
 sub _external_channel_list {
+    return [];
+}
+
+# trend_channels — canal de tendencia clásico (task 0061).
+# Trendline: 2 pivotes del mismo lado (2 lows si tendencia up, 2 highs si down).
+# Paralela: misma pendiente, anclada al pivote opuesto más extremo ENTRE esos dos.
+# Nota: _ext_vertices trae vértices DUPLICADOS (cada segmento empuja inicio+fin, así
+# que pivotes contiguos se repiten); hay que deduplicar por índice antes de clasificar
+# por alternancia, si no la paridad se desalinea.
+sub _dedup_ext_vertices {
     my ($self) = @_;
-    my @ch;
-    for my $seg (@{ $self->{_ext_segments} }) {
-        my $o = $seg->{channel_offset} // 0;
-        next if $o <= 0;
-        push @ch, {
-            from_index       => $seg->{from_index},
-            to_index         => $seg->{to_index},
-            from_price_upper => $seg->{from_price} + $o,
-            to_price_upper   => $seg->{to_price} + $o,
-            from_price_lower => $seg->{from_price} - $o,
-            to_price_lower   => $seg->{to_price} - $o,
-            offset           => $o,
-            dir              => $seg->{dir},
-        };
+    my @out;
+    for my $v (@{ $self->{_ext_vertices} }) {
+        next unless defined $v->{index} && defined $v->{price};
+        next if @out && $out[-1]{index} == $v->{index};
+        push @out, { index => $v->{index}, price => $v->{price} };
     }
-    return \@ch;
+    return \@out;
+}
+
+sub _trend_channels_list {
+    my ($self) = @_;
+    my @segs  = @{ $self->{_ext_segments} // [] };
+    return [] unless @segs >= 1;
+    my @verts = @{ $self->_dedup_ext_vertices() };
+    return [] unless @verts >= 3;
+
+    my $dir       = $segs[-1]{dir};
+    my $same_side = $dir eq 'up' ? 'low' : 'high';
+
+    # Los vértices deduplicados alternan high/low; el tipo del primero se decide
+    # comparando con el segundo (real, no por posición).
+    my $first_is_low = $verts[0]{price} < $verts[1]{price};
+    my @sides = map {
+        ($_ % 2 == 0) ? ($first_is_low ? 'low' : 'high')
+                      : ($first_is_low ? 'high' : 'low')
+    } 0 .. $#verts;
+
+    my @same_idx = grep { $sides[$_] eq $same_side } 0 .. $#verts;
+    return [] if @same_idx < 2;
+
+    my @channels;
+    for my $k (1 .. $#same_idx) {
+        my $ch = $self->_trend_channel_between(
+            \@verts, \@sides, $dir, $same_idx[$k - 1], $same_idx[$k],
+        );
+        push @channels, $ch if $ch;
+    }
+    return \@channels;
+}
+
+# Canal entre dos pivotes del mismo lado (posiciones $ai < $bi en la lista deduplicada).
+sub _trend_channel_between {
+    my ($self, $verts, $sides, $dir, $ai, $bi) = @_;
+    my $a = $verts->[$ai];
+    my $b = $verts->[$bi];
+    my $di = $b->{index} - $a->{index};
+    return undef if !$di;
+
+    my $opp = $dir eq 'up' ? 'high' : 'low';
+    my $anchor;
+    for my $vi ($ai + 1 .. $bi - 1) {
+        next unless $sides->[$vi] eq $opp;
+        my $v = $verts->[$vi];
+        if ($dir eq 'up') {
+            $anchor = $v if !defined $anchor || $v->{price} > $anchor->{price};
+        } else {
+            $anchor = $v if !defined $anchor || $v->{price} < $anchor->{price};
+        }
+    }
+    return undef unless defined $anchor;
+
+    my $m  = ($b->{price} - $a->{price}) / $di;
+    my $pf = $anchor->{price} + $m * ($a->{index} - $anchor->{index});
+    my $pt = $anchor->{price} + $m * ($b->{index} - $anchor->{index});
+
+    return {
+        from_index           => $a->{index},
+        from_price           => $a->{price},
+        to_index             => $b->{index},
+        to_price             => $b->{price},
+        parallel_from_index  => $a->{index},
+        parallel_from_price  => $pf,
+        parallel_to_index    => $b->{index},
+        parallel_to_price    => $pt,
+        dir                  => $dir,
+    };
 }
 
 # Items para IndicatorSnapshot / tests (vértices + segmentos consolidados).
@@ -393,23 +463,18 @@ sub _rebuild_external_segments {
     my ($self) = @_;
     my @verts = @{ $self->{_ext_vertices} };
     my @segs;
-    my $offset = 0;
-    if (defined $self->{_atr}) {
-        $offset = ($self->{channel_width} // 1) * $self->{_atr};
-    }
     for (my $i = 1; $i < @verts; $i += 2) {
         my $a = $verts[$i - 1];
         my $b = $verts[$i];
         next unless $a && $b;
         my $dir = $b->{price} >= $a->{price} ? 'up' : 'down';
         push @segs, {
-            from_index     => $a->{index},
-            from_price     => $a->{price},
-            to_index       => $b->{index},
-            to_price       => $b->{price},
-            dir            => $dir,
-            consolidated   => ($i < @verts - 2) ? 1 : 0,
-            channel_offset => $offset,
+            from_index   => $a->{index},
+            from_price   => $a->{price},
+            to_index     => $b->{index},
+            to_price     => $b->{price},
+            dir          => $dir,
+            consolidated => ($i < @verts - 2) ? 1 : 0,
         };
     }
     $self->{_ext_segments} = \@segs;

@@ -142,23 +142,23 @@ sub draw {
 
     if ($self->is_element_visible('CHANNEL')) {
         my $ch_col = $self->{theme}{zz_channel} // '#90a4ae';
-        for my $ch (@{ $vals->{external_channel} || [] }) {
+        for my $ch (@{ $vals->{trend_channels} || [] }) {
             next unless $self->_segment_visible($ch);
-            my $x1 = $scales->index_to_center_x($self->_local_index($ch->{from_index}));
-            my $x2 = $scales->index_to_center_x($self->_local_index($ch->{to_index}));
-            for my $pair (
-                [$ch->{from_price_upper}, $ch->{to_price_upper}],
-                [$ch->{from_price_lower}, $ch->{to_price_lower}],
+            for my $line (
+                [$ch->{from_index}, $ch->{from_price}, $ch->{to_index}, $ch->{to_price}],
+                [$ch->{parallel_from_index}, $ch->{parallel_from_price},
+                 $ch->{parallel_to_index}, $ch->{parallel_to_price}],
             ) {
-                my ($p1, $p2) = @$pair;
-                next unless defined $p1 && defined $p2;
+                my ($i1, $p1, $i2, $p2) = @$line;
+                next unless defined $i1 && defined $i2 && defined $p1 && defined $p2;
+                my $x1 = $scales->index_to_center_x($self->_local_index($i1));
+                my $x2 = $scales->index_to_center_x($self->_local_index($i2));
                 my $y1 = $scales->value_to_y($p1);
                 my $y2 = $scales->value_to_y($p2);
                 $canvas->createLine(
                     $x1, $y1, $x2, $y2,
                     -fill  => $ch_col,
-                    -width => 1,
-                    -dash  => '.',
+                    -width => 2,
                     -tags  => $tag,
                 );
             }
