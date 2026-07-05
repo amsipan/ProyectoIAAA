@@ -595,4 +595,76 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     ok(!$panel_obj->is_visible(), '0043: exit oculta panel');
 }
 
+# =============================================================================
+# Test 16 (task 0048): etiquetas del panel son ASCII legibles (sin mojibake).
+# =============================================================================
+{
+    package MockTkParent48;
+    sub new { bless { children => [] }, shift }
+    sub Frame {
+        my ($p, %o) = @_;
+        my $f = bless { parent => $p, opts => \%o, children => [], placed => 0 }, 'MockTkFrame48';
+        push @{ $p->{children} }, $f;
+        return $f;
+    }
+
+    package MockTkFrame48;
+    sub Frame {
+        my ($p, %o) = @_;
+        my $f = bless { parent => $p, opts => \%o, children => [], placed => 0 }, 'MockTkFrame48';
+        push @{ $p->{children} }, $f;
+        return $f;
+    }
+    sub Label {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Label' }, 'MockTkWidget48';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
+    sub Button {
+        my ($p, %o) = @_;
+        my $w = bless { parent => $p, opts => \%o, kind => 'Button' }, 'MockTkWidget48';
+        push @{ $p->{children} }, $w;
+        return $w;
+    }
+    sub pack { return shift }
+    sub place { my ($s) = @_; $s->{placed} = 1; return $s }
+    sub placeForget { my ($s) = @_; $s->{placed} = 0; return $s }
+
+    package MockTkWidget48;
+    sub pack { return shift }
+
+    package main;
+
+    sub _collect_button_texts {
+        my ($node) = @_;
+        my @out;
+        return @out unless ref $node;
+        if (($node->{kind} // '') eq 'Button' && ref $node->{opts} eq 'HASH') {
+            push @out, $node->{opts}{-text} if defined $node->{opts}{-text};
+        }
+        for my $ch (@{ $node->{children} // [] }) {
+            push @out, _collect_button_texts($ch);
+        }
+        return @out;
+    }
+
+    my $parent = MockTkParent48->new();
+    my $built_panel;
+    Market::UI::ReplayPanel->new(
+        parent  => $parent,
+        chart   => MockChart->new(),
+        ui_vars => { replay_panel => \$built_panel },
+    );
+
+    my @texts = _collect_button_texts($parent);
+    is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_button_labels() ],
+        '0048: etiquetas del panel coinciden con ASCII esperado');
+
+    for my $t (@texts) {
+        ok($t !~ /[^\x00-\x7F]/, "0048: etiqueta '$t' es ASCII puro");
+        ok($t !~ /â/, "0048: etiqueta '$t' sin mojibake latin-1");
+    }
+}
+
 done_testing();

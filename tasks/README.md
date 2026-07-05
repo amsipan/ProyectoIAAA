@@ -116,7 +116,7 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0045 | Dropdowns velocidad + intervalo cableados | 0041,0043 | pendiente |
 | 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
-| 0048 | [ALTO] Panel Replay mojibake: falta `use utf8` + glyphs sin fuente → etiquetas legibles | 0043 | pendiente (antes de 0044) |
+| 0048 | [ALTO] Panel Replay mojibake: falta `use utf8` + glyphs sin fuente → etiquetas legibles | 0043 | ✅ hecho |
 
 **Orden de ejecución:** 0041 → 0042 → 0043 → **0048** → 0044 → 0045 → 0046. (0047 al final, pulido.)
 

@@ -331,7 +331,7 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     my $p = $panel{Replay};
     $p->Label(-text => 'Replay:')->pack(-side => 'left', -padx => 3);
     $p->Button(
-        -text    => '◀◀ Bar Replay',
+        -text    => '<< Bar Replay',
         -command => Market::UI::Callbacks->make_replay_activate($chart_engine, \%ui_vars),
         -padx    => 6,
     )->pack(-side => 'left', -padx => 4);

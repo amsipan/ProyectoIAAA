@@ -1,11 +1,13 @@
 package Market::UI::ReplayPanel;
 use strict;
 use warnings;
+use utf8;
 
 use Market::UI::Callbacks;
 
 # Market::UI::ReplayPanel — panel flotante media-player de Replay (task 0043).
 # Frame hijo del chart con place(); sin Tk::NoteBook ni Optionmenu.
+# task 0048: etiquetas ASCII (Tk/Fedora35 no tiene glyphs de reproductor ni utf8 sin use utf8).
 
 sub new {
     my ($class, %args) = @_;
@@ -36,26 +38,26 @@ sub new {
         );
     };
 
-    # [✂ Select bar ▾]
+    # [Select bar v]  Play  Fwd >|  |< Back  1x  D  >>  ...  X  (task 0048: ASCII)
     my $sel_box = $inner->Frame(-background => '#f0f0f0')->pack(-side => 'left', -padx => 1);
-    $btn_opts->("✂ Select bar", $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
-    $btn_opts->("▾", $callbacks->{goto_menu})->pack(-side => 'left', -in => $sel_box);
+    $btn_opts->('Select bar', $callbacks->{select_bar})->pack(-side => 'left', -in => $sel_box);
+    $btn_opts->('v', $callbacks->{goto_menu})->pack(-side => 'left', -in => $sel_box);
 
-    $btn_opts->("▷ Play", $callbacks->{play})->pack(-side => 'left', -padx => 1);
-    $btn_opts->("▷| Fwd", $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
-    # Step back extra del proyecto (TV no lo tiene): |◁ junto a Fwd.
-    $btn_opts->("|◁", $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('Play', $callbacks->{play})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('Fwd >|', $callbacks->{step_fwd})->pack(-side => 'left', -padx => 1);
+    # Step back extra del proyecto (TV no lo tiene): |< Back junto a Fwd.
+    $btn_opts->('|< Back', $callbacks->{step_back})->pack(-side => 'left', -padx => 1);
 
-    my $speed_lbl = $btn_opts->("1x", $callbacks->{speed_menu});
+    my $speed_lbl = $btn_opts->('1x', $callbacks->{speed_menu});
     $speed_lbl->pack(-side => 'left', -padx => 1);
-    my $interval_lbl = $btn_opts->("D", $callbacks->{interval_menu});
+    my $interval_lbl = $btn_opts->('D', $callbacks->{interval_menu});
     $interval_lbl->pack(-side => 'left', -padx => 1);
 
-    $btn_opts->("▷▷|", $callbacks->{fast_fwd})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('>>', $callbacks->{fast_fwd})->pack(-side => 'left', -padx => 1);
 
-    $inner->Label(-text => '…', -background => '#f0f0f0')->pack(-side => 'left', -padx => 8);
+    $inner->Label(-text => '...', -background => '#f0f0f0')->pack(-side => 'left', -padx => 8);
 
-    $btn_opts->("✕", $callbacks->{exit})->pack(-side => 'left', -padx => 1);
+    $btn_opts->('X', $callbacks->{exit})->pack(-side => 'left', -padx => 1);
 
     my $self = bless {
         frame        => $frame,
@@ -112,5 +114,13 @@ sub is_visible {
 
 sub frame       { shift->{frame} }
 sub callbacks   { shift->{callbacks} }
+
+# expected_button_labels — textos ASCII de los botones (task 0048, para tests headless).
+sub expected_button_labels {
+    return (
+        'Select bar', 'v', 'Play', 'Fwd >|', '|< Back',
+        '1x', 'D', '>>', 'X',
+    );
+}
 
 1;

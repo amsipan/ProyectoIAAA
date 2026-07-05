@@ -1,5 +1,7 @@
 # Task 0048: [ALTO/regresión visual] Panel Replay muestra mojibake — encoding + glyphs sin fuente
 
+**Estado:** ✅ hecho
+
 ## Origen
 - Validación visual del arquitecto de la task 0043 (05/07). El panel flotante aparece centrado
   abajo con la estructura correcta, PERO todas las etiquetas salen como mojibake:
