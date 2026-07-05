@@ -113,24 +113,48 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0042 | Modo selección visual: línea azul, `Re:`, velo blanco | — | ✅ hecho (verif. arq. visual; tijeras → 0047) |
 | 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho (verif. arq. visual; glyphs → 0048) |
 | 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | ✅ hecho + 0049 (verif. arq. visual) |
-| 0045 | Dropdowns velocidad + intervalo cableados + barra inline | 0041,0043 | ✅ hecho |
-| 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |
+| 0045 | Dropdowns velocidad + intervalo cableados + barra inline | 0041,0043 | ✅ hecho + fixes UX (verif. arq. + visto bueno Bryan; 1116 tests) |
+| 0046 | Play/Pause toggle + Jump-to-real-time + marca de agua (atajos → diferido) | 0043 | pendiente (autorizada) |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
 | 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
+| 0050 | [DIFERIDO] Atajos de teclado replay (Shift+↓ toggle, Shift+→ step) | 0046 | pendiente (post-0046, pedido Bryan) |
  
-**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → **0045** → 0046. (0047 al final, pulido.)
+**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → 0045 → **0046**. (0047 pulido; 0050 atajos diferido al final.)
+
+**Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**
+- **Panel Replay INLINE en pestaña Replay**, no flotante (0043 original). Ratificado: mejor UX, sin
+  botón `<< Bar Replay`; al abrir pestaña → modo Select bar inmediato.
+- **Botones de transporte con iconos Canvas** (play triángulo, back, fwd, jump, exit) dentro de
+  cajita `raised`, en vez de solo texto Play/Pause (0046 original). Sigue cumpliendo 0048 (el texto
+  `Select bar`/`1x`/`D` es ASCII; los iconos son dibujo vectorial Canvas, no glyphs de fuente).
+- **`>>` = Jump to real-time** (revelar todo + salir), no fast-forward +10. Se implementa en 0046.
+- Clics resueltos con `Tk::bind` en TODOS los widgets del botón (frame/canvas/label/hit), no solo
+  `-command` del Button (lección Tk #9/#10, ver handoff §5).
+
+**Arquitectura verificada modular (05/07):** `ReplayController` (índice-tope, sin Tk) /
+`ChartEngine` (ventana+render replay) / `ReplayPanel`+`ReplayMediaWidget` (UI) /
+`ReplayDropdown` (base) con `ReplayGotoMenu`/`ReplaySpeedMenu`/`ReplayIntervalMenu` heredando de
+ella / `Callbacks` (cableado). Sin regresiones API Tk 0049 (grep limpio).
 
 **Criterio fijado por 0048:** etiquetas ASCII legibles (no glyphs unicode que la fuente de
 Fedora35 no tiene). 0044/0045 deben seguir el mismo criterio en sus menús/dropdowns.
 
 **Lección 0049 (API Tk Fedora35 — CRÍTICA para todo el que toque GUI):**
-- Pad asimétrico = arrayref `[top,bottom]`, NUNCA `(top,bottom)` (se aplana y rompe).
+- Pad asimétrico = arrayref `[top,bottom]`, NUNCA `(top,bottom)` (se aplana y rompe). Además,
+  `-pady` va en `pack(...)`, NO en el constructor de Checkbutton (`bad screen distance "4 4"`).
 - Métodos SIN prefijo `winfo_`: `exists`/`rootx`/`rooty`/`width`/`height`/`containing`/`pointerx`/`pointery`.
 - `idletasks` (no `update_idletasks`); `waitWindow` (no `wait`).
 - `bind` sin modo `'+'`: `$w->Tk::bind($seq,$cb)`; desbindear con `$w->Tk::bind($seq,'')`.
-- `perl -c` y mocks NO detectan esto. Toda task GUI debe smoke-abrir `perl -I. market.pl` Y
-  verificar que los widgets bajo demanda (menús/diálogos) REALMENTE se muestran. Ver `scratch/probe_*.pl`.
+- `-background => $color` (string). NUNCA `-background => $widget`; para heredar color usar
+  `$w->cget('-background')` y descartar refs/`Tk::`/`.` (`unknown color name ".frame..."`).
+- Dropdown que se auto-cierra al abrir: instalar el bind de click-fuera DIFERIDO con `after(1)`,
+  no síncrono; cerrar hermanos al abrir uno (`hide_menus` + `toggle`).
+- Botón con icono Canvas: los clics mueren si el Canvas tapa al Button. Poner `Tk::bind` en TODOS
+  los widgets del botón (frame + canvas + label + hit), no confiar solo en `-command` del Button.
+- `perl -c` y mocks NO detectan nada de esto. Toda task GUI debe smoke-abrir `perl -I. market.pl` Y
+  verificar que los widgets bajo demanda (menús/diálogos/botones) REALMENTE responden. Ver
+  `scratch/probe_*.pl` y el handoff §5 (tabla de 10 síntomas Tk Fedora35).
 
 Fuera de alcance de este lote (mejora futura): sesión Continue/Start new, multi-chart sync,
 Replay Trading (P&L), calendario gráfico completo en Select date.

@@ -1,6 +1,10 @@
 # Task 0045: Replay — dropdowns de velocidad e intervalo cableados
 
-**Estado:** ✅ hecho (2026-07-05; barra inline en pestaña Replay + dropdowns cableados)
+**Estado:** ✅ hecho y APROBADO (2026-07-05; barra inline en pestaña Replay + dropdowns cableados).
+Ratificado por arquitecto: 1116 tests PASS, modularidad OK (Speed/Interval/Goto heredan de
+`ReplayDropdown`), sin regresiones API Tk 0049, `ReplayController` sin Tk. Visto bueno visual de
+Bryan ("me gusta cómo quedó"). Desviaciones aprobadas: panel inline (no flotante) + iconos Canvas
+en transporte. Ver `docs/HANDOFF_ARQUITECTO_2026-07-05.md` y `tasks/README.md`.
 
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §5, §19 capturas 4 y 5.
