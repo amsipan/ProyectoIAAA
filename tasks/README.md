@@ -120,8 +120,8 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
 | 0050 | Atajos de teclado oficiales TV (Shift+↓ toggle, Shift+→ step) | 0046 | ✅ hecho + APROBADO arq. (a64e21f; 1153 PASS; precedencia select>replay verificada) |
 | 0051 | Atajos extra no-TV: Shift+← step back, Esc salir, M toggle marca de agua | 0046 | ✅ hecho + APROBADO arq. (a64e21f; M ramifica: replay→marca, fuera→escala manual, sin regresión) |
-| 0052 | [BUG] Atajos replay no responden en runtime (foco → bind all ventana) | 0050,0051 | ✅ hecho (bind all $mw + focus canvas; test ventana t/17) |
-| 0053 | Select Bar: tijera reemplaza cursor cruz, negra Helvetica 22 | 0042 | ✅ hecho (cursor none/blank; linea/velo azules; NO 0047) |
+| 0052 | [BUG] Atajos replay no responden en runtime (foco → bind all ventana) | 0050,0051 | ✅ código hecho (bind all $mw + focus canvas; 1170 PASS, Test 20). Falta confirmación de tecla en vivo por Bryan (xdotool no inyecta teclas fiable en WSLg) |
+| 0053 | Select Bar: tijera reemplaza cursor cruz, negra Helvetica 22 | 0042 | ✅ hecho + APROBADO arq. (1a4d9df; cursor invisible = XBM fuente+máscara todo-ceros CON hotspot, NO ''/none; verificado por captura + Bryan) |
  
 **Orden de ejecución:** 0041 → … → 0046 → **0050 → 0051 → 0052 → 0053** ✅. (0047 pulido, baja prio.)
 
@@ -161,6 +161,18 @@ Fedora35 no tiene). 0044/0045 deben seguir el mismo criterio en sus menús/dropd
   no síncrono; cerrar hermanos al abrir uno (`hide_menus` + `toggle`).
 - Botón con icono Canvas: los clics mueren si el Canvas tapa al Button. Poner `Tk::bind` en TODOS
   los widgets del botón (frame + canvas + label + hit), no confiar solo en `-command` del Button.
+- **Cursor invisible (0053):** en Fedora35/WSLg (Tk 804.036) `none`/`blank` NO existen y `-cursor => ''`
+  deja el cursor `undef` → WSLg muestra una flecha fantasma. Lo ÚNICO que oculta el puntero: cursor
+  XBM fuente+máscara todo-ceros **CON hotspot** (`#define *_x_hot 0` / `*_y_hot 0`; sin hotspot da
+  `bad hot spot in bitmap file`). Spec como arrayref `['@'.$src, $mask, 'black', 'black']` pasado tal
+  cual a `configure(-cursor=>...)`. Assets: `assets/blank_cursor.xbm` + `assets/blank_cursor_mask.xbm`.
+- **Atajos de teclado que dependen del foco (0052):** bindear en un canvas solo funciona si ese canvas
+  tiene el foco (se lo da `<Enter>`). Para atajos globales de un modo (replay), usar `$mw->bind(all =>
+  $seq, $cb)` con guard por estado, NO solo el canvas. Evitar doble disparo: si un `$seq` está en
+  `all`, no lo dupliques en el canvas (o hazlos mutuamente excluyentes por estado, como `<Key-m>`).
+- **Automatización de input NO es fiable en WSLg:** `xdotool key/click` sintético a menudo NO llega a
+  Tk (`XGetInputFocus returned focused window of 1`). La captura visual (`import -window`) SÍ sirve
+  para verificar RENDER, pero la verificación de ATAJOS de teclado la hace el usuario en vivo.
 - `perl -c` y mocks NO detectan nada de esto. Toda task GUI debe smoke-abrir `perl -I. market.pl` Y
   verificar que los widgets bajo demanda (menús/diálogos/botones) REALMENTE responden. Ver
   `scratch/probe_*.pl` y el handoff §5 (tabla de 10 síntomas Tk Fedora35).

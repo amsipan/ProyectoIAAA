@@ -1,6 +1,14 @@
 # Task 0053: Replay Select Bar — tijera reemplaza al cursor, negra y ligeramente más grande
 
-**Estado:** ✅ HECHO (2026-07-05). Tijera negra Helvetica 22; cursor none/blank en Select Bar.
+**Estado:** ✅ HECHO + APROBADO arquitecto (2026-07-05, commit 1a4d9df). Tijera negra Helvetica 22 +
+cursor del SO INVISIBLE en Select Bar. Verificado por captura (arquitecto) y por Bryan.
+
+**Fix real del cursor invisible (arquitecto):** el intento del implementor con `-cursor => ''`
+dejaba `cget=undef` y WSLg mostraba una flecha fantasma semitransparente. La solución que SÍ oculta
+el puntero en Fedora35/WSLg (Tk 804.036): cursor XBM **fuente + máscara todo-ceros CON hotspot**
+(`#define *_x_hot 0` / `*_y_hot 0` — sin hotspot: `bad hot spot in bitmap file`). Spec arrayref
+`['@'.$src, $mask, 'black', 'black']` pasado tal cual a `configure`. Assets:
+`assets/blank_cursor.xbm` + `assets/blank_cursor_mask.xbm`. `none`/`blank` no existen en este Tk.
 
 **Estado anterior:** ✅ AUTORIZADA (pedido Bryan 2026-07-05). Pulido visual del modo Select Bar. Ojo: la
 0047 (tijeras VECTORIALES) sigue sin autorizar; esto es solo color/tamaño/cursor del glyph actual.
