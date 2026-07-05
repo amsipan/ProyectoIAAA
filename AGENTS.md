@@ -15,6 +15,18 @@
 > **Entregas Fase 2 (PDF oficial):** 1ª = **29/06**, 2ª = **13/07**. (En una clase se dijo
 > "29 de julio"; el PDF manda: 29/06.) Vale 20/100.
 
+> ⚠️ **GIT DIR SEPARADO DE ONEDRIVE (05/07).** El repo vive en OneDrive, pero `.git` fue
+> movido FUERA con `git init --separate-git-dir` para que OneDrive no sincronice los objetos
+> de Git (causaba "borrar 999 elementos" y riesgo de corrupción de packfiles).
+> - En el working dir, `.git` es un **archivo-puntero** (no carpeta) que contiene:
+>   `gitdir: C:/Users/ASUS ROG/.gitdirs/ProyectoIAAA.git`
+> - El repo real (objects, refs, historial) vive en **`C:\Users\ASUS ROG\.gitdirs\ProyectoIAAA.git`** (fuera de OneDrive, NO respaldado por OneDrive — el respaldo es GitHub `backup`+`origin`).
+> - **NO borrar `C:\Users\ASUS ROG\.gitdirs\`** (perderías el historial local; GitHub lo tiene, pero evita el susto).
+> - **Si mueves/renombras la carpeta del proyecto:** el puntero `.git` tiene ruta ABSOLUTA y se
+>   rompe. Para arreglarlo, re-ejecutar `git init --separate-git-dir "<nueva ruta .gitdirs>"`
+>   desde el working dir, o editar la ruta dentro del archivo `.git`.
+> - Git funciona idéntico para todo lo demás (status/commit/push). No cambia ningún flujo.
+
 ## Resumen
 
 Aplicación de visualización de datos OHLCV con indicador técnico ATR, construida con Perl/Tk para la asignatura IA y Aprendizaje Automático (EPN, 2026A, GR1SW). El profesor evaluó con una rúbrica (ver `Rubrica_Proyecto_GUI.xlsx`, hoja `AA-GR1`, columna `Grupo 2`). Puntaje base: 89/100 (Fase 1).
