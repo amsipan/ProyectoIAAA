@@ -539,14 +539,16 @@ sub r42_build_chart {
     $chart->set_replay_select_mode(1);
     use Market::ChartEngine;
     my $ce_probe = bless {}, 'Market::ChartEngine';
-    ok($ce_probe->_blank_cursor_xbm_path(), '0053: assets/blank_cursor.xbm disponible');
+    my @xbm = $ce_probe->_blank_cursor_xbm_paths();
+    is(scalar(@xbm), 2, '0053: assets/blank_cursor.xbm + mask disponibles');
 
     isnt($chart->{price_canvas}{cursor}, 'crosshair',
         '0053: select mode NO usa cursor crosshair nativo en price');
     isnt($chart->{atr_canvas}{cursor}, 'crosshair',
         '0053: select mode NO usa cursor crosshair nativo en atr');
-    is($chart->{price_canvas}{cursor}, '',
-        '0053: select mode usa cursor vacio (invisible en WSLg)');
+    my $pc = $chart->{price_canvas}{cursor};
+    ok(ref($pc) eq 'ARRAY' && $pc->[0] =~ /^\@/,
+        '0053: select mode usa cursor XBM invisible (arrayref con hotspot)');
     $chart->set_replay_select_mode(0);
     is($chart->{price_canvas}{cursor}, 'crosshair', '0053: salir select restaura crosshair');
 }

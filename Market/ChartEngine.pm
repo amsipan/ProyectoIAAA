@@ -830,14 +830,8 @@ sub _set_cursor {
     my ($self, $widget, $cursor) = @_;
 
     return unless defined $widget;
-    return unless defined $cursor;    # '' es cursor invisible valido en X11/WSLg
-    if (ref($cursor) eq 'ARRAY') {
-        my @c = @$cursor;
-        if (@c >= 2 && $c[0] eq '@') {
-            $cursor = '@' . $c[1];
-            $cursor .= ' ' . ($c[2] // $c[1]) if @c > 2;
-        }
-    }
+    return unless defined $cursor;
+    # Tk acepta el arrayref ['@src', mask, fg, bg] tal cual (cursor XBM invisible).
     eval { $widget->configure(-cursor => $cursor) };
 }
 
@@ -1030,35 +1024,40 @@ sub focus_price_canvas_for_replay {
     return $self;
 }
 
-# _blank_cursor_xbm_path — assets/blank_cursor.xbm (16x16 transparente, fiable en WSLg/X11).
-sub _blank_cursor_xbm_path {
+# _blank_cursor_xbm_paths — (source, mask) de assets/. XBM 16x16 todo-ceros CON hotspot
+# (_x_hot/_y_hot): sin hotspot X11/Tk da "bad hot spot in bitmap file". Verificado en WSLg.
+sub _blank_cursor_xbm_paths {
     my ($self) = @_;
-    return $self->{_blank_cursor_xbm_path} if $self->{_blank_cursor_xbm_path};
+    return @{ $self->{_blank_cursor_xbm_paths} } if $self->{_blank_cursor_xbm_paths};
 
     my ($vol, $dirs, $file) = File::Spec->splitpath(__FILE__);
-    my $path = File::Spec->rel2abs(File::Spec->catfile($dirs, File::Spec->updir(), 'assets', 'blank_cursor.xbm'));
-    if (-f $path) {
-        $self->{_blank_cursor_xbm_path} = $path;
+    my $base = File::Spec->catdir($dirs, File::Spec->updir(), 'assets');
+    my $src  = File::Spec->rel2abs(File::Spec->catfile($base, 'blank_cursor.xbm'));
+    my $mask = File::Spec->rel2abs(File::Spec->catfile($base, 'blank_cursor_mask.xbm'));
+    if (-f $src && -f $mask) {
+        $self->{_blank_cursor_xbm_paths} = [$src, $mask];
+        return ($src, $mask);
     }
-    return $self->{_blank_cursor_xbm_path};
+    return ();
 }
 
 # task 0053/UX: cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
-# Fedora35/WSLg: none/blank/@xbm fallan; cadena vacia '' oculta el puntero (probe t/_probe_cursor5.pl).
+# Fedora35/WSLg (Tk 804.036): none/blank NO existen y '' deja cget=undef (WSLg muestra flecha
+# fantasma). Lo que SÍ oculta el puntero: cursor XBM fuente+mascara todo-ceros con hotspot,
+# spec arrayref ['@src', mask, fg, bg]. Verificado por captura (arquitecto, 0053).
 sub _select_mode_blank_cursor {
     my ($self) = @_;
     return $self->{_select_blank_cursor} if exists $self->{_select_blank_cursor};
 
     my $canvas = $self->{price_canvas};
-    if ($canvas) {
-        my $ok = eval { $canvas->configure(-cursor => ''); 1 };
+    my ($src, $mask) = $self->_blank_cursor_xbm_paths();
+    if ($canvas && $src && $mask) {
+        my $spec = ['@' . $src, $mask, 'black', 'black'];
+        my $ok = eval { $canvas->configure(-cursor => $spec); 1 };
         if ($ok) {
-            my $verified = eval { ($canvas->cget(-cursor) // '') eq '' };
-            if (!defined $verified || $verified) {
-                $self->{_select_blank_cursor} = '';
-                $self->{_select_blank_cursor_kind} = 'empty';
-                return '';
-            }
+            $self->{_select_blank_cursor} = $spec;
+            $self->{_select_blank_cursor_kind} = 'xbm-hotspot';
+            return $spec;
         }
     }
 
