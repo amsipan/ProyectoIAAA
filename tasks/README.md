@@ -120,6 +120,8 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
 | 0050 | Atajos de teclado oficiales TV (Shift+↓ toggle, Shift+→ step) | 0046 | ✅ hecho + APROBADO arq. (a64e21f; 1153 PASS; precedencia select>replay verificada) |
 | 0051 | Atajos extra no-TV: Shift+← step back, Esc salir, M toggle marca de agua | 0046 | ✅ hecho + APROBADO arq. (a64e21f; M ramifica: replay→marca, fuera→escala manual, sin regresión) |
+| 0052 | [BUG] Atajos de teclado replay no responden en runtime (foco: bindear a nivel ventana) | 0050,0051 | ABIERTA (reportado Bryan; tests pasan, runtime no) |
+| 0053 | Select Bar: tijera reemplaza cursor cruz, negra y ligeramente más grande | 0042 | AUTORIZADA (pulido; distinto de 0047 vectorial) |
  
 **Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → 0045 → 0046 → **0050 → 0051** ✅. (0047 pulido, baja prio.)
 
