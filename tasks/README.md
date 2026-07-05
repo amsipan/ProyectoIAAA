@@ -97,10 +97,10 @@ implementadas). Las órdenes nuevas 10-19 se detallan una por archivo (0022-0031
 
 ### Orden recomendado para el implementor (lote restante)
 1. ~~**0030** — Replay Select Bar~~ ✅
-2. ~~**0031** — El canal~~ ✅
+2. ~~**0031** — El canal~~ ✅ → ⚠️ REABIERTA como **0061** (era envelope ATR, no canal de tendencia)
 3. ~~**0028** — Strong/Weak High/Low~~ ✅
-4. ~~**0027** — BSL/SSL en banda~~ ✅
-5. ~~**0025** — Colorear velas de liquidity RUN~~ ✅
+4. ~~**0027** — BSL/SSL en banda~~ ✅ → refinada por **0054** (ruido en origen)
+5. ~~**0025** — Colorear velas de liquidity RUN~~ ✅ → ⚠️ REABIERTA como **0058** (era halo, no color de vela)
 
 ### Lote CALQUE Bar Replay TradingView (plan `docs/PLAN_REPLAY_TRADINGVIEW.md`)
 
@@ -124,6 +124,32 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0053 | Select Bar: tijera negra Helvetica 22 (✅) + cursor SO invisible (⏸ PAUSADO) | 0042 | ⏸ PARCIAL: tijera negra/tamaño OK; ocultar cursor del SO NO logrado en WSLg (flecha fantasma semitransparente persiste pese a XBM+hotspot). PAUSADO por Bryan |
  
 **Orden de ejecución:** 0041 → … → 0046 → **0050 → 0051 → 0052 → 0053** ✅. (0047 pulido, baja prio.)
+
+### Lote FEEDBACK PROFE/QA 2ª ronda (fuente: `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md`)
+
+Corrección/recalibración tras revisión del profe y QA (audios + lista del compañero). Varias
+refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
+
+| # | Task | Refina/Reabre | Estado |
+|---|------|---------------|--------|
+| 0054 | Reducir ruido BSL/SSL en ORIGEN (subir k + filtro significancia de niveles) | refina 0027 | 🔲 ABIERTA |
+| 0055 | Anclar run/sweep/grab a swings del SMC (no fractal propio) | — (arquitectónica) | 🔲 ABIERTA |
+| 0056 | Reducir HH/HL del SMC — alinear con pocos pivotes del ZigZag | — | 🔲 ABIERTA |
+| 0057 | EQH/EQL interno vs externo: verificar + garantizar render en runtime | — (verificación) | 🔲 ABIERTA |
+| 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | 🔲 ABIERTA |
+| 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |
+| 0060 | Fibonacci: solo 3 niveles en temporalidades bajas | coord. 0029 | 🔲 ABIERTA |
+| 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | 🔲 ABIERTA |
+| 0062 | Slider 1–100% de densidad de indicadores (idea Bryan) | — | 🔲 ABIERTA (confirmar alcance global vs por familia) |
+
+**Orden sugerido (impacto sobre queja profe/QA):** 0054 → 0055 → 0056 → 0062 → 0058 → 0061 →
+0060 → 0057 → 0059. (0054/0055/0056 bajan densidad en origen; 0062 da control fino; el resto son
+correcciones puntuales.)
+
+**Decisiones pendientes antes de ejecutar:**
+- 0062: ¿slider global (Fase A) o por familia (Fase B)? — confirmar Bryan.
+- 0055/0056: elegir enfoque (consumir pivotes SMC/ZigZag vs subir significancia) — arquitecto aprueba.
+- 0058/0060/0061: color de velas RUN, set de 3 niveles fib, y color del canal — confirmar con captura.
 
 **Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**
 - **Panel Replay INLINE en pestaña Replay**, no flotante (0043 original). Ratificado: mejor UX, sin

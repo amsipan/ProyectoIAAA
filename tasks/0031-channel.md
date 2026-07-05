@@ -1,7 +1,13 @@
 # Task 0031: El canal (tarea J)
 
 ## Estado
-✅ **Hecho** (2026-07-04)
+⚠️ **REABIERTA como `tasks/0061-trend-channel-classic.md`** (2026-07-05). El enfoque de esta task
+(envelope ±ATR alrededor del zigzag) NO era lo que pedía el profe. Bryan confirmó con la imagen
+"Static Liquidity" que quiere un canal de tendencia clásico (2 diagonales paralelas por pierna).
+Ver 0061. Lo de abajo queda como registro histórico del envelope implementado.
+
+## Estado anterior
+✅ **Hecho** (2026-07-04) — envelope ATR (superado).
 
 ## Origen
 - ORDEN 19 de `tasks/0021-volatility-and-choch-noise.md` (= tarea J original).

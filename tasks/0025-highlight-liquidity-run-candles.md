@@ -1,7 +1,12 @@
 # Task 0025: Colorear velas donde ocurrió un liquidity RUN
 
 ## Estado
-✅ **Hecho** (2026-07-04)
+⚠️ **REABIERTA como `tasks/0058-recolor-run-candles.md`** (2026-07-05). Se implementó como HALO
+(rectángulo con stipple encima de la vela), pero el profe/QA querían RECOLOREAR la vela. Ver 0058.
+Lo de abajo queda como registro histórico del halo implementado.
+
+## Estado anterior
+✅ **Hecho** (2026-07-04) — halo overlay (insuficiente).
 
 ## Origen
 - ORDEN 13 de `tasks/0021-volatility-and-choch-noise.md`.
