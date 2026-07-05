@@ -852,11 +852,15 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     ok(!$rc->{playing}, '0046: segundo toggle pausa playing=0');
 
     $rc->start(30);
+    my $replay_select_mode = 0;
+    %vars = ( replay_on => \$replay_on, replay_select_mode => \$replay_select_mode );
     my $jump = Market::UI::Callbacks->make_replay_jump_real($chart, \%vars);
     $jump->();
-    ok(!$rc->is_active(), '0046: jump-to-real-time desactiva replay');
-    is($rc->current_index(), undef, '0046: jump deja current_index undef');
-    is($replay_on, 0, '0046: jump marca replay_on=0');
+    ok(!$rc->is_active(), '0046: jump-to-real-time desactiva truncado replay');
+    is($rc->current_index(), undef, '0046: jump deja current_index undef (chart vivo)');
+    is($replay_on, 1, '0046-TV: jump mantiene replay_on=1 (sesion Replay)');
+    is($replay_select_mode, 1, '0046-TV: jump re-entra Select Bar');
+    ok($chart->is_replay_select_mode(), '0046-TV: jump activa modo tijeras en chart');
 
     my $wm_on = 1;
     my $ce = bless {

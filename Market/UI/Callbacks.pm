@@ -590,11 +590,14 @@ sub make_replay_pause {
     };
 }
 
-# make_replay_jump_real — task 0046: >> revela todo (replay_idx=last) y sale a chart vivo.
+# make_replay_jump_real — task 0046/UX TV: >> muestra chart vivo y re-entra Select Bar.
+# TradingView: al pulsar Jump to real-time se ven todas las velas y el modo tijeras
+# vuelve a activarse (como recien entrar en replay), sin salir de la pestaña Replay.
 sub make_replay_jump_real {
     my ($class, $chart, $vars) = @_;
     die "make_replay_jump_real: requiere \$chart" unless $chart;
-    my $ref = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
+    my $ref_on   = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
+    my $mode_ref = ref($vars) eq 'HASH' ? $vars->{replay_select_mode} : undef;
     return sub {
         my $rc = _replay($chart);
         _stop_play_schedule($chart, $vars);
@@ -602,8 +605,20 @@ sub make_replay_jump_real {
             $rc->jump_to_end() if $rc->can('jump_to_end');
             $chart->request_render();
         }
-        _sync_replay_ui_cleanup($chart, $vars);
-        ${ $ref } = 0 if $ref;
+        $rc->exit() if $rc;
+        $chart->restore_after_replay_exit() if $chart->can('restore_after_replay_exit');
+        if ($chart->can('clear_replay_select_state')) {
+            $chart->clear_replay_select_state();
+        }
+        $chart->sync_overlay_indicators() if $chart->can('sync_overlay_indicators');
+
+        if (ref($vars) eq 'HASH') {
+            ${ $ref_on } = 1 if $ref_on;
+            ${ $mode_ref } = 1 if $mode_ref;
+            _show_replay_tab($vars);
+        }
+        $chart->set_replay_select_mode(1) if $chart->can('set_replay_select_mode');
+        _sync_replay_play_icon($chart, $vars);
         $chart->request_render();
     };
 }
