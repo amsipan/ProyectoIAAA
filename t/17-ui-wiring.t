@@ -509,7 +509,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     ok(ref(Market::UI::Callbacks->make_replay_goto_date($chart, undef, {})) eq 'CODE',
        '0044: make_replay_goto_date es CODE');
     is_deeply([ Market::UI::ReplayGotoMenu::expected_menu_labels() ],
-              [ 'SELECT STARTING POINT', '| Bar', 'Date...', 'First available date', 'Random bar' ],
+              [ 'SELECT STARTING POINT', '|< Bar', 'Date...', 'First available date', 'Random bar' ],
               '0044: etiquetas ASCII del menu Go-to');
     ok(ref(Market::UI::Callbacks->make_replay_speed_menu_stub($chart, {})) eq 'CODE',
        '0043: make_replay_speed_menu_stub es CODE');

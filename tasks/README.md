@@ -112,20 +112,25 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0041 | Backend velocidad (9 mult.) + intervalo de replay | — | ✅ hecho (verif. arq., 970 tests) |
 | 0042 | Modo selección visual: línea azul, `Re:`, velo blanco | — | ✅ hecho (verif. arq. visual; tijeras → 0047) |
 | 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho (verif. arq. visual; glyphs → 0048) |
-| 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | ⚠️ código OK pero CRASH runtime → 0049 |
+| 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | ✅ hecho + 0049 (verif. arq. visual) |
 | 0045 | Dropdowns velocidad + intervalo cableados | 0041,0043 | pendiente |
 | 0046 | Play/Pause toggle + Jump-to-real-time + atajos + marca de agua | 0043 | pendiente |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
 | 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
-| 0049 | [CRÍTICO] App crashea al abrir: `-pady => (lista)` inválido en Tk | 0044 | pendiente (BLOQUEA todo) |
+| 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |
  
-**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → **0049** → 0045 → 0046. (0047 al final, pulido.)
+**Orden de ejecución:** 0041 → 0042 → 0043 → 0048 → 0044 → 0049 → **0045** → 0046. (0047 al final, pulido.)
 
 **Criterio fijado por 0048:** etiquetas ASCII legibles (no glyphs unicode que la fuente de
 Fedora35 no tiene). 0044/0045 deben seguir el mismo criterio en sus menús/dropdowns.
 
-**Lección 0049:** en Tk, pad asimétrico = arrayref `[top,bottom]`, NUNCA `(top,bottom)` (se aplana
-y rompe la llamada). `perl -c` no lo detecta. Toda task de GUI debe smoke-abrir `perl -I. market.pl`.
+**Lección 0049 (API Tk Fedora35 — CRÍTICA para todo el que toque GUI):**
+- Pad asimétrico = arrayref `[top,bottom]`, NUNCA `(top,bottom)` (se aplana y rompe).
+- Métodos SIN prefijo `winfo_`: `exists`/`rootx`/`rooty`/`width`/`height`/`containing`/`pointerx`/`pointery`.
+- `idletasks` (no `update_idletasks`); `waitWindow` (no `wait`).
+- `bind` sin modo `'+'`: `$w->Tk::bind($seq,$cb)`; desbindear con `$w->Tk::bind($seq,'')`.
+- `perl -c` y mocks NO detectan esto. Toda task GUI debe smoke-abrir `perl -I. market.pl` Y
+  verificar que los widgets bajo demanda (menús/diálogos) REALMENTE se muestran. Ver `scratch/probe_*.pl`.
 
 Fuera de alcance de este lote (mejora futura): sesión Continue/Start new, multi-chart sync,
 Replay Trading (P&L), calendario gráfico completo en Select date.

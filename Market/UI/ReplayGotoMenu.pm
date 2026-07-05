@@ -11,7 +11,7 @@ use Market::UI::Callbacks;
 sub expected_menu_labels {
     return (
         'SELECT STARTING POINT',
-        '| Bar',
+        '|< Bar',
         'Date...',
         'First available date',
         'Random bar',
@@ -36,7 +36,7 @@ sub new {
         -font       => 'Helvetica 8',
         -foreground => '#888888',
         -background => '#ffffff',
-    )->pack(-fill => 'x', -padx => 6, -pady => (4, 2));
+    )->pack(-fill => 'x', -padx => 6, -pady => [4, 2]);
 
     my $self = bless {
         frame   => $frame,
@@ -64,7 +64,7 @@ sub new {
         );
     };
 
-    $row_opts->('| Bar', Market::UI::Callbacks->make_replay_goto_bar($chart, $vars))
+    $row_opts->('|< Bar', Market::UI::Callbacks->make_replay_goto_bar($chart, $vars))
         ->pack(-fill => 'x');
     $row_opts->('Date...', Market::UI::Callbacks->make_replay_goto_date($chart, $mw, $vars))
         ->pack(-fill => 'x');
@@ -93,12 +93,12 @@ sub toggle {
 sub show {
     my ($self) = @_;
     my $anchor = $self->{anchor};
-    return $self unless $anchor && eval { $anchor->winfo_exists };
+    return $self unless $anchor && eval { $anchor->exists };
 
-    $self->{frame}->update_idletasks();
+    $self->{frame}->idletasks();
     my $menu_h = $self->{frame}->reqheight() || 120;
-    my $ax = $anchor->winfo_rootx() - $self->{parent}->winfo_rootx();
-    my $ay = $anchor->winfo_rooty() - $self->{parent}->winfo_rooty();
+    my $ax = $anchor->rootx() - $self->{parent}->rootx();
+    my $ay = $anchor->rooty() - $self->{parent}->rooty();
     $self->{frame}->place(
         -x      => $ax,
         -y      => $ay - $menu_h - 2,
@@ -126,13 +126,13 @@ sub _install_outside_bind {
     my ($self) = @_;
     return if $self->{_outside_bound};
     my $root = $self->{root};
-    return unless $root && eval { $root->winfo_exists };
+    return unless $root && eval { $root->exists };
 
     my $menu = $self->{frame};
     my $anchor = $self->{anchor};
     $self->{_outside_cb} = sub {
         return unless $self->{visible};
-        my $w = eval { $root->winfo_containing($root->pointerx, $root->pointery) };
+        my $w = eval { $root->containing($root->pointerx, $root->pointery) };
         while (defined $w) {
             return if defined $menu && $w == $menu;
             return if defined $anchor && $w == $anchor;
@@ -142,7 +142,7 @@ sub _install_outside_bind {
         }
         $self->hide();
     };
-    $root->bind('<Button-1>', $self->{_outside_cb}, '+');
+    $root->Tk::bind('<Button-1>', $self->{_outside_cb});
     $self->{_outside_bound} = 1;
     return;
 }
@@ -152,7 +152,7 @@ sub _remove_outside_bind {
     return unless $self->{_outside_bound};
     my $root = $self->{root};
     if ($root && $self->{_outside_cb}) {
-        eval { $root->unbind('<Button-1>', $self->{_outside_cb}) };
+        eval { $root->Tk::bind('<Button-1>', '') };
     }
     delete $self->{_outside_cb};
     $self->{_outside_bound} = 0;

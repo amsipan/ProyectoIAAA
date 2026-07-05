@@ -256,14 +256,14 @@ sub make_replay_goto_random {
 # _replay_date_prompt($mw) — Entry simple para Go-to Date (task 0044).
 sub _replay_date_prompt {
     my ($mw) = @_;
-    return undef unless $mw && eval { $mw->winfo_exists };
+    return undef unless $mw && eval { $mw->exists };
 
     my $result;
     my $top = $mw->Toplevel(-title => 'Go to date');
     $top->transient($mw);
     $top->Label(
         -text => 'Enter date (YYYY-MM-DD or YYYY-MM-DDTHH:MM):',
-    )->pack(-padx => 10, -pady => (8, 4));
+    )->pack(-padx => 10, -pady => [8, 4]);
     my $entry_var = '';
     $top->Entry(-textvariable => \$entry_var, -width => 28)->pack(-padx => 10, -pady => 4);
     my $finish = sub {
@@ -275,7 +275,7 @@ sub _replay_date_prompt {
     $btn_row->Button(-text => 'Ok', -command => sub { $finish->(1) })->pack(-side => 'left', -padx => 4);
     $btn_row->Button(-text => 'Cancel', -command => sub { $finish->(0) })->pack(-side => 'left', -padx => 4);
     eval { $top->grab() };
-    $top->wait($top);
+    $top->waitWindow();
     $result = undef if defined $result && $result !~ /\S/;
     return $result;
 }
