@@ -653,13 +653,16 @@ sub render {
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
     }
 
-    if (defined $self->{last_mouse_x}) {
+    if ($self->{_replay_select_mode}) {
+        $self->_clear_chart_crosshair();
+        if (defined $self->{last_mouse_x}) {
+            $self->_draw_replay_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
+        }
+    }
+    elsif (defined $self->{last_mouse_x}) {
         $self->_draw_crosshair_all();
     }
     $self->_draw_replay_select_marker();
-    if ($self->{_replay_select_mode} && defined $self->{last_mouse_x}) {
-        $self->_draw_replay_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
-    }
     $self->_redraw_pointer_symbol();
 }
 
@@ -826,7 +829,15 @@ sub _render_atr_axis {
 sub _set_cursor {
     my ($self, $widget, $cursor) = @_;
 
-    return unless defined $widget && defined $cursor;
+    return unless defined $widget;
+    return unless defined $cursor;    # '' es cursor invisible valido en X11/WSLg
+    if (ref($cursor) eq 'ARRAY') {
+        my @c = @$cursor;
+        if (@c >= 2 && $c[0] eq '@') {
+            $cursor = '@' . $c[1];
+            $cursor .= ' ' . ($c[2] // $c[1]) if @c > 2;
+        }
+    }
     eval { $widget->configure(-cursor => $cursor) };
 }
 
@@ -966,10 +977,19 @@ sub _replay_shift_left_key {
     return $self;
 }
 
+# _replay_session_active — replay truncado, select bar o pestaña Replay activa.
+sub _replay_session_active {
+    my ($self) = @_;
+    return 1 if $self->{_replay_select_mode};
+    my $rc = $self->{replay_controller};
+    return 1 if $rc && $rc->is_active();
+    my $ref = $self->{replay_on_ref};
+    return ($ref && ${ $ref }) ? 1 : 0;
+}
+
 sub _replay_escape_key {
     my ($self) = @_;
-    my $rc = $self->{replay_controller};
-    return $self unless $rc && $rc->is_active();
+    return $self unless $self->_replay_session_active();
     my $cb = $self->{replay_keyboard_callbacks}{exit};
     $cb->() if ref($cb) eq 'CODE';
     return $self;
@@ -1024,54 +1044,27 @@ sub _blank_cursor_xbm_path {
 }
 
 # task 0053/UX: cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
+# Fedora35/WSLg: none/blank/@xbm fallan; cadena vacia '' oculta el puntero (probe t/_probe_cursor5.pl).
 sub _select_mode_blank_cursor {
     my ($self) = @_;
-    return $self->{_select_blank_cursor} if $self->{_select_blank_cursor};
+    return $self->{_select_blank_cursor} if exists $self->{_select_blank_cursor};
 
     my $canvas = $self->{price_canvas};
-    my $xbm = $self->_blank_cursor_xbm_path();
-    if ($xbm && $canvas) {
-        for my $spec (['@', $xbm, $xbm], ['@', $xbm]) {
-            my $ok = eval { $canvas->configure(-cursor => $spec); 1 };
-            if ($ok) {
-                $self->{_select_blank_cursor} = $spec;
-                $self->{_select_blank_cursor_kind} = 'xbm';
-                return $spec;
+    if ($canvas) {
+        my $ok = eval { $canvas->configure(-cursor => ''); 1 };
+        if ($ok) {
+            my $verified = eval { ($canvas->cget(-cursor) // '') eq '' };
+            if (!defined $verified || $verified) {
+                $self->{_select_blank_cursor} = '';
+                $self->{_select_blank_cursor_kind} = 'empty';
+                return '';
             }
         }
     }
 
-    for my $try (qw(none blank)) {
-        next unless $canvas;
-        my $ok = eval { $canvas->configure(-cursor => $try); 1 };
-        if ($ok) {
-            $self->{_select_blank_cursor} = $try;
-            $self->{_select_blank_cursor_kind} = $try;
-            return $try;
-        }
-    }
-
-    if ($canvas) {
-        my $bmp = eval {
-            $canvas->Bitmap(
-                -data => "#define invisible_width 16\n#define invisible_height 16\n"
-                    . "static unsigned char invisible_bits[] = {"
-                    . join(', ', ('0x00') x 32) . "};\n",
-                -maskdata => "#define invisible_width 16\n#define invisible_height 16\n"
-                    . "static unsigned char invisible_mask_bits[] = {"
-                    . join(', ', ('0x00') x 32) . "};\n",
-            );
-        };
-        if ($bmp) {
-            $self->{_select_blank_cursor} = $bmp;
-            $self->{_select_blank_cursor_kind} = 'bitmap';
-            return $bmp;
-        }
-    }
-
-    $self->{_select_blank_cursor} = 'none';
-    $self->{_select_blank_cursor_kind} = 'none-fallback';
-    return 'none';
+    $self->{_select_blank_cursor} = 'left_ptr';
+    $self->{_select_blank_cursor_kind} = 'left_ptr-fallback';
+    return 'left_ptr';
 }
 
 sub _chart_plot_cursor {
@@ -1111,6 +1104,13 @@ sub _apply_select_mode_cursor {
         $self->_set_cursor($self->{price_canvas}, 'crosshair') if $self->{price_canvas};
         $self->_set_cursor($self->{atr_canvas}, 'crosshair') if $self->{atr_canvas};
     }
+    return $self;
+}
+
+# init_plot_cursors — tras crear canvases sin -cursor crosshair (market.pl).
+sub init_plot_cursors {
+    my ($self) = @_;
+    $self->_apply_select_mode_cursor(1);
     return $self;
 }
 
@@ -2100,8 +2100,15 @@ sub _on_time_axis_motion {
     $self->{last_mouse_x} = $self->_snap_crosshair_x($x);
     $self->{last_mouse_y} = undef;
     $self->{active_canvas} = $widget if defined $widget;
+    if ($self->{_replay_select_mode}) {
+        $self->_apply_select_mode_cursor();
+        $self->_clear_chart_crosshair();
+        $self->_draw_replay_select_hover($widget, $self->{last_mouse_x}, $y);
+        return $self;
+    }
     $self->_draw_crosshair_all();
     $self->_draw_pointer_symbol($widget, $x, $y, 'h') if defined $widget && defined $y;
+    return $self;
 }
 
 sub _start_time_axis_drag {
@@ -2642,6 +2649,10 @@ sub _clear_chart_crosshair {
     my ($self) = @_;
     $self->{price_panel}->draw_crosshair(undef, undef, undef) if $self->{price_panel};
     $self->{atr_panel}->draw_crosshair(undef, undef) if $self->{atr_panel};
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        eval { $canvas->delete($_) } for qw(price_crosshair atr_crosshair);
+    }
     $self->_draw_price_axis_crosshair(undef);
     $self->_draw_atr_axis_crosshair(undef);
     if (defined $self->{time_axis_canvas}) {

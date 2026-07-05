@@ -92,7 +92,7 @@ my $price_axis_canvas = $price_frame->Canvas(
     -relief => 'sunken', -bd => 1, -cursor => 'sb_v_double_arrow'
 )->pack(-side => 'right', -fill => 'y');
 my $price_canvas = $price_frame->Canvas(
-    -background => $theme{bg}, -relief => 'sunken', -bd => 1, -cursor => 'crosshair'
+    -background => $theme{bg}, -relief => 'sunken', -bd => 1
 )->pack(-side => 'left', -expand => 1, -fill => 'both');
 
 my $time_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -fill => 'x');
@@ -113,7 +113,7 @@ $atr_frame->Frame(
     -width => $right_axis_width - $atr_axis_width, -height => 140, -background => $theme{bg},
 )->pack(-side => 'right', -fill => 'y');
 my $atr_canvas = $atr_frame->Canvas(
-    -height => 140, -background => $theme{bg}, -relief => 'sunken', -bd => 1, -cursor => 'crosshair'
+    -height => 140, -background => $theme{bg}, -relief => 'sunken', -bd => 1
 )->pack(-side => 'left', -expand => 1, -fill => 'x');
 
 # ==========================================
@@ -149,7 +149,9 @@ my $chart_engine = Market::ChartEngine->new(
 );
 
 $chart_engine->{replay_watermark_on_ref} = \$replay_watermark_on;
+$chart_engine->{replay_on_ref} = \$replay_on;
 $chart_engine->{plot_frames} = [$price_frame, $atr_frame];
+$chart_engine->init_plot_cursors();
 
 $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);
@@ -241,6 +243,10 @@ my $cb_replay_activate = Market::UI::Callbacks->make_replay_activate($chart_engi
 $ui_vars{show_replay_tab} = sub {
     $active_tab = 'Replay';
     $show_panel->('Replay');
+};
+$ui_vars{show_default_tab} = sub {
+    $active_tab = 'Capas';
+    $show_panel->('Capas');
 };
 
 # --- Botones de pestaña en la fila superior ---

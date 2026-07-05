@@ -113,6 +113,14 @@ sub _ui_mw {
     return;
 }
 
+# _show_default_tab — vuelve a pestaña principal (Capas) al salir de Replay.
+sub _show_default_tab {
+    my ($vars) = @_;
+    return unless ref($vars) eq 'HASH' && ref($vars->{show_default_tab}) eq 'CODE';
+    $vars->{show_default_tab}->();
+    return;
+}
+
 # _show_replay_tab / _hide_replay_menus — toolbar inline (task 0045 UX).
 sub _show_replay_tab {
     my ($vars) = @_;
@@ -174,6 +182,7 @@ sub _sync_replay_ui_cleanup {
         ${ $vars->{replay_on} } = 0 if $vars->{replay_on};
         ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
         _hide_replay_panel($vars);
+        _show_default_tab($vars);
     }
     _sync_replay_play_icon($chart, $vars) if ref($vars) eq 'HASH';
     return;

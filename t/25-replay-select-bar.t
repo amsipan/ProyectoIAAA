@@ -360,6 +360,11 @@ use Market::ReplayController;
         $s->{cursor} = $opt{-cursor} if exists $opt{-cursor};
         return $s;
     }
+    sub cget {
+        my ($s, $opt) = @_;
+        return $s->{cursor} if $opt eq '-cursor';
+        return undef;
+    }
     sub focus { return }
 }
 
@@ -540,6 +545,8 @@ sub r42_build_chart {
         '0053: select mode NO usa cursor crosshair nativo en price');
     isnt($chart->{atr_canvas}{cursor}, 'crosshair',
         '0053: select mode NO usa cursor crosshair nativo en atr');
+    is($chart->{price_canvas}{cursor}, '',
+        '0053: select mode usa cursor vacio (invisible en WSLg)');
     $chart->set_replay_select_mode(0);
     is($chart->{price_canvas}{cursor}, 'crosshair', '0053: salir select restaura crosshair');
 }

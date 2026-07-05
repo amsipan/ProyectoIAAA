@@ -1015,6 +1015,49 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     is($replay_on, 0, '0051: Escape marca replay_on=0');
 }
 
+{
+    package StubCursorCanvas;
+    sub configure { my ($s, %o) = @_; $s->{cursor} = $o{-cursor} if exists $o{-cursor}; return $s }
+    sub cget { my ($s, $k) = @_; return $s->{cursor} if $k eq '-cursor'; return }
+    sub after { return }
+}
+
+# =============================================================================
+# Test 21 (UX): Escape en Select Bar (sin replay activo) + pestaña Capas.
+# =============================================================================
+{
+    use Market::ChartEngine;
+
+    my $md = MockMarketData->new(100);
+    my $rc = Market::ReplayController->new(market_data => $md);
+    my $chart = bless {
+        market_data       => $md,
+        replay_controller => $rc,
+        visible_bars      => 20,
+        _replay_select_mode => 0,
+        price_canvas      => bless({ cursor => 'crosshair' }, 'StubCursorCanvas'),
+        atr_canvas        => bless({ cursor => 'crosshair' }, 'StubCursorCanvas'),
+    }, 'Market::ChartEngine';
+
+    my $replay_on = 1;
+    my $replay_select_mode = 1;
+    my $active_tab = 'Replay';
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+        show_default_tab   => sub { $active_tab = 'Capas' },
+    );
+    $chart->set_replay_select_mode(1);
+    $chart->{replay_keyboard_callbacks}{exit} =
+        Market::UI::Callbacks->make_replay_exit($chart, \%vars);
+    $chart->_replay_escape_key();
+    ok(!$chart->is_replay_select_mode(), 'UX: Escape en select bar apaga modo tijeras');
+    ok(!$rc->is_active(), 'UX: Escape en select bar no deja replay activo');
+    is($replay_on, 0, 'UX: Escape en select bar marca replay_on=0');
+    is($replay_select_mode, 0, 'UX: Escape sincroniza replay_select_mode=0');
+    is($active_tab, 'Capas', 'UX: Escape vuelve a pestaña Capas');
+}
+
 # =============================================================================
 # Test 20 (task 0052): atajos replay via bind all en ventana (no solo handler directo).
 # =============================================================================
