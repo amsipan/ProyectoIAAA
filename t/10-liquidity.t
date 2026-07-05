@@ -5,6 +5,7 @@ use Test::More;
 use lib '.';
 use Market::MarketData;
 use Market::Indicators::Liquidity;
+use Market::Indicators::SMC_Structures;
 use Market::Overlays::Liquidity;
 use Market::Debug::IndicatorSnapshot;
 use Time::HiRes qw(time);
@@ -1213,6 +1214,125 @@ sub count_bsl_ssl {
        '0054: BSL swing grande price=15 conservado con level_atr_factor=1');
     ok(scalar(grep { abs($_->{price} - 18) < 0.001 } @bsl),
        '0054: BSL swing grande price=18 conservado con level_atr_factor=1');
+}
+
+# =============================================================================
+# task 0055: BSL/SSL anclados a pivotes SMC externos (no fractal propio)
+# =============================================================================
+{
+    my @c = (
+        [10, 11,  8, 10],   # 0
+        [10, 12,  9, 11],   # 1
+        [11, 15, 10, 14],   # 2
+        [12, 13, 11, 12],   # 3
+        [11, 12,  7,  8],   # 4
+        [ 8, 10,  8,  9],   # 5
+        [ 9, 18,  9, 17],   # 6
+        [16, 17, 15, 16],   # 7
+    );
+    my $md = build_ohlc(\@c);
+
+    my @ext_pivots = (
+        { index => 0, type => 'LL', price => 8 },
+        { index => 2, type => 'HH', price => 15 },
+        { index => 4, type => 'LL', price => 7 },
+        { index => 7, type => 'HH', price => 19 },
+    );
+
+    my $liq = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0, N => 3,
+    );
+    $liq->sync_external_pivots(\@ext_pivots);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+
+    my @bsl = levels_of_type($liq->get_levels(), 'BSL');
+    my @ssl = levels_of_type($liq->get_levels(), 'SSL');
+
+    ok(scalar(grep { $_->{index} == 2 && abs($_->{price} - 15) < 0.001 } @bsl),
+       '0055: BSL en pivote SMC HH index=2 price=15');
+    ok(scalar(grep { $_->{index} == 0 && abs($_->{price} - 8) < 0.001 } @ssl),
+       '0055: SSL en pivote SMC LL index=0 price=8');
+    ok(!scalar(grep { $_->{index} == 1 } @bsl, @ssl),
+       '0055: sin niveles en índices que no son pivotes SMC');
+
+    my $liq_frac = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0, N => 3,
+    );
+    $liq_frac->update_last($md, $_) for 0 .. $md->last_index;
+    my @bsl_frac = levels_of_type($liq_frac->get_levels(), 'BSL');
+    my $ext_bsl_sig = join ',', map { "$_->{index}:$_->{price}" } sort { $a->{index} <=> $b->{index} } @bsl;
+    my $frac_bsl_sig = join ',', map { "$_->{index}:$_->{price}" } sort { $a->{index} <=> $b->{index} } @bsl_frac;
+    isnt($ext_bsl_sig, $frac_bsl_sig,
+         '0055: niveles BSL externos difieren del fractal k=1 en el mismo OHLC');
+}
+
+# --- 0055: anti-duplicado al re-sincronizar los mismos pivotes ---
+{
+    my @c = (
+        [10, 11,  8, 10],
+        [10, 12,  9, 11],
+        [11, 15, 10, 14],
+        [12, 16, 11, 15],
+        [13, 14, 12, 13],
+    );
+    my $md = build_ohlc(\@c);
+    my @ext_pivots = (
+        { index => 1, type => 'LL', price => 9 },
+        { index => 2, type => 'HH', price => 15 },
+        { index => 4, type => 'HH', price => 14 },
+    );
+
+    my $liq = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0,
+    );
+    $liq->sync_external_pivots(\@ext_pivots);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my $n1 = count_bsl_ssl($liq->get_levels());
+
+    $liq->sync_external_pivots(\@ext_pivots, $md->last_index);
+    my $n2 = count_bsl_ssl($liq->get_levels());
+
+    is($n1, $n2, '0055: re-sync de pivotes idénticos no duplica BSL/SSL');
+    ok($n1 >= 1, '0055: anti-dup sigue emitiendo al menos un nivel');
+}
+
+# --- 0055: cable SMC → Liquidity (mismo flujo que ChartEngine) ---
+{
+    my @c;
+    my @peaks = (100, 80, 110, 70, 120, 60, 130);
+    my $prev = 90;
+    for my $target (@peaks) {
+        my $step = ($target - $prev) / 5;
+        for my $k (1 .. 5) {
+            my $p = $prev + $step * $k;
+            push @c, [$p, $p + 1, $p - 1, $p];
+        }
+        $prev = $target;
+    }
+
+    my $md = build_ohlc(\@c);
+    my $smc = Market::Indicators::SMC_Structures->new(k => 3);
+    my $liq = Market::Indicators::Liquidity->new(
+        k => 1, atr_period => 3, level_atr_factor => 0, N => 3,
+    );
+    $liq->use_external_pivots(1);
+
+    for my $i (0 .. $md->last_index) {
+        $smc->update_last($md, $i);
+        my @pivots = grep { $_->{index} <= $i } @{ $smc->get_pivots() };
+        $liq->set_external_pivots(\@pivots);
+        $liq->update_last($md, $i);
+    }
+
+    my @bsl = levels_of_type($liq->get_levels(), 'BSL');
+    ok(scalar(@bsl) >= 1, '0055 SMC cable: hay BSL desde pivotes SMC');
+    my @from_smc = grep { $_->{type} =~ /^(?:HH|LH)$/ } @{ $smc->get_pivots() };
+    ok(scalar(@from_smc) >= 2, '0055 SMC cable: SMC tiene al menos dos pivotes high');
+    my $first_hh = (sort { $a->{index} <=> $b->{index} } @from_smc)[0];
+    ok(scalar(grep {
+        $_->{index} == $first_hh->{index} && abs($_->{price} - $first_hh->{price}) < 0.001
+    } @bsl) || scalar(grep { abs($_->{price} - $first_hh->{price}) < 0.001 } @bsl),
+       '0055 SMC cable: BSL alineado con precio del primer HH SMC');
 }
 
 done_testing();

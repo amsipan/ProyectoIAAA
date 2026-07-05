@@ -150,6 +150,7 @@ sub new {
     # (capa Indicators). Mismo patrón que SMC: alimentación incremental en render
     # hasta el tope efectivo (respeta replay_idx); el overlay solo lee.
     $self->{liq_indicator} = Market::Indicators::Liquidity->new(k => 3, level_atr_factor => 1.0);
+    $self->{liq_indicator}->use_external_pivots(1);   # task 0055: BSL/SSL anclados a pivotes SMC
     $self->{liq_overlay} = Market::Overlays::Liquidity->new(
         indicator => $self->{liq_indicator},
         theme     => $self->{theme},
@@ -298,10 +299,22 @@ sub sync_overlay_indicators {
     # el costo se paga al activar la capa, una sola vez (cursor cacheado).
     # Si no hay overlay registrado (p.ej. tests t/16), se alimenta igual para
     # preservar el comportamiento verificado.
+    my $liq_wants_feed = $self->_overlay_wants_feed('liq') ? 1 : 0;
+    # task 0055: Liquidity puede depender de pivotes SMC aunque el overlay SMC esté apagado.
+    # Si Liq quiere alimentación, SMC también debe alimentarse hasta feed_to para no dejar
+    # Liquidity en modo externo sin pivotes.
     $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('smc');
-    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('liq');
+        if $self->_overlay_wants_feed('smc') || $liq_wants_feed;
+    if ($liq_wants_feed && $self->{liq_indicator}) {
+        # task 0055: pivotes SMC hasta feed_to (sin futuro en Replay).
+        if ($self->{smc_indicator}) {
+            my @pivots = grep {
+                defined $_->{index} && $_->{index} <= $feed_to
+            } @{ $self->{smc_indicator}->get_pivots() };
+            $self->{liq_indicator}->set_external_pivots(\@pivots);
+        }
+        $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
+    }
     $self->_feed_indicator_to($self->{strategy_indicator}, '_strategy_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('strategy');
     $self->_feed_indicator_to($self->{vp_indicator}, '_vp_fed_up_to', $feed_to)

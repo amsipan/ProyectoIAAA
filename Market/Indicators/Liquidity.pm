@@ -131,6 +131,10 @@ sub new {
         # (no leer $md->{data}{D/W}->[-1], que incluye futuro respecto a replay_idx).
         _daily_ohlc  => undef,
         _weekly_ohlc => undef,
+        # task 0055: BSL/SSL desde pivotes SMC (opt-in; fractal propio si desactivado).
+        _use_external_pivots  => 0,
+        _external_pivots      => [],
+        _external_pivot_seen  => {},
     };
     bless $self, $class;
     return $self;
@@ -168,21 +172,25 @@ sub update_last {
     $self->_update_eqhl_leg($index, 'int', $self->{eqhl_int_size}, 'I-EQH', 'I-EQL', 'ieqh')
         if $self->{eqhl_int_size} && $self->{eqhl_int_size} > 0;
 
-    # --- Swing detection at j = index - k ---
-    my $k = $self->{k};
-    my $j = $index - $k;
-    if ($j >= 0) {
-        my $is_sh = $self->_is_swing_high($j);
-        my $is_sl = $self->_is_swing_low($j);
+    # --- BSL/SSL: fractal propio o pivotes SMC externos (task 0055) ---
+    unless ($self->{_use_external_pivots}) {
+        my $k = $self->{k};
+        my $j = $index - $k;
+        if ($j >= 0) {
+            my $is_sh = $self->_is_swing_high($j);
+            my $is_sl = $self->_is_swing_low($j);
 
-        if ($is_sh) {
-            $self->{_swing_h}->[$j] = $self->{_highs}->[$j];
-            $self->_process_swing_high($j);
+            if ($is_sh) {
+                $self->{_swing_h}->[$j] = $self->{_highs}->[$j];
+                $self->_process_swing_high($j);
+            }
+            if ($is_sl) {
+                $self->{_swing_l}->[$j] = $self->{_lows}->[$j];
+                $self->_process_swing_low($j);
+            }
         }
-        if ($is_sl) {
-            $self->{_swing_l}->[$j] = $self->{_lows}->[$j];
-            $self->_process_swing_low($j);
-        }
+    } else {
+        $self->_sync_external_pivots_upto($index);
     }
 
     $self->_update_fsm($index, $high, $low, $close);
@@ -303,6 +311,21 @@ sub _level_significant {
 sub _process_swing_high {
     my ($self, $j) = @_;
     my $price = $self->{_highs}->[$j];
+    return unless defined $price;
+    $self->_apply_swing_high($j, $price);
+    return;
+}
+
+sub _process_swing_low {
+    my ($self, $j) = @_;
+    my $price = $self->{_lows}->[$j];
+    return unless defined $price;
+    $self->_apply_swing_low($j, $price);
+    return;
+}
+
+sub _apply_swing_high {
+    my ($self, $j, $price) = @_;
 
     if (defined $self->{_last_sh}) {
         my $prev_price = $self->{_last_sh}->{price};
@@ -310,7 +333,6 @@ sub _process_swing_high {
         my $opp = defined $self->{_last_sl} ? $self->{_last_sl}->{price} : undef;
 
         if ($self->_level_significant($prev_price, $opp, $j)) {
-            # BSL: liquidez por encima del swing high previo
             my $lvl = {
                 index => $prev_index,
                 type  => 'BSL',
@@ -326,9 +348,8 @@ sub _process_swing_high {
     return;
 }
 
-sub _process_swing_low {
-    my ($self, $j) = @_;
-    my $price = $self->{_lows}->[$j];
+sub _apply_swing_low {
+    my ($self, $j, $price) = @_;
 
     if (defined $self->{_last_sl}) {
         my $prev_price = $self->{_last_sl}->{price};
@@ -336,7 +357,6 @@ sub _process_swing_low {
         my $opp = defined $self->{_last_sh} ? $self->{_last_sh}->{price} : undef;
 
         if ($self->_level_significant($prev_price, $opp, $j)) {
-            # SSL: liquidez por debajo del swing low previo
             my $lvl = {
                 index => $prev_index,
                 type  => 'SSL',
@@ -349,6 +369,45 @@ sub _process_swing_low {
 
     $self->{_last_sl_prev} = $self->{_last_sl};
     $self->{_last_sl}      = { index => $j, price => $price };
+    return;
+}
+
+# task 0055: clasificar pivote SMC (HH/LH = high; HL/LL = low).
+sub _external_pivot_side {
+    my ($self, $p) = @_;
+    my $type = $p->{type} // $p->{kind} // '';
+    return 'high' if $type =~ /^(?:HH|LH)$/;
+    return 'low'  if $type =~ /^(?:HL|LL)$/;
+    return 'high' if $type eq 'major_high';
+    return 'low'  if $type eq 'major_low';
+    return undef;
+}
+
+sub _sync_external_pivots_upto {
+    my ($self, $upto_index) = @_;
+    return unless $self->{_use_external_pivots};
+    return unless defined $upto_index && $upto_index >= 0;
+
+    my $pivots = $self->{_external_pivots} // [];
+    my $seen   = $self->{_external_pivot_seen} //= {};
+
+    for my $p (sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @$pivots) {
+        my $idx = $p->{index};
+        next unless defined $idx && $idx <= $upto_index;
+        my $price = $p->{price};
+        next unless defined $price;
+        my $side = $self->_external_pivot_side($p);
+        next unless defined $side;
+
+        my $sig = "$side:$idx:$price";
+        next if $seen->{$sig};
+        $seen->{$sig} = 1;
+        if ($side eq 'high') {
+            $self->_apply_swing_high($idx, $price);
+        } else {
+            $self->_apply_swing_low($idx, $price);
+        }
+    }
     return;
 }
 
@@ -1069,6 +1128,29 @@ sub _register_level_ref {
 # Public API
 # =============================================================================
 
+# task 0055: opt-in — BSL/SSL desde pivotes SMC en lugar del fractal interno.
+sub use_external_pivots {
+    my ($self, $on) = @_;
+    $self->{_use_external_pivots} = $on ? 1 : 0;
+    return $self;
+}
+
+sub set_external_pivots {
+    my ($self, $pivots) = @_;
+    $self->{_external_pivots} = $pivots // [];
+    return $self;
+}
+
+sub sync_external_pivots {
+    my ($self, $pivots, $max_index) = @_;
+    $self->set_external_pivots($pivots) if defined $pivots;
+    $self->use_external_pivots(1) unless $self->{_use_external_pivots};
+    if (defined $max_index) {
+        $self->_sync_external_pivots_upto($max_index);
+    }
+    return $self;
+}
+
 # current_atr — ATR(14) vigente para agrupación BSL/SSL en banda (task 0027).
 sub current_atr {
     my ($self) = @_;
@@ -1216,6 +1298,8 @@ sub reset {
     $self->{_epoch_cache_size} = {};
     $self->{_daily_ohlc}  = undef;
     $self->{_weekly_ohlc} = undef;
+    $self->{_external_pivots}     = [];
+    $self->{_external_pivot_seen} = {};
     return;
 }
 

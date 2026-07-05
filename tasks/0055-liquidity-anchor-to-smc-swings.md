@@ -1,7 +1,15 @@
 # Task 0055: Anclar run/sweep/grab a los swings del SMC (no a swings propios)
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda. Arquitectónica.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+fixtures y cable de alimentación SMC→Liquidity corregidos por arquitecto. 1186 PASS.
+
+Notas:
+- Liquidity tiene modo opt-in de pivotes externos (`use_external_pivots`, `set_external_pivots`,
+  `sync_external_pivots`) y dedup por side/index/price.
+- ChartEngine activa pivotes externos para Liquidity y alimenta SMC también cuando solo Liquidity
+  está activo (sin eso, Liq quedaba sin pivotes si el overlay SMC estaba apagado).
+- Tests nuevos en `t/10-liquidity.t`: pivotes externos manuales, anti-dup y cable SMC incremental.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` puntos 4, 6.
