@@ -114,7 +114,7 @@ Objetivo: que el Replay se vea y funcione igual que TradingView. Referencia UX +
 | 0043 | Panel flotante media-player (layout TV) | 0041 | ✅ hecho (verif. arq. visual; glyphs → 0048) |
 | 0044 | Menú Go-to (Bar/Date/Random/First available) | 0043 | ✅ hecho + 0049 (verif. arq. visual) |
 | 0045 | Dropdowns velocidad + intervalo cableados + barra inline | 0041,0043 | ✅ hecho + fixes UX (verif. arq. + visto bueno Bryan; 1116 tests) |
-| 0046 | Play/Pause toggle + Jump-to-real-time + marca de agua (atajos → diferido) | 0043 | pendiente (autorizada) |
+| 0046 | Play/Pause toggle + Jump-to-real-time + marca de agua (atajos → diferido) | 0043 | ✅ hecho |
 | 0047 | [PULIDO] Tijeras vectoriales (glyph ✂ no renderiza en Fedora35) | 0042 | pendiente (baja prio) |
 | 0048 | [ALTO] Panel Replay mojibake: `use utf8` + etiquetas ASCII legibles | 0043 | ✅ hecho (verif. arq. visual; 1042 tests) |
 | 0049 | [CRÍTICO] 4 bugs API Tk en 0044 (pady/winfo_/idletasks/bind) | 0044 | ✅ resuelta por arquitecto |

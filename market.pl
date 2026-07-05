@@ -125,10 +125,12 @@ my $active_tf = '1m';
 my $htf_enabled = 0;
 my $replay_on   = 0;
 my $replay_select_mode = 0;
+my $replay_watermark_on = 1;
 my $replay_panel;
 my %ui_vars = (
     active_tf => \$active_tf, htf_enabled => \$htf_enabled, replay_on => \$replay_on,
     replay_select_mode => \$replay_select_mode,
+    replay_watermark_on => \$replay_watermark_on,
     replay_panel       => \$replay_panel,
 );
 
@@ -145,6 +147,8 @@ my $chart_engine = Market::ChartEngine->new(
     replay_select_mode_callback => sub { $replay_select_mode = $_[0] ? 1 : 0 },
     theme             => \%theme
 );
+
+$chart_engine->{replay_watermark_on_ref} = \$replay_watermark_on;
 
 $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);

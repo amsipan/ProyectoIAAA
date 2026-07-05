@@ -627,6 +627,7 @@ sub render {
     # spec 0000i: pasar draw_candles (con overscan) al panel para que las velas
     # parcialmente visibles durante paneo se rendericen desde antes.
     $self->{price_panel}->render($self->{price_canvas}, $draw_candles, $price_scale);
+    $self->_draw_replay_watermark($self->{price_canvas});
     $self->{atr_panel}->render($self->{atr_canvas}, $draw_atr, $atr_scale);
     my $time_labels = $self->compute_intraday_labels();
     $self->{price_panel}->draw_time_axis($self->{price_canvas}, $time_labels, { draw_grid => 1, draw_labels => 0 });
@@ -1072,6 +1073,38 @@ sub _global_index_from_x {
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     my $local = $scale->x_to_index($x);
     return $start + $local;
+}
+
+# _replay_watermark_visible — task 0046: marca "Replay" solo si activo Y flag ON.
+sub _replay_watermark_visible {
+    my ($self) = @_;
+    my $replay = $self->{replay_controller};
+    return 0 unless $replay && $replay->is_active();
+    my $ref = $self->{replay_watermark_on_ref};
+    return 1 unless $ref;
+    return ${ $ref } ? 1 : 0;
+}
+
+# _draw_replay_watermark — texto gris centrado, detrás de velas (tag replay_watermark).
+sub _draw_replay_watermark {
+    my ($self, $canvas) = @_;
+    return unless $canvas;
+    eval { $canvas->delete('replay_watermark') };
+    return unless $self->_replay_watermark_visible();
+
+    my ($w, $h) = $self->_canvas_size($canvas);
+    return unless defined $w && $w > 0 && defined $h && $h > 0;
+    eval {
+        $canvas->createText(
+            $w / 2, $h / 2,
+            -text   => 'Replay',
+            -fill   => '#d0d0d0',
+            -font   => 'Helvetica 48 bold',
+            -tags   => 'replay_watermark',
+        );
+        $canvas->lower('replay_watermark', 'candle');
+    };
+    return;
 }
 
 # TradingView no muestra línea fija en la vela ya elegida; solo el hover azul en select mode.

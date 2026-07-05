@@ -508,7 +508,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 {
     my $chart = MockChart->new();
     my $cbs = Market::UI::ReplayPanel::callback_factories($chart, undef, {});
-    my @keys = qw(select_bar goto_menu play step_fwd step_back speed_menu interval_menu fast_fwd exit);
+    my @keys = qw(select_bar goto_menu play step_fwd step_back speed_menu interval_menu jump_real exit);
     for my $k (@keys) {
         ok(exists $cbs->{$k}, "0043: callback_factories tiene $k");
         ok(ref($cbs->{$k}) eq 'CODE', "0043: $k es CODE");
@@ -521,6 +521,10 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         ok(ref(Market::UI::Callbacks->$factory($chart, {})) eq 'CODE',
            "0044: $factory es CODE");
     }
+    ok(ref(Market::UI::Callbacks->make_replay_toggle_play($chart, undef, {})) eq 'CODE',
+       '0046: make_replay_toggle_play es CODE');
+    ok(ref(Market::UI::Callbacks->make_replay_jump_real($chart, {})) eq 'CODE',
+       '0046: make_replay_jump_real es CODE');
     ok(ref(Market::UI::Callbacks->make_replay_goto_date($chart, undef, {})) eq 'CODE',
        '0044: make_replay_goto_date es CODE');
     is_deeply([ Market::UI::ReplayGotoMenu::expected_menu_labels() ],
@@ -805,7 +809,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 
     my @texts = _collect_button_texts($built->frame);
     is_deeply(\@texts, [ Market::UI::ReplayPanel::expected_text_button_labels() ],
-        '0048: etiquetas texto del panel (Select bar/1x/D) coinciden con ASCII esperado');
+        '0048: etiquetas texto del panel (Select bar/1x/D/Mark) coinciden con ASCII esperado');
 
     for my $t (@texts) {
         ok($t !~ /[^\x00-\x7F]/, "0048: etiqueta '$t' es ASCII puro");
@@ -826,6 +830,45 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     $walk->($built->frame);
     is($icon_canvases, Market::UI::ReplayPanel::expected_media_icon_count(),
         '0046-prep: canvas con iconos multimedia (goto/transport/jump/exit)');
+}
+
+# =============================================================================
+# Test 17 (task 0046): toggle Play/Pause, jump-to-real-time, marca de agua.
+# =============================================================================
+{
+    use Market::ChartEngine;
+
+    my $chart = MockChart->new(market_data => MockMarketData->new(100));
+    my $mw    = MockMW->new();
+    my $replay_on = 1;
+    my %vars = ( replay_on => \$replay_on );
+    my $rc = $chart->{replay_controller};
+    $rc->start(40);
+
+    my $toggle = Market::UI::Callbacks->make_replay_toggle_play($chart, $mw, \%vars);
+    $toggle->();
+    ok($rc->{playing}, '0046: toggle arranca playing=1');
+    $toggle->();
+    ok(!$rc->{playing}, '0046: segundo toggle pausa playing=0');
+
+    $rc->start(30);
+    my $jump = Market::UI::Callbacks->make_replay_jump_real($chart, \%vars);
+    $jump->();
+    ok(!$rc->is_active(), '0046: jump-to-real-time desactiva replay');
+    is($rc->current_index(), undef, '0046: jump deja current_index undef');
+    is($replay_on, 0, '0046: jump marca replay_on=0');
+
+    my $wm_on = 1;
+    my $ce = bless {
+        replay_controller       => $rc,
+        replay_watermark_on_ref => \$wm_on,
+    }, 'Market::ChartEngine';
+    $rc->start(50);
+    ok($ce->_replay_watermark_visible(), '0046: watermark visible (replay ON, flag ON)');
+    $wm_on = 0;
+    ok(!$ce->_replay_watermark_visible(), '0046: watermark oculta con flag OFF');
+    $rc->exit();
+    ok(!$ce->_replay_watermark_visible(), '0046: watermark oculta sin replay activo');
 }
 
 done_testing();

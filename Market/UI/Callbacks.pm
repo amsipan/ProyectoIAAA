@@ -175,6 +175,19 @@ sub _sync_replay_ui_cleanup {
         ${ $vars->{replay_select_mode} } = 0 if $vars->{replay_select_mode};
         _hide_replay_panel($vars);
     }
+    _sync_replay_play_icon($chart, $vars) if ref($vars) eq 'HASH';
+    return;
+}
+
+# _sync_replay_play_icon — task 0046: triangulo vs barras pause en el boton play.
+sub _sync_replay_play_icon {
+    my ($chart, $vars) = @_;
+    return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
+    my $panel = ${ $vars->{replay_panel} };
+    return unless $panel && ref($panel) && $panel->can('sync_play_button_icon');
+    my $rc = $chart ? _replay($chart) : undef;
+    my $playing = ($rc && $rc->{playing}) ? 1 : 0;
+    $panel->sync_play_button_icon($playing);
     return;
 }
 
@@ -456,7 +469,7 @@ sub make_replay_select_bar {
     };
 }
 
-# make_replay_play($chart, $mw, $vars) — Play.
+# make_replay_play($chart, $mw, $vars) — Play (interno; usar toggle en UI).
 # Autoplay con tick_ms() del ReplayController y advance_one_tick() (task 0041/0045).
 sub make_replay_play {
     my ($class, $chart, $mw, $vars) = @_;
@@ -472,9 +485,31 @@ sub make_replay_play {
             return unless $rc->{playing};
             $rc->advance_one_tick();
             $chart->request_render();
+            _sync_replay_play_icon($chart, $vars);
         };
         $rc->play($tick);
         _schedule_play($chart, $mw, $tick, $rc);
+        _sync_replay_play_icon($chart, $vars);
+    };
+}
+
+# make_replay_toggle_play — task 0046: un boton alterna Play <-> Pause.
+sub make_replay_toggle_play {
+    my ($class, $chart, $mw, $vars) = @_;
+    die "make_replay_toggle_play: requiere \$chart" unless $chart;
+    $mw //= _ui_mw($vars);
+    my $play_cb  = $class->make_replay_play($chart, $mw, $vars);
+    my $pause_cb = $class->make_replay_pause($chart, $vars);
+    return sub {
+        my $rc = _replay($chart);
+        return unless $rc;
+        if ($rc->{playing}) {
+            $pause_cb->();
+        }
+        else {
+            $play_cb->();
+        }
+        _sync_replay_play_icon($chart, $vars);
     };
 }
 
@@ -550,6 +585,25 @@ sub make_replay_pause {
         return unless $rc;
         $rc->pause();
         _stop_play_schedule($chart, $vars);
+        $chart->request_render();
+        _sync_replay_play_icon($chart, $vars);
+    };
+}
+
+# make_replay_jump_real — task 0046: >> revela todo (replay_idx=last) y sale a chart vivo.
+sub make_replay_jump_real {
+    my ($class, $chart, $vars) = @_;
+    die "make_replay_jump_real: requiere \$chart" unless $chart;
+    my $ref = ref($vars) eq 'HASH' ? $vars->{replay_on} : undef;
+    return sub {
+        my $rc = _replay($chart);
+        _stop_play_schedule($chart, $vars);
+        if ($rc && $rc->is_active()) {
+            $rc->jump_to_end() if $rc->can('jump_to_end');
+            $chart->request_render();
+        }
+        _sync_replay_ui_cleanup($chart, $vars);
+        ${ $ref } = 0 if $ref;
         $chart->request_render();
     };
 }

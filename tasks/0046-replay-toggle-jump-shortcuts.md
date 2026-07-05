@@ -1,5 +1,7 @@
 # Task 0046: Replay — Play/Pause toggle, Jump-to-real-time, atajos y marca de agua
 
+- [x] Hecho (2026-07-05, implementor EPN)
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §6, §7, §8, §19 capturas 1 y 2.
 - Depende de 0043 (panel flotante).

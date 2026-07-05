@@ -109,6 +109,16 @@ sub fast_forward {
     return $self->{replay_idx};
 }
 
+# jump_to_end — revela hasta la ultima vela (replay_idx = last) y pausa autoplay.
+sub jump_to_end {
+    my ($self) = @_;
+    return unless $self->{active};
+    $self->pause();
+    my $last = $self->_last_index();
+    $self->{replay_idx} = $last if defined $last;
+    return $self->{replay_idx};
+}
+
 # exit — desactiva Replay y restaura tope = last_index.
 sub exit {
     my ($self) = @_;

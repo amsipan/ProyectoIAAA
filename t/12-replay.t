@@ -167,6 +167,15 @@ $rc->fast_forward(10);
 is($rc->current_index(), 99, 'fast_forward más allá del final clampa a 99');
 
 # ===========================================================================
+# Test 6b: task 0046 — jump_to_end lleva replay_idx al ultimo indice.
+{
+    $rc->start(10);
+    is($rc->current_index(), 10, 'jump_to_end: inicio en 10');
+    $rc->jump_to_end();
+    is($rc->current_index(), 99, 'jump_to_end: replay_idx = last (99)');
+    ok(!$rc->{playing}, 'jump_to_end: pausa autoplay');
+}
+
 # Test 6: start clampa replay_idx a [0, last_index].
 # ===========================================================================
 $rc->start(-5);

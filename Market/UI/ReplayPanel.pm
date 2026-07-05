@@ -49,6 +49,14 @@ sub _media_colors {
         my ($self) = @_;
         return eval { $self->{frame}->exists } ? 1 : 0;
     }
+    sub redraw_icon {
+        my ($self, $draw) = @_;
+        return $self unless $self->{canvas} && ref($draw) eq 'CODE';
+        eval { $self->{canvas}->delete('icon') };
+        my (undef, undef, $icon_color) = Market::UI::ReplayPanel::_media_colors();
+        $draw->($self->{canvas}, $icon_color);
+        return $self;
+    }
 }
 
 sub _media_frame_opts {
@@ -159,6 +167,12 @@ sub _draw_play {
     $c->createPolygon(9, 6, 9, 18, 21, 12, -fill => $color, -outline => $color, -tags => 'icon');
 }
 
+sub _draw_pause {
+    my ($c, $color) = @_;
+    $c->createRectangle(8, 6, 11, 18, -fill => $color, -outline => $color, -tags => 'icon');
+    $c->createRectangle(17, 6, 20, 18, -fill => $color, -outline => $color, -tags => 'icon');
+}
+
 sub _draw_step_back {
     my ($c, $color) = @_;
     $c->createRectangle(7, 7, 9, 17, -fill => $color, -outline => $color, -tags => 'icon');
@@ -250,7 +264,8 @@ sub new {
     $goto_menu->set_anchor($goto_btn->{frame});
 
     $pack_btn->(_make_media_button($inner, $callbacks->{step_back}, \&_draw_step_back));
-    $pack_btn->(_make_media_button($inner, $callbacks->{play}, \&_draw_play));
+    my $play_btn = _make_media_button($inner, $callbacks->{play}, \&_draw_play);
+    $pack_btn->($play_btn);
     $pack_btn->(_make_media_button($inner, $callbacks->{step_fwd}, \&_draw_step_fwd));
 
     my $speed_btn = _make_media_text_button($inner, '1x', sub { });
@@ -287,8 +302,25 @@ sub new {
     $speed_btn->configure(-command => sub { $toggle_menu->($speed_menu, $speed_btn) });
     $interval_btn->configure(-command => sub { $toggle_menu->($interval_menu, $interval_btn) });
 
-    $pack_btn->(_make_media_button($inner, $callbacks->{fast_fwd}, \&_draw_jump));
+    $pack_btn->(_make_media_button($inner, $callbacks->{jump_real}, \&_draw_jump));
     $pack_btn->(_make_media_button($inner, $callbacks->{exit}, \&_draw_exit), -padx => 4);
+
+    my $mark_ref = (ref($vars) eq 'HASH' && $vars->{replay_watermark_on})
+        ? $vars->{replay_watermark_on}
+        : do { my $x = 1; \$x };
+    ${ $mark_ref } = 1 unless defined ${ $mark_ref };
+
+    my $mark_btn;
+    $mark_btn = _make_media_text_button(
+        $inner,
+        ${ $mark_ref } ? 'Mark: on' : 'Mark: off',
+        sub {
+            ${ $mark_ref } = ${ $mark_ref } ? 0 : 1;
+            $mark_btn->configure(-text => ${ $mark_ref } ? 'Mark: on' : 'Mark: off');
+            $chart->request_render();
+        },
+    );
+    $pack_btn->($mark_btn);
 
     my $self = bless {
         frame          => $frame,
@@ -299,8 +331,9 @@ sub new {
         interval_menu  => $interval_menu,
         speed_label    => $speed_btn,
         interval_lbl   => $interval_btn,
-        play_btn       => 1,
-        inline         => $inline,
+        play_btn_widget => $play_btn,
+        mark_btn        => $mark_btn,
+        inline          => $inline,
         visible        => $inline ? 1 : 0,
     }, $class;
 
@@ -328,12 +361,12 @@ sub callback_factories {
     return {
         select_bar    => Market::UI::Callbacks->make_replay_select_bar($chart, $vars),
         goto_menu     => Market::UI::Callbacks->make_replay_goto_menu_stub($chart, $vars),
-        play          => Market::UI::Callbacks->make_replay_play($chart, $mw, $vars),
+        play          => Market::UI::Callbacks->make_replay_toggle_play($chart, $mw, $vars),
         step_fwd      => Market::UI::Callbacks->make_replay_step_fwd($chart),
         step_back     => Market::UI::Callbacks->make_replay_step_back($chart),
         speed_menu    => Market::UI::Callbacks->make_replay_speed_menu_stub($chart, $vars),
         interval_menu => Market::UI::Callbacks->make_replay_interval_menu_stub($chart, $vars),
-        fast_fwd      => Market::UI::Callbacks->make_replay_fast_fwd($chart, $mw, $vars),
+        jump_real     => Market::UI::Callbacks->make_replay_jump_real($chart, $vars),
         exit          => Market::UI::Callbacks->make_replay_exit($chart, $vars),
     };
 }
@@ -386,8 +419,17 @@ sub is_visible {
 sub frame     { shift->{frame} }
 sub callbacks { shift->{callbacks} }
 
+sub sync_play_button_icon {
+    my ($self, $playing) = @_;
+    my $btn = $self->{play_btn_widget};
+    return $self unless $btn && $btn->can('redraw_icon');
+    my $draw = $playing ? \&_draw_pause : \&_draw_play;
+    $btn->redraw_icon($draw);
+    return $self;
+}
+
 sub expected_text_button_labels {
-    return ('Select bar', '1x', 'D');
+    return ('Select bar', '1x', 'D', 'Mark: on');
 }
 
 sub expected_media_icon_count {
