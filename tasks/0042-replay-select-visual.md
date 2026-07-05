@@ -1,5 +1,7 @@
 # Task 0042: Replay — modo selección visual estilo TradingView
 
+**Estado:** ✅ hecho
+
 ## Referencia
 - `docs/TRADINGVIEW_BAR_REPLAY_REFERENCE.md` §2 (indicador visual), §19 capturas 1 y 2.
 

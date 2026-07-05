@@ -616,6 +616,9 @@ sub render {
 
     $self->_draw_crosshair_all() if defined $self->{last_mouse_x};
     $self->_draw_replay_select_marker();
+    if ($self->{_replay_select_mode} && defined $self->{last_mouse_x}) {
+        $self->_draw_replay_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
+    }
     $self->_redraw_pointer_symbol();
 }
 
@@ -809,7 +812,11 @@ sub _redraw_pointer_symbol {
 
 sub set_replay_select_mode {
     my ($self, $on) = @_;
-    $self->{_replay_select_mode} = $on ? 1 : 0;
+    $on = $on ? 1 : 0;
+    if (!$on && $self->{_replay_select_mode}) {
+        $self->_clear_replay_select_hover();
+    }
+    $self->{_replay_select_mode} = $on;
     if (ref($self->{replay_select_mode_callback}) eq 'CODE') {
         $self->{replay_select_mode_callback}->($self->{_replay_select_mode});
     }
@@ -867,6 +874,7 @@ sub set_selected_bar {
     my $last = (defined $md && $md->can('size')) ? ($md->size() - 1) : 0;
     $idx = 0 if $idx < 0;
     $idx = $last if $idx > $last;
+    $self->_clear_replay_select_hover();
     $self->{_selected_bar} = $idx;
     # task 0040-C: tras elegir vela, volver a paneo normal (modo OFF, conservar selección).
     $self->clear_replay_select_mode();
@@ -960,6 +968,136 @@ sub _draw_replay_select_marker {
     }
 }
 
+# task 0042: hover visual estilo TradingView (línea azul, velo, Re:, tijeras).
+sub _clear_replay_select_hover {
+    my ($self) = @_;
+    my @tags = qw(replay_select_hover replay_select_veil replay_select_scissors);
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        for my $tag (@tags) {
+            eval { $canvas->delete($tag) };
+        }
+    }
+    if ($self->{time_axis_canvas}) {
+        eval { $self->{time_axis_canvas}->delete('replay_select_re_label') };
+    }
+    return $self;
+}
+
+# _replay_select_hover_layout($raw_x) — geometría de la línea/velo para tests y dibujo.
+sub _replay_select_hover_layout {
+    my ($self, $raw_x) = @_;
+    return undef unless $self->{_replay_select_mode};
+    return undef unless defined $raw_x;
+
+    my $line_x = $self->_snap_crosshair_x($raw_x);
+    return undef unless defined $line_x;
+
+    my $global = $self->_global_index_from_x($line_x);
+    return undef unless defined $global;
+
+    my $canvas = $self->{price_canvas};
+    my $w = $self->_canvas_width($canvas);
+
+    my $saved_x = $self->{last_mouse_x};
+    $self->{last_mouse_x} = $line_x;
+    my $time_text = $self->_crosshair_time_label();
+    $self->{last_mouse_x} = $saved_x;
+
+    my $re_text = defined $time_text ? "Re: $time_text" : undef;
+
+    return {
+        line_x       => $line_x,
+        global_index => $global,
+        veil_x0      => $line_x,
+        veil_x1      => $w,
+        re_text      => $re_text,
+    };
+}
+
+sub _draw_replay_select_re_label {
+    my ($self, $line_x, $re_text) = @_;
+    my $canvas = $self->{time_axis_canvas};
+    return unless $canvas && defined $line_x && defined $re_text && length $re_text;
+
+    eval { $canvas->delete('replay_select_re_label') };
+
+    my ($w, $h) = $self->_canvas_size($canvas);
+    my $color = '#2962ff';
+    my $char_w = 7;
+    my $pad_x  = 6;
+    my $half_w = (length($re_text) * $char_w) / 2 + $pad_x;
+
+    my $cx = $line_x;
+    $cx = $half_w      if $cx - $half_w < 0;
+    $cx = $w - $half_w if $cx + $half_w > $w;
+
+    eval {
+        $canvas->createRectangle(
+            $cx - $half_w, 0, $cx + $half_w, $h,
+            -fill => $color, -outline => $color, -tags => 'replay_select_re_label',
+        );
+        $canvas->createText(
+            $cx, $h / 2,
+            -text => $re_text, -anchor => 'center',
+            -font => 'Helvetica 9 bold', -fill => '#ffffff',
+            -tags => 'replay_select_re_label',
+        );
+    };
+}
+
+sub _draw_replay_select_hover {
+    my ($self, $widget, $line_x, $y) = @_;
+    return unless $self->{_replay_select_mode};
+
+    $self->_clear_replay_select_hover();
+    return unless defined $line_x;
+
+    my $layout = $self->_replay_select_hover_layout($line_x);
+    return unless $layout;
+
+    my $x = $layout->{line_x};
+    my $veil_x0 = $layout->{veil_x0};
+    my $veil_x1 = $layout->{veil_x1};
+    my $color = '#2962ff';
+
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        my (undef, $h) = $self->_canvas_size($canvas);
+        next unless defined $h && $h > 0;
+        eval {
+            if ($veil_x1 > $veil_x0) {
+                $canvas->createRectangle(
+                    $veil_x0, 0, $veil_x1, $h,
+                    -fill => 'white', -stipple => 'gray25', -outline => '',
+                    -tags => 'replay_select_veil',
+                );
+            }
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill => $color, -width => 2, -tags => 'replay_select_hover',
+            );
+        };
+    }
+
+    # ponytail: si ✂ no renderiza en WSLg, el cursor nativo crosshair sigue como respaldo.
+    if ($self->{price_canvas}) {
+        my (undef, $h) = $self->_canvas_size($self->{price_canvas});
+        my $scissor_y = defined $y ? $y : ($h / 2);
+        eval {
+            $self->{price_canvas}->createText(
+                $x, $scissor_y,
+                -text => "\x{2702}", -anchor => 'center',
+                -font => 'Helvetica 14', -fill => $color,
+                -tags => 'replay_select_scissors',
+            );
+        };
+    }
+
+    $self->_draw_replay_select_re_label($x, $layout->{re_text});
+    return $self;
+}
+
 sub _bind_all_canvas {
     my ($self) = @_;
     
@@ -1026,6 +1164,7 @@ sub _bind_all_canvas {
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_replay_select_hover();
             $self->_clear_pointer_symbol($p_canvas);
         });
     }
@@ -1085,6 +1224,7 @@ sub _bind_all_canvas {
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_replay_select_hover();
             $self->_clear_pointer_symbol($a_canvas);
         });
     }
@@ -1164,6 +1304,7 @@ sub _bind_all_canvas {
             $self->{last_mouse_y} = undef;
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
+            $self->_clear_replay_select_hover();
             $self->_clear_pointer_symbol($time_canvas);
         });
     }
@@ -2036,7 +2177,11 @@ sub _on_mouse_move {
     $self->{active_canvas} = $widget;
     
     $self->_draw_crosshair_all();
-    $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
+    if ($self->{_replay_select_mode}) {
+        $self->_draw_replay_select_hover($widget, $pixel_x, $pixel_y);
+    } else {
+        $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
+    }
 }
 
 # _crosshair_time_label — etiqueta de fecha estilo TradingView (Dow DD Mon 'YY) de la vela bajo el cursor (Req. 7.4, spec 0000).
