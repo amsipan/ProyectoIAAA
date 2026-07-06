@@ -53,11 +53,14 @@ sub new {
         unless defined $k && $k =~ /^\d+$/ && $k > 0;
 
     my $swing_atr_factor = defined $opts{swing_atr_factor} ? $opts{swing_atr_factor} : 0;
+    my $fvg_near_atr = defined $opts{fvg_near_atr} ? $opts{fvg_near_atr} : 8;
 
     my $self = {
         k                => $k,
         swing_atr_factor => $swing_atr_factor,
+        fvg_near_atr     => $fvg_near_atr,
         atr_period       => 14,
+        _last_index      => -1,
         _highs         => [],
         _lows          => [],
         _opens         => [],
@@ -119,6 +122,7 @@ sub update_last {
     $self->{_opens}->[$index]  = $open;
     $self->{_closes}->[$index] = $close;
     $self->{_values}->[$index] = undef;
+    $self->{_last_index} = $index;
 
     $self->_update_atr($index, $high, $low, $close);
 
@@ -686,11 +690,29 @@ sub get_major {
     return \@items;
 }
 
+# task 0059 (ORDEN 11 en SMC): vigente si el close actual está cerca del gap
+# (0 si dentro). fvg_near_atr=0 desactiva; sin ATR aún → no filtrar.
+sub _fvg_is_near {
+    my ($self, $fvg) = @_;
+    my $factor = $self->{fvg_near_atr} // 0;
+    return 1 if $factor <= 0;
+    my $last = $self->{_last_index};
+    return 1 if !defined $last || $last < 0;
+    my $close = $self->{_closes}->[$last];
+    my $atr   = $self->{_atr_last};
+    return 1 unless defined $close && defined $atr && $atr > 0;
+    my $dist = 0;
+    if    ($close > $fvg->{hi}) { $dist = $close - $fvg->{hi}; }
+    elsif ($close < $fvg->{lo}) { $dist = $fvg->{lo} - $close; }
+    return ($dist <= $factor * $atr) ? 1 : 0;
+}
+
 sub get_fvg {
     my ($self) = @_;
     my @result;
     for my $fvg ( @{ $self->{_fvgs} } ) {
         next unless $fvg->{_active};
+        next unless $self->_fvg_is_near($fvg);
         push @result, {
             index => $fvg->{index},
             type  => $fvg->{type},
@@ -793,6 +815,7 @@ sub reset {
     $self->{_atr_last}         = undef;
     $self->{_filter_last_high} = undef;
     $self->{_filter_last_low}  = undef;
+    $self->{_last_index}       = -1;
     return;
 }
 

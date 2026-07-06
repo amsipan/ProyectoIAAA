@@ -691,6 +691,44 @@ sub events_of_type {
 }
 
 # =============================================================================
+# TASK 0059: FVG SMC vigente solo cerca del precio (fvg_near_atr, alineado con Mxwll)
+# =============================================================================
+{
+    my @c = (
+        [ 9, 10,  9, 10],
+        [11, 15, 11, 15],
+        [14, 14, 12, 13],
+        [13, 15, 13, 14],
+    );
+    for my $k (1 .. 10) {
+        push @c, [20 + $k * 4, 24 + $k * 4, 20 + $k * 4, 23 + $k * 4];
+    }
+    my $md = build_ohlc(\@c);
+
+    my $smc0 = Market::Indicators::SMC_Structures->new(k => 1, fvg_near_atr => 0);
+    $smc0->update_last($md, $_) for 0 .. $md->last_index;
+    my @f0 = grep { $_->{lo} == 10 && $_->{type} eq 'FVG_up' } @{ $smc0->get_fvg() };
+    ok(scalar(@f0) >= 1, '0059: fvg_near_atr=0 mantiene FVG lejano en get_fvg');
+
+    my $smc1 = Market::Indicators::SMC_Structures->new(k => 1);
+    $smc1->update_last($md, $_) for 0 .. $md->last_index;
+    my @f1 = grep { $_->{lo} == 10 && $_->{type} eq 'FVG_up' } @{ $smc1->get_fvg() };
+    is(scalar(@f1), 0, '0059: FVG lejano omitido con fvg_near_atr default (8)');
+
+    my @c_near = (
+        [ 9, 10,  9, 10],
+        [11, 15, 11, 15],
+        [14, 14, 12, 13],
+        [13, 14, 11, 11],
+    );
+    my $md_near = build_ohlc(\@c_near);
+    my $smc_near = Market::Indicators::SMC_Structures->new(k => 1);
+    $smc_near->update_last($md_near, $_) for 0 .. $md_near->last_index;
+    my @f_near = grep { $_->{lo} == 10 && $_->{type} eq 'FVG_up' } @{ $smc_near->get_fvg() };
+    is(scalar(@f_near), 1, '0059: FVG cercano al close sigue vigente (default)');
+}
+
+# =============================================================================
 # TASK 0017: Performance — feeding a large dataset with frequent FVGs must NOT hang.
 # =============================================================================
 # _detect_and_mitigate_fvgs iterated the ENTIRE _fvgs array every candle; inactive

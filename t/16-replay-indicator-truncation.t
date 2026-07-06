@@ -143,7 +143,8 @@ sub find_fvg_at {
 
     # CONFIRMACIÓN de que el cableado viejo fallaría: alimentar hasta size()-1
     # (lo que hacía el código pre-0015) debe producir mitig != 0.
-    my $old = Market::Indicators::SMC_Structures->new(k => 3);
+    # Sin filtro de cercanía: este caso compara mitigación futura, no vigencia por precio.
+    my $old = Market::Indicators::SMC_Structures->new(k => 3, fvg_near_atr => 0);
     for my $i (0..$md->size() - 1) { $old->update_last($md, $i); }
     my $old_fvg = find_fvg_at($old, 5);
     ok(defined $old_fvg, 'Test1 (cable viejo): alimentar hasta size()-1 deja el FVG idx=5');

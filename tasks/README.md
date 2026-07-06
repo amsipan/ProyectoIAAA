@@ -137,7 +137,7 @@ refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
 | 0056 | Reducir HH/HL del SMC — alinear con pocos pivotes del ZigZag | — | ✅ HECHO + VERIF. arq. (filtro ATR SMC; grok composer-fast + fix arq.; 1196 PASS) |
 | 0057 | EQH/EQL interno vs externo: verificar + garantizar render en runtime | — (verificación) | ✅ HECHO + VERIF. arq. (etiquetas EXT/INT explícitas; 1237 PASS + visual) |
 | 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | ✅ HECHO + VERIF. arq. (recolor cuerpo/mecha + Replay/toggle/densidad; 1220 PASS + visual) |
-| 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |
+| 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | ✅ HECHO + VERIF. arq. (SMC fvg_near_atr=8; 1240 PASS + visual) |
 | 0060 | Fibonacci: solo 3 niveles en temporalidades bajas | coord. 0029 | ✅ HECHO + VERIF. arq. (1m/5m/15m=3, altas=5; 1231 PASS + visual) |
 | 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | ✅ HECHO + VERIF. arq. (grok+fix arq.; 1170 PASS + visual) |
 | 0062 | Slider 1–100% de densidad de indicadores (idea Bryan) | — | ✅ HECHO + VERIF. arq. (slider Liq global Fase A; 1210 PASS + captura WSLg) |
@@ -149,7 +149,7 @@ correcciones puntuales.)
 **Decisiones pendientes antes de ejecutar:**
 - 0062: Fase A resuelta con slider global; Fase B por familia solo si el profe/Bryan lo pide.
 - 0055/0056: enfoque elegido y cerrado (SMC como pivotes externos para Liquidez + filtro ATR en SMC).
-- Sin decisiones abiertas para 0054/0055/0056/0057/0058/0060/0061/0062; 0059 sigue pendiente.
+- Sin decisiones abiertas para 0054–0062 del feedback profe/QA; todos cerrados/verificados salvo 0053 pausada por limitación WSLg cursor SO.
 
 **Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**
 - **Panel Replay INLINE en pestaña Replay**, no flotante (0043 original). Ratificado: mejor UX, sin

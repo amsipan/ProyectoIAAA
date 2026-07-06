@@ -1,7 +1,15 @@
 # Task 0059: FVG vigente solo cerca del precio — unificar filtro en la capa SMC
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda. Refina 0023.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Implementación delegada a grok composer-2.5-fast;
+arquitecto revisó y verificó. 1240 PASS.
+
+Notas:
+- SMC ahora tiene `fvg_near_atr` default `8`, alineado con Mxwll; `0` desactiva el filtro.
+- `get_fvg()` conserva la mitigación existente y además omite gaps lejanos al close actual
+  (`distancia <= fvg_near_atr * ATR`). Si no hay ATR válido aún, mantiene comportamiento previo.
+- Overlay SMC no necesitó cambios porque consume `get_fvg()`.
+- Verificación visual WSLg: `C:\Users\ASUS ROG\AppData\Local\Temp\opencode\0059_fvg_near_price.png`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` punto 9, audio 1.
