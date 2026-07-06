@@ -508,9 +508,14 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     open my $fh, '<', 'market.pl' or die "market.pl: $!";
     my $src = do { local $/; <$fh> };
     close $fh;
-    like($src, qr/Densidad\s*%/, '0062: market.pl etiqueta Densidad %');
+    like($src, qr/Densidad\s+global/, '0062/0063: market.pl etiqueta Densidad global');
+    like($src, qr/Por\s+tipo/, '0063: market.pl agrupa densidad por tipo');
+    like($src, qr/my \$liq_density_pct = 20;/, '0063: densidad inicial de la app es baja para exposición');
     like($src, qr/->Scale\b/, '0062: market.pl usa Tk::Scale');
-    like($src, qr/set_density_pct/, '0062: market.pl cablea set_density_pct');
+    like($src, qr/set_density_pct/, '0062: market.pl cablea set_density_pct global');
+    like($src, qr/set_element_density_pct/, '0063: market.pl cablea set_element_density_pct por familia');
+    like($src, qr/enable_liquidity_background_feed\(chunk_size\s*=>\s*300,\s*after_ms\s*=>\s*40\)/,
+         '0063: market.pl habilita precalculo no bloqueante de Liquidez');
     like($src, qr/request_render/, '0062: slider dispara request_render');
 }
 

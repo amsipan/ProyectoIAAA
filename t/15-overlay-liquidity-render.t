@@ -742,6 +742,13 @@ sub _line_signature {
     is_deeply([ map { $_->{magnitude} } @$half ], [10, 8],
         '0062: pct=50 conserva los de mayor magnitude');
 
+    $ov->set_element_density_pct('RUN', 25);
+    is($ov->element_density_pct('RUN'), 25, '0063: densidad individual RUN se puede separar');
+    is($ov->element_density_pct('GRAB'), 50, '0063: familia no tocada conserva global previo');
+    $ov->set_density_pct(30);
+    is($ov->element_density_pct('RUN'), 30, '0063: mover global resincroniza RUN');
+    is($ov->element_density_pct('GRAB'), 30, '0063: mover global resincroniza GRAB');
+
     $ov->set_density_pct(0);
     is($ov->density_pct(), 1, '0062: setter clamp minimo 1');
     $ov->set_density_pct(200);

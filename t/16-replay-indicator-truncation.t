@@ -285,4 +285,71 @@ sub find_fvg_at {
     is($fvg->{mitig}, "0.3", 'Test4: sin Replay el FVG está mitigado (vela 6 visible es legítima)');
 }
 
+# =============================================================================
+# Test 5: task 0063 — el modo no bloqueante de Liquidity debe terminar con el
+# MISMO estado que el cálculo completo. La primera versión por chunks alimentaba
+# SMC y Liquidity en lockstep; eso podía cambiar resultados porque SMC confirma
+# pivotes con retraso. El contrato correcto es: SMC por chunks hasta target,
+# luego Liquidity por chunks con todos los pivotes SMC válidos hasta target.
+# =============================================================================
+sub liquidity_signature {
+    my ($liq) = @_;
+    my @parts;
+    for my $l (@{ $liq->get_levels() }) {
+        push @parts, join(':', 'L', map { defined $l->{$_} ? $l->{$_} : '' } qw(index type price));
+    }
+    for my $e (@{ $liq->get_events() }) {
+        push @parts, join(':', 'E', map { defined $e->{$_} ? $e->{$_} : '' } qw(index type price dir magnitude));
+    }
+    for my $z (@{ $liq->get_zones() }) {
+        push @parts, join(':', 'Z', map { defined $z->{$_} ? $z->{$_} : '' } qw(index type lo hi price));
+    }
+    return join(' | ', sort @parts);
+}
+
+sub build_external_liq_chart {
+    my ($md) = @_;
+    my $smc = Market::Indicators::SMC_Structures->new(k => 2, swing_atr_factor => 0);
+    my $liq = Market::Indicators::Liquidity->new(k => 2, level_atr_factor => 0);
+    $liq->use_external_pivots(1);
+    return bless {
+        market_data       => $md,
+        smc_indicator     => $smc,
+        _smc_fed_up_to    => -1,
+        liq_indicator     => $liq,
+        _liq_fed_up_to    => -1,
+        overlay_manager   => Market::OverlayManager->new(),
+        replay_controller => Market::ReplayController->new(market_data => $md),
+    }, 'Market::ChartEngine';
+}
+
+{
+    my @d;
+    my @close = qw(100 102 105 103 99 96 98 104 108 106 101 97 94 99 105 111 109 104 98 93 96 103 110 116 112 106 101 95 99 107 114 118 113 108 102 97 100 106 112 109);
+    for my $i (0 .. $#close) {
+        my $c = $close[$i];
+        push @d, [sprintf('2026-04-01T00:%02d:00-05:00', $i), $c - 1, $c + 2, $c - 3, $c, 100 + $i];
+    }
+    my $md = TestMarketData->new(\@d);
+    my $last = $md->size() - 1;
+
+    my $full = build_external_liq_chart($md);
+    ok($full->_feed_liquidity_stack_to($last), 'Test5: alimentación completa devuelve done');
+
+    my $chunked = build_external_liq_chart($md);
+    my $done_first = $chunked->_feed_liquidity_stack_chunk($last, 4);
+    ok(!$done_first, 'Test5: primer chunk no completa todo el cálculo');
+    is($chunked->{_smc_fed_up_to}, 3, 'Test5: primer chunk solo avanzó SMC hasta 3');
+    is($chunked->{_liq_fed_up_to}, -1, 'Test5: primer chunk aún no alimenta Liquidity');
+
+    my $guard = 0;
+    until ($chunked->_feed_liquidity_stack_chunk($last, 4)) {
+        die 'Test5: loop de chunks no termina' if ++$guard > 100;
+    }
+    is($chunked->{_smc_fed_up_to}, $last, 'Test5: chunks terminaron SMC en target');
+    is($chunked->{_liq_fed_up_to}, $last, 'Test5: chunks terminaron Liquidity en target');
+    is(liquidity_signature($chunked->{liq_indicator}), liquidity_signature($full->{liq_indicator}),
+       'Test5: Liquidity por chunks == Liquidity completa (niveles/eventos/zonas)');
+}
+
 done_testing();

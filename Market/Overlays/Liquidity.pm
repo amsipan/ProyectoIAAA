@@ -85,8 +85,13 @@ sub new {
         # task 0027: agrupar BSL/SSL cercanos en banda sombreada.
         _band_mode => exists $args{band_mode} ? ($args{band_mode} ? 1 : 0) : 1,
         _band_atr  => defined $args{band_atr} ? $args{band_atr} : 0.5,
-        # task 0062: densidad de render (1–100%). Solo filtra al dibujar; 100% = sin cambio.
+        # task 0062/0063: densidad de render (1–100%). El constructor conserva
+        # 100% para compatibilidad/tests; market.pl baja la app a 20% por defecto
+        # porque el feedback profe/QA pidió "solo lo más relevante".
+        # set_density_pct() actúa como GLOBAL y sincroniza todas las familias;
+        # set_element_density_pct() permite separar una familia concreta.
         _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
+        _density_elem_pct => { map { $_ => (exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100) } keys %ELEMENT_TYPES },
         _draw_end_idx => 0,
     };
     bless $self, $class;
@@ -129,16 +134,46 @@ sub _clamp_density_pct {
     return $pct;
 }
 
-# set_density_pct($pct) — control de densidad de etiquetas en render (task 0062).
+# set_density_pct($pct) — control GLOBAL de densidad en render (task 0062/0063).
+# Además sincroniza todas las familias para el comportamiento esperado en UI:
+# tocar Global vuelve a igualar BSL/SSL/EQH/EQL/SWEEP/GRAB/RUN.
 sub set_density_pct {
     my ($self, $pct) = @_;
-    $self->{_density_pct} = _clamp_density_pct($pct);
+    my $v = _clamp_density_pct($pct);
+    $self->{_density_pct} = $v;
+    $self->{_density_elem_pct} ||= {};
+    for my $elem (keys %ELEMENT_TYPES) {
+        $self->{_density_elem_pct}{$elem} = $v;
+    }
     return $self;
 }
 
 sub density_pct {
     my ($self) = @_;
     return $self->{_density_pct} // 100;
+}
+
+sub set_element_density_pct {
+    my ($self, $element, $pct) = @_;
+    return $self unless defined $element && exists $ELEMENT_TYPES{$element};
+    $self->{_density_elem_pct} ||= {};
+    $self->{_density_elem_pct}{$element} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub element_density_pct {
+    my ($self, $element) = @_;
+    return $self->density_pct() unless defined $element && exists $ELEMENT_TYPES{$element};
+    return $self->{_density_elem_pct}{$element} // $self->density_pct();
+}
+
+sub _filter_by_element_density {
+    my ($self, $element, $items, $score_spec) = @_;
+    my $old = $self->{_density_pct};
+    $self->{_density_pct} = $self->element_density_pct($element);
+    my $out = $self->_filter_by_density($items, $score_spec);
+    $self->{_density_pct} = $old;
+    return $out;
 }
 
 sub tag { 'ov_liq' }
@@ -328,7 +363,11 @@ sub draw {
             defined $_->{type} && $_->{type} eq $elem
                 && defined $_->{index} && defined $_->{price}
         } @{ $self->{_levels} };
-        @lvls = @{ $self->_filter_by_density(\@lvls, 'magnitude') };
+        @lvls = @{ $self->_filter_by_element_density($elem, \@lvls, sub {
+            my ($lvl) = @_;
+            return $lvl->{magnitude} if defined $lvl->{magnitude};
+            return $lvl->{index} // 1;   # niveles sin magnitud: preferir los más recientes
+        }) };
         next unless @lvls;
         my $col = $self->_color($theme_k, $def_col);
         my $lbl_col = $self->_color($label_k, $def_col);
@@ -360,6 +399,10 @@ sub draw {
             my $internal = ($type =~ /^I-/) ? 1 : 0;
             my @items = sort { ($a->{index} // 0) <=> ($b->{index} // 0) }
                         grep { defined $_->{type} && $_->{type} eq $type } @{ $self->{_levels} };
+            @items = @{ $self->_filter_by_element_density($base, \@items, sub {
+                my ($item) = @_;
+                return abs(($item->{span} // 0)) || ($item->{magnitude} // 1) || 1;
+            }) };
 
             my %groups;
             my $has_gid = 1;
@@ -389,7 +432,7 @@ sub draw {
     # ORDEN 12 (task 0024): cuando varios marcadores caen en la MISMA vela se
     # solapan y se vuelven ilegibles. Llevamos un contador por indice para
     # apilarlos verticalmente (offset incremental) y que no se encimen.
-    my @event_candidates;
+    my %event_candidates_by_elem = map { $_ => [] } qw(SWEEP GRAB RUN);
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         # ORDEN 4 (task 0021 F): si only_relevant esta activo, solo dibujar las
@@ -399,12 +442,22 @@ sub draw {
         next if $self->{_only_relevant}
              && defined $e->{relevant} && !$e->{relevant};
         my $type = $e->{type};
-        next if ($type eq 'SWEEP_UP'   || $type eq 'SWEEP_DOWN') && !$ev->{SWEEP};
-        next if $type eq 'GRAB' && !$ev->{GRAB};
-        next if $type eq 'RUN'  && !$ev->{RUN};
-        push @event_candidates, $e;
+        if ($type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN') {
+            next unless $ev->{SWEEP};
+            push @{ $event_candidates_by_elem{SWEEP} }, $e;
+        } elsif ($type eq 'GRAB') {
+            next unless $ev->{GRAB};
+            push @{ $event_candidates_by_elem{GRAB} }, $e;
+        } elsif ($type eq 'RUN') {
+            next unless $ev->{RUN};
+            push @{ $event_candidates_by_elem{RUN} }, $e;
+        }
     }
-    my @events_draw = @{ $self->_filter_by_density(\@event_candidates, 'magnitude') };
+    my @events_draw;
+    for my $elem (qw(SWEEP GRAB RUN)) {
+        push @events_draw, @{ $self->_filter_by_element_density($elem, $event_candidates_by_elem{$elem}, 'magnitude') };
+    }
+    @events_draw = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @events_draw;
 
     my %stack;
     for my $e (@events_draw) {

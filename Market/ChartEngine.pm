@@ -308,17 +308,20 @@ sub sync_overlay_indicators {
     # task 0055: Liquidity puede depender de pivotes SMC aunque el overlay SMC esté apagado.
     # Si Liq quiere alimentación, SMC también debe alimentarse hasta feed_to para no dejar
     # Liquidity en modo externo sin pivotes.
-    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('smc') || $liq_wants_feed;
+    my $smc_wants_feed = $self->_overlay_wants_feed('smc') ? 1 : 0;
     if ($liq_wants_feed && $self->{liq_indicator}) {
         # task 0055: pivotes SMC hasta feed_to (sin futuro en Replay).
-        if ($self->{smc_indicator}) {
-            my @pivots = grep {
-                defined $_->{index} && $_->{index} <= $feed_to
-            } @{ $self->{smc_indicator}->get_pivots() };
-            $self->{liq_indicator}->set_external_pivots(\@pivots);
+        # task 0063: en la app real puede alimentarse por chunks para que activar
+        # Liquidez no congele la UI; tests/headless conservan comportamiento full.
+        if ($self->{_liq_background_feed_enabled}
+            && (($self->{_liq_fed_up_to} // -1) < $feed_to)) {
+            my $done = $self->_feed_liquidity_stack_chunk($feed_to, $self->{_liq_feed_chunk_size} // 300);
+            $self->_schedule_liquidity_background_feed() unless $done;
+        } else {
+            $self->_feed_liquidity_stack_to($feed_to);
         }
-        $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
+    } elsif ($smc_wants_feed) {
+        $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
     }
     $self->_feed_indicator_to($self->{strategy_indicator}, '_strategy_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('strategy');
@@ -430,6 +433,131 @@ sub _feed_indicator_to {
         $self->{$cursor_key} = $feed_to;
     }
     return;
+}
+
+# task 0063: alimentación coordinada SMC → Liquidity. Mantiene el contrato de
+# 0055 (Liquidity usa pivotes SMC externos) y permite avanzar por chunks para no
+# bloquear Tk al activar la capa en un histórico largo.
+sub _reset_liquidity_feed_state {
+    my ($self) = @_;
+    return unless $self->{liq_indicator};
+    $self->{liq_indicator}->reset();
+    $self->{_liq_fed_up_to} = -1;
+    $self->{_liq_pivots_synced_to} = undef;
+    return;
+}
+
+sub _ensure_liquidity_target_state {
+    my ($self, $target) = @_;
+    return unless defined $target;
+    my $liq_fed = $self->{_liq_fed_up_to} // -1;
+    if ($liq_fed > $target) {
+        $self->_reset_liquidity_feed_state();
+        return;
+    }
+    # Los pivotes SMC visibles para Liquidity dependen del target efectivo
+    # (sobre todo en Replay). Si el target cambia, recalcular Liquidity evita que
+    # queden niveles procesados con pivotes confirmados bajo otro horizonte.
+    if ($liq_fed >= 0
+        && defined $self->{_liq_pivots_synced_to}
+        && $self->{_liq_pivots_synced_to} != $target) {
+        $self->_reset_liquidity_feed_state();
+    }
+    return;
+}
+
+sub _feed_liquidity_stack_to {
+    my ($self, $feed_to) = @_;
+    return unless defined $feed_to && $feed_to >= 0;
+    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
+    $self->_ensure_liquidity_target_state($feed_to);
+    $self->_sync_liquidity_external_pivots_for_target($feed_to);
+    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
+    return 1;
+}
+
+sub _sync_liquidity_external_pivots_for_target {
+    my ($self, $target) = @_;
+    return unless defined $target;
+    return unless $self->{smc_indicator} && $self->{liq_indicator};
+    return if defined $self->{_liq_pivots_synced_to}
+        && $self->{_liq_pivots_synced_to} == $target;
+    my @pivots = grep {
+        defined $_->{index} && $_->{index} <= $target
+    } @{ $self->{smc_indicator}->get_pivots() };
+    $self->{liq_indicator}->set_external_pivots(\@pivots);
+    $self->{_liq_pivots_synced_to} = $target;
+    return;
+}
+
+sub _feed_liquidity_stack_chunk {
+    my ($self, $target, $chunk) = @_;
+    return 1 unless defined $target && $target >= 0;
+    $chunk ||= 600;
+    $self->_ensure_liquidity_target_state($target);
+
+    # Importante para mantener resultados idénticos al cálculo batch previo:
+    # SMC confirma pivotes con retraso; si alimentamos SMC y Liquidity en lockstep,
+    # Liquidity puede procesar velas antes de conocer pivotes SMC que batch sí conocía.
+    # Por eso el modo no bloqueante tiene dos fases:
+    #   1) SMC avanza por chunks hasta el target (sin congelar Tk).
+    #   2) Liquidity avanza por chunks usando la lista completa de pivotes SMC
+    #      válida hasta ese target. El resultado final coincide con _feed_*_to().
+    my $smc_fed = $self->{_smc_fed_up_to} // -1;
+    if ($smc_fed > $target) {
+        $self->{smc_indicator}->reset() if $self->{smc_indicator};
+        $self->{_smc_fed_up_to} = -1;
+        $self->_reset_liquidity_feed_state();
+        $smc_fed = -1;
+    }
+    if ($smc_fed < $target) {
+        my $smc_to = $smc_fed + $chunk;
+        $smc_to = $target if $smc_to > $target;
+        $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $smc_to);
+        return 0;
+    }
+
+    $self->_sync_liquidity_external_pivots_for_target($target);
+    my $liq_to = ($self->{_liq_fed_up_to} // -1) + $chunk;
+    $liq_to = $target if $liq_to > $target;
+    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $liq_to);
+    return (($self->{_liq_fed_up_to} // -1) >= $target) ? 1 : 0;
+}
+
+sub enable_liquidity_background_feed {
+    my ($self, %opts) = @_;
+    $self->{_liq_background_feed_enabled} = 1;
+    $self->{_liq_feed_chunk_size} = $opts{chunk_size} if defined $opts{chunk_size};
+    $self->{_liq_feed_after_ms}   = $opts{after_ms}   if defined $opts{after_ms};
+    $self->_schedule_liquidity_background_feed();
+    return $self;
+}
+
+sub _schedule_liquidity_background_feed {
+    my ($self) = @_;
+    return unless $self->{_liq_background_feed_enabled};
+    return if $self->{_liq_background_feed_pending};
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+    return unless $canvas;
+    $self->{_liq_background_feed_pending} = 1;
+    my $delay = $self->{_liq_feed_after_ms} // 80;
+    $canvas->after($delay, sub {
+        $self->{_liq_background_feed_pending} = 0;
+        my $replay = $self->{replay_controller};
+        return if $replay && $replay->is_active();  # nunca precalentar futuro durante Replay
+        my $md = $self->{market_data};
+        return unless $md && $md->can('size');
+        my $target = $md->size() - 1;
+        return if $target < 0;
+        my $done = $self->_feed_liquidity_stack_chunk($target, $self->{_liq_feed_chunk_size} // 300);
+        if ($done) {
+            my $ov = $self->{overlay_manager} ? $self->{overlay_manager}->get('liq') : undef;
+            $self->request_render() if $ov && $ov->is_visible();
+        } else {
+            $self->_schedule_liquidity_background_feed();
+        }
+    });
+    return $self;
 }
 
 sub round {
@@ -2821,6 +2949,7 @@ sub set_timeframe {
     if ($self->{liq_indicator}) {
         $self->{liq_indicator}->reset();
         $self->{_liq_fed_up_to} = -1;
+        $self->{_liq_pivots_synced_to} = undef;
     }
     if ($self->{strategy_indicator}) {
         $self->{strategy_indicator}->reset();

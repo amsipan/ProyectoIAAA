@@ -172,7 +172,11 @@ my $vis_vwap = 0;
 my $vis_mxwll = 0;
 my $vis_zigzag = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
-my $liq_density_pct = 100;
+# Feedback profe/QA: arrancar con pocas marcas, solo las más relevantes.
+my $liq_density_pct = 20;
+my %liq_elem_density_pct = map { $_ => $liq_density_pct } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+$chart_engine->{liq_overlay}->set_density_pct($liq_density_pct)
+    if $chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_density_pct');
 my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
 my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
@@ -251,10 +255,20 @@ $ui_vars{show_default_tab} = sub {
 };
 
 # --- Botones de pestaña en la fila superior ---
+# Etiquetas más explícitas para exposición; las claves internas se conservan para
+# no tocar callbacks ni lógica de Replay.
+my %tab_label = (
+    Capas  => 'Capas',
+    Liq    => 'Liquidez',
+    Mxwll  => 'SMC/Mxwll',
+    ZigZag => 'ZigZag',
+    Escala => 'Escala',
+    Replay => 'Replay',
+);
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 8);
 for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     $tabs_box->Radiobutton(
-        -text => $name, -value => $name, -variable => \$active_tab,
+        -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
         -command => sub {
             $show_panel->($name);
@@ -285,20 +299,28 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
 }
 
-# ---- Panel "Liq": sub-filtros de liquidez ----
+# ---- Panel "Liquidez": capa principal + densidad global/por familia ----
 {
     my $p = $panel{Liq};
-    $p->Label(-text => 'Liq:')->pack(-side => 'left', -padx => 3);
+    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $main_box->Label(-text => 'Liquidez:')->pack(-side => 'left', -padx => 3);
+    $main_box->Checkbutton(-text => 'Mostrar', -variable => \$vis_liq,
+        -command => sub { $cb_liq->($vis_liq ? 1 : 0); })->pack(-side => 'left');
+
+    my $families_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $families_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
     for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
-        $p->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
+        $families_box->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
             -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }
-    $p->Label(-text => 'Densidad %')->pack(-side => 'left', -padx => 6);
-    $p->Scale(
+
+    my $density_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $density_box->Label(-text => 'Densidad global')->pack(-side => 'left', -padx => 3);
+    $density_box->Scale(
         -from     => 1,
         -to       => 100,
         -orient   => 'horizontal',
-        -length   => 120,
+        -length   => 95,
         -variable => \$liq_density_pct,
         -command  => sub {
             my $v = shift;
@@ -306,9 +328,35 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
             my $liq = $chart_engine->{liq_overlay};
             return unless $liq && $liq->can('set_density_pct');
             $liq->set_density_pct($v);
+            for my $elem (keys %liq_elem_density_pct) {
+                $liq_elem_density_pct{$elem} = int($v + 0.5);
+            }
             $chart_engine->request_render();
         },
     )->pack(-side => 'left', -padx => 2);
+
+    my $per_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $per_box->Label(-text => 'Por tipo')->pack(-side => 'left', -padx => 3);
+    for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
+        my $mini = $per_box->Frame()->pack(-side => 'left', -padx => 1);
+        $mini->Label(-text => $elem)->pack(-side => 'top');
+        $mini->Scale(
+            -from     => 1,
+            -to       => 100,
+            -orient   => 'horizontal',
+            -length   => 55,
+            -showvalue => 0,
+            -variable => \$liq_elem_density_pct{$elem},
+            -command  => sub {
+                my $v = shift;
+                $v = $liq_elem_density_pct{$elem} unless defined $v;
+                my $liq = $chart_engine->{liq_overlay};
+                return unless $liq && $liq->can('set_element_density_pct');
+                $liq->set_element_density_pct($elem, $v);
+                $chart_engine->request_render();
+            },
+        )->pack(-side => 'top');
+    }
 }
 
 # ---- Panel "Mxwll": sub-filtros de la capa Mxwll (ORDEN 9 / task 0021 I) ----
@@ -392,6 +440,10 @@ $mw->update if $maximized;
 $mw->after(200, sub {
     print "[*] Render inicial (Fase 1: velas + ATR; capas bajo demanda)...\n";
     $chart_engine->render();
+    # Precálculo no bloqueante: Liquidez/SMC se alimentan por pedazos mientras la
+    # app queda interactiva. Así activar Liquidez o subir densidad no congela la UI.
+    $chart_engine->enable_liquidity_background_feed(chunk_size => 300, after_ms => 40)
+        if $chart_engine->can('enable_liquidity_background_feed');
     $mw->after(200,  sub { $chart_engine->request_render(); });
     $mw->after(800,  sub { $chart_engine->request_render(); });
 });

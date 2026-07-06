@@ -135,6 +135,7 @@ sub new {
         _use_external_pivots  => 0,
         _external_pivots      => [],
         _external_pivot_seen  => {},
+        _external_pivot_cursor => 0,
     };
     bless $self, $class;
     return $self;
@@ -390,10 +391,15 @@ sub _sync_external_pivots_upto {
 
     my $pivots = $self->{_external_pivots} // [];
     my $seen   = $self->{_external_pivot_seen} //= {};
+    my $cursor = $self->{_external_pivot_cursor} // 0;
+    my $n = scalar(@$pivots);
 
-    for my $p (sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @$pivots) {
+    while ($cursor < $n) {
+        my $p = $pivots->[$cursor];
         my $idx = $p->{index};
-        next unless defined $idx && $idx <= $upto_index;
+        last if defined $idx && $idx > $upto_index;
+        $cursor++;
+        next unless defined $idx;
         my $price = $p->{price};
         next unless defined $price;
         my $side = $self->_external_pivot_side($p);
@@ -408,6 +414,7 @@ sub _sync_external_pivots_upto {
             $self->_apply_swing_low($idx, $price);
         }
     }
+    $self->{_external_pivot_cursor} = $cursor;
     return;
 }
 
@@ -1137,7 +1144,15 @@ sub use_external_pivots {
 
 sub set_external_pivots {
     my ($self, $pivots) = @_;
-    $self->{_external_pivots} = $pivots // [];
+    my $old_n = scalar @{ $self->{_external_pivots} // [] };
+    my @sorted = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @{ $pivots // [] };
+    $self->{_external_pivots} = \@sorted;
+    # Normalmente ChartEngine entrega prefijos crecientes; preservamos cursor/seen.
+    # Si la lista se achica (cambio de replay/TF/reset externo), empezamos de cero.
+    if (@sorted < $old_n) {
+        $self->{_external_pivot_seen} = {};
+        $self->{_external_pivot_cursor} = 0;
+    }
     return $self;
 }
 
@@ -1298,8 +1313,9 @@ sub reset {
     $self->{_epoch_cache_size} = {};
     $self->{_daily_ohlc}  = undef;
     $self->{_weekly_ohlc} = undef;
-    $self->{_external_pivots}     = [];
-    $self->{_external_pivot_seen} = {};
+    $self->{_external_pivots}      = [];
+    $self->{_external_pivot_seen}  = {};
+    $self->{_external_pivot_cursor} = 0;
     return;
 }
 
