@@ -98,10 +98,16 @@ sub build_ohlc {
     $scales->{width} = 500;
     $scales->{height} = 400;
 
+    $ov->compute_visible(undef, $ind, 0, 4);
+    $ov->draw($canvas, $scales);
+    is(scalar(grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} }), 0,
+       'Strategy default: no dibuja curvas ST/HT/RF al activar la capa');
+
+    $canvas->{ops} = [];
+    $ov->set_element_visible('SUPERTREND', 1);
     $ov->set_element_visible('HALFTREND', 0);
     $ov->set_element_visible('RANGEFILTER', 0);
     $ov->set_element_visible('SUPPLY_DEMAND', 0);
-    $ov->compute_visible(undef, $ind, 0, 4);
     $ov->draw($canvas, $scales);
     my @st_lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
     is(scalar(@st_lines), 3, 'SuperTrend: rompe en flip (3 segmentos, no 4)');

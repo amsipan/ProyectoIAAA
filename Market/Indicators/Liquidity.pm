@@ -77,6 +77,18 @@ sub new {
         eqhl_atr_period => $eqhl_atr_period,
         sweep_atr_factor => $sweep_atr_factor,
         level_atr_factor => $level_atr_factor,
+        # PROFE (clase liquidez): la ZONA 1 de liquidez es "arriba de los equal highs
+        # y abajo de los equal lows"; por tanto un EQH/EQL puede ser barrido y debe
+        # emitir sweep/grab/run igual que un swing BSL/SSL. Por defecto OFF para no
+        # alterar los conteos exactos de los fixtures/tests existentes; ChartEngine
+        # lo activa (opt-in) para que la app muestre EQ RUN/EQ GRAB.
+        eqhl_liquidity => defined $opts{eqhl_liquidity} ? $opts{eqhl_liquidity} : 0,
+        # QA/profe: evitar columnas de LQ GRAB/RUN casi idénticos. La deduplicación
+        # se aplica a eventos resueltos cercanos en tiempo/precio, conservando el
+        # más relevante/extremo. Es render/cálculo de señal, no cambia OHLC.
+        event_dedupe_bars => defined $opts{event_dedupe_bars} ? $opts{event_dedupe_bars} : 3,
+        event_dedupe_atr_factor => defined $opts{event_dedupe_atr_factor} ? $opts{event_dedupe_atr_factor} : 0.75,
+        max_event_stack_per_index => defined $opts{max_event_stack_per_index} ? $opts{max_event_stack_per_index} : 1,
         # FSM "leg" de EQH/EQL (paridad LuxAlgo). leg: 0=BEARISH, 1=BULLISH.
         # Dos conjuntos de estado: 'ext' (externo, EQH/EQL) e 'int' (I-EQH/I-EQL).
         _eq_leg        => { ext => 0, int => 0 },
@@ -136,6 +148,8 @@ sub new {
         _external_pivots      => [],
         _external_pivot_seen  => {},
         _external_pivot_cursor => 0,
+        _event_dedupe_slots   => {},
+        _event_stack_slots    => {},
     };
     bless $self, $class;
     return $self;
@@ -488,6 +502,11 @@ sub _update_eqhl_leg {
             push @{ $self->{_levels} }, {
                 index => $piv, type => $label_hi, price => $hk, group_id => $gid,
             };
+            # PROFE: sobre un EQH se acumula liquidez → registrar como nivel barrible
+            # al alza (misma FSM que BSL) para que emita EQ SWEEP/GRAB/RUN. Solo el
+            # par externo canónico (kind 'ext'); los internos I-EQH quedan como dibujo.
+            $self->_register_eq_liquidity_level($piv, $hk, 'BSL', 'EQH')
+                if $self->{eqhl_liquidity} && $kind eq 'ext';
         }
         $self->{_eq_high_level}{$kind} = $hk;
         $self->{_eq_high_bar}{$kind}   = $piv;
@@ -504,6 +523,10 @@ sub _update_eqhl_leg {
             push @{ $self->{_levels} }, {
                 index => $piv, type => $label_lo, price => $lk, group_id => $gid,
             };
+            # PROFE: bajo un EQL se acumula liquidez → registrar como nivel barrible
+            # a la baja (misma FSM que SSL) para que emita EQ SWEEP/GRAB/RUN.
+            $self->_register_eq_liquidity_level($piv, $lk, 'SSL', 'EQL')
+                if $self->{eqhl_liquidity} && $kind eq 'ext';
         }
         $self->{_eq_low_level}{$kind} = $lk;
         $self->{_eq_low_bar}{$kind}   = $piv;
@@ -686,6 +709,15 @@ sub _resolve {
         ? ($lvl->{swept_extreme} // $c_high)
         : ($lvl->{swept_extreme} // $c_low);
 
+    my $draw_index = $classification eq 'RUN'
+        ? $self->_run_marker_index($lvl, $index, $dir)
+        : $index;
+    my $draw_high = $self->{_highs}->[$draw_index] // $c_high;
+    my $draw_low  = $self->{_lows}->[$draw_index]  // $c_low;
+    my $draw_extreme = $classification eq 'RUN'
+        ? ($dir eq 'up' ? $draw_high : $draw_low)
+        : $extreme;
+
     # ORDEN 4 (task 0021 F): magnitud del barrido y relevancia vs ATR local.
     # magnitude = cuanto penetro el precio mas alla del nivel (|extreme-nivel|).
     # relevant=1 si magnitude >= sweep_atr_factor * ATR; con factor 0, todo
@@ -698,12 +730,17 @@ sub _resolve {
         $relevant = ($magnitude >= $factor * $atr) ? 1 : 0;
     }
 
-    push @{ $self->{_events} }, {
+    my $event = {
+        # index conserva la vela donde realmente se confirmo la señal.
+        # marker_index es la vela de dibujo/recoloreo para RUN en el trayecto.
         index   => $index,
+        confirm_index => $index,
+        marker_index => $draw_index,
         type    => $classification,
         dir     => $dir,
         price   => $lvl->{price},
-        extreme => $extreme,
+        extreme => $draw_extreme,
+        swept_extreme => $extreme,
         state   => 'Resolved',
         meta    => $meta,
         magnitude => $magnitude,
@@ -716,8 +753,152 @@ sub _resolve {
         level_index => $lvl->{index},
         level_type  => $lvl->{side} // $lvl->{type},
         level_price => $lvl->{price},
+        swept_index => $lvl->{swept_index},
+        # PROFE: origen del nivel barrido. 'EQH'/'EQL' cuando la toma nace de equal
+        # highs/lows (zona 1 de liquidez); undef para swings BSL/SSL normales.
+        origin      => $lvl->{origin},
     };
+    $self->_add_resolved_event($event);
     return;
+}
+
+# RUN se confirma al completar N cierres, pero visualmente representa continuacion
+# del trayecto. Elegimos una vela intermedia entre sweep y confirmacion para evitar
+# ubicar LQ RUN sobre el pico/HH/LL final. La confirmacion real queda en confirm_index.
+sub _run_marker_index {
+    my ($self, $lvl, $confirm_index, $dir) = @_;
+    my $start = $lvl->{swept_index};
+    return $confirm_index unless defined $start && $confirm_index > $start;
+
+    my $from = $start + 1;
+    my $to   = $confirm_index - 1;
+    return $start if $from > $to;
+
+    my $level = $lvl->{price};
+    my @candidates;
+    for my $i ($from .. $to) {
+        my $close = $self->{_closes}->[$i];
+        next unless defined $close;
+        next if $dir eq 'up'   && $close <= $level;
+        next if $dir eq 'down' && $close >= $level;
+        my $high = $self->{_highs}->[$i] // $close;
+        my $low  = $self->{_lows}->[$i]  // $close;
+        push @candidates, {
+            index => $i,
+            dist_center => abs($i - (($start + $confirm_index) / 2)),
+            extension => abs($close - $level),
+            range => abs($high - $low),
+        };
+    }
+    @candidates = map { $_->[0] }
+                  sort {
+                      $a->[1] <=> $b->[1]
+                      || $a->[0]{dist_center} <=> $b->[0]{dist_center}
+                      || $a->[0]{index} <=> $b->[0]{index}
+                  }
+                  map {
+                      # Preferir trayecto, no vela extrema de oscilacion local.
+                      my $is_pivot = (defined $self->{_swing_h}->[$_->{index}] || defined $self->{_swing_l}->[$_->{index}]) ? 1 : 0;
+                      [ $_, $is_pivot ]
+                  } @candidates;
+    return $candidates[0]{index} if @candidates;
+    return int(($start + $confirm_index) / 2);
+}
+
+sub _add_resolved_event {
+    my ($self, $event) = @_;
+    my $key = $self->_event_dedupe_key($event);
+    if (defined $key && defined $self->{_event_dedupe_slots}{$key}) {
+        my $idx = $self->{_event_dedupe_slots}{$key};
+        my $old = $self->{_events}->[$idx];
+        if ($self->_event_score($event) > $self->_event_score($old)) {
+            $self->_unindex_event_stack($old);
+            $self->{_events}->[$idx] = $event;
+            $self->_index_event_stack($event, $idx);
+        }
+        return;
+    }
+
+    my $stack_key = $self->_event_stack_key($event);
+    if (defined $stack_key) {
+        my $limit = $self->{max_event_stack_per_index} // 1;
+        my $slot = $self->{_event_stack_slots}{$stack_key} ||= [];
+        if (@$slot >= $limit) {
+            my ($worst_pos, $worst_idx, $worst_score) = (undef, undef, undef);
+            for my $pos (0 .. $#$slot) {
+                my $idx = $slot->[$pos];
+                my $score = $self->_event_score($self->{_events}->[$idx]);
+                if (!defined $worst_score || $score < $worst_score) {
+                    ($worst_pos, $worst_idx, $worst_score) = ($pos, $idx, $score);
+                }
+            }
+            return if defined $worst_score && $self->_event_score($event) <= $worst_score;
+            my $old = $self->{_events}->[$worst_idx];
+            my $old_key = $self->_event_dedupe_key($old);
+            delete $self->{_event_dedupe_slots}{$old_key} if defined $old_key;
+            $self->{_events}->[$worst_idx] = $event;
+            $slot->[$worst_pos] = $worst_idx;
+            $self->{_event_dedupe_slots}{$key} = $worst_idx if defined $key;
+            return;
+        }
+    }
+
+    push @{ $self->{_events} }, $event;
+    my $idx = $#{ $self->{_events} };
+    $self->{_event_dedupe_slots}{$key} = $idx if defined $key;
+    $self->_index_event_stack($event, $idx);
+    return;
+}
+
+sub _event_stack_key {
+    my ($self, $event) = @_;
+    return undef unless $event && ($event->{type} // '') =~ /^(?:GRAB|RUN)$/;
+    return join ':', ($event->{type} // ''), ($event->{marker_index} // $event->{index} // '');
+}
+
+sub _index_event_stack {
+    my ($self, $event, $idx) = @_;
+    my $stack_key = $self->_event_stack_key($event);
+    return unless defined $stack_key;
+    push @{ $self->{_event_stack_slots}{$stack_key} ||= [] }, $idx;
+    return;
+}
+
+sub _unindex_event_stack {
+    my ($self, $event) = @_;
+    my $stack_key = $self->_event_stack_key($event);
+    return unless defined $stack_key && $self->{_event_stack_slots}{$stack_key};
+    my @keep = grep { defined $self->{_events}->[$_] && $self->{_events}->[$_] ne $event } @{ $self->{_event_stack_slots}{$stack_key} };
+    $self->{_event_stack_slots}{$stack_key} = \@keep;
+    return;
+}
+
+sub _event_dedupe_key {
+    my ($self, $event) = @_;
+    return undef unless $event && ($event->{type} // '') =~ /^(?:GRAB|RUN)$/;
+    my $bars = $self->{event_dedupe_bars} // 0;
+    return undef if $bars <= 0;
+    my $idx = $event->{marker_index} // $event->{index} // $event->{confirm_index};
+    return undef unless defined $idx;
+    my $atr = $self->_get_atr_at($event->{confirm_index} // $idx) // 0;
+    my $tick = $atr * ($self->{event_dedupe_atr_factor} // 0.75);
+    $tick = 1 if $tick < 1;
+    my $time_bucket = int($idx / ($bars + 1));
+    my $price = $event->{price} // 0;
+    my $price_bucket = int(($price / $tick) + ($price >= 0 ? 0.5 : -0.5));
+    return join ':', $event->{type}, ($event->{dir} // ''), $time_bucket, $price_bucket;
+}
+
+sub _event_score {
+    my ($self, $event) = @_;
+    return -1e9 unless $event;
+    my $score = ($event->{magnitude} // 0) * 1000;
+    $score += ($event->{confirm_index} // $event->{index} // 0) * 0.001;
+    if (($event->{type} // '') eq 'GRAB') {
+        my $ext = $event->{swept_extreme} // $event->{extreme} // $event->{price} // 0;
+        $score += (($event->{dir} // '') eq 'up' ? $ext : -$ext) * 0.0001;
+    }
+    return $score;
 }
 
 # =============================================================================
@@ -1131,6 +1312,23 @@ sub _register_level_ref {
     return;
 }
 
+# PROFE: registra un nivel EQH/EQL como nivel de liquidez barrible en la FSM.
+# $side = 'BSL' (EQH, barrido al alza) | 'SSL' (EQL, barrido a la baja).
+# $origin_type = 'EQH'|'EQL' se propaga al evento (level_type) para que el overlay
+# distinga las tomas que nacen de equal highs/lows de las de swings normales.
+sub _register_eq_liquidity_level {
+    my ($self, $index, $price, $side, $origin_type) = @_;
+    return unless defined $index && defined $price;
+    my $lvl = {
+        index  => $index,
+        type   => $side,
+        price  => $price,
+        origin => $origin_type,
+    };
+    $self->_register_level_ref($lvl);
+    return;
+}
+
 # =============================================================================
 # Public API
 # =============================================================================
@@ -1316,6 +1514,8 @@ sub reset {
     $self->{_external_pivots}      = [];
     $self->{_external_pivot_seen}  = {};
     $self->{_external_pivot_cursor} = 0;
+    $self->{_event_dedupe_slots}   = {};
+    $self->{_event_stack_slots}    = {};
     return;
 }
 

@@ -129,7 +129,7 @@ sub _clamp_density_pct {
     my ($pct) = @_;
     return 100 unless defined $pct;
     $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
-    return 1   if $pct < 1;
+    return 0   if $pct < 0;
     return 100 if $pct > 100;
     return $pct;
 }
@@ -277,7 +277,12 @@ sub _levels_window_filter {
 sub _window_filter {
     my ($items, $start, $end) = @_;
     return [] unless defined $items;
-    return [ grep { defined $_->{index} && $_->{index} >= $start && $_->{index} <= $end } @$items ];
+    return [ grep {
+        defined $_->{index}
+        && $_->{index} >= $start
+        && $_->{index} <= $end
+        && (!defined $_->{confirm_index} || $_->{confirm_index} <= $end)
+    } @$items ];
 }
 
 # _filter_by_density($items, $score_key_or_cb) — top ceil(N*pct/100) por score desc.
@@ -287,6 +292,7 @@ sub _filter_by_density {
     my ($self, $items, $score_spec) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->{_density_pct} // 100;
+    return [] if $pct <= 0;
     return $items if $pct >= 100 || @$items == 0;
 
     my $n = scalar @$items;
@@ -464,6 +470,10 @@ sub draw {
     for my $e (@events_draw) {
         my $type = $e->{type};
         my $level = $stack{$e->{index}}++;   # 0 el primero, 1 el segundo, ...
+        # PROFE: prefijo EQ cuando la toma nace de equal highs/lows (zona 1), LQ si
+        # nace de un swing normal BSL/SSL. Distingue visualmente el origen.
+        my $is_eq = (($e->{origin} // '') eq 'EQH' || ($e->{origin} // '') eq 'EQL') ? 1 : 0;
+        my $pfx   = $is_eq ? 'EQ' : 'LQ';
 
         if ($type eq 'SWEEP_UP' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
@@ -477,13 +487,13 @@ sub draw {
             );
         } elsif ($type eq 'GRAB' && $ev->{GRAB}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
-                'LQ GRAB',
+                "$pfx GRAB",
                 $self->_color('liq_grab', '#ff9800'), $level, \@event_label_boxes,
             );
         } elsif ($type eq 'RUN' && $ev->{RUN}) {
             $self->_highlight_run_candle($canvas, $scales, $tag, $e);
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
-                'LQ RUN',
+                "$pfx RUN",
                 $self->_color('liq_run', '#2962ff'), $level, \@event_label_boxes,
             );
         }
@@ -679,7 +689,7 @@ sub _highlight_run_candle {
     my ($self, $canvas, $scales, $tag, $e) = @_;
     my $md = $self->{_market_data};
     return unless $md && $md->can('get_candle');
-    my $idx = $e->{index};
+    my $idx = $e->{marker_index} // $e->{index};
     return unless defined $idx;
     my $candle = $md->get_candle($idx);
     return unless $candle && @$candle >= 5;
@@ -729,7 +739,8 @@ sub _highlight_run_candle {
 sub _draw_event_marker {
     my ($self, $canvas, $scales, $tag, $e, $label, $color, $level, $label_boxes) = @_;
     $level ||= 0;
-    my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
+    my $marker_index = $e->{marker_index} // $e->{index};
+    my $x = $scales->index_to_center_x($self->_local_index($marker_index));
 
     my $price = $e->{extreme} // $e->{price};
     return unless defined $price;

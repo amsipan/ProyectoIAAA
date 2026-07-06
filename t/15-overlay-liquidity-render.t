@@ -750,7 +750,9 @@ sub _line_signature {
     is($ov->element_density_pct('GRAB'), 30, '0063: mover global resincroniza GRAB');
 
     $ov->set_density_pct(0);
-    is($ov->density_pct(), 1, '0062: setter clamp minimo 1');
+    is($ov->density_pct(), 0, '0065: setter acepta minimo 0 para ocultar por completo');
+    my $none = $ov->filter_by_density(\@items, 'magnitude');
+    is(scalar(@$none), 0, '0065: pct=0 no dibuja items');
     $ov->set_density_pct(200);
     is($ov->density_pct(), 100, '0062: setter clamp maximo 100');
 }

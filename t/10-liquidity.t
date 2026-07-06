@@ -428,6 +428,10 @@ sub events_of_type {
     is($run[0]->{state}, 'Resolved', 'Run: state = Resolved');
     is($run[0]->{dir}, 'up', 'Run: dir = up');
     is($run[0]->{index}, 7, 'Run: index = vela de resolución (7)');
+    is($run[0]->{confirm_index}, 7, 'Run: confirm_index = vela de confirmación (7)');
+    ok(defined $run[0]->{marker_index}, 'Run: marker_index definido para dibujo en trayecto');
+    cmp_ok($run[0]->{marker_index}, '<', $run[0]->{confirm_index}, 'Run: marker_index queda antes de confirmación/pico');
+    cmp_ok($run[0]->{marker_index}, '>', $run[0]->{swept_index}, 'Run: marker_index queda después del sweep');
 
     # Invariante: sin SWEEP ni GRAB
     my @sweep = events_of_type($events, 'SWEEP_UP');
@@ -462,6 +466,38 @@ sub events_of_type {
     is($run[0]->{price}, 10, 'SSL Run: price = SSL roto (10)');
     is($run[0]->{dir}, 'down', 'SSL Run: dir = down');
     is($run[0]->{index}, 7, 'SSL Run: index = 7');
+    ok(defined $run[0]->{marker_index}, 'SSL Run: marker_index definido');
+    cmp_ok($run[0]->{marker_index}, '<', $run[0]->{confirm_index}, 'SSL Run: marker_index antes de confirmación');
+}
+
+# --- 14b. RUN cercanos no forman columnas verticales imposibles ---
+{
+    my @events = (
+        { type => 'RUN', dir => 'up', index => 10, marker_index => 8, confirm_index => 10, price => 15, magnitude => 1, relevant => 1 },
+        { type => 'RUN', dir => 'up', index => 10, marker_index => 8, confirm_index => 10, price => 15.1, magnitude => 3, relevant => 1 },
+        { type => 'RUN', dir => 'up', index => 10, marker_index => 8, confirm_index => 10, price => 15.2, magnitude => 2, relevant => 1 },
+    );
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq->{_atr_vals}[10] = 1;
+    $liq->_add_resolved_event($_) for @events;
+    my @run = events_of_type($liq->get_events(), 'RUN');
+    is(scalar(@run), 1, 'RUN dedupe: no permite columna de varios LQ RUN en la misma vela');
+    is($run[0]->{magnitude}, 3, 'RUN dedupe: conserva el evento más relevante');
+}
+
+# --- 14c. GRAB similares se reducen al extremo/relevante ---
+{
+    my @events = (
+        { type => 'GRAB', dir => 'up', index => 20, marker_index => 20, confirm_index => 20, price => 30, swept_extreme => 31, magnitude => 1, relevant => 1 },
+        { type => 'GRAB', dir => 'up', index => 21, marker_index => 21, confirm_index => 21, price => 30.2, swept_extreme => 35, magnitude => 5, relevant => 1 },
+        { type => 'GRAB', dir => 'up', index => 22, marker_index => 22, confirm_index => 22, price => 30.1, swept_extreme => 32, magnitude => 2, relevant => 1 },
+    );
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 3, N => 3);
+    $liq->{_atr_vals}[20] = $liq->{_atr_vals}[21] = $liq->{_atr_vals}[22] = 1;
+    $liq->_add_resolved_event($_) for @events;
+    my @grab = events_of_type($liq->get_events(), 'GRAB');
+    is(scalar(@grab), 1, 'GRAB dedupe: reduce tomas similares cercanas');
+    is($grab[0]->{swept_extreme}, 35, 'GRAB dedupe: conserva la toma alcista más alta/relevante');
 }
 
 # --- 15. Estados intermedios: FSM transita Detected → Swept → Resolved ---
@@ -1359,6 +1395,60 @@ sub count_bsl_ssl {
         $_->{index} == $first_hh->{index} && abs($_->{price} - $first_hh->{price}) < 0.001
     } @bsl) || scalar(grep { abs($_->{price} - $first_hh->{price}) < 0.001 } @bsl),
        '0055 SMC cable: BSL alineado con precio del primer HH SMC');
+}
+
+# =============================================================================
+# PROFE (clase liquidez, zona 1): sobre un EQH se acumula liquidez, por tanto un
+# EQH barrido debe emitir un evento (EQ SWEEP/GRAB/RUN) con origin='EQH'. Solo
+# con eqhl_liquidity=1 (opt-in que activa ChartEngine); OFF por defecto para no
+# alterar los fixtures existentes.
+# =============================================================================
+{
+    my @c = (
+        [10,12, 8,10],   # 0
+        [10,13, 9,11],   # 1
+        [14,15,14,15],   # 2: pivote HIGH @2 = 15
+        [13,13, 7, 8],   # 3: pivote LOW
+        [ 9,10, 9,10],   # 4
+        [14,15,14,15],   # 5: pivote HIGH @5 = 15 → EQH par (2,5) → nivel barrible=15
+        [11,11, 6, 7],   # 6: pivote LOW (cierra el leg, confirma EQH)
+        [16,17,15,17],   # 7: high 17>15 → Swept up; close 17>15 → consec_out=1
+        [17,18,16,18],   # 8: close 18>15 → consec_out=2
+        [18,19,17,19],   # 9: close 19>15 → consec_out=3 → RUN
+    );
+    my $md  = build_ohlc(\@c);
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 4, N => 3,
+                                                 eqhl_size => 1, eqhl_atr_period => 20,
+                                                 eqhl_liquidity => 1);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my $events = $liq->get_events();
+
+    my @eq_events = grep { ($_->{origin} // '') eq 'EQH' } @$events;
+    ok(scalar(@eq_events) >= 1, 'PROFE: un EQH barrido emite evento con origin=EQH');
+    is($eq_events[0]->{level_type}, 'BSL', 'PROFE: EQH barrido se resuelve como nivel al alza');
+    ok((grep { $_->{type} eq 'RUN' } @eq_events), 'PROFE: EQH atravesado con continuación → EQ RUN');
+}
+
+# Sin eqhl_liquidity (default OFF): el mismo fixture NO produce eventos de origen EQ.
+{
+    my @c = (
+        [10,12, 8,10],
+        [10,13, 9,11],
+        [14,15,14,15],
+        [13,13, 7, 8],
+        [ 9,10, 9,10],
+        [14,15,14,15],
+        [11,11, 6, 7],
+        [16,17,15,17],
+        [17,18,16,18],
+        [18,19,17,19],
+    );
+    my $md  = build_ohlc(\@c);
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 4, N => 3,
+                                                 eqhl_size => 1, eqhl_atr_period => 20);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my @eq_events = grep { ($_->{origin} // '') eq 'EQH' } @{ $liq->get_events() };
+    is(scalar(@eq_events), 0, 'PROFE: sin eqhl_liquidity no hay eventos de origen EQ (retrocompat)');
 }
 
 done_testing();

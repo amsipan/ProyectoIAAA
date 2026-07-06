@@ -105,6 +105,26 @@ sub map_keys {
 }
 
 {
+    my $chart = bless_chart(
+        events => [ { type => 'RUN', index => 9, marker_index => 6, dir => 'up', relevant => 1 } ],
+    );
+    my $map = $chart->compute_run_candle_map();
+    is_deeply([ map_keys($map) ], [ 6 ], 'RUN map: recolorea marker_index de trayecto, no confirm_index');
+}
+
+{
+    my $md = TestMarketDataReplay->new();
+    my $replay = Market::ReplayController->new(market_data => $md);
+    $replay->start(7);
+    my $chart = bless_chart(
+        events => [ { type => 'RUN', index => 9, confirm_index => 9, marker_index => 6, relevant => 1 } ],
+        replay => $replay,
+    );
+    my $map = $chart->compute_run_candle_map();
+    is(scalar(keys %$map), 0, 'Replay activo: marker_index pasado no se muestra antes de confirm_index');
+}
+
+{
     package TestCanvas58;
     sub new { bless { w => 120, h => 200, ops => [] }, shift }
     sub geometry { my ($s) = @_; return $s->{w} . 'x' . $s->{h} }

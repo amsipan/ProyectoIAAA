@@ -43,6 +43,7 @@ sub new {
         _start    => 0,
         _end      => 0,
         _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
+        _density_elem_pct => { map { $_ => (exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100) } keys %ELEMENTS },
     };
     bless $self, $class;
     return $self;
@@ -62,14 +63,19 @@ sub _clamp_density_pct {
     my ($pct) = @_;
     return 100 unless defined $pct;
     $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
-    return 1 if $pct < 1;
+    return 0 if $pct < 0;
     return 100 if $pct > 100;
     return $pct;
 }
 
 sub set_density_pct {
     my ($self, $pct) = @_;
-    $self->{_density_pct} = _clamp_density_pct($pct);
+    my $v = _clamp_density_pct($pct);
+    $self->{_density_pct} = $v;
+    $self->{_density_elem_pct} ||= {};
+    for my $elem (keys %ELEMENTS) {
+        $self->{_density_elem_pct}{$elem} = $v;
+    }
     return $self;
 }
 
@@ -78,10 +84,34 @@ sub density_pct {
     return $self->{_density_pct} // 100;
 }
 
+sub set_element_density_pct {
+    my ($self, $elem, $pct) = @_;
+    return $self unless defined $elem && exists $ELEMENTS{$elem};
+    $self->{_density_elem_pct} ||= {};
+    $self->{_density_elem_pct}{$elem} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub element_density_pct {
+    my ($self, $elem) = @_;
+    return $self->density_pct() unless defined $elem && exists $ELEMENTS{$elem};
+    return $self->{_density_elem_pct}{$elem} // $self->density_pct();
+}
+
+sub _filter_by_element_density {
+    my ($self, $elem, $items, $score_spec) = @_;
+    my $old = $self->{_density_pct};
+    $self->{_density_pct} = $self->element_density_pct($elem);
+    my $out = $self->_filter_by_density($items, $score_spec);
+    $self->{_density_pct} = $old;
+    return $out;
+}
+
 sub _filter_by_density {
     my ($self, $items, $score_spec) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->density_pct();
+    return [] if $pct <= 0;
     return $items if $pct >= 100 || @$items == 0;
     my $keep = int((scalar(@$items) * $pct + 99) / 100);
     $keep = 1 if $keep < 1;
@@ -180,11 +210,11 @@ sub draw {
     if ($self->is_element_visible('OB')) {
         my @high_candidates = grep { ($_->{index} // 1e18) <= $end } @{ $vals->{high_blocks} // [] };
         my @low_candidates  = grep { ($_->{index} // 1e18) <= $end } @{ $vals->{low_blocks}  // [] };
-        my $high_blocks = $self->_filter_by_density(\@high_candidates, sub {
+        my $high_blocks = $self->_filter_by_element_density('OB', \@high_candidates, sub {
             my ($z) = @_;
             return abs(($z->{top} // 0) - ($z->{bottom} // 0)) || ($z->{index} // 1);
         });
-        my $low_blocks = $self->_filter_by_density(\@low_candidates, sub {
+        my $low_blocks = $self->_filter_by_element_density('OB', \@low_candidates, sub {
             my ($z) = @_;
             return abs(($z->{top} // 0) - ($z->{bottom} // 0)) || ($z->{index} // 1);
         });
@@ -200,7 +230,7 @@ sub draw {
     if ($self->is_element_visible('FVG')) {
         my $fcol = $self->_color('mxwll_fvg', '#F2B807');
         my @fvg_candidates = grep { ($_->{index} // 1e18) <= $end } @{ $vals->{fvgs} // [] };
-        my $fvgs = $self->_filter_by_density(\@fvg_candidates, sub {
+        my $fvgs = $self->_filter_by_element_density('FVG', \@fvg_candidates, sub {
             my ($g) = @_;
             return abs(($g->{top} // 0) - ($g->{bottom} // 0)) || ($g->{index} // 1);
         });
@@ -275,7 +305,7 @@ sub draw {
     # --- 5. Estructura (BOS/CHoCH + I-BoS/I-CHoCH) ---
     if ($self->is_element_visible('STRUCTURE')) {
         my @structure_candidates = grep { ($_->{to} // 1e18) <= $end } @{ $vals->{structures} // [] };
-        my $structures = $self->_filter_by_density(\@structure_candidates, sub {
+        my $structures = $self->_filter_by_element_density('STRUCTURE', \@structure_candidates, sub {
             my ($s) = @_;
             return abs(($s->{to} // 0) - ($s->{from} // ($s->{to} // 0))) || 1;
         });
@@ -305,7 +335,7 @@ sub draw {
     if ($self->is_element_visible('STRONG_WEAK')) {
         my $sw_col = $self->_color('mxwll_strong_weak', '#b0bec5');
         my @sw_candidates = grep { ($_->{index} // 1e18) <= $end } @{ $vals->{strong_weak} // [] };
-        my $strong_weak = $self->_filter_by_density(\@sw_candidates, 'index');
+        my $strong_weak = $self->_filter_by_element_density('STRONG_WEAK', \@sw_candidates, 'index');
         for my $sw (@$strong_weak) {
             next if ($sw->{index} // -1) > $end;
             my $x0 = $scales->index_to_center_x($self->_local_index($sw->{index}));
@@ -329,7 +359,7 @@ sub draw {
     # --- 7. Swings HH/HL/LH/LL ---
     if ($self->is_element_visible('SWINGS')) {
         my @swing_candidates = grep { ($_->{index} // 1e18) <= $end } @{ $vals->{swings} // [] };
-        my $swings = $self->_filter_by_density(\@swing_candidates, 'index');
+        my $swings = $self->_filter_by_element_density('SWINGS', \@swing_candidates, 'index');
         for my $sw (@$swings) {
             next if $sw->{index} > $end;
             my $x = $scales->index_to_center_x($self->_local_index($sw->{index}));

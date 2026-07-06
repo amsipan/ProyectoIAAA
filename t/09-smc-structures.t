@@ -873,4 +873,53 @@ sub build_large_swing_fixture {
     is($off->_pivot_significant($hi), 1, '0056 helper: factor 0 desactiva filtro');
 }
 
+# =============================================================================
+# PROFE (clase liquidez): "no vale saltar velas". El detector causal (causal_pivots)
+# NO debe saltar el extremo real de un tramo aunque poco despues aparezca un extremo
+# mayor. Fixture: pico local real 15 @ idx1, luego pico mayor 20 @ idx4. El lookback
+# bilateral omite el 15; el causal debe etiquetarlo.
+# =============================================================================
+{
+    my @c = (
+        [ 9,10, 8, 9],   # 0
+        [10,15,10,14],   # 1  <-- pico local real 15
+        [13,14,12,13],   # 2  retroceso
+        [12,13,11,12],   # 3
+        [13,20,13,19],   # 4  <-- pico mayor 20
+        [18,18,15,16],   # 5
+        [15,15,10,11],   # 6  retroceso fuerte
+        [11,12, 8, 9],   # 7
+        [ 9,10, 7, 8],   # 8
+        [ 8, 9, 6, 7],   # 9
+    );
+    my $md = build_ohlc(\@c);
+    my $smc = Market::Indicators::SMC_Structures->new(causal_pivots => 1, reversal_atr_factor => 0.5);
+    $smc->update_last($md, $_) for 0 .. $md->last_index;
+    my $pivots = $smc->get_pivots();
+    my @highs_at_1 = grep { $_->{index} == 1 && $_->{price} == 15 } @$pivots;
+    ok(scalar(@highs_at_1) >= 1,
+       'PROFE causal: etiqueta el pico real (idx=1, 15) que el lookback bilateral saltaba');
+
+    # El detector clasico (default) SI lo salta en este fixture.
+    my $smc_lb = Market::Indicators::SMC_Structures->new(k => 3);
+    $smc_lb->update_last($md, $_) for 0 .. $md->last_index;
+    my @lb_at_1 = grep { $_->{index} == 1 } @{ $smc_lb->get_pivots() };
+    is(scalar(@lb_at_1), 0,
+       'PROFE causal: el lookback bilateral k=3 omite idx=1 (comportamiento previo)');
+}
+
+# Causal no debe mirar el futuro: alimentando hasta idx N, ningun pivote confirmado
+# puede tener indice > N (apto para Replay).
+{
+    my @c;
+    push @c, [ 100+$_, 100+$_+ ($_%3), 99+$_, 100+$_ ] for 0 .. 40;
+    my $md = build_ohlc(\@c);
+    my $smc = Market::Indicators::SMC_Structures->new(causal_pivots => 1);
+    for my $i (0 .. $md->last_index) {
+        $smc->update_last($md, $i);
+        my $bad = grep { $_->{index} > $i } @{ $smc->get_pivots() };
+        is($bad, 0, "PROFE causal: sin fuga de futuro tras alimentar idx=$i") if $i % 10 == 0;
+    }
+}
+
 done_testing();

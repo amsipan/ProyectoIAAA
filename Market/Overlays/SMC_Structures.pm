@@ -38,6 +38,8 @@ use warnings;
 # que clear($canvas) lo elimina sin tocar a otros overlays ni a las velas.
 # =============================================================================
 
+my %DENSITY_ELEMENTS = map { $_ => 1 } qw(PIVOTS EVENTS FVG FIBS MAJOR);
+
 sub new {
     my ($class, %args) = @_;
     die "Overlays::SMC_Structures->new: requiere 'indicator' (Indicators::SMC_Structures)"
@@ -55,6 +57,7 @@ sub new {
         _compute_range => undef,
         _replay_idx => undef,
         _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
+        _density_elem_pct => { map { $_ => (exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100) } keys %DENSITY_ELEMENTS },
     };
     bless $self, $class;
     return $self;
@@ -77,14 +80,19 @@ sub _clamp_density_pct {
     my ($pct) = @_;
     return 100 unless defined $pct;
     $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
-    return 1 if $pct < 1;
+    return 0 if $pct < 0;
     return 100 if $pct > 100;
     return $pct;
 }
 
 sub set_density_pct {
     my ($self, $pct) = @_;
-    $self->{_density_pct} = _clamp_density_pct($pct);
+    my $v = _clamp_density_pct($pct);
+    $self->{_density_pct} = $v;
+    $self->{_density_elem_pct} ||= {};
+    for my $elem (keys %DENSITY_ELEMENTS) {
+        $self->{_density_elem_pct}{$elem} = $v;
+    }
     return $self;
 }
 
@@ -93,10 +101,34 @@ sub density_pct {
     return $self->{_density_pct} // 100;
 }
 
+sub set_element_density_pct {
+    my ($self, $elem, $pct) = @_;
+    return $self unless defined $elem && exists $DENSITY_ELEMENTS{$elem};
+    $self->{_density_elem_pct} ||= {};
+    $self->{_density_elem_pct}{$elem} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub element_density_pct {
+    my ($self, $elem) = @_;
+    return $self->density_pct() unless defined $elem && exists $DENSITY_ELEMENTS{$elem};
+    return $self->{_density_elem_pct}{$elem} // $self->density_pct();
+}
+
+sub _filter_by_element_density {
+    my ($self, $elem, $items, $score_spec) = @_;
+    my $old = $self->{_density_pct};
+    $self->{_density_pct} = $self->element_density_pct($elem);
+    my $out = $self->_filter_by_density($items, $score_spec);
+    $self->{_density_pct} = $old;
+    return $out;
+}
+
 sub _filter_by_density {
     my ($self, $items, $score_spec) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->density_pct();
+    return [] if $pct <= 0;
     return $items if $pct >= 100 || @$items == 0;
     my $keep = int((scalar(@$items) * $pct + 99) / 100);
     $keep = 1 if $keep < 1;
@@ -134,11 +166,11 @@ sub compute_visible {
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
     # Pivotes y eventos son etiquetas locales o líneas acotadas.
-    $self->{_pivots} = $self->_filter_by_density(
-        _window_filter($ind->get_pivots(), $start, $end), 'index'
+    $self->{_pivots} = $self->_filter_by_element_density(
+        'PIVOTS', _window_filter($ind->get_pivots(), $start, $end), 'index'
     );
-    $self->{_events} = $self->_filter_by_density(
-        _events_window_filter($ind->get_events(), $start, $end), sub {
+    $self->{_events} = $self->_filter_by_element_density(
+        'EVENTS', _events_window_filter($ind->get_events(), $start, $end), sub {
             my ($e) = @_;
             return abs(($e->{index} // 0) - ($e->{start_index} // $e->{index} // 0)) || 1;
         }
@@ -146,7 +178,7 @@ sub compute_visible {
     
     # FVG, Fib y Major son líneas horizontales o cajas que se extienden al infinito o hasta mitigación,
     # por lo que deben mostrarse si empezaron en cualquier índice <= $end (aunque start_index esté off-screen).
-    $self->{_fvgs}   = $self->_filter_by_density([ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], sub {
+    $self->{_fvgs}   = $self->_filter_by_element_density('FVG', [ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], sub {
         my ($f) = @_;
         return abs(($f->{hi} // 0) - ($f->{lo} // 0)) || ($f->{index} // 1);
     });

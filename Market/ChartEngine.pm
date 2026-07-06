@@ -139,6 +139,10 @@ sub new {
     $self->{smc_indicator} = Market::Indicators::SMC_Structures->new(
         k                => 3,
         swing_atr_factor => 2.0,
+        # PROFE: pivotes causales (sin lookback) para no "saltar" el extremo real
+        # de cada tramo y etiquetar HH/HL/LH/LL en el pico/valle verdadero.
+        causal_pivots       => 1,
+        reversal_atr_factor => 1.0,
     );
     $self->{smc_overlay} = Market::Overlays::SMC_Structures->new(
         indicator => $self->{smc_indicator},
@@ -152,7 +156,7 @@ sub new {
     # spec 0005 / task 0012: overlay Liquidity. Consume el indicador de cálculo
     # (capa Indicators). Mismo patrón que SMC: alimentación incremental en render
     # hasta el tope efectivo (respeta replay_idx); el overlay solo lee.
-    $self->{liq_indicator} = Market::Indicators::Liquidity->new(k => 3, level_atr_factor => 1.0);
+    $self->{liq_indicator} = Market::Indicators::Liquidity->new(k => 3, level_atr_factor => 1.0, eqhl_liquidity => 1);
     $self->{liq_indicator}->use_external_pivots(1);   # task 0055: BSL/SSL anclados a pivotes SMC
     $self->{liq_overlay} = Market::Overlays::Liquidity->new(
         indicator => $self->{liq_indicator},
@@ -364,7 +368,8 @@ sub compute_run_candle_map {
     for my $e (@{ $ind->get_events() }) {
         next unless defined $e->{type} && defined $e->{index};
         next if defined $e->{relevant} && !$e->{relevant};
-        next if defined $replay_max && $e->{index} > $replay_max;
+        my $visible_after = $e->{confirm_index} // $e->{index};
+        next if defined $replay_max && $visible_after > $replay_max;
         my $type = $e->{type};
         if ($overlay && $overlay->can('is_element_visible')) {
             next if ($type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN') && !$overlay->is_element_visible('SWEEP');
@@ -380,7 +385,8 @@ sub compute_run_candle_map {
         : \@candidates;
     for my $e (@$draw_events) {
         next unless defined $e->{type} && $e->{type} eq 'RUN';
-        $map{ $e->{index} } = $e->{dir} // 'up';
+        my $draw_idx = $e->{marker_index} // $e->{index};
+        $map{ $draw_idx } = $e->{dir} // 'up';
     }
 
     return \%map;
@@ -683,6 +689,14 @@ sub request_render {
 
 sub render {
     my ($self) = @_;
+
+    # Barrera defensiva: si NO hay sesión de Replay viva (ni truncado, ni Select
+    # Bar, ni pestaña Replay activa), purgar cualquier artefacto visual de Replay
+    # que haya podido quedar colgado (marca de agua, velo/tijeras). Así, cambiar
+    # de indicador o de pestaña tras salir de Replay nunca deja restos mezclados.
+    if (!$self->_replay_session_active()) {
+        $self->_purge_replay_visuals();
+    }
 
     # 1. Obtener la porción temporal de la ventana visible
     my ($start, $end) = $self->compute_window();
@@ -1125,6 +1139,10 @@ sub restore_after_replay_exit {
     delete $self->{replay_view_anchor};
     $self->{ctrl_zoom_x_shift} = 0;
     $self->{offset} = 0;
+    # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render):
+    # evita que la marca "Replay" o el velo de Select Bar queden colgados un frame.
+    $self->_clear_replay_select_hover();
+    $self->_purge_replay_visuals();
     return $self;
 }
 
@@ -1521,6 +1539,31 @@ sub _replay_watermark_visible {
     my $ref = $self->{replay_watermark_on_ref};
     return 1 unless $ref;
     return ${ $ref } ? 1 : 0;
+}
+
+# _purge_replay_visuals — borra TODOS los artefactos visuales de una sesión Replay
+# (marca de agua, velo/línea/tijeras de Select Bar, marcador y etiqueta Re:). Es
+# idempotente y no depende del estado: se llama al salir de Replay y como barrera
+# defensiva en cada render cuando NO hay sesión activa, para que nunca queden
+# elementos "colgados" (marca Replay gris, velo azul, cursor tijeras) al mezclarse
+# con cambios de indicador/pestaña. No toca velas ni overlays.
+sub _purge_replay_visuals {
+    my ($self) = @_;
+    my @tags = qw(
+        replay_watermark
+        replay_select_hover replay_select_veil replay_select_scissors
+        replay_select_marker
+    );
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        for my $tag (@tags) {
+            eval { $canvas->delete($tag) };
+        }
+    }
+    if ($self->{time_axis_canvas}) {
+        eval { $self->{time_axis_canvas}->delete('replay_select_re_label') };
+    }
+    return $self;
 }
 
 # _draw_replay_watermark — texto gris centrado, detrás de velas (tag replay_watermark).
@@ -2196,6 +2239,13 @@ sub _start_horizontal_drag {
 
     if ($self->{_replay_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
+        # Robustez: si el clic cae en zona sin vela (borde/hueco), en vez de dejar
+        # al usuario "atrapado" en modo tijeras, resolvemos a la vela válida más
+        # cercana (última vela de la ventana visible). Así un clic siempre confirma.
+        if (!defined $idx) {
+            my ($ws, $we) = eval { $self->compute_window() };
+            $idx = $we if defined $we;
+        }
         if (defined $idx) {
             $self->set_selected_bar($idx);
             if (ref($self->{replay_bar_selected_callback}) eq 'CODE') {

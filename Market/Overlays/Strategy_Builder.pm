@@ -17,9 +17,9 @@ sub new {
         theme     => $args{theme} || {},
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
         _elements => {
-            SUPERTREND   => 1,
-            HALFTREND    => 1,
-            RANGEFILTER  => 1,
+            SUPERTREND   => 0,
+            HALFTREND    => 0,
+            RANGEFILTER  => 0,
             SUPPLY_DEMAND=> 1,
         },
         _start    => 0,

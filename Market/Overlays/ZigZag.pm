@@ -21,6 +21,7 @@ sub new {
         _start    => 0,
         _end      => 0,
         _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
+        _density_elem_pct => { map { $_ => (exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100) } keys %ELEMENTS },
     };
     bless $self, $class;
     return $self;
@@ -40,14 +41,19 @@ sub _clamp_density_pct {
     my ($pct) = @_;
     return 100 unless defined $pct;
     $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
-    return 1 if $pct < 1;
+    return 0 if $pct < 0;
     return 100 if $pct > 100;
     return $pct;
 }
 
 sub set_density_pct {
     my ($self, $pct) = @_;
-    $self->{_density_pct} = _clamp_density_pct($pct);
+    my $v = _clamp_density_pct($pct);
+    $self->{_density_pct} = $v;
+    $self->{_density_elem_pct} ||= {};
+    for my $elem (keys %ELEMENTS) {
+        $self->{_density_elem_pct}{$elem} = $v;
+    }
     return $self;
 }
 
@@ -56,10 +62,48 @@ sub density_pct {
     return $self->{_density_pct} // 100;
 }
 
+sub set_element_density_pct {
+    my ($self, $elem, $pct) = @_;
+    return $self unless defined $elem && exists $ELEMENTS{$elem};
+    $self->{_density_elem_pct} ||= {};
+    $self->{_density_elem_pct}{$elem} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub element_density_pct {
+    my ($self, $elem) = @_;
+    return $self->density_pct() unless defined $elem && exists $ELEMENTS{$elem};
+    return $self->{_density_elem_pct}{$elem} // $self->density_pct();
+}
+
+sub _filter_by_element_density {
+    my ($self, $elem, $items, $score_spec) = @_;
+    my $old = $self->{_density_pct};
+    $self->{_density_pct} = $self->element_density_pct($elem);
+    my $out = $self->_filter_by_density($items, $score_spec);
+    $self->{_density_pct} = $old;
+    return $out;
+}
+
+sub _filter_segments_continuous_by_element_density {
+    my ($self, $elem, $items) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->element_density_pct($elem);
+    return [] if $pct <= 0;
+    my @sorted = sort { ($a->{from_index} // 0) <=> ($b->{from_index} // 0) } @$items;
+    return \@sorted if $pct >= 100 || @sorted == 0;
+    my $keep = int((scalar(@sorted) * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    my $first = @sorted - $keep;
+    $first = 0 if $first < 0;
+    return [ @sorted[$first .. $#sorted] ];
+}
+
 sub _filter_by_density {
     my ($self, $items, $score_spec) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->density_pct();
+    return [] if $pct <= 0;
     return $items if $pct >= 100 || @$items == 0;
     my $keep = int((scalar(@$items) * $pct + 99) / 100);
     $keep = 1 if $keep < 1;
@@ -152,10 +196,7 @@ sub draw {
 
     if ($self->is_element_visible('EXTERNAL')) {
         my @external_candidates = grep { $self->_segment_visible($_) } @{ $vals->{external_segments} || [] };
-        my $external = $self->_filter_by_density(\@external_candidates, sub {
-            my ($seg) = @_;
-            return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0)) || 1;
-        });
+        my $external = $self->_filter_segments_continuous_by_element_density('EXTERNAL', \@external_candidates);
         for my $seg (@$external) {
             next unless defined $seg->{from_price} && defined $seg->{to_price};
             my $x1 = $scales->index_to_center_x($self->_local_index($seg->{from_index}));
@@ -173,10 +214,7 @@ sub draw {
 
     if ($self->is_element_visible('INTERNAL')) {
         my @internal_candidates = grep { $self->_segment_visible($_) } @{ $vals->{internal_segments} || [] };
-        my $internal = $self->_filter_by_density(\@internal_candidates, sub {
-            my ($seg) = @_;
-            return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0)) || 1;
-        });
+        my $internal = $self->_filter_segments_continuous_by_element_density('INTERNAL', \@internal_candidates);
         for my $seg (@$internal) {
             my $color = $seg->{dir} eq 'up' ? $up_int : $dn_int;
             next unless defined $seg->{from_price} && defined $seg->{to_price};
@@ -196,9 +234,10 @@ sub draw {
     if ($self->is_element_visible('CHANNEL')) {
         my $ch_col = $self->{theme}{zz_channel} // '#90a4ae';
         my @channel_candidates = grep { $self->_segment_visible($_) } @{ $vals->{trend_channels} || [] };
-        my $channels = $self->_filter_by_density(\@channel_candidates, sub {
+        my $channels = $self->_filter_by_element_density('CHANNEL', \@channel_candidates, sub {
             my ($ch) = @_;
-            return abs(($ch->{to_index} // 0) - ($ch->{from_index} // 0)) || 1;
+            my $span = abs(($ch->{to_index} // 0) - ($ch->{from_index} // 0)) || 1;
+            return 1 / $span;
         });
         for my $ch (@$channels) {
             for my $line (

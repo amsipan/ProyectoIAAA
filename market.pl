@@ -178,6 +178,9 @@ my $smc_density_pct = 35;
 my $mxwll_density_pct = 35;
 my $zigzag_density_pct = 35;
 my %liq_elem_density_pct = map { $_ => $liq_density_pct } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+my %smc_elem_density_pct = map { $_ => $smc_density_pct } qw(PIVOTS EVENTS FVG FIBS MAJOR);
+my %mxwll_elem_density_pct = map { $_ => $mxwll_density_pct } qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK);
+my %zigzag_elem_density_pct = map { $_ => $zigzag_density_pct } qw(INTERNAL EXTERNAL CHANNEL);
 $chart_engine->{liq_overlay}->set_density_pct($liq_density_pct)
     if $chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_density_pct');
 $chart_engine->{smc_overlay}->set_density_pct($smc_density_pct)
@@ -206,6 +209,46 @@ my %cb_mxelem = map { $_ => Market::UI::Callbacks->make_mxwll_element_toggle($ch
                 qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK);
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
+my %vis_strategy_elem = (
+    SUPERTREND => 0, HALFTREND => 0, RANGEFILTER => 0, SUPPLY_DEMAND => 1,
+);
+my %cb_strategy_elem = map {
+    my $elem = $_;
+    $elem => sub {
+        my ($on) = @_;
+        my $ov = $chart_engine->{strategy_overlay};
+        return unless $ov && $ov->can('set_element_visible');
+        $ov->set_element_visible($elem, $on ? 1 : 0);
+        $chart_engine->request_render();
+    }
+} qw(SUPERTREND HALFTREND RANGEFILTER SUPPLY_DEMAND);
+my %overlay_state_ref = (
+    smc => \$vis_smc, liq => \$vis_liq, strategy => \$vis_strategy,
+    vp => \$vis_vp, vwap => \$vis_vwap, mxwll => \$vis_mxwll, zigzag => \$vis_zigzag,
+);
+my %overlay_cb = (
+    smc => $cb_smc, liq => $cb_liq, strategy => $cb_strategy,
+    vp => $cb_vp, vwap => $cb_vwap, mxwll => $cb_mxwll, zigzag => $cb_zigzag,
+);
+my %overlay_button;
+my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
+my $refresh_overlay_button = sub {
+    my ($name) = @_;
+    return unless $overlay_button{$name} && $overlay_state_ref{$name};
+    $overlay_button{$name}->configure(-text => $overlay_button_text->(${ $overlay_state_ref{$name} }));
+};
+my $set_overlay_visible = sub {
+    my ($name, $on) = @_;
+    return unless $overlay_state_ref{$name} && $overlay_cb{$name};
+    ${ $overlay_state_ref{$name} } = $on ? 1 : 0;
+    $overlay_cb{$name}->($on ? 1 : 0);
+    $refresh_overlay_button->($name);
+};
+my $toggle_overlay_visible = sub {
+    my ($name) = @_;
+    return unless $overlay_state_ref{$name};
+    $set_overlay_visible->($name, ${ $overlay_state_ref{$name} } ? 0 : 1);
+};
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
                qw(15 30 60);
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
@@ -243,7 +286,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
 my %panel;
-$panel{$_} = $panel_row->Frame() for qw(Capas Liq Mxwll ZigZag Escala Replay);
+$panel{$_} = $panel_row->Frame() for qw(Capas SMC Liq Mxwll ZigZag Estrategia Escala Replay);
 
 my $active_tab = 'Capas';
 my $show_panel = sub {
@@ -267,15 +310,17 @@ $ui_vars{show_default_tab} = sub {
 # Etiquetas más explícitas para exposición; las claves internas se conservan para
 # no tocar callbacks ni lógica de Replay.
 my %tab_label = (
-    Capas  => 'Capas',
-    Liq    => 'Liquidez',
-    Mxwll  => 'SMC/Mxwll',
-    ZigZag => 'ZigZag',
-    Escala => 'Escala',
-    Replay => 'Replay',
+    Capas     => 'Capas',
+    SMC       => 'SMC',
+    Liq       => 'Liquidez',
+    Mxwll     => 'Mxwll',
+    ZigZag    => 'ZigZag',
+    Estrategia=> 'Estrategia',
+    Escala    => 'Escala',
+    Replay    => 'Replay',
 );
-my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 8);
-for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
+my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
+for my $name (qw(Capas SMC Liq Mxwll ZigZag Estrategia Escala Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -286,63 +331,194 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     )->pack(-side => 'left', -padx => 1);
 }
 
-# --- Densidad por categoria: SIEMPRE visible a la derecha de la barra superior ---
+# --- Densidad: resumen SIEMPRE visible a la derecha + detalle DESPLEGABLE ---
+# Sin Optionmenu/menubar nativo (WSLg): el "desplegable" se emula mostrando u
+# ocultando una fila inferior con pack/packForget. La barra superior solo deja
+# un resumen compacto (grupo/item + valor); el detalle (grupos, específicos y
+# la barra 1..100) aparece bajo demanda para ahorrar espacio.
 my $density_global_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'right', -padx => 4);
 $density_global_box->Label(-text => 'Densidad:')->pack(-side => 'left', -padx => 3);
-my @density_controls = (
-    [ 'Liq',    \$liq_density_pct,    'liq_overlay',    sub {
-        my ($v) = @_;
-        for my $elem (keys %liq_elem_density_pct) {
-            $liq_elem_density_pct{$elem} = int($v + 0.5);
-        }
-    } ],
-    [ 'SMC',    \$smc_density_pct,    'smc_overlay',    undef ],
-    [ 'Mxwll',  \$mxwll_density_pct,  'mxwll_overlay',  undef ],
-    [ 'ZigZag', \$zigzag_density_pct, 'zigzag_overlay', undef ],
+my %density_items = (
+    liq    => [qw(GLOBAL BSL SSL EQH EQL SWEEP GRAB RUN)],
+    smc    => [qw(GLOBAL PIVOTS EVENTS FVG FIBS MAJOR)],
+    mxwll  => [qw(GLOBAL STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK)],
+    zigzag => [qw(GLOBAL INTERNAL EXTERNAL CHANNEL)],
 );
-for my $cfg (@density_controls) {
-    my ($label, $var_ref, $overlay_key, $after_set) = @$cfg;
-    my $box = $density_global_box->Frame()->pack(-side => 'left', -padx => 2);
-    $box->Label(-text => $label)->pack(-side => 'top');
-    $box->Scale(
-        -from      => 1,
-        -to        => 100,
-        -orient    => 'horizontal',
-        -length    => 58,
-        -showvalue => 0,
-        -variable  => $var_ref,
-        -command   => sub {
-            my $v = shift;
-            $v = $$var_ref unless defined $v;
-            my $ov = $chart_engine->{$overlay_key};
-            return unless $ov && $ov->can('set_density_pct');
-            $ov->set_density_pct($v);
-            $after_set->($v) if $after_set;
-            $chart_engine->request_render();
-        },
-    )->pack(-side => 'top');
+my %density_group_label = ( liq => 'Liq', smc => 'SMC', mxwll => 'Mxwll', zigzag => 'ZigZag' );
+my $density_group = 'liq';
+my $density_item  = 'GLOBAL';
+my $density_slider_value = $liq_density_pct;
+my ($density_value_label, $density_scale, $density_summary_label);
+my %density_item_frame;
+# Fila de detalle (oculta por defecto). Contiene grupos + específicos + barra.
+my $density_detail_row = $frame_controles->Frame();
+my $density_rows_box = $density_detail_row->Frame()->pack(-side => 'left', -padx => 2);
+my $density_groups_box = $density_rows_box->Frame()->pack(-side => 'top', -anchor => 'w');
+my $density_items_box = $density_rows_box->Frame()->pack(-side => 'top', -anchor => 'w');
+my $density_summary_text = sub {
+    my $g = $density_group_label{$density_group} // $density_group;
+    my $i = $density_item eq 'GLOBAL' ? 'Global' : $density_item;
+    return "$g/$i $density_slider_value%";
+};
+my $density_cfg = sub { return [ $density_group, $density_item ]; };
+my $density_value_for = sub {
+    my ($group, $elem) = @_;
+    return $group eq 'liq'    ? ($elem eq 'GLOBAL' ? $liq_density_pct    : $liq_elem_density_pct{$elem})
+         : $group eq 'smc'    ? ($elem eq 'GLOBAL' ? $smc_density_pct    : $smc_elem_density_pct{$elem})
+         : $group eq 'mxwll'  ? ($elem eq 'GLOBAL' ? $mxwll_density_pct  : $mxwll_elem_density_pct{$elem})
+         : $group eq 'zigzag' ? ($elem eq 'GLOBAL' ? $zigzag_density_pct : $zigzag_elem_density_pct{$elem})
+         : 1;
+};
+my $sync_density_slider = sub {
+    my $v = $density_value_for->($density_group, $density_item);
+    $density_slider_value = $v;
+    $density_scale->set($v) if $density_scale;
+    $density_value_label->configure(-text => "$v%") if $density_value_label;
+    $density_summary_label->configure(-text => $density_summary_text->()) if $density_summary_label;
+};
+my $show_density_items = sub {
+    $_->packForget for values %density_item_frame;
+    $density_item = 'GLOBAL' unless grep { $_ eq $density_item } @{ $density_items{$density_group} };
+    $density_item_frame{$density_group}->pack(-side => 'left') if $density_item_frame{$density_group};
+    $sync_density_slider->();
+};
+my $apply_density = sub {
+    my ($v) = @_;
+    $v = int(($v // 1) + 0.5);
+    $v = 1 if $v < 1;
+    $v = 100 if $v > 100;
+    my %overlay_for = (
+        liq    => 'liq_overlay',
+        smc    => 'smc_overlay',
+        mxwll  => 'mxwll_overlay',
+        zigzag => 'zigzag_overlay',
+    );
+    my $ov = $chart_engine->{ $overlay_for{$density_group} };
+    return unless $ov;
+    if ($density_group eq 'liq') {
+        if ($density_item eq 'GLOBAL') {
+            $liq_density_pct = $v;
+            $liq_elem_density_pct{$_} = $v for keys %liq_elem_density_pct;
+            $ov->set_density_pct($v) if $ov->can('set_density_pct');
+        } else {
+            $liq_elem_density_pct{$density_item} = $v;
+            $ov->set_element_density_pct($density_item, $v) if $ov->can('set_element_density_pct');
+        }
+    } elsif ($density_group eq 'smc') {
+        if ($density_item eq 'GLOBAL') {
+            $smc_density_pct = $v;
+            $smc_elem_density_pct{$_} = $v for keys %smc_elem_density_pct;
+            $ov->set_density_pct($v) if $ov->can('set_density_pct');
+        } else {
+            $smc_elem_density_pct{$density_item} = $v;
+            $ov->set_element_density_pct($density_item, $v) if $ov->can('set_element_density_pct');
+        }
+    } elsif ($density_group eq 'mxwll') {
+        if ($density_item eq 'GLOBAL') {
+            $mxwll_density_pct = $v;
+            $mxwll_elem_density_pct{$_} = $v for keys %mxwll_elem_density_pct;
+            $ov->set_density_pct($v) if $ov->can('set_density_pct');
+        } else {
+            $mxwll_elem_density_pct{$density_item} = $v;
+            $ov->set_element_density_pct($density_item, $v) if $ov->can('set_element_density_pct');
+        }
+    } elsif ($density_group eq 'zigzag') {
+        if ($density_item eq 'GLOBAL') {
+            $zigzag_density_pct = $v;
+            $zigzag_elem_density_pct{$_} = $v for keys %zigzag_elem_density_pct;
+            $ov->set_density_pct($v) if $ov->can('set_density_pct');
+        } else {
+            $zigzag_elem_density_pct{$density_item} = $v;
+            $ov->set_element_density_pct($density_item, $v) if $ov->can('set_element_density_pct');
+        }
+    }
+    $density_value_label->configure(-text => "$v%") if $density_value_label;
+    $density_summary_label->configure(-text => $density_summary_text->()) if $density_summary_label;
+    $chart_engine->request_render();
+};
+for my $group (qw(liq smc mxwll zigzag)) {
+    $density_groups_box->Radiobutton(
+        -text => $density_group_label{$group}, -value => $group, -variable => \$density_group,
+        -indicatoron => 0, -padx => 4, -pady => 1,
+        -command => $show_density_items,
+    )->pack(-side => 'left', -padx => 1);
+    $density_item_frame{$group} = $density_items_box->Frame();
+    for my $item (@{ $density_items{$group} }) {
+        my $txt = $item eq 'GLOBAL' ? 'Global' : $item;
+        $density_item_frame{$group}->Radiobutton(
+            -text => $txt, -value => $item, -variable => \$density_item,
+            -indicatoron => 0, -padx => 3, -pady => 1,
+            -command => $sync_density_slider,
+        )->pack(-side => 'left', -padx => 1);
+    }
 }
+# La barra 1..100 vive en la fila de detalle (desplegable), más larga y cómoda.
+$density_scale = $density_rows_box->Scale(
+    -from      => 1,
+    -to        => 100,
+    -orient    => 'horizontal',
+    -length    => 240,
+    -showvalue => 0,
+    -variable  => \$density_slider_value,
+    -command   => sub { $apply_density->(shift); },
+)->pack(-side => 'left', -padx => 4);
+$density_value_label = $density_rows_box->Label(-text => "$density_slider_value%")
+    ->pack(-side => 'left', -padx => 3);
+
+# Resumen compacto + botón desplegable en la barra superior (ahorra espacio).
+my $density_open = 0;
+my $density_toggle_btn;
+my $toggle_density_detail = sub {
+    $density_open = !$density_open;
+    if ($density_open) {
+        $density_detail_row->pack(-side => 'top', -fill => 'x', -pady => 1);
+        $density_toggle_btn->configure(-text => 'Ajustar [-]') if $density_toggle_btn;
+    } else {
+        $density_detail_row->packForget;
+        $density_toggle_btn->configure(-text => 'Ajustar [+]') if $density_toggle_btn;
+    }
+};
+$density_summary_label = $density_global_box->Label(-text => $density_summary_text->())
+    ->pack(-side => 'left', -padx => 3);
+$density_toggle_btn = $density_global_box->Button(
+    -text => 'Ajustar [+]', -padx => 4, -pady => 1,
+    -command => sub { $toggle_density_detail->(); },
+)->pack(-side => 'left', -padx => 3);
+$show_density_items->();
 
 # ---- Panel "Capas": overlays principales + HTF ----
 {
     my $p = $panel{Capas};
     $p->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
     $p->Checkbutton(-text => 'SMC', -variable => \$vis_smc,
-        -command => sub { $cb_smc->($vis_smc ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('smc', $vis_smc ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Liquidez', -variable => \$vis_liq,
-        -command => sub { $cb_liq->($vis_liq ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('liq', $vis_liq ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Estrategia', -variable => \$vis_strategy,
-        -command => sub { $cb_strategy->($vis_strategy ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('strategy', $vis_strategy ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Perfil Vol', -variable => \$vis_vp,
-        -command => sub { $cb_vp->($vis_vp ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('vp', $vis_vp ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'VWAP', -variable => \$vis_vwap,
-        -command => sub { $cb_vwap->($vis_vwap ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('vwap', $vis_vwap ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Mxwll', -variable => \$vis_mxwll,
-        -command => sub { $cb_mxwll->($vis_mxwll ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('mxwll', $vis_mxwll ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'ZigZag', -variable => \$vis_zigzag,
-        -command => sub { $cb_zigzag->($vis_zigzag ? 1 : 0); })->pack(-side => 'left');
+        -command => sub { $set_overlay_visible->('zigzag', $vis_zigzag ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
+}
+
+# ---- Panel "SMC": capa principal y familias controladas por densidad ----
+{
+    my $p = $panel{SMC};
+    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $main_box->Label(-text => 'SMC:')->pack(-side => 'left', -padx => 3);
+    $overlay_button{smc} = $main_box->Button(
+        -text => $overlay_button_text->($vis_smc),
+        -command => sub { $toggle_overlay_visible->('smc'); },
+    )->pack(-side => 'left');
+    my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $info_box->Label(-text => 'Densidad: Global, Pivots, Events, FVG, Fibs, Major')->pack(-side => 'left', -padx => 3);
 }
 
 # ---- Panel "Liquidez": capa principal + densidad por familia ----
@@ -350,37 +526,16 @@ for my $cfg (@density_controls) {
     my $p = $panel{Liq};
     my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $main_box->Label(-text => 'Liquidez:')->pack(-side => 'left', -padx => 3);
-    $main_box->Checkbutton(-text => 'Mostrar', -variable => \$vis_liq,
-        -command => sub { $cb_liq->($vis_liq ? 1 : 0); })->pack(-side => 'left');
+    $overlay_button{liq} = $main_box->Button(
+        -text => $overlay_button_text->($vis_liq),
+        -command => sub { $toggle_overlay_visible->('liq'); },
+    )->pack(-side => 'left');
 
     my $families_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $families_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
     for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
         $families_box->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
             -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
-    }
-
-    my $per_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $per_box->Label(-text => 'Por tipo')->pack(-side => 'left', -padx => 3);
-    for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
-        my $mini = $per_box->Frame()->pack(-side => 'left', -padx => 1);
-        $mini->Label(-text => $elem)->pack(-side => 'top');
-        $mini->Scale(
-            -from     => 1,
-            -to       => 100,
-            -orient   => 'horizontal',
-            -length   => 55,
-            -showvalue => 0,
-            -variable => \$liq_elem_density_pct{$elem},
-            -command  => sub {
-                my $v = shift;
-                $v = $liq_elem_density_pct{$elem} unless defined $v;
-                my $liq = $chart_engine->{liq_overlay};
-                return unless $liq && $liq->can('set_element_density_pct');
-                $liq->set_element_density_pct($elem, $v);
-                $chart_engine->request_render();
-            },
-        )->pack(-side => 'top');
     }
 }
 
@@ -391,9 +546,16 @@ for my $cfg (@density_controls) {
         STRUCTURE => 'Estr', SWINGS => 'Swings', OB => 'OB',
         FVG => 'FVG', AOE => 'AOE', FIBS => 'Fibs', STRONG_WEAK => 'S/W',
     );
-    $p->Label(-text => 'Mxwll:')->pack(-side => 'left', -padx => 3);
+    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $main_box->Label(-text => 'Mxwll:')->pack(-side => 'left', -padx => 3);
+    $overlay_button{mxwll} = $main_box->Button(
+        -text => $overlay_button_text->($vis_mxwll),
+        -command => sub { $toggle_overlay_visible->('mxwll'); },
+    )->pack(-side => 'left');
+    my $filters_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $filters_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
     for my $elem (qw(STRUCTURE SWINGS OB FVG AOE FIBS STRONG_WEAK)) {
-        $p->Checkbutton(-text => $mx_label{$elem}, -variable => \$vis_mxelem{$elem},
+        $filters_box->Checkbutton(-text => $mx_label{$elem}, -variable => \$vis_mxelem{$elem},
             -command => sub { $cb_mxelem{$elem}->($vis_mxelem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }
 }
@@ -401,18 +563,46 @@ for my $cfg (@density_controls) {
 # ---- Panel "ZigZag": interno/externo + resolución MTF (task 0033) ----
 {
     my $p = $panel{ZigZag};
-    $p->Label(-text => 'ZigZag:')->pack(-side => 'left', -padx => 3);
-    $p->Checkbutton(-text => 'Interno', -variable => \$vis_zzelem{INTERNAL},
+    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $main_box->Label(-text => 'ZigZag:')->pack(-side => 'left', -padx => 3);
+    $overlay_button{zigzag} = $main_box->Button(
+        -text => $overlay_button_text->($vis_zigzag),
+        -command => sub { $toggle_overlay_visible->('zigzag'); },
+    )->pack(-side => 'left');
+    my $filters_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $filters_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
+    $filters_box->Checkbutton(-text => 'Interno', -variable => \$vis_zzelem{INTERNAL},
         -command => sub { $cb_zzelem{INTERNAL}->($vis_zzelem{INTERNAL} ? 1 : 0); })->pack(-side => 'left');
-    $p->Checkbutton(-text => 'Externo', -variable => \$vis_zzelem{EXTERNAL},
+    $filters_box->Checkbutton(-text => 'Externo', -variable => \$vis_zzelem{EXTERNAL},
         -command => sub { $cb_zzelem{EXTERNAL}->($vis_zzelem{EXTERNAL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
-    $p->Checkbutton(-text => 'Canal', -variable => \$vis_zzelem{CHANNEL},
+    $filters_box->Checkbutton(-text => 'Canal', -variable => \$vis_zzelem{CHANNEL},
         -command => sub { $cb_zzelem{CHANNEL}->($vis_zzelem{CHANNEL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
     $p->Label(-text => 'Res MTF:')->pack(-side => 'left', -padx => 3);
     for my $res (qw(15 30 60)) {
         $p->Radiobutton(-text => "${res}m", -value => $res, -variable => \$zigzag_resolution,
             -indicatoron => 0, -padx => 4,
             -command => sub { $cb_zzres{$res}->(); })->pack(-side => 'left');
+    }
+}
+
+# ---- Panel "Estrategia": capa principal + subcapas técnicas ----
+{
+    my $p = $panel{Estrategia};
+    my %strategy_label = (
+        SUPERTREND => 'SuperTrend', HALFTREND => 'HalfTrend',
+        RANGEFILTER => 'RangeFilter', SUPPLY_DEMAND => 'Supply/Demand',
+    );
+    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $main_box->Label(-text => 'Estrategia:')->pack(-side => 'left', -padx => 3);
+    $overlay_button{strategy} = $main_box->Button(
+        -text => $overlay_button_text->($vis_strategy),
+        -command => sub { $toggle_overlay_visible->('strategy'); },
+    )->pack(-side => 'left');
+    my $filters_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $filters_box->Label(-text => 'Elementos:')->pack(-side => 'left', -padx => 3);
+    for my $elem (qw(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER)) {
+        $filters_box->Checkbutton(-text => $strategy_label{$elem}, -variable => \$vis_strategy_elem{$elem},
+            -command => sub { $cb_strategy_elem{$elem}->($vis_strategy_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }
 }
 

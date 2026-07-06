@@ -751,4 +751,64 @@ sub r44_chart {
     ok(!$drew_bear, 'replay: vela futura (idx>replay_idx) no se dibuja');
 }
 
+# =============================================================================
+# REGRESIONES (bugs reportados por el usuario): estado de Replay que se filtra.
+# =============================================================================
+
+# BUG 1: la marca de agua "Replay" y el velo de Select Bar no deben quedar
+# colgados. _purge_replay_visuals borra todos los tags de Replay en los canvas.
+{
+    my $chart = r42_build_chart();
+    # Simular artefactos colgados en el canvas de precio y en el eje temporal.
+    $chart->{price_canvas}->createText(1, 1, -tags => 'replay_watermark');
+    $chart->{price_canvas}->createRectangle(0, 0, 1, 1, -tags => 'replay_select_veil');
+    $chart->{time_axis_canvas}->createText(1, 1, -tags => 'replay_select_re_label');
+
+    $chart->_purge_replay_visuals();
+
+    my @del_price = grep { $_->[0] eq 'delete' } @{ $chart->{price_canvas}{ops} };
+    my %deleted = map { ($_->[1] // '') => 1 } @del_price;
+    ok($deleted{replay_watermark},      'BUG1: purga borra la marca de agua Replay');
+    ok($deleted{replay_select_veil},    'BUG1: purga borra el velo de Select Bar');
+    ok($deleted{replay_select_hover},   'BUG1: purga borra la linea de hover');
+    ok($deleted{replay_select_scissors},'BUG1: purga borra el cursor tijeras');
+    my @del_time = grep { $_->[0] eq 'delete' && ($_->[1]//'') eq 'replay_select_re_label' }
+        @{ $chart->{time_axis_canvas}{ops} };
+    ok(@del_time >= 1, 'BUG1: purga borra la etiqueta Re: del eje temporal');
+}
+
+# BUG 2: restore_after_replay_exit limpia estado Y artefactos de inmediato.
+{
+    my $chart = r42_build_chart();
+    $chart->{price_canvas}->createText(1, 1, -tags => 'replay_watermark');
+    $chart->{ctrl_zoom_x_shift} = 33;
+    $chart->{offset} = 5;
+    $chart->{replay_view_anchor} = 0.8;
+
+    $chart->restore_after_replay_exit();
+
+    is($chart->{ctrl_zoom_x_shift}, 0, 'BUG2: exit resetea x_shift');
+    is($chart->{offset}, 0, 'BUG2: exit resetea offset');
+    ok(!defined $chart->{replay_view_anchor}, 'BUG2: exit borra replay_view_anchor');
+    my @del = grep { $_->[0] eq 'delete' && ($_->[1]//'') eq 'replay_watermark' }
+        @{ $chart->{price_canvas}{ops} };
+    ok(@del >= 1, 'BUG2: exit purga la marca Replay sin esperar al render');
+}
+
+# BUG 3: clic en Select Bar en zona sin vela no debe dejar atrapado; resuelve a
+# la ultima vela visible y confirma (apaga el modo tijeras).
+{
+    my $chart = r42_build_chart();
+    my $confirmed;
+    $chart->{replay_bar_selected_callback} = sub { $confirmed = $_[0] };
+    $chart->set_replay_select_mode(1);
+    ok($chart->is_replay_select_mode(), 'BUG3: en modo select antes del clic');
+
+    # x muy a la derecha (zona vacia tras la ultima vela) → _global_index_from_x undef.
+    $chart->_start_horizontal_drag($chart->{price_canvas}, 100000, 250);
+
+    ok(defined $confirmed, 'BUG3: clic en zona vacia igual confirma (no se traba)');
+    ok(!$chart->is_replay_select_mode(), 'BUG3: tras confirmar, sale del modo tijeras');
+}
+
 done_testing();

@@ -55,11 +55,29 @@ sub new {
     my $swing_atr_factor = defined $opts{swing_atr_factor} ? $opts{swing_atr_factor} : 0;
     my $fvg_near_atr = defined $opts{fvg_near_atr} ? $opts{fvg_near_atr} : 8;
 
+    # PROFE (clase liquidez): "no vale saltar velas... tenemos que actuar con maquina
+    # de estado". El detector clasico (_is_swing_high/low) usa lookback bilateral de k
+    # velas, que puede OMITIR el extremo real de un tramo si aparece uno mayor dentro
+    # de la ventana futura (el profe lo llamo "zig zag mal puesto"). Con causal_pivots=1
+    # se usa una FSM causal (sin mirar el futuro): se rastrea el extremo corriente y se
+    # confirma como pivote cuando el precio REVIERTE >= reversal_atr_factor*ATR desde el
+    # extremo, dejando la etiqueta HH/HL/LH/LL anclada al indice del extremo real. Como
+    # es causal, ademas no filtra futuro (mejor para Replay). Default OFF para preservar
+    # los fixtures/tests existentes; ChartEngine lo activa (opt-in).
+    my $causal_pivots = defined $opts{causal_pivots} ? $opts{causal_pivots} : 0;
+    my $reversal_atr_factor = defined $opts{reversal_atr_factor} ? $opts{reversal_atr_factor} : 1.0;
+
     my $self = {
         k                => $k,
         swing_atr_factor => $swing_atr_factor,
         fvg_near_atr     => $fvg_near_atr,
+        causal_pivots    => $causal_pivots,
+        reversal_atr_factor => $reversal_atr_factor,
         atr_period       => 14,
+        # Estado de la FSM causal de pivotes (solo si causal_pivots).
+        _cz_dir     => undef,  # 'up' = buscando high, 'down' = buscando low
+        _cz_ext_idx => undef,  # indice del extremo corriente
+        _cz_ext_px  => undef,  # precio del extremo corriente
         _last_index      => -1,
         _highs         => [],
         _lows          => [],
@@ -126,20 +144,24 @@ sub update_last {
 
     $self->_update_atr($index, $high, $low, $close);
 
-    my $k = $self->{k};
-    my $j = $index - $k;
+    if ($self->{causal_pivots}) {
+        $self->_update_causal_pivot($index, $high, $low);
+    } else {
+        my $k = $self->{k};
+        my $j = $index - $k;
 
-    if ($j >= 0) {
-        my $is_sh = $self->_is_swing_high($j);
-        my $is_sl = $self->_is_swing_low($j);
+        if ($j >= 0) {
+            my $is_sh = $self->_is_swing_high($j);
+            my $is_sl = $self->_is_swing_low($j);
 
-        if ($is_sh && !$is_sl) {
-            $self->_process_swing($j, $self->{_highs}->[$j], 'high');
-        } elsif ($is_sl && !$is_sh) {
-            $self->_process_swing($j, $self->{_lows}->[$j], 'low');
-        } elsif ($is_sh && $is_sl) {
-            my $type = (defined $self->{_dir} && $self->{_dir} eq 'down') ? 'high' : 'low';
-            $self->_process_swing($j, $type eq 'high' ? $self->{_highs}->[$j] : $self->{_lows}->[$j], $type);
+            if ($is_sh && !$is_sl) {
+                $self->_process_swing($j, $self->{_highs}->[$j], 'high');
+            } elsif ($is_sl && !$is_sh) {
+                $self->_process_swing($j, $self->{_lows}->[$j], 'low');
+            } elsif ($is_sh && $is_sl) {
+                my $type = (defined $self->{_dir} && $self->{_dir} eq 'down') ? 'high' : 'low';
+                $self->_process_swing($j, $type eq 'high' ? $self->{_highs}->[$j] : $self->{_lows}->[$j], $type);
+            }
         }
     }
 
@@ -208,6 +230,79 @@ sub _process_swing {
             $self->{_current}  = { index => $j, price => $price, type => 'high' };
             $self->{_dir}      = 'down';
             $self->{_trailing} = undef;
+        }
+    }
+    return;
+}
+
+# PROFE: deteccion CAUSAL de pivotes (sin lookback futuro). Rastrea el extremo
+# corriente en la direccion actual; cuando el precio REVIERTE >= factor*ATR desde
+# ese extremo, confirma el extremo (indice real) como pivote y cambia de direccion.
+# Asi ninguna vela de liquidez se "salta": la etiqueta queda en el pico/valle real,
+# tal como pide el profesor, y no se mira el futuro (apto para Replay).
+sub _update_causal_pivot {
+    my ($self, $index, $high, $low) = @_;
+
+    # Bootstrap: la primera vela fija el extremo inicial en ambas direcciones.
+    if (!defined $self->{_cz_dir}) {
+        $self->{_cz_dir}     = 'up';   # buscando un high; se corrige con el primer giro real
+        $self->{_cz_ext_idx} = $index;
+        $self->{_cz_ext_px}  = $high;
+        $self->{_cz_alt_idx} = $index; # extremo opuesto tentativo (low)
+        $self->{_cz_alt_px}  = $low;
+        return;
+    }
+
+    my $atr = $self->{_atr_last};
+    my $factor = $self->{reversal_atr_factor} // 1.0;
+    # Umbral de reversion. Sin ATR aun (inicio del dataset) usamos un umbral 0 para
+    # no perder giros tempranos; con ATR, exige un retroceso proporcional.
+    my $thresh = (defined $atr && $atr > 0) ? $factor * $atr : 0;
+
+    if ($self->{_cz_dir} eq 'up') {
+        # Extender el high corriente si hacemos nuevo maximo.
+        if ($high >= $self->{_cz_ext_px}) {
+            $self->{_cz_ext_idx} = $index;
+            $self->{_cz_ext_px}  = $high;
+            # Reiniciar el minimo tentativo del retroceso.
+            $self->{_cz_alt_idx} = $index;
+            $self->{_cz_alt_px}  = $low;
+        } else {
+            # Rastrear el minimo del retroceso en curso.
+            if (!defined $self->{_cz_alt_px} || $low < $self->{_cz_alt_px}) {
+                $self->{_cz_alt_idx} = $index;
+                $self->{_cz_alt_px}  = $low;
+            }
+            # Reversion confirmada: el precio cayo >= umbral desde el high corriente.
+            if (($self->{_cz_ext_px} - $low) >= $thresh && ($self->{_cz_ext_px} - $low) > 0) {
+                $self->_process_swing($self->{_cz_ext_idx}, $self->{_cz_ext_px}, 'high');
+                $self->{_cz_dir}     = 'down';
+                $self->{_cz_ext_idx} = $self->{_cz_alt_idx} // $index;
+                $self->{_cz_ext_px}  = $self->{_cz_alt_px}  // $low;
+                $self->{_cz_alt_idx} = $index;
+                $self->{_cz_alt_px}  = $high;
+            }
+        }
+    } else {
+        # Direccion 'down': buscando un low.
+        if ($low <= $self->{_cz_ext_px}) {
+            $self->{_cz_ext_idx} = $index;
+            $self->{_cz_ext_px}  = $low;
+            $self->{_cz_alt_idx} = $index;
+            $self->{_cz_alt_px}  = $high;
+        } else {
+            if (!defined $self->{_cz_alt_px} || $high > $self->{_cz_alt_px}) {
+                $self->{_cz_alt_idx} = $index;
+                $self->{_cz_alt_px}  = $high;
+            }
+            if (($high - $self->{_cz_ext_px}) >= $thresh && ($high - $self->{_cz_ext_px}) > 0) {
+                $self->_process_swing($self->{_cz_ext_idx}, $self->{_cz_ext_px}, 'low');
+                $self->{_cz_dir}     = 'up';
+                $self->{_cz_ext_idx} = $self->{_cz_alt_idx} // $index;
+                $self->{_cz_ext_px}  = $self->{_cz_alt_px}  // $high;
+                $self->{_cz_alt_idx} = $index;
+                $self->{_cz_alt_px}  = $low;
+            }
         }
     }
     return;
@@ -791,6 +886,11 @@ sub reset {
     $self->{_dir}           = undef;
     $self->{_current}       = undef;
     $self->{_trailing}      = undef;
+    $self->{_cz_dir}        = undef;
+    $self->{_cz_ext_idx}    = undef;
+    $self->{_cz_ext_px}     = undef;
+    $self->{_cz_alt_idx}    = undef;
+    $self->{_cz_alt_px}     = undef;
     $self->{_last_high}     = undef;
     $self->{_last_low}      = undef;
     $self->{_pivots}        = [];

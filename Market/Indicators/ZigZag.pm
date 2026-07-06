@@ -27,6 +27,9 @@ sub new {
         swing_length        => $args{swing_length}        // 150,
         atr_period          => $args{atr_period}          // 200,
         channel_width       => $args{channel_width}       // 1,
+        # Canal local: evita macro-canales enormes en 1m que cruzan media pantalla
+        # y no representan el canal pequeño de tendencia que se espera visualmente.
+        channel_max_span    => $args{channel_max_span}    // 220,
         %args,
     };
     bless $self, $class;
@@ -164,6 +167,8 @@ sub _trend_channel_between {
     my $b = $verts->[$bi];
     my $di = $b->{index} - $a->{index};
     return undef if !$di;
+    my $max_span = $self->{channel_max_span} // 220;
+    return undef if $max_span > 0 && $di > $max_span;
 
     my $opp = $dir eq 'up' ? 'high' : 'low';
     my $anchor;

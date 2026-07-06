@@ -246,7 +246,30 @@ sub _triangle_wave_rows {
        'canal: +2 líneas sólidas por trend_channel');
 }
 
-# 10. Snapshot determinista (segmentos internos)
+# 10. Densidad ZigZag conserva continuidad: no dibuja segmentos aislados/cortados.
+{
+    my $ind = Market::Indicators::ZigZag->new(swing_length => 5, internal_resolution => 30);
+    $ind->{_ext_segments} = [
+        map { { from_index => $_, to_index => $_ + 10, from_price => 100 + $_, to_price => 105 + $_, dir => 'up' } } (0, 10, 20, 30)
+    ];
+    my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
+    $ov->set_element_density_pct('EXTERNAL', 50);
+    my $kept = $ov->_filter_segments_continuous_by_element_density('EXTERNAL', $ind->{_ext_segments});
+    is_deeply([ map { $_->{from_index} } @$kept ], [20, 30], 'ZigZag densidad: conserva el bloque reciente continuo');
+}
+
+# 11. Canal demasiado macro se descarta para evitar canales gigantes no locales.
+{
+    my $ind = Market::Indicators::ZigZag->new(channel_max_span => 20);
+    my $ch = $ind->_trend_channel_between(
+        [ { index => 0, price => 100 }, { index => 10, price => 120 }, { index => 50, price => 110 } ],
+        [ qw(low high low) ],
+        'up', 0, 2,
+    );
+    ok(!defined $ch, 'ZigZag canal: descarta canal con span mayor al máximo local');
+}
+
+# 12. Snapshot determinista (segmentos internos)
 {
     my @rows = (
         [10,11, 9,10], [10,13,10,12], [12,16,12,15], [15,16,11,12],
