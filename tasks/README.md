@@ -140,15 +140,15 @@ refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
 | 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |
 | 0060 | Fibonacci: solo 3 niveles en temporalidades bajas | coord. 0029 | 🔲 ABIERTA |
 | 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | ✅ HECHO + VERIF. arq. (grok+fix arq.; 1170 PASS + visual) |
-| 0062 | Slider 1–100% de densidad de indicadores (idea Bryan) | — | 🔲 ABIERTA (confirmar alcance global vs por familia) |
+| 0062 | Slider 1–100% de densidad de indicadores (idea Bryan) | — | ✅ HECHO + VERIF. arq. (slider Liq global Fase A; 1210 PASS + captura WSLg) |
 
 **Orden sugerido (impacto sobre queja profe/QA):** 0054 → 0055 → 0056 → 0062 → 0058 → 0061 →
 0060 → 0057 → 0059. (0054/0055/0056 bajan densidad en origen; 0062 da control fino; el resto son
 correcciones puntuales.)
 
 **Decisiones pendientes antes de ejecutar:**
-- 0062: ¿slider global (Fase A) o por familia (Fase B)? — confirmar Bryan.
-- 0055/0056: elegir enfoque (consumir pivotes SMC/ZigZag vs subir significancia) — arquitecto aprueba.
+- 0062: Fase A resuelta con slider global; Fase B por familia solo si el profe/Bryan lo pide.
+- 0055/0056: enfoque elegido y cerrado (SMC como pivotes externos para Liquidez + filtro ATR en SMC).
 - 0058/0060/0061: color de velas RUN, set de 3 niveles fib, y color del canal — confirmar con captura.
 
 **Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**

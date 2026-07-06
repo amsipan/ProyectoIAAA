@@ -710,4 +710,85 @@ sub _line_signature {
     ok(abs($lines[0]->[3] - $cx) < 0.01, 'RUN downsample: x_end centrado en columna de píxel');
 }
 
+# =============================================================================
+# task 0062: filtrado por densidad (solo render; pct=100 sin cambio).
+# =============================================================================
+{
+    my $ind = TestIndicator->new();
+    my $ov  = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    is($ov->density_pct(), 100, '0062: densidad por defecto 100%');
+
+    my @items = (
+        { index => 1, magnitude => 10 },
+        { index => 2, magnitude => 8 },
+        { index => 3, magnitude => 6 },
+        { index => 4, magnitude => 4 },
+    );
+    my $all = $ov->filter_by_density(\@items, 'magnitude');
+    is(scalar(@$all), 4, '0062: pct=100 devuelve todos los items');
+    is_deeply([ map { $_->{index} } @$all ], [1, 2, 3, 4],
+        '0062: pct=100 preserva el orden original');
+
+    $ov->set_density_pct(50);
+    is($ov->density_pct(), 50, '0062: setter acepta 50');
+    my $half = $ov->filter_by_density(\@items, 'magnitude');
+    is(scalar(@$half), 2, '0062: pct=50 sobre 4 items => ceil(2)');
+    is_deeply([ map { $_->{magnitude} } @$half ], [10, 8],
+        '0062: pct=50 conserva los de mayor magnitude');
+
+    $ov->set_density_pct(0);
+    is($ov->density_pct(), 1, '0062: setter clamp minimo 1');
+    $ov->set_density_pct(200);
+    is($ov->density_pct(), 100, '0062: setter clamp maximo 100');
+}
+
+{
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 1, type => 'GRAB', dir => 'up', price => 15, magnitude => 5, relevant => 1 },
+            { index => 2, type => 'GRAB', dir => 'up', price => 15, magnitude => 1, relevant => 1 },
+            { index => 3, type => 'GRAB', dir => 'up', price => 15, magnitude => 3, relevant => 1 },
+            { index => 4, type => 'GRAB', dir => 'up', price => 15, magnitude => 2, relevant => 1 },
+        ],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP RUN);
+    $ov->set_density_pct(50);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 10);
+    $ov->compute_visible(undef, $ind, 0, 9);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @grab = grep {
+        $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'LQ GRAB'
+    } @{ $canvas->{ops} };
+    is(scalar(@grab), 2, '0062: draw con densidad 50% reduce marcadores GRAB visibles');
+}
+
+{
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 1, type => 'SWEEP_UP', dir => 'up', price => 15, magnitude => 100, relevant => 1 },
+            { index => 2, type => 'SWEEP_UP', dir => 'up', price => 15, magnitude => 90,  relevant => 1 },
+            { index => 3, type => 'GRAB',     dir => 'up', price => 15, magnitude => 5,   relevant => 1 },
+            { index => 4, type => 'GRAB',     dir => 'up', price => 15, magnitude => 4,   relevant => 1 },
+        ],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP RUN);
+    $ov->set_density_pct(50);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 10);
+    $ov->compute_visible(undef, $ind, 0, 9);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @grab = grep {
+        $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'LQ GRAB'
+    } @{ $canvas->{ops} };
+    is(scalar(@grab), 1,
+        '0062: densidad se aplica después de toggles; SWEEP oculto no desplaza GRAB visible');
+}
+
 done_testing();

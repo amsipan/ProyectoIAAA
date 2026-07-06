@@ -502,6 +502,19 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 }
 
 # =============================================================================
+# task 0062: market.pl expone slider de densidad de liquidez (Tk::Scale).
+# =============================================================================
+{
+    open my $fh, '<', 'market.pl' or die "market.pl: $!";
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    like($src, qr/Densidad\s*%/, '0062: market.pl etiqueta Densidad %');
+    like($src, qr/->Scale\b/, '0062: market.pl usa Tk::Scale');
+    like($src, qr/set_density_pct/, '0062: market.pl cablea set_density_pct');
+    like($src, qr/request_render/, '0062: slider dispara request_render');
+}
+
+# =============================================================================
 # Test 13: las factorías validan sus argumentos (no crean callbacks sin $chart).
 # Protege contra un cableado olvidado en market.pl.
 # =============================================================================

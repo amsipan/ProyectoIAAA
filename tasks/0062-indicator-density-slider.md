@@ -1,7 +1,14 @@
 # Task 0062: Control de densidad de indicadores — slider 1–100% de significancia
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda. Idea de Bryan.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+corrección arquitecto para aplicar densidad después de toggles visibles. 1210 PASS.
+
+Notas:
+- Implementado slider global 1–100% en panel `Liq` con `Tk::Scale`.
+- Filtrado solo en render (`Market::Overlays::Liquidity`), sin recalcular indicadores.
+- Aplica a BSL/SSL y eventos SWEEP/GRAB/RUN; EQH/EQL queda fuera como Fase B.
+- Verificación visual WSLg: `C:\Users\ASUS ROG\AppData\Local\Temp\opencode\0062_liq_slider.png`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` sección 2.

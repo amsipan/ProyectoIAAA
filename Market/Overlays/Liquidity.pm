@@ -85,6 +85,8 @@ sub new {
         # task 0027: agrupar BSL/SSL cercanos en banda sombreada.
         _band_mode => exists $args{band_mode} ? ($args{band_mode} ? 1 : 0) : 1,
         _band_atr  => defined $args{band_atr} ? $args{band_atr} : 0.5,
+        # task 0062: densidad de render (1–100%). Solo filtra al dibujar; 100% = sin cambio.
+        _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
         _draw_end_idx => 0,
     };
     bless $self, $class;
@@ -116,6 +118,27 @@ sub set_band_mode {
 sub band_mode {
     my ($self) = @_;
     return $self->{_band_mode} ? 1 : 0;
+}
+
+sub _clamp_density_pct {
+    my ($pct) = @_;
+    return 100 unless defined $pct;
+    $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
+    return 1   if $pct < 1;
+    return 100 if $pct > 100;
+    return $pct;
+}
+
+# set_density_pct($pct) — control de densidad de etiquetas en render (task 0062).
+sub set_density_pct {
+    my ($self, $pct) = @_;
+    $self->{_density_pct} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub density_pct {
+    my ($self) = @_;
+    return $self->{_density_pct} // 100;
 }
 
 sub tag { 'ov_liq' }
@@ -222,6 +245,40 @@ sub _window_filter {
     return [ grep { defined $_->{index} && $_->{index} >= $start && $_->{index} <= $end } @$items ];
 }
 
+# _filter_by_density($items, $score_key_or_cb) — top ceil(N*pct/100) por score desc.
+# $score_key_or_cb: nombre de campo hash, coderef, o undef (usa magnitude, fallback 1).
+# Con pct=100 devuelve @$items sin reordenar (idéntico al comportamiento previo).
+sub _filter_by_density {
+    my ($self, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->{_density_pct} // 100;
+    return $items if $pct >= 100 || @$items == 0;
+
+    my $n = scalar @$items;
+    my $keep = int(($n * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    return [] if $keep <= 0;
+
+    my $score_of = sub {
+        my ($item) = @_;
+        if (ref($score_spec) eq 'CODE') {
+            return $score_spec->($item);
+        }
+        if (defined $score_spec && length $score_spec) {
+            return $item->{$score_spec} // 1;
+        }
+        return $item->{magnitude} // 1;
+    };
+
+    my @ranked = sort {
+        my $sc = $score_of->($b) <=> $score_of->($a);
+        return $sc if $sc;
+        ($a->{index} // 0) <=> ($b->{index} // 0);
+    } @$items;
+
+    return [ @ranked[0 .. $keep - 1] ];
+}
+
 sub _local_index {
     my ($self, $index) = @_;
     my $range = $self->{_compute_range};
@@ -271,6 +328,7 @@ sub draw {
             defined $_->{type} && $_->{type} eq $elem
                 && defined $_->{index} && defined $_->{price}
         } @{ $self->{_levels} };
+        @lvls = @{ $self->_filter_by_density(\@lvls, 'magnitude') };
         next unless @lvls;
         my $col = $self->_color($theme_k, $def_col);
         my $lbl_col = $self->_color($label_k, $def_col);
@@ -331,7 +389,7 @@ sub draw {
     # ORDEN 12 (task 0024): cuando varios marcadores caen en la MISMA vela se
     # solapan y se vuelven ilegibles. Llevamos un contador por indice para
     # apilarlos verticalmente (offset incremental) y que no se encimen.
-    my %stack;
+    my @event_candidates;
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         # ORDEN 4 (task 0021 F): si only_relevant esta activo, solo dibujar las
@@ -340,6 +398,16 @@ sub draw {
         # relevantes para no romper compatibilidad.
         next if $self->{_only_relevant}
              && defined $e->{relevant} && !$e->{relevant};
+        my $type = $e->{type};
+        next if ($type eq 'SWEEP_UP'   || $type eq 'SWEEP_DOWN') && !$ev->{SWEEP};
+        next if $type eq 'GRAB' && !$ev->{GRAB};
+        next if $type eq 'RUN'  && !$ev->{RUN};
+        push @event_candidates, $e;
+    }
+    my @events_draw = @{ $self->_filter_by_density(\@event_candidates, 'magnitude') };
+
+    my %stack;
+    for my $e (@events_draw) {
         my $type = $e->{type};
         my $level = $stack{$e->{index}}++;   # 0 el primero, 1 el segundo, ...
 
@@ -666,6 +734,12 @@ sub clear {
 sub compute_range {
     my ($self) = @_;
     return $self->{_compute_range};
+}
+
+# filter_by_density: expone _filter_by_density para tests (task 0062).
+sub filter_by_density {
+    my ($self, $items, $score_spec) = @_;
+    return $self->_filter_by_density($items, $score_spec);
 }
 
 # visible_items: retorna todos los items que el overlay dibujará en draw(),

@@ -172,6 +172,7 @@ my $vis_vwap = 0;
 my $vis_mxwll = 0;
 my $vis_zigzag = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+my $liq_density_pct = 100;
 my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
 my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
@@ -292,6 +293,22 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         $p->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
             -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }
+    $p->Label(-text => 'Densidad %')->pack(-side => 'left', -padx => 6);
+    $p->Scale(
+        -from     => 1,
+        -to       => 100,
+        -orient   => 'horizontal',
+        -length   => 120,
+        -variable => \$liq_density_pct,
+        -command  => sub {
+            my $v = shift;
+            $v = $liq_density_pct unless defined $v;
+            my $liq = $chart_engine->{liq_overlay};
+            return unless $liq && $liq->can('set_density_pct');
+            $liq->set_density_pct($v);
+            $chart_engine->request_render();
+        },
+    )->pack(-side => 'left', -padx => 2);
 }
 
 # ---- Panel "Mxwll": sub-filtros de la capa Mxwll (ORDEN 9 / task 0021 I) ----
