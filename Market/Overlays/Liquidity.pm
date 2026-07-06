@@ -525,6 +525,17 @@ sub _draw_hline_label {
     return;
 }
 
+# Texto en pantalla para pares EQH/EQL (task 0057). El indicador conserva los
+# tipos de contrato EQH/EQL/I-EQH/I-EQL; aqui solo cambia la etiqueta visible.
+sub _eqhl_display_label {
+    my ($type) = @_;
+    return 'EQH INT' if $type eq 'I-EQH';
+    return 'EQL INT' if $type eq 'I-EQL';
+    return 'EQH EXT' if $type eq 'EQH';
+    return 'EQL EXT' if $type eq 'EQL';
+    return $type;
+}
+
 # _draw_pair_line: conecta los pivotes de un par (EQH/EQL) con una línea.
 # $type puede ser EQH/EQL o I-EQH/I-EQL (interno). $internal ajusta etiqueta y
 # estilo (linea mas fina) pero el color se toma del tipo base (EQH/EQL).
@@ -538,6 +549,13 @@ sub _draw_pair_line {
                              $is_high ? '#ef5350' : '#26a69a');
     my $label_color = $self->_color($is_high ? 'liq_eqh_label' : 'liq_eql_label',
                                     $color);
+    if ($internal) {
+        $color = $self->_color(
+            $is_high ? 'liq_eqh_internal' : 'liq_eql_internal',
+            $is_high ? '#e57373' : '#4db6ac',
+        );
+        $label_color = $color;
+    }
 
     my $first = $sorted[0];
     my $last  = $sorted[-1];
@@ -564,16 +582,16 @@ sub _draw_pair_line {
     # ORDEN 10 (task 0022): externo EQH/EQL = linea SOLIDA; interno I-EQH/I-EQL =
     # entrecortada. Coherente con la estructura del Mxwll.
     my @line_opts = (-fill => $color, -width => $width, -tags => $tag);
-    push @line_opts, (-dash => [2, 3]) if $internal;
+    push @line_opts, (-dash => [4, 4]) if $internal;
     $canvas->createLine($x_start, $y, $x_end, $y, @line_opts);
 
-    # Etiqueta sobre el punto medio de los extremos del par (texto LITERAL).
+    # Etiqueta sobre el punto medio del par (EQH EXT / EQH INT, etc.).
     my $x1 = $scales->index_to_center_x($self->_local_index($first->{index}));
     my $x2 = $scales->index_to_center_x($self->_local_index($last->{index}));
     my $x_mid = ($x1 + $x2) / 2;
     $canvas->createText(
         $x_mid, $is_high ? $y - 6 : $y + 6,
-        -text   => $type,
+        -text   => _eqhl_display_label($type),
         -anchor => $is_high ? 's' : 'n',
         -font   => $internal ? 'Helvetica 7' : 'Helvetica 8 bold',
         -fill   => $label_color,

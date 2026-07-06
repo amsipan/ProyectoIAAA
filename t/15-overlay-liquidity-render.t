@@ -189,9 +189,9 @@ sub tab2_indicator {
     my @ssl_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#26a69a' } @lines;
     ok(scalar(@ssl_lines) >= 1, 'SSL: al menos una linea verde (#26a69a)');
 
-    # --- EQH / EQL: etiquetas presentes, color configurable (default rojo/verde) ---
-    ok($text_seen{'EQH'}, 'EQH: etiqueta "EQH" presente');
-    ok($text_seen{'EQL'}, 'EQL: etiqueta "EQL" presente');
+    # --- EQH / EQL: etiquetas EXT explicitas (task 0057), color default rojo/verde ---
+    ok($text_seen{'EQH EXT'}, 'EQH: etiqueta "EQH EXT" presente');
+    ok($text_seen{'EQL EXT'}, 'EQL: etiqueta "EQL EXT" presente');
     # EQH conecta los dos pivotes (index 3 y 5): hay una createLine entre ellos.
     # Comprobamos que existe al menos una linea con el color default de EQH (#ef5350).
     my @eqh_pair_lines = grep { defined op_arg($_, 'fill') && op_arg($_, 'fill') eq '#ef5350' } @lines;
@@ -547,6 +547,12 @@ sub _line_signature {
     my @dashed = grep {  defined op_arg($_, 'dash') } @lines;
     is(scalar(@solid),  1, 'ORDEN10: EQH externo con linea solida');
     is(scalar(@dashed), 1, 'ORDEN10: I-EQH interno entrecortado');
+    my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
+    my %txt = map { (op_arg($_, 'text') // '') => 1 } @texts;
+    ok($txt{'EQH EXT'}, 'ORDEN10/0057: etiqueta externa "EQH EXT"');
+    ok($txt{'EQH INT'}, 'ORDEN10/0057: etiqueta interna "EQH INT"');
+    my @int_lines = grep { defined op_arg($_, 'dash') } @dashed;
+    ok((op_arg($int_lines[0], 'width') // 0) == 1, '0057: linea interna mas delgada (width 1)');
 }
 
 # =============================================================================

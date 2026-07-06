@@ -1,7 +1,19 @@
 # Task 0057: EQH/EQL interno vs externo — verificar y garantizar render en runtime
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda. Verificación + posible fix.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Diagnóstico/fix mínimo delegado a grok composer-2.5-fast;
+arquitecto verificó tests y captura WSLg. 1237 PASS.
+
+Diagnóstico:
+- Los internos ya estaban activos por default (`eqhl_int_size=2`) y ChartEngine no los desactivaba.
+- El cálculo emitía `EQH/EQL` externos e `I-EQH/I-EQL` internos, pero en pantalla la nomenclatura
+  `I-*` podía pasar desapercibida para QA/profe.
+
+Fix:
+- Render ahora muestra etiquetas explícitas `EQH EXT`, `EQL EXT`, `EQH INT`, `EQL INT`.
+- Internos mantienen línea dashed/tenue; externos sólidos.
+- Tests cubren emisión de tipos internos/externos y render de etiquetas/estilo.
+- Verificación visual WSLg: `C:\Users\ASUS ROG\AppData\Local\Temp\opencode\0057_eqhl_internal_external.png`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` punto 7, audio 1.

@@ -1123,6 +1123,32 @@ SKIP: {
 }
 
 # =============================================================================
+# task 0057: internos activos por default + secuencia controlada ext/int
+# =============================================================================
+{
+    my $liq_def = Market::Indicators::Liquidity->new(k => 3);
+    is($liq_def->{eqhl_int_size}, 2, '0057: eqhl_int_size=2 por defecto (internos ON en runtime)');
+
+    my @c = (
+        [10,12, 8,10],
+        [10,13, 9,11],
+        [14,15,14,15],
+        [13,13, 7, 8],
+        [ 9,10, 9,10],
+        [14,15,14,15],
+        [11,11, 6, 7],
+        [ 8, 9, 8, 9],
+    );
+    my $md  = build_ohlc(\@c);
+    my $liq = Market::Indicators::Liquidity->new(k => 1, atr_period => 4,
+        eqhl_size => 1, eqhl_int_size => 1, eqhl_atr_period => 20);
+    $liq->update_last($md, $_) for 0 .. $md->last_index;
+    my $levels = $liq->get_levels();
+    ok(scalar(levels_of_type($levels, 'EQH')) >= 2, '0057: secuencia controlada emite par EQH externo');
+    ok(scalar(levels_of_type($levels, 'I-EQH')) >= 2, '0057: secuencia controlada emite par I-EQH interno');
+}
+
+# =============================================================================
 # task 0054: densidad BSL/SSL — k default, level_atr_factor, menos ruido
 # =============================================================================
 
