@@ -1,7 +1,15 @@
 # Task 0058: Recolorear las velas de un liquidity RUN (no solo halo)
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda. Reabre enfoque de 0025.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+corrección arquitecto para respetar overlay/toggle/densidad en el mapa RUN. 1220 PASS.
+
+Notas:
+- `ChartEngine::compute_run_candle_map` deriva índices RUN visibles desde Liquidez y respeta Replay,
+  toggle principal Liquidez, sub-toggle RUN y densidad 0062.
+- `PricePanel` recolorea cuerpo/mecha de velas RUN con colores propios y preserva el halo overlay 0025.
+- Downsample marca un bucket como RUN si contiene al menos una vela RUN.
+- Verificación visual WSLg: `C:\Users\ASUS ROG\AppData\Local\Temp\opencode\0058_run_recolor.png`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` punto 8, audio 1.

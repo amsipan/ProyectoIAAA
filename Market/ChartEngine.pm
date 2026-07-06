@@ -70,11 +70,11 @@ sub new {
     my ($class, %args) = @_;
 
     my $self = {
-        market_data      => $args{market_data},      
+        market_data      => $args{market_data},
         indicator_manager=> $args{indicator_manager},
-        price_canvas     => $args{price_canvas},     
-        atr_canvas       => $args{atr_canvas},       
-        
+        price_canvas     => $args{price_canvas},
+        atr_canvas       => $args{atr_canvas},
+
         visible_bars     => 60,
         offset           => 0,
         is_auto_scale    => 1,
@@ -212,14 +212,14 @@ sub new {
     $self->{_zigzag_fed_up_to} = -1;
 
     $self->bind_events();
-    
+
     return $self;
 }
 
 
 sub compute_window {
     my ($self) = @_;
-    
+
     my $total_candles = $self->{market_data}->size();
     return (0, -1) if !$total_candles || $total_candles <= 0;
 
@@ -329,6 +329,56 @@ sub sync_overlay_indicators {
     $self->_feed_indicator_to($self->{zigzag_indicator}, '_zigzag_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('zigzag');
     return $feed_to;
+}
+
+# compute_run_candle_map — task 0058: índices globales de velas RUN relevantes
+# para recoloreo en PricePanel. Respeta toggle RUN del overlay y replay_idx.
+# Público para tests headless (mismo patrón que sync_overlay_indicators).
+sub compute_run_candle_map {
+    my ($self) = @_;
+    my %map;
+
+    my $ind = $self->{liq_indicator};
+    return \%map unless $ind && $ind->can('get_events');
+
+    my $overlay = $self->{liq_overlay};
+    if ($overlay && $overlay->can('is_visible') && !$overlay->is_visible()) {
+        return \%map;
+    }
+    if ($overlay && $overlay->can('is_element_visible') && !$overlay->is_element_visible('RUN')) {
+        return \%map;
+    }
+
+    my $replay_max;
+    my $replay = $self->{replay_controller};
+    if ($replay && $replay->is_active() && defined $replay->current_index()) {
+        $replay_max = $replay->current_index();
+    }
+
+    my @candidates;
+    for my $e (@{ $ind->get_events() }) {
+        next unless defined $e->{type} && defined $e->{index};
+        next if defined $e->{relevant} && !$e->{relevant};
+        next if defined $replay_max && $e->{index} > $replay_max;
+        my $type = $e->{type};
+        if ($overlay && $overlay->can('is_element_visible')) {
+            next if ($type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN') && !$overlay->is_element_visible('SWEEP');
+            next if $type eq 'GRAB' && !$overlay->is_element_visible('GRAB');
+            next if $type eq 'RUN'  && !$overlay->is_element_visible('RUN');
+        }
+        next unless $type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN' || $type eq 'GRAB' || $type eq 'RUN';
+        push @candidates, $e;
+    }
+
+    my $draw_events = ($overlay && $overlay->can('filter_by_density'))
+        ? $overlay->filter_by_density(\@candidates, 'magnitude')
+        : \@candidates;
+    for my $e (@$draw_events) {
+        next unless defined $e->{type} && $e->{type} eq 'RUN';
+        $map{ $e->{index} } = $e->{dir} // 'up';
+    }
+
+    return \%map;
 }
 
 sub set_zigzag_internal_resolution {
@@ -503,10 +553,10 @@ sub request_render {
 
 sub render {
     my ($self) = @_;
-    
+
     # 1. Obtener la porción temporal de la ventana visible
     my ($start, $end) = $self->compute_window();
-    
+
     # 2. Extraer subconjuntos de datos reales
     my $visible_candles = $self->{market_data}->get_slice($start, $end);
     my $visible_atr     = $self->{indicator_manager}->slice_array('ATR', $start, $end);
@@ -541,12 +591,12 @@ sub render {
     $self->_pad_visible_slice($draw_atr, $draw_start, $draw_end);
     my $draw_start_offset = $draw_start - $start;
     my $visible_count = $end - $start + 1;
-    
+
     # 3. Calcular rangos de precios e indicadores para construir escalas dinámicas
     my ($min_p, $max_p) = $self->{price_panel}->get_y_range($visible_candles);
     my ($min_a, $max_a) = $self->{atr_panel}->get_y_range($visible_atr);
     my $has_price_candles = $self->_visible_slice_has_candles($visible_candles);
-    
+
     if (!$self->{is_auto_scale} && defined $self->{manual_min_y} && defined $self->{manual_max_y}) {
         ($min_p, $max_p) = ($self->{manual_min_y}, $self->{manual_max_y});
     } elsif (!$self->{is_auto_scale}
@@ -580,7 +630,7 @@ sub render {
         $min_a = 0;
         $max_a = 100;
     }
-    
+
     # 4. Instanciar los sistemas de coordenadas. La escala X usa un ancho compartido
     # para que PricePanel y ATRPanel queden sincronizados barra por barra.
     my ($price_w, $price_h) = $self->_canvas_size($self->{price_canvas});
@@ -640,9 +690,10 @@ sub render {
     }
 
     $self->{price_panel}->set_scale($price_scale);
+    $self->{price_panel}->set_run_candles($self->compute_run_candle_map());
 
     $self->{atr_panel}->set_scale($atr_scale);
-    
+
     # 5. Ejecutar render en cada sub-canvas
     # spec 0000i: pasar draw_candles (con overscan) al panel para que las velas
     # parcialmente visibles durante paneo se rendericen desde antes.
@@ -1506,14 +1557,14 @@ sub _draw_replay_select_hover {
 
 sub _bind_all_canvas {
     my ($self) = @_;
-    
+
     # Aseguramos capturar las referencias exactas de los objetos de Tk
     my $p_canvas = $self->{price_canvas};
     my $a_canvas = $self->{atr_canvas};
     my $axis_canvas = $self->{price_axis_canvas};
     my $atr_axis_canvas = $self->{atr_axis_canvas};
     my $time_canvas = $self->{time_axis_canvas};
-    
+
     # 1. Binding nativo para el panel de Precios usando la sintaxis clásica 'bind'
     if (defined $p_canvas) {
         $p_canvas->Tk::bind('<Motion>', [sub {
@@ -1571,7 +1622,7 @@ sub _bind_all_canvas {
             $self->_clear_pointer_symbol($p_canvas);
         });
     }
-    
+
     # 2. Binding nativo idéntico para el panel del ATR
     if (defined $a_canvas) {
         $a_canvas->Tk::bind('<Motion>', [sub {
@@ -2576,16 +2627,16 @@ sub _snap_crosshair_x {
 
 sub _on_mouse_move {
     my ($self, $widget, $raw_x, $raw_y) = @_;
-    
+
     return if !defined $raw_x || !defined $raw_y;
-    
+
     my $pixel_x = $self->_snap_crosshair_x($raw_x);
     my $pixel_y = $self->round($raw_y);
-    
+
     $self->{last_mouse_x} = $pixel_x;
     $self->{last_mouse_y} = $pixel_y;
     $self->{active_canvas} = $widget;
-    
+
     if ($self->{_replay_select_mode}) {
         $self->_apply_select_mode_cursor();
         $self->_clear_chart_crosshair();

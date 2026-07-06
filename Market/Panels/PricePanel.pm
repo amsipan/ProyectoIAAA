@@ -73,6 +73,40 @@ sub set_scale {
     $self->{scale} = $scale;
 }
 
+# set_run_candles(\%map) — task 0058: mapa global { index => run_dir } para recoloreo RUN.
+sub set_run_candles {
+    my ($self, $map) = @_;
+    $self->{_run_candles} = (ref($map) eq 'HASH') ? $map : {};
+    return $self;
+}
+
+sub _global_index_is_run {
+    my ($self, $global_idx) = @_;
+    my $run = $self->{_run_candles};
+    return 0 unless $run && ref $run eq 'HASH';
+    return exists $run->{$global_idx} ? 1 : 0;
+}
+
+sub _candle_colors {
+    my ($self, $open, $close, $global_idx) = @_;
+    if ($self->_global_index_is_run($global_idx)) {
+        my $dir = $self->{_run_candles}{$global_idx};
+        my $body = (defined $dir && $dir eq 'up')
+            ? ($self->{theme}{run_bull} // '#7b1fa2')
+            : (defined $dir && $dir eq 'down')
+                ? ($self->{theme}{run_bear} // '#ff6d00')
+                : ($close >= $open)
+                    ? ($self->{theme}{run_bull} // '#7b1fa2')
+                    : ($self->{theme}{run_bear} // '#ff6d00');
+        my $wick = $self->{theme}{run_wick} // '#4a148c';
+        return ($body, $wick);
+    }
+    my $color = ($close >= $open)
+        ? ($self->{theme}{bull} // '#26a69a')
+        : ($self->{theme}{bear} // '#ef5350');
+    return ($color, $color);
+}
+
 # Dibuja todas las velas japonesas visibles sobre el canvas Tk.
 # Inyecta width/height del canvas en el objeto scale antes de usarlo.
 # Guarda la última vela en $self->{_last_candle} para render_last_visible_price.
@@ -131,10 +165,13 @@ sub render {
             $from = 0 if $from < 0;
 
             my ($open, $high, $low, $close);
+            my $run_ref_idx;
             for my $i ($from .. $to) {
                 next if defined $replay_max && ($slice_base + $i) > $replay_max;
                 my $candle = $data->[$i];
                 next unless defined $candle;
+                my $gidx = $slice_base + $i;
+                $run_ref_idx = $gidx if !defined $run_ref_idx && $self->_global_index_is_run($gidx);
                 $open = $candle->[1] if !defined $open;
                 $high = $candle->[2] if !defined $high || $candle->[2] > $high;
                 $low = $candle->[3] if !defined $low || $candle->[3] < $low;
@@ -144,10 +181,10 @@ sub render {
 
             my $y_h = $scale->value_to_y($high);
             my $y_l = $scale->value_to_y($low);
-            my $color = ($close >= $open)
-                ? ($self->{theme}{bull} // '#26a69a')
-                : ($self->{theme}{bear} // '#ef5350');
-            $canvas->createLine($px + 0.5, $y_h, $px + 0.5, $y_l, -fill => $color, -width => 1, -tags => 'candle');
+            my ($body_color, $wick_color) = defined $run_ref_idx
+                ? $self->_candle_colors($open, $close, $run_ref_idx)
+                : $self->_candle_colors($open, $close, -1);
+            $canvas->createLine($px + 0.5, $y_h, $px + 0.5, $y_l, -fill => $wick_color, -width => 1, -tags => 'candle');
         }
     } else {
         my $body_w = $bar_w * 0.6;
@@ -168,13 +205,12 @@ sub render {
             my $y_l = $scale->value_to_y($low);
             my $y_c = $scale->value_to_y($close);
 
-            my $color = ($close >= $open)
-                ? ($self->{theme}{bull} // '#26a69a')
-                : ($self->{theme}{bear} // '#ef5350');
+            my $global_idx = $slice_base + $i;
+            my ($body_color, $wick_color) = $self->_candle_colors($open, $close, $global_idx);
 
             $canvas->createLine(
                 $cx, $y_h, $cx, $y_l,
-                -fill  => $color,
+                -fill  => $wick_color,
                 -width => 1,
                 -tags  => 'candle',
             );
@@ -186,8 +222,8 @@ sub render {
             $canvas->createRectangle(
                 $cx - $half, $top,
                 $cx + $half, $bottom,
-                -fill    => $color,
-                -outline => $color,
+                -fill    => $body_color,
+                -outline => $body_color,
                 -tags    => 'candle',
             );
         }

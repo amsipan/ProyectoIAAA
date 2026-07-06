@@ -136,7 +136,7 @@ refinan tasks ya "hechas" cuyo enfoque quedó corto o mal orientado.
 | 0055 | Anclar run/sweep/grab a swings del SMC (no fractal propio) | — (arquitectónica) | ✅ HECHO + VERIF. arq. (grok composer-fast + fix arq.; 1186 PASS) |
 | 0056 | Reducir HH/HL del SMC — alinear con pocos pivotes del ZigZag | — | ✅ HECHO + VERIF. arq. (filtro ATR SMC; grok composer-fast + fix arq.; 1196 PASS) |
 | 0057 | EQH/EQL interno vs externo: verificar + garantizar render en runtime | — (verificación) | 🔲 ABIERTA |
-| 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | 🔲 ABIERTA |
+| 0058 | Recolorear VELAS de un liquidity RUN (no solo halo) | reabre 0025 | ✅ HECHO + VERIF. arq. (recolor cuerpo/mecha + Replay/toggle/densidad; 1220 PASS + visual) |
 | 0059 | FVG vigente solo cerca del precio: unificar filtro en capa SMC | refina 0023 | 🔲 ABIERTA |
 | 0060 | Fibonacci: solo 3 niveles en temporalidades bajas | coord. 0029 | 🔲 ABIERTA |
 | 0061 | Canal de tendencia CLÁSICO (2 paralelas por pierna) — reemplaza envelope ATR | REABRE 0031 | ✅ HECHO + VERIF. arq. (grok+fix arq.; 1170 PASS + visual) |
@@ -149,7 +149,7 @@ correcciones puntuales.)
 **Decisiones pendientes antes de ejecutar:**
 - 0062: Fase A resuelta con slider global; Fase B por familia solo si el profe/Bryan lo pide.
 - 0055/0056: enfoque elegido y cerrado (SMC como pivotes externos para Liquidez + filtro ATR en SMC).
-- 0058/0060/0061: color de velas RUN, set de 3 niveles fib, y color del canal — confirmar con captura.
+- 0060: set exacto de 3 niveles Fibonacci — confirmar con captura si el profe/Bryan pide otros colores/levels.
 
 **Desviaciones de spec APROBADAS por el arquitecto (05/07, con visto bueno visual de Bryan):**
 - **Panel Replay INLINE en pestaña Replay**, no flotante (0043 original). Ratificado: mejor UX, sin
