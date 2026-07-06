@@ -460,6 +460,7 @@ sub draw {
     @events_draw = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @events_draw;
 
     my %stack;
+    my @event_label_boxes;
     for my $e (@events_draw) {
         my $type = $e->{type};
         my $level = $stack{$e->{index}}++;   # 0 el primero, 1 el segundo, ...
@@ -467,23 +468,23 @@ sub draw {
         if ($type eq 'SWEEP_UP' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 "SWEEP \x{2191}",
-                $self->_color('liq_sweep_up', '#ef5350'), $level,
+                $self->_color('liq_sweep_up', '#ef5350'), $level, \@event_label_boxes,
             );
         } elsif ($type eq 'SWEEP_DOWN' && $ev->{SWEEP}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 "SWEEP \x{2193}",
-                $self->_color('liq_sweep_down', '#26a69a'), $level,
+                $self->_color('liq_sweep_down', '#26a69a'), $level, \@event_label_boxes,
             );
         } elsif ($type eq 'GRAB' && $ev->{GRAB}) {
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ GRAB',
-                $self->_color('liq_grab', '#ff9800'), $level,
+                $self->_color('liq_grab', '#ff9800'), $level, \@event_label_boxes,
             );
         } elsif ($type eq 'RUN' && $ev->{RUN}) {
             $self->_highlight_run_candle($canvas, $scales, $tag, $e);
             $self->_draw_event_marker($canvas, $scales, $tag, $e,
                 'LQ RUN',
-                $self->_color('liq_run', '#2962ff'), $level,
+                $self->_color('liq_run', '#2962ff'), $level, \@event_label_boxes,
             );
         }
     }
@@ -726,7 +727,7 @@ sub _highlight_run_candle {
 # que ANCLA la toma a su nivel, desde el pivote hasta la vela del evento. Asi la
 # toma de liquidez queda "vinculada a un nivel" como pedia el profe.
 sub _draw_event_marker {
-    my ($self, $canvas, $scales, $tag, $e, $label, $color, $level) = @_;
+    my ($self, $canvas, $scales, $tag, $e, $label, $color, $level, $label_boxes) = @_;
     $level ||= 0;
     my $x = $scales->index_to_center_x($self->_local_index($e->{index}));
 
@@ -763,13 +764,8 @@ sub _draw_event_marker {
             -width => 2,
             -tags  => $tag,
         );
-        $canvas->createText(
-            $x, $y_tip - 4,
-            -text   => $label,
-            -anchor => 's',
-            -font   => 'Helvetica 8 bold',
-            -fill   => $color,
-            -tags   => $tag,
+        $self->_draw_event_label_if_room(
+            $canvas, $tag, $x, $y_tip - 4, $label, 's', $color, $label_boxes,
         );
     } else {
         # SSL: Línea vertical que va hacia abajo desde el Low de la vela.
@@ -780,16 +776,56 @@ sub _draw_event_marker {
             -width => 2,
             -tags  => $tag,
         );
-        $canvas->createText(
-            $x, $y_tip + 4,
-            -text   => $label,
-            -anchor => 'n',
-            -font   => 'Helvetica 8 bold',
-            -fill   => $color,
-            -tags   => $tag,
+        $self->_draw_event_label_if_room(
+            $canvas, $tag, $x, $y_tip + 4, $label, 'n', $color, $label_boxes,
         );
     }
     return;
+}
+
+sub _event_label_box {
+    my ($x, $y, $label, $anchor) = @_;
+    my $chars = defined $label ? length($label) : 0;
+    my $w = 7 * $chars + 8;
+    $w = 30 if $w < 30;
+    my $h = 14;
+    my ($x0, $x1) = ($x - $w / 2, $x + $w / 2);
+    my ($y0, $y1);
+    if (($anchor // '') eq 's') {
+        ($y0, $y1) = ($y - $h, $y);
+    } else {
+        ($y0, $y1) = ($y, $y + $h);
+    }
+    return [$x0, $y0, $x1, $y1];
+}
+
+sub _boxes_overlap {
+    my ($a, $b, $pad) = @_;
+    $pad //= 2;
+    return 0 if $a->[2] + $pad < $b->[0];
+    return 0 if $b->[2] + $pad < $a->[0];
+    return 0 if $a->[3] + $pad < $b->[1];
+    return 0 if $b->[3] + $pad < $a->[1];
+    return 1;
+}
+
+sub _draw_event_label_if_room {
+    my ($self, $canvas, $tag, $x, $y, $label, $anchor, $color, $boxes) = @_;
+    $boxes ||= [];
+    my $box = _event_label_box($x, $y, $label, $anchor);
+    for my $old (@$boxes) {
+        return 0 if _boxes_overlap($box, $old, 3);
+    }
+    push @$boxes, $box;
+    $canvas->createText(
+        $x, $y,
+        -text   => $label,
+        -anchor => $anchor,
+        -font   => 'Helvetica 8 bold',
+        -fill   => $color,
+        -tags   => $tag,
+    );
+    return 1;
 }
 
 # clear($canvas) — borra solo los ítems de este overlay (tag `ov_liq`).

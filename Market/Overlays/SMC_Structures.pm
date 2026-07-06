@@ -54,6 +54,7 @@ sub new {
         _major   => [],
         _compute_range => undef,
         _replay_idx => undef,
+        _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
     };
     bless $self, $class;
     return $self;
@@ -70,6 +71,47 @@ sub set_visible {
 sub is_visible {
     my ($self) = @_;
     return $self->{visible};
+}
+
+sub _clamp_density_pct {
+    my ($pct) = @_;
+    return 100 unless defined $pct;
+    $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
+    return 1 if $pct < 1;
+    return 100 if $pct > 100;
+    return $pct;
+}
+
+sub set_density_pct {
+    my ($self, $pct) = @_;
+    $self->{_density_pct} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub density_pct {
+    my ($self) = @_;
+    return $self->{_density_pct} // 100;
+}
+
+sub _filter_by_density {
+    my ($self, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->density_pct();
+    return $items if $pct >= 100 || @$items == 0;
+    my $keep = int((scalar(@$items) * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    my $score_of = sub {
+        my ($item) = @_;
+        return $score_spec->($item) if ref($score_spec) eq 'CODE';
+        return $item->{$score_spec} // 1 if defined $score_spec && length $score_spec;
+        return $item->{magnitude} // $item->{index} // 1;
+    };
+    my @ranked = sort {
+        my $sc = $score_of->($b) <=> $score_of->($a);
+        return $sc if $sc;
+        ($b->{index} // 0) <=> ($a->{index} // 0);
+    } @$items;
+    return [ sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @ranked[0 .. $keep - 1] ];
 }
 
 # compute_visible($market_data, $indicator, $start, $end)
@@ -92,12 +134,22 @@ sub compute_visible {
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
     # Pivotes y eventos son etiquetas locales o líneas acotadas.
-    $self->{_pivots} = _window_filter($ind->get_pivots(), $start, $end);
-    $self->{_events} = _events_window_filter($ind->get_events(), $start, $end);
+    $self->{_pivots} = $self->_filter_by_density(
+        _window_filter($ind->get_pivots(), $start, $end), 'index'
+    );
+    $self->{_events} = $self->_filter_by_density(
+        _events_window_filter($ind->get_events(), $start, $end), sub {
+            my ($e) = @_;
+            return abs(($e->{index} // 0) - ($e->{start_index} // $e->{index} // 0)) || 1;
+        }
+    );
     
     # FVG, Fib y Major son líneas horizontales o cajas que se extienden al infinito o hasta mitigación,
     # por lo que deben mostrarse si empezaron en cualquier índice <= $end (aunque start_index esté off-screen).
-    $self->{_fvgs}   = [ grep { $_->{index} <= $end } @{$ind->get_fvg()} ];
+    $self->{_fvgs}   = $self->_filter_by_density([ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], sub {
+        my ($f) = @_;
+        return abs(($f->{hi} // 0) - ($f->{lo} // 0)) || ($f->{index} // 1);
+    });
     $self->{_fibs}   = [ grep { $_->{index} <= $end } @{$ind->get_fibonacci()} ];
     $self->{_major}  = [ grep { $_->{index} <= $end } @{$ind->get_major()} ];
 

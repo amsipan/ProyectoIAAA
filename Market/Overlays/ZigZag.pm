@@ -20,6 +20,7 @@ sub new {
         _elements => { INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 },
         _start    => 0,
         _end      => 0,
+        _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,
     };
     bless $self, $class;
     return $self;
@@ -34,6 +35,50 @@ sub set_visible {
 }
 
 sub is_visible { $_[0]->{visible} ? 1 : 0 }
+
+sub _clamp_density_pct {
+    my ($pct) = @_;
+    return 100 unless defined $pct;
+    $pct = int($pct + ($pct >= 0 ? 0.5 : -0.5));
+    return 1 if $pct < 1;
+    return 100 if $pct > 100;
+    return $pct;
+}
+
+sub set_density_pct {
+    my ($self, $pct) = @_;
+    $self->{_density_pct} = _clamp_density_pct($pct);
+    return $self;
+}
+
+sub density_pct {
+    my ($self) = @_;
+    return $self->{_density_pct} // 100;
+}
+
+sub _filter_by_density {
+    my ($self, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->density_pct();
+    return $items if $pct >= 100 || @$items == 0;
+    my $keep = int((scalar(@$items) * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    my $score_of = sub {
+        my ($item) = @_;
+        return $score_spec->($item) if ref($score_spec) eq 'CODE';
+        return $item->{$score_spec} // 1 if defined $score_spec && length $score_spec;
+        my $span = abs(($item->{to_index} // 0) - ($item->{from_index} // 0));
+        return $span || $item->{index} || 1;
+    };
+    my @ranked = sort {
+        my $sc = $score_of->($b) <=> $score_of->($a);
+        return $sc if $sc;
+        ($b->{to_index} // $b->{index} // 0) <=> ($a->{to_index} // $a->{index} // 0);
+    } @$items;
+    return [ sort {
+        ($a->{from_index} // $a->{index} // 0) <=> ($b->{from_index} // $b->{index} // 0)
+    } @ranked[0 .. $keep - 1] ];
+}
 
 sub set_element_visible {
     my ($self, $elem, $bool) = @_;
@@ -106,8 +151,12 @@ sub draw {
     my $ext_col  = $self->{theme}{zz_ext}      // '#2196f3';
 
     if ($self->is_element_visible('EXTERNAL')) {
-        for my $seg (@{ $vals->{external_segments} || [] }) {
-            next unless $self->_segment_visible($seg);
+        my @external_candidates = grep { $self->_segment_visible($_) } @{ $vals->{external_segments} || [] };
+        my $external = $self->_filter_by_density(\@external_candidates, sub {
+            my ($seg) = @_;
+            return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0)) || 1;
+        });
+        for my $seg (@$external) {
             next unless defined $seg->{from_price} && defined $seg->{to_price};
             my $x1 = $scales->index_to_center_x($self->_local_index($seg->{from_index}));
             my $x2 = $scales->index_to_center_x($self->_local_index($seg->{to_index}));
@@ -123,8 +172,12 @@ sub draw {
     }
 
     if ($self->is_element_visible('INTERNAL')) {
-        for my $seg (@{ $vals->{internal_segments} || [] }) {
-            next unless $self->_segment_visible($seg);
+        my @internal_candidates = grep { $self->_segment_visible($_) } @{ $vals->{internal_segments} || [] };
+        my $internal = $self->_filter_by_density(\@internal_candidates, sub {
+            my ($seg) = @_;
+            return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0)) || 1;
+        });
+        for my $seg (@$internal) {
             my $color = $seg->{dir} eq 'up' ? $up_int : $dn_int;
             next unless defined $seg->{from_price} && defined $seg->{to_price};
             my $x1 = $scales->index_to_center_x($self->_local_index($seg->{from_index}));
@@ -142,8 +195,12 @@ sub draw {
 
     if ($self->is_element_visible('CHANNEL')) {
         my $ch_col = $self->{theme}{zz_channel} // '#90a4ae';
-        for my $ch (@{ $vals->{trend_channels} || [] }) {
-            next unless $self->_segment_visible($ch);
+        my @channel_candidates = grep { $self->_segment_visible($_) } @{ $vals->{trend_channels} || [] };
+        my $channels = $self->_filter_by_density(\@channel_candidates, sub {
+            my ($ch) = @_;
+            return abs(($ch->{to_index} // 0) - ($ch->{from_index} // 0)) || 1;
+        });
+        for my $ch (@$channels) {
             for my $line (
                 [$ch->{from_index}, $ch->{from_price}, $ch->{to_index}, $ch->{to_price}],
                 [$ch->{parallel_from_index}, $ch->{parallel_from_price},

@@ -804,4 +804,27 @@ sub _line_signature {
         '0062: densidad se aplica después de toggles; SWEEP oculto no desplaza GRAB visible');
 }
 
+{
+    my $ind = TestIndicator->new(
+        levels => [],
+        events => [
+            { index => 10, type => 'GRAB', dir => 'up', price => 15, magnitude => 5, relevant => 1 },
+            { index => 11, type => 'GRAB', dir => 'up', price => 15, magnitude => 4, relevant => 1 },
+        ],
+    );
+    my $ov = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+    $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP RUN);
+    $ov->set_density_pct(100);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 60);
+    $ov->compute_visible(undef, $ind, 0, 59);
+    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    my @grab = grep {
+        $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'LQ GRAB'
+    } @{ $canvas->{ops} };
+    is(scalar(@grab), 1,
+        '0064: etiquetas LQ GRAB vecinas no se superponen visualmente');
+}
+
 done_testing();

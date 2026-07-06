@@ -174,9 +174,18 @@ my $vis_zigzag = 0;
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 # Feedback profe/QA: arrancar con pocas marcas, solo las más relevantes.
 my $liq_density_pct = 20;
+my $smc_density_pct = 35;
+my $mxwll_density_pct = 35;
+my $zigzag_density_pct = 35;
 my %liq_elem_density_pct = map { $_ => $liq_density_pct } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 $chart_engine->{liq_overlay}->set_density_pct($liq_density_pct)
     if $chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_density_pct');
+$chart_engine->{smc_overlay}->set_density_pct($smc_density_pct)
+    if $chart_engine->{smc_overlay} && $chart_engine->{smc_overlay}->can('set_density_pct');
+$chart_engine->{mxwll_overlay}->set_density_pct($mxwll_density_pct)
+    if $chart_engine->{mxwll_overlay} && $chart_engine->{mxwll_overlay}->can('set_density_pct');
+$chart_engine->{zigzag_overlay}->set_density_pct($zigzag_density_pct)
+    if $chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set_density_pct');
 my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
 my $zigzag_resolution = 30;
 # ORDEN 9 (task 0021 I): sub-elementos de la capa Mxwll (todos ON por defecto).
@@ -277,6 +286,43 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
     )->pack(-side => 'left', -padx => 1);
 }
 
+# --- Densidad por categoria: SIEMPRE visible a la derecha de la barra superior ---
+my $density_global_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'right', -padx => 4);
+$density_global_box->Label(-text => 'Densidad:')->pack(-side => 'left', -padx => 3);
+my @density_controls = (
+    [ 'Liq',    \$liq_density_pct,    'liq_overlay',    sub {
+        my ($v) = @_;
+        for my $elem (keys %liq_elem_density_pct) {
+            $liq_elem_density_pct{$elem} = int($v + 0.5);
+        }
+    } ],
+    [ 'SMC',    \$smc_density_pct,    'smc_overlay',    undef ],
+    [ 'Mxwll',  \$mxwll_density_pct,  'mxwll_overlay',  undef ],
+    [ 'ZigZag', \$zigzag_density_pct, 'zigzag_overlay', undef ],
+);
+for my $cfg (@density_controls) {
+    my ($label, $var_ref, $overlay_key, $after_set) = @$cfg;
+    my $box = $density_global_box->Frame()->pack(-side => 'left', -padx => 2);
+    $box->Label(-text => $label)->pack(-side => 'top');
+    $box->Scale(
+        -from      => 1,
+        -to        => 100,
+        -orient    => 'horizontal',
+        -length    => 58,
+        -showvalue => 0,
+        -variable  => $var_ref,
+        -command   => sub {
+            my $v = shift;
+            $v = $$var_ref unless defined $v;
+            my $ov = $chart_engine->{$overlay_key};
+            return unless $ov && $ov->can('set_density_pct');
+            $ov->set_density_pct($v);
+            $after_set->($v) if $after_set;
+            $chart_engine->request_render();
+        },
+    )->pack(-side => 'top');
+}
+
 # ---- Panel "Capas": overlays principales + HTF ----
 {
     my $p = $panel{Capas};
@@ -299,7 +345,7 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
 }
 
-# ---- Panel "Liquidez": capa principal + densidad global/por familia ----
+# ---- Panel "Liquidez": capa principal + densidad por familia ----
 {
     my $p = $panel{Liq};
     my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
@@ -313,27 +359,6 @@ for my $name (qw(Capas Liq Mxwll ZigZag Escala Replay)) {
         $families_box->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
             -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
     }
-
-    my $density_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $density_box->Label(-text => 'Densidad global')->pack(-side => 'left', -padx => 3);
-    $density_box->Scale(
-        -from     => 1,
-        -to       => 100,
-        -orient   => 'horizontal',
-        -length   => 95,
-        -variable => \$liq_density_pct,
-        -command  => sub {
-            my $v = shift;
-            $v = $liq_density_pct unless defined $v;
-            my $liq = $chart_engine->{liq_overlay};
-            return unless $liq && $liq->can('set_density_pct');
-            $liq->set_density_pct($v);
-            for my $elem (keys %liq_elem_density_pct) {
-                $liq_elem_density_pct{$elem} = int($v + 0.5);
-            }
-            $chart_engine->request_render();
-        },
-    )->pack(-side => 'left', -padx => 2);
 
     my $per_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $per_box->Label(-text => 'Por tipo')->pack(-side => 'left', -padx => 3);
