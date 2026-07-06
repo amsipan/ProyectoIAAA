@@ -36,6 +36,15 @@ use warnings;
 # CONTRATO IndicatorManager: update_last / get_values / reset.
 # =============================================================================
 
+# task 0060: mismos sets que SMC_Structures (TF baja = 3 niveles centrales).
+sub fib_ratios_for_timeframe {
+    my ($tf) = @_;
+    if (defined $tf && $tf =~ /^(?:1m|5m|15m)$/) {
+        return [0.382, 0.5, 0.618];
+    }
+    return [0.236, 0.382, 0.5, 0.618, 0.786];
+}
+
 sub new {
     my ($class, %opts) = @_;
     my $self = {
@@ -45,7 +54,8 @@ sub new {
         show_last  => $opts{show_last}  // 10,   # max order blocks por lado
         aoe_lookback => $opts{aoe_lookback} // 50,
         atr_period   => $opts{atr_period}   // 14,
-        fib_ratios   => $opts{fib_ratios}   // [0.236, 0.382, 0.5, 0.618, 0.786],
+        fib_ratios   => $opts{fib_ratios}
+            // fib_ratios_for_timeframe($opts{timeframe}),
 
         # ORDEN 11 (task 0023): un FVG solo se considera "vigente" (near=1) si su
         # rango esta a <= fvg_near_atr * ATR del precio actual (close). Los lejanos
@@ -108,6 +118,12 @@ sub new {
         _last_index => -1,
     };
     bless $self, $class;
+    return $self;
+}
+
+sub set_fibonacci_timeframe {
+    my ($self, $tf) = @_;
+    $self->{fib_ratios} = fib_ratios_for_timeframe($tf);
     return $self;
 }
 

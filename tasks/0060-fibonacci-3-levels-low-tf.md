@@ -1,7 +1,14 @@
 # Task 0060: Fibonacci — solo 3 niveles en temporalidades bajas
 
 ## Estado
-🔲 ABIERTA (2026-07-05). Feedback profe/QA 2ª ronda.
+✅ HECHO + VERIFICADO arquitecto (2026-07-05). Borrador delegado a grok composer-2.5-fast;
+fix arquitecto en test de `grep`. 1231 PASS.
+
+Notas:
+- TF bajas `1m/5m/15m` usan 3 niveles: `0.382, 0.5, 0.618`.
+- TF altas/default usan los 5 niveles históricos: `0.236, 0.382, 0.5, 0.618, 0.786`.
+- Se aplica en SMC y Mxwll; ChartEngine sincroniza al arrancar y al cambiar timeframe.
+- Verificación visual WSLg: `C:\Users\ASUS ROG\AppData\Local\Temp\opencode\0060_fibonacci_3_levels.png`.
 
 ## Origen
 - `docs/FEEDBACK_PROFESOR_QA_2026-07-05.md` punto 12, audio 1.

@@ -390,4 +390,31 @@ SKIP: {
     ok($seen{'Weak Low'},    'STRONG_WEAK: etiqueta Weak Low');
 }
 
+# =============================================================================
+# task 0060: Fibonacci — 3 niveles en TF bajas, 5 en TF altas
+# =============================================================================
+{
+    is_deeply(
+        Market::Indicators::Mxwll_Suite::fib_ratios_for_timeframe('1m'),
+        [0.382, 0.5, 0.618],
+        '0060 Mxwll: helper TF baja → 3 ratios',
+    );
+    is_deeply(
+        Market::Indicators::Mxwll_Suite::fib_ratios_for_timeframe('2h'),
+        [0.236, 0.382, 0.5, 0.618, 0.786],
+        '0060 Mxwll: helper TF alta → 5 ratios',
+    );
+
+    my $ind = Market::Indicators::Mxwll_Suite->new();
+    is_deeply($ind->{fib_ratios}, [0.236, 0.382, 0.5, 0.618, 0.786],
+        '0060 Mxwll: default sin timeframe → 5 niveles');
+
+    $ind->set_fibonacci_timeframe('5m');
+    is_deeply($ind->{fib_ratios}, [0.382, 0.5, 0.618],
+        '0060 Mxwll: set_fibonacci_timeframe(5m) → 3 niveles');
+
+    $ind->set_fibonacci_timeframe('D');
+    is(scalar(@{ $ind->{fib_ratios} }), 5, '0060 Mxwll: set_fibonacci_timeframe(D) → 5 niveles');
+}
+
 done_testing();

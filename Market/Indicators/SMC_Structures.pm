@@ -37,6 +37,15 @@ use warnings;
 #   reset + recálculo vela a vela reproduce el mismo resultado que batch.
 # =============================================================================
 
+# task 0060: TF bajas (1m/5m/15m) → 3 niveles; resto → 5 (comportamiento histórico).
+sub fib_ratios_for_timeframe {
+    my ($tf) = @_;
+    if (defined $tf && $tf =~ /^(?:1m|5m|15m)$/) {
+        return [0.382, 0.5, 0.618];
+    }
+    return [0.236, 0.382, 0.5, 0.618, 0.786];
+}
+
 sub new {
     my ($class, %opts) = @_;
     my $k = $opts{k} // 3;
@@ -80,8 +89,16 @@ sub new {
         _atr_last           => undef,
         _filter_last_high   => undef,
         _filter_last_low    => undef,
+        fib_ratios          => $opts{fib_ratios}
+            // fib_ratios_for_timeframe($opts{timeframe}),
     };
     bless $self, $class;
+    return $self;
+}
+
+sub set_fibonacci_timeframe {
+    my ($self, $tf) = @_;
+    $self->{fib_ratios} = fib_ratios_for_timeframe($tf);
     return $self;
 }
 
@@ -694,9 +711,8 @@ sub get_fibonacci {
     return [] if $range <= 0;
 
     my $idx = $mh->{index} > $ml->{index} ? $mh->{index} : $ml->{index};
-    my @levels = (0.236, 0.382, 0.5, 0.618, 0.786);
     my @result;
-    for my $r (@levels) {
+    for my $r (@{ $self->{fib_ratios} }) {
         push @result, {
             index => $idx,
             type  => "fib_$r",

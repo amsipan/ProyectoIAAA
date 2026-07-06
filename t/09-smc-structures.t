@@ -513,6 +513,45 @@ sub events_of_type {
     like($txt, qr/fib_0\.618/, 'Fibonacci: render_items incluye fib_0.618');
 }
 
+# --- 19b. task 0060: niveles Fibonacci según temporalidad ---
+{
+    is_deeply(
+        Market::Indicators::SMC_Structures::fib_ratios_for_timeframe('5m'),
+        [0.382, 0.5, 0.618],
+        '0060: helper TF baja devuelve 3 ratios',
+    );
+    is_deeply(
+        Market::Indicators::SMC_Structures::fib_ratios_for_timeframe('1h'),
+        [0.236, 0.382, 0.5, 0.618, 0.786],
+        '0060: helper TF alta devuelve 5 ratios',
+    );
+    is_deeply(
+        Market::Indicators::SMC_Structures::fib_ratios_for_timeframe(undef),
+        [0.236, 0.382, 0.5, 0.618, 0.786],
+        '0060: sin TF → set alto (5 niveles)',
+    );
+
+    my @c = (
+        [ 9, 10,  9, 10],
+        [10, 15, 10, 15],
+        [11, 11,  8, 10],
+        [10, 14, 10, 14],
+        [13, 13, 10, 13],
+        [13, 16, 13, 16],
+    );
+    my $md  = build_ohlc(\@c);
+    my $smc = Market::Indicators::SMC_Structures->new(k => 1);
+    $smc->set_fibonacci_timeframe('15m');
+    $smc->update_last($md, $_) for 0 .. $md->last_index;
+    my $fibs_low = $smc->get_fibonacci();
+    is(scalar(@$fibs_low), 3, '0060: TF baja → 3 niveles en get_fibonacci');
+    ok(!(grep { $_->{type} eq 'fib_0.236' } @$fibs_low), '0060: TF baja omite fib_0.236');
+
+    $smc->set_fibonacci_timeframe('4h');
+    my $fibs_high = $smc->get_fibonacci();
+    is(scalar(@$fibs_high), 5, '0060: TF alta → 5 niveles tras set_fibonacci_timeframe');
+}
+
 # --- 20. FVG + Fibonacci: replay guard ---
 {
     my @c = (

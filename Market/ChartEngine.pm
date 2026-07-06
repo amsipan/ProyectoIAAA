@@ -211,6 +211,8 @@ sub new {
     $self->{overlay_manager}->register('zigzag', $self->{zigzag_overlay});
     $self->{_zigzag_fed_up_to} = -1;
 
+    $self->_sync_fibonacci_levels_for_timeframe();
+
     $self->bind_events();
 
     return $self;
@@ -2804,6 +2806,7 @@ sub set_timeframe {
 
     $self->{market_data}->build_tf_candles($tf) if $tf ne '1m';
     $self->{market_data}->set_timeframe($tf);
+    $self->_sync_fibonacci_levels_for_timeframe($tf);
     $self->{indicator_manager}->reset_all();
     for (my $i = 0; $i < $self->{market_data}->size(); $i++) {
         $self->{indicator_manager}->update_last($self->{market_data}, $i);
@@ -3633,6 +3636,19 @@ sub get_all_timestamps {
 
     return \@timestamps;
 
+}
+
+# task 0060: propagar TF activo a SMC/Mxwll (solo set de ratios, sin Tk).
+sub _sync_fibonacci_levels_for_timeframe {
+    my ($self, $tf) = @_;
+    $tf //= eval { $self->{market_data}->{active_tf} };
+    if ($self->{smc_indicator} && $self->{smc_indicator}->can('set_fibonacci_timeframe')) {
+        $self->{smc_indicator}->set_fibonacci_timeframe($tf);
+    }
+    if ($self->{mxwll_indicator} && $self->{mxwll_indicator}->can('set_fibonacci_timeframe')) {
+        $self->{mxwll_indicator}->set_fibonacci_timeframe($tf);
+    }
+    return $self;
 }
 
 sub _timeframe_minutes {
