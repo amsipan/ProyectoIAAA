@@ -169,11 +169,96 @@ sub element_density_pct {
 
 sub _filter_by_element_density {
     my ($self, $element, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->element_density_pct($element);
+    return [] if $pct <= 0;
+    return $items if $pct >= 100 || @$items == 0;
+
+    # QA-fix: umbral GLOBAL estable. Si compute_visible calculó un umbral de
+    # score para esta familia sobre el conjunto completo, conservamos los items
+    # cuyo score lo alcanza. Esto evita el parpadeo al hacer zoom/pan (el
+    # subconjunto significativo ya no depende de cuántos items caen en la ventana).
+    my $thr = $self->{_density_thresholds};
+    if ($thr && exists $thr->{$element}) {
+        my $score_of = _score_fn($score_spec);
+        my $cut = $thr->{$element};
+        return [ grep { $score_of->($_) >= $cut } @$items ];
+    }
+
+    # Fallback (mocks de test sin compute_visible previo): percentil local.
     my $old = $self->{_density_pct};
-    $self->{_density_pct} = $self->element_density_pct($element);
+    $self->{_density_pct} = $pct;
     my $out = $self->_filter_by_density($items, $score_spec);
     $self->{_density_pct} = $old;
     return $out;
+}
+
+# _score_fn($score_spec) — normaliza el score_spec (coderef | nombre de campo |
+# undef) a un coderef reutilizable, con la misma semántica que _filter_by_density.
+sub _score_fn {
+    my ($score_spec) = @_;
+    return sub {
+        my ($item) = @_;
+        return $score_spec->($item) if ref($score_spec) eq 'CODE';
+        return $item->{$score_spec} // 1 if defined $score_spec && length $score_spec;
+        return $item->{magnitude} // 1;
+    };
+}
+
+# _compute_density_thresholds($levels, $events) — para cada familia calcula el
+# umbral de score que deja pasar ceil(N*pct/100) items del conjunto GLOBAL. El
+# umbral se aplica luego en draw() sobre los items de la ventana, de modo que la
+# selección sea idéntica en cualquier zoom/paneo. score usa la misma métrica que
+# el draw de cada familia (niveles: magnitude|index; eventos: magnitude).
+sub _compute_density_thresholds {
+    my ($self, $levels, $events) = @_;
+    $levels ||= [];
+    $events ||= [];
+
+    my $level_score = _score_fn(sub {
+        my ($lvl) = @_;
+        return $lvl->{magnitude} if defined $lvl->{magnitude};
+        return $lvl->{index} // 1;
+    });
+    my $eqhl_score = _score_fn(sub {
+        my ($item) = @_;
+        return abs(($item->{span} // 0)) || ($item->{magnitude} // 1) || 1;
+    });
+    my $event_score = _score_fn('magnitude');
+
+    my %by_fam = (
+        BSL => [], SSL => [], EQH => [], EQL => [],
+        SWEEP => [], GRAB => [], RUN => [],
+    );
+    for my $lvl (@$levels) {
+        my $t = $lvl->{type} // '';
+        if    ($t eq 'BSL') { push @{ $by_fam{BSL} }, [$lvl, $level_score->($lvl)] }
+        elsif ($t eq 'SSL') { push @{ $by_fam{SSL} }, [$lvl, $level_score->($lvl)] }
+        elsif ($t eq 'EQH' || $t eq 'I-EQH') { push @{ $by_fam{EQH} }, [$lvl, $eqhl_score->($lvl)] }
+        elsif ($t eq 'EQL' || $t eq 'I-EQL') { push @{ $by_fam{EQL} }, [$lvl, $eqhl_score->($lvl)] }
+    }
+    for my $e (@$events) {
+        next if $self->{_only_relevant} && defined $e->{relevant} && !$e->{relevant};
+        my $t = $e->{type} // '';
+        if    ($t eq 'SWEEP_UP' || $t eq 'SWEEP_DOWN') { push @{ $by_fam{SWEEP} }, [$e, $event_score->($e)] }
+        elsif ($t eq 'GRAB') { push @{ $by_fam{GRAB} }, [$e, $event_score->($e)] }
+        elsif ($t eq 'RUN')  { push @{ $by_fam{RUN} },  [$e, $event_score->($e)] }
+    }
+
+    my %thr;
+    for my $fam (keys %by_fam) {
+        my @scored = @{ $by_fam{$fam} };
+        next unless @scored;
+        my $pct = $self->element_density_pct($fam);
+        next if $pct >= 100;               # sin recorte: no fijar umbral
+        next if $pct <= 0;                 # pct<=0 ya se corta en _filter_by_element_density
+        my @sorted = sort { $b->[1] <=> $a->[1] } @scored;
+        my $keep = int((scalar(@sorted) * $pct + 99) / 100);
+        $keep = 1 if $keep < 1;
+        $keep = scalar(@sorted) if $keep > scalar(@sorted);
+        $thr{$fam} = $sorted[$keep - 1][1];   # score del último item conservado
+    }
+    return \%thr;
 }
 
 sub tag { 'ov_liq' }
@@ -224,7 +309,14 @@ sub compute_visible {
 
     my $levels = $ind->can('get_levels') ? $ind->get_levels() : [];
     my $events = $ind->can('get_events') ? $ind->get_events() : [];
-    
+
+    # QA-fix (parpadeo al zoom/pan): la selección por densidad se calcula sobre
+    # el conjunto GLOBAL (todos los niveles/eventos), no sobre la ventana visible.
+    # Guardamos un umbral de score por familia; en draw() se conservan los items
+    # con score >= umbral. Así el subconjunto significativo es ESTABLE: al hacer
+    # zoom o paneo los mismos items sobreviven en lugar de aparecer/desaparecer.
+    $self->{_density_thresholds} = $self->_compute_density_thresholds($levels, $events);
+
     # Nivel de liquidez se dibuja horizontalmente; se mantiene mientras esté en pantalla
     my $filtered_levels = _levels_window_filter($levels, $start, $end);
     $self->{_levels} = $filtered_levels;

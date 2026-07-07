@@ -107,6 +107,7 @@ sub new {
         vertical_drag_y  => undef,
         _replay_select_mode => 0,
         _selected_bar       => undef,
+        show_grid           => 1,
 
         %args,
     };
@@ -816,6 +817,7 @@ sub render {
     $price_scale->{draw_start_offset} = $draw_start_offset;
     $price_scale->{visible_count} = $visible_count;
     $price_scale->{slice_base_index} = $draw_start;
+    $price_scale->{draw_grid} = $self->{show_grid} ? 1 : 0;
     if (defined $replay_head_candle) {
         $price_scale->{replay_head_candle} = $replay_head_candle;
         $price_scale->{replay_max_index} = $replay->current_index();
@@ -828,6 +830,7 @@ sub render {
     $atr_scale->{draw_start_offset} = $draw_start_offset;
     $atr_scale->{visible_count} = $visible_count;
     $atr_scale->{slice_base_index} = $draw_start;
+    $atr_scale->{draw_grid} = $self->{show_grid} ? 1 : 0;
     if (defined $replay_head_atr) {
         $atr_scale->{replay_head_value} = $replay_head_atr;
         $atr_scale->{replay_max_index}  = $replay->current_index();
@@ -845,7 +848,7 @@ sub render {
     $self->_draw_replay_watermark($self->{price_canvas});
     $self->{atr_panel}->render($self->{atr_canvas}, $draw_atr, $atr_scale);
     my $time_labels = $self->compute_intraday_labels();
-    $self->{price_panel}->draw_time_axis($self->{price_canvas}, $time_labels, { draw_grid => 1, draw_labels => 0 });
+    $self->{price_panel}->draw_time_axis($self->{price_canvas}, $time_labels, { draw_grid => ($self->{show_grid} ? 1 : 0), draw_labels => 0 });
     $self->_render_price_axis($price_scale, $visible_candles, $replay_head_candle);
     $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr);
     $self->_render_time_axis($price_scale, $time_labels);
@@ -2633,6 +2636,26 @@ sub set_atr_scale_mode {
     }
 
     $self->request_render();
+}
+
+# set_show_grid($bool) — muestra/oculta el grid de fondo (líneas horizontales de
+# precio/ATR y verticales del eje temporal). No afecta velas ni overlays; solo
+# la cuadrícula, para ver mejor los indicadores cuando se requiera.
+sub set_show_grid {
+    my ($self, $bool) = @_;
+    $self->{show_grid} = $bool ? 1 : 0;
+    $self->request_render();
+    return $self->{show_grid};
+}
+
+sub show_grid {
+    my ($self) = @_;
+    return $self->{show_grid} ? 1 : 0;
+}
+
+sub toggle_grid {
+    my ($self) = @_;
+    return $self->set_show_grid(!$self->{show_grid});
 }
 
 sub set_scale_mode {

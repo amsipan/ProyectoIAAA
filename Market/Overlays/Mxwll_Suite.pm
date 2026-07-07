@@ -98,10 +98,56 @@ sub element_density_pct {
     return $self->{_density_elem_pct}{$elem} // $self->density_pct();
 }
 
+# _score_fn($score_spec) — coderef normalizado (coderef | campo | undef→magnitude/index).
+sub _score_fn {
+    my ($score_spec) = @_;
+    return sub {
+        my ($item) = @_;
+        return $score_spec->($item) if ref($score_spec) eq 'CODE';
+        return $item->{$score_spec} // 1 if defined $score_spec && length $score_spec;
+        return $item->{magnitude} // $item->{index} // 1;
+    };
+}
+
+# _density_threshold($elem, $global_items, $score_spec) — umbral de score que
+# deja pasar ceil(N*pct/100) items del conjunto GLOBAL. Guardado para aplicarlo
+# en _filter_by_element_density sobre los items ya recortados a la ventana, de
+# modo que la selección sea idéntica en cualquier zoom/paneo (evita parpadeo).
+sub _density_threshold {
+    my ($self, $elem, $global_items, $score_spec) = @_;
+    $self->{_density_thresholds} ||= {};
+    delete $self->{_density_thresholds}{$elem};
+    return unless $global_items && @$global_items;
+    my $pct = $self->element_density_pct($elem);
+    return if $pct >= 100 || $pct <= 0;
+    my $score_of = _score_fn($score_spec);
+    my @sorted = sort { $score_of->($b) <=> $score_of->($a) } @$global_items;
+    my $keep = int((scalar(@sorted) * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    $keep = scalar(@sorted) if $keep > scalar(@sorted);
+    $self->{_density_thresholds}{$elem} = $score_of->($sorted[$keep - 1]);
+    return;
+}
+
 sub _filter_by_element_density {
     my ($self, $elem, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->element_density_pct($elem);
+    return [] if $pct <= 0;
+    return $items if $pct >= 100 || @$items == 0;
+
+    # QA-fix (parpadeo al zoom/pan): si hay umbral GLOBAL, conservar los items
+    # cuyo score lo alcanza (subconjunto estable independiente de la ventana).
+    my $thr = $self->{_density_thresholds};
+    if ($thr && defined $thr->{$elem}) {
+        my $score_of = _score_fn($score_spec);
+        my $cut = $thr->{$elem};
+        return [ grep { $score_of->($_) >= $cut } @$items ];
+    }
+
+    # Fallback (sin umbral precomputado): percentil local.
     my $old = $self->{_density_pct};
-    $self->{_density_pct} = $self->element_density_pct($elem);
+    $self->{_density_pct} = $pct;
     my $out = $self->_filter_by_density($items, $score_spec);
     $self->{_density_pct} = $old;
     return $out;
@@ -169,6 +215,30 @@ sub compute_visible {
         $last_real = $market_data->size() - 1;
     }
     $self->{_last_real_index} = $last_real;
+
+    # QA-fix (parpadeo al zoom/pan): precomputar umbrales de densidad sobre los
+    # conjuntos GLOBALES (todo el historial), con los MISMOS score usados en draw.
+    my $ind  = defined $indicator ? $indicator : $self->{indicator};
+    my $vals = ($ind && $ind->can('get_values')) ? $ind->get_values() : undef;
+    if ($vals) {
+        my $box_span = sub {
+            my ($z) = @_;
+            return abs(($z->{top} // 0) - ($z->{bottom} // 0)) || ($z->{index} // 1);
+        };
+        my $struct_span = sub {
+            my ($s) = @_;
+            return abs(($s->{to} // 0) - ($s->{from} // ($s->{to} // 0))) || 1;
+        };
+        # OB y FVG: dos listas cada uno; el umbral se calcula sobre la unión global.
+        $self->_density_threshold('OB',
+            [ @{ $vals->{high_blocks} || [] }, @{ $vals->{low_blocks} || [] } ], $box_span);
+        $self->_density_threshold('FVG',         $vals->{fvgs}        || [], $box_span);
+        $self->_density_threshold('STRUCTURE',   $vals->{structures}  || [], $struct_span);
+        $self->_density_threshold('STRONG_WEAK', $vals->{strong_weak} || [], 'index');
+        $self->_density_threshold('SWINGS',      $vals->{swings}      || [], 'index');
+    } else {
+        $self->{_density_thresholds} = {};
+    }
     return $self;
 }
 

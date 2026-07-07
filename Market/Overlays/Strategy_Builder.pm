@@ -158,8 +158,13 @@ sub draw {
     }
 
     if ($self->is_element_visible('SUPPLY_DEMAND')) {
-        my @supplies = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end }
+        # QA-fix (parpadeo al zoom/pan): elegir las zonas de forma ESTABLE. Antes
+        # el filtro usaba `$start - 40`, así que el subconjunto cambiaba con el
+        # zoom. Ahora se toman las 6 zonas más recientes con index <= end (no
+        # depende de start); el recorte al viewport lo hace el clip de X.
+        my @supplies = grep { defined $_->{index} && $_->{index} >= 0 && $_->{index} <= $end }
             @{ $vals->{supply_zones} // [] };
+        @supplies = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @supplies;
         @supplies = splice(@supplies, -6) if @supplies > 6;
         for my $z (@supplies) {
             next if $z->{index} < 0;
@@ -179,8 +184,9 @@ sub draw {
             );
         }
 
-        my @demands = grep { $_->{index} >= 0 && $_->{index} >= $start - 40 && $_->{index} <= $end }
+        my @demands = grep { defined $_->{index} && $_->{index} >= 0 && $_->{index} <= $end }
             @{ $vals->{demand_zones} // [] };
+        @demands = sort { ($a->{index} // 0) <=> ($b->{index} // 0) } @demands;
         @demands = splice(@demands, -6) if @demands > 6;
         for my $z (@demands) {
             next if $z->{index} < 0;

@@ -829,4 +829,49 @@ sub _line_signature {
         '0064: etiquetas LQ GRAB vecinas no se superponen visualmente');
 }
 
+# =============================================================================
+# QA-fix: estabilidad de densidad al zoom/pan. El subconjunto elegido por
+# densidad se calcula sobre el conjunto GLOBAL, así que un GRAB que se dibuja en
+# la ventana amplia debe seguir dibujándose al acercar el zoom a esa zona, y uno
+# que NO pasa el umbral no debe "aparecer" solo porque la ventana lo aísla.
+# =============================================================================
+{
+    # 6 GRABs con magnitudes decrecientes repartidos en el historial.
+    my @events = map {
+        { index => $_->[0], type => 'GRAB', dir => 'up', price => 15,
+          magnitude => $_->[1], relevant => 1 }
+    } ([5,100],[15,80],[25,60],[35,40],[45,20],[55,10]);
+
+    my $grab_indices_drawn = sub {
+        my ($start, $end) = @_;
+        my $ind = TestIndicator->new(levels => [], events => [ @events ]);
+        my $ov  = Market::Overlays::Liquidity->new(indicator => $ind, theme => {});
+        $ov->set_element_visible($_, 0) for qw(BSL SSL EQH EQL SWEEP RUN);
+        $ov->set_density_pct(50);   # global: quedan los 3 de mayor magnitud (100,80,60)
+        my $canvas = TestCanvas->new();
+        my $scales = make_scales(5, 25, ($end - $start + 1));
+        $ov->compute_visible(undef, $ind, $start, $end);
+        $canvas->{ops} = [];
+        $ov->draw($canvas, $scales);
+        my @xs = grep {
+            $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'LQ GRAB'
+        } @{ $canvas->{ops} };
+        return scalar @xs;
+    };
+
+    # Ventana amplia [0,59]: pasan los 3 de mayor magnitud (idx 5,15,25).
+    is($grab_indices_drawn->(0, 59), 3,
+        'QA: ventana amplia dibuja los 3 GRAB más significativos (densidad global 50%)');
+
+    # Ventana estrecha [0,19] centrada en la zona fuerte: siguen los 2 que caen
+    # ahí Y superan el umbral global (idx 5 y 15). Estable respecto a la amplia.
+    is($grab_indices_drawn->(0, 19), 2,
+        'QA: al acercar zoom, los GRAB significativos de esa zona se MANTIENEN');
+
+    # Ventana estrecha en zona débil [40,59]: los GRAB de magnitud 20 y 10 NO
+    # superan el umbral global, así que NO aparecen aunque estén aislados.
+    is($grab_indices_drawn->(40, 59), 0,
+        'QA: al acercar zoom a zona débil, los GRAB no-significativos NO aparecen');
+}
+
 done_testing();

@@ -283,4 +283,45 @@ sub _triangle_wave_rows {
     ok(length $txt > 10, 'snapshot: salida no vacía');
 }
 
+# 13. QA-fix: estabilidad al zoom/pan. El subconjunto de segmentos elegidos por
+# densidad se calcula sobre el conjunto GLOBAL (umbral de span en compute_visible),
+# así que no debe cambiar al acercar/alejar el zoom ni al panear.
+{
+    # Segmentos de distinta importancia (span): dos grandes (span 30) y dos
+    # pequeños (span 5), repartidos por el histórico.
+    my @segs = (
+        { from_index => 0,  to_index => 30, from_price => 100, to_price => 130, dir => 'up'   }, # span 30
+        { from_index => 30, to_index => 35, from_price => 130, to_price => 125, dir => 'down' }, # span 5
+        { from_index => 35, to_index => 65, from_price => 125, to_price => 155, dir => 'up'   }, # span 30
+        { from_index => 65, to_index => 70, from_price => 155, to_price => 150, dir => 'down' }, # span 5
+    );
+
+    my $kept_from = sub {
+        my ($start, $end) = @_;
+        my $ind = Market::Indicators::ZigZag->new(swing_length => 5, internal_resolution => 30);
+        $ind->{_ext_segments} = [ map { { %$_ } } @segs ];
+        my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
+        $ov->set_element_density_pct('EXTERNAL', 50);   # global: quedan los 2 de span 30
+        $ov->compute_visible(undef, $ind, $start, $end);
+        my @visible = grep { $ov->_segment_visible($_) } @{ $ind->{_ext_segments} };
+        my $kept = $ov->_filter_segments_continuous_by_element_density('EXTERNAL', \@visible);
+        return [ map { $_->{from_index} } @$kept ];
+    };
+
+    # Ventana amplia [0,70]: pasan los 2 segmentos de span grande (from 0 y 35).
+    is_deeply($kept_from->(0, 70), [0, 35],
+        'QA zigzag: ventana amplia conserva los 2 segmentos de mayor span');
+
+    # Ventana estrecha [0,34] centrada en el primer segmento grande: el segmento
+    # grande (from 0) SIGUE dibujándose; el pequeño (from 30) NO aparece aunque
+    # esté aislado en la ventana. Estable respecto a la amplia.
+    is_deeply($kept_from->(0, 34), [0],
+        'QA zigzag: al acercar zoom, el segmento importante se MANTIENE y el débil NO aparece');
+
+    # Paneo a la zona del segundo segmento grande [35,70]: aparece el grande
+    # (from 35), no el pequeño (from 65).
+    is_deeply($kept_from->(35, 70), [35],
+        'QA zigzag: al panear, el segmento importante de esa zona se dibuja (no depende de recencia)');
+}
+
 done_testing();

@@ -115,10 +115,57 @@ sub element_density_pct {
     return $self->{_density_elem_pct}{$elem} // $self->density_pct();
 }
 
+# _score_fn($score_spec) — coderef normalizado con la misma semántica de score
+# que _filter_by_density (coderef | nombre de campo | undef→magnitude/index).
+sub _score_fn {
+    my ($score_spec) = @_;
+    return sub {
+        my ($item) = @_;
+        return $score_spec->($item) if ref($score_spec) eq 'CODE';
+        return $item->{$score_spec} // 1 if defined $score_spec && length $score_spec;
+        return $item->{magnitude} // $item->{index} // 1;
+    };
+}
+
+# _density_threshold($elem, $global_items, $score_spec) — umbral de score que
+# deja pasar ceil(N*pct/100) items del conjunto GLOBAL. Se guarda para aplicarlo
+# en _filter_by_element_density sobre los items ya recortados a la ventana. Así
+# la selección es idéntica en cualquier zoom/paneo (evita el parpadeo del QA).
+sub _density_threshold {
+    my ($self, $elem, $global_items, $score_spec) = @_;
+    my $pct = $self->element_density_pct($elem);
+    $self->{_density_thresholds} ||= {};
+    delete $self->{_density_thresholds}{$elem};
+    return unless $global_items && @$global_items;
+    return if $pct >= 100 || $pct <= 0;
+    my $score_of = _score_fn($score_spec);
+    my @sorted = sort { $score_of->($b) <=> $score_of->($a) } @$global_items;
+    my $keep = int((scalar(@sorted) * $pct + 99) / 100);
+    $keep = 1 if $keep < 1;
+    $keep = scalar(@sorted) if $keep > scalar(@sorted);
+    $self->{_density_thresholds}{$elem} = $sorted[$keep - 1] ? $score_of->($sorted[$keep - 1]) : undef;
+    return;
+}
+
 sub _filter_by_element_density {
     my ($self, $elem, $items, $score_spec) = @_;
+    return [] unless $items && ref($items) eq 'ARRAY';
+    my $pct = $self->element_density_pct($elem);
+    return [] if $pct <= 0;
+    return $items if $pct >= 100 || @$items == 0;
+
+    # QA-fix (parpadeo al zoom/pan): si hay umbral GLOBAL para esta familia,
+    # conservar los items cuyo score lo alcanza (subconjunto estable).
+    my $thr = $self->{_density_thresholds};
+    if ($thr && defined $thr->{$elem}) {
+        my $score_of = _score_fn($score_spec);
+        my $cut = $thr->{$elem};
+        return [ grep { $score_of->($_) >= $cut } @$items ];
+    }
+
+    # Fallback (sin umbral precomputado): percentil local.
     my $old = $self->{_density_pct};
-    $self->{_density_pct} = $self->element_density_pct($elem);
+    $self->{_density_pct} = $pct;
     my $out = $self->_filter_by_density($items, $score_spec);
     $self->{_density_pct} = $old;
     return $out;
@@ -165,23 +212,34 @@ sub compute_visible {
 
     my $ind = defined $indicator ? $indicator : $self->{indicator};
 
+    # QA-fix (parpadeo al zoom/pan): calcular los umbrales de densidad sobre los
+    # conjuntos GLOBALES (todo el historial disponible), no sobre la ventana.
+    my $event_score = sub {
+        my ($e) = @_;
+        return abs(($e->{index} // 0) - ($e->{start_index} // $e->{index} // 0)) || 1;
+    };
+    my $fvg_score = sub {
+        my ($f) = @_;
+        return abs(($f->{hi} // 0) - ($f->{lo} // 0)) || ($f->{index} // 1);
+    };
+    my $all_pivots = $ind->get_pivots() || [];
+    my $all_events = $ind->get_events() || [];
+    my $all_fvgs   = $ind->get_fvg()    || [];
+    $self->_density_threshold('PIVOTS', $all_pivots, 'index');
+    $self->_density_threshold('EVENTS', $all_events, $event_score);
+    $self->_density_threshold('FVG',    $all_fvgs,   $fvg_score);
+
     # Pivotes y eventos son etiquetas locales o líneas acotadas.
     $self->{_pivots} = $self->_filter_by_element_density(
         'PIVOTS', _window_filter($ind->get_pivots(), $start, $end), 'index'
     );
     $self->{_events} = $self->_filter_by_element_density(
-        'EVENTS', _events_window_filter($ind->get_events(), $start, $end), sub {
-            my ($e) = @_;
-            return abs(($e->{index} // 0) - ($e->{start_index} // $e->{index} // 0)) || 1;
-        }
+        'EVENTS', _events_window_filter($ind->get_events(), $start, $end), $event_score
     );
     
     # FVG, Fib y Major son líneas horizontales o cajas que se extienden al infinito o hasta mitigación,
     # por lo que deben mostrarse si empezaron en cualquier índice <= $end (aunque start_index esté off-screen).
-    $self->{_fvgs}   = $self->_filter_by_element_density('FVG', [ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], sub {
-        my ($f) = @_;
-        return abs(($f->{hi} // 0) - ($f->{lo} // 0)) || ($f->{index} // 1);
-    });
+    $self->{_fvgs}   = $self->_filter_by_element_density('FVG', [ grep { $_->{index} <= $end } @{$ind->get_fvg()} ], $fvg_score);
     $self->{_fibs}   = [ grep { $_->{index} <= $end } @{$ind->get_fibonacci()} ];
     $self->{_major}  = [ grep { $_->{index} <= $end } @{$ind->get_major()} ];
 

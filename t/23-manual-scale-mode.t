@@ -53,6 +53,7 @@ sub build_chart {
         offset            => 0,
         is_auto_scale     => 1,
         is_atr_auto_scale => 1,
+        show_grid         => 1,
     }, 'Market::ChartEngine';
 }
 
@@ -144,6 +145,20 @@ sub build_chart {
     ok(!defined $chart->{manual_max_y}, 'auto: manual_max_y limpiado');
     ok(!defined $chart->{ctrl_zoom_y_lock_min}, 'auto: ctrl_zoom_y_lock_min limpiado');
     ok(!defined $chart->{ctrl_zoom_y_lock_max}, 'auto: ctrl_zoom_y_lock_max limpiado');
+}
+
+# --- Grid: toggle mostrar/ocultar el grid de fondo ---
+{
+    my $chart = build_chart(50);
+    is($chart->show_grid(), 1, 'grid: visible por defecto');
+
+    my $r = $chart->set_show_grid(0);
+    is($r, 0, 'grid: set_show_grid(0) retorna 0');
+    is($chart->{show_grid}, 0, 'grid: show_grid=0 tras ocultar');
+
+    my $t = $chart->toggle_grid();
+    is($t, 1, 'grid: toggle_grid vuelve a 1');
+    is($chart->show_grid(), 1, 'grid: show_grid=1 tras toggle');
 }
 
 done_testing();

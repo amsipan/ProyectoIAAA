@@ -625,6 +625,18 @@ $show_density_items->();
 
     $p->Button(-text => 'Reset Vista', -command => sub { $chart_engine->reset_view() })
         ->pack(-side => 'left', -padx => 10);
+
+    my $grid_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $grid_box->Label(-text => 'Grid:')->pack(-side => 'left', -padx => 3);
+    my $grid_btn;
+    $grid_btn = $grid_box->Button(
+        -text        => 'Ocultar',
+        -padx        => 5,
+        -command     => sub {
+            my $on = $chart_engine->toggle_grid();
+            $grid_btn->configure(-text => $on ? 'Ocultar' : 'Mostrar');
+        },
+    )->pack(-side => 'left', -padx => 1);
 }
 
 # ---- Panel "Replay": barra de controles inline (task 0045; sin << Bar Replay) ----
