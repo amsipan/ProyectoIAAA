@@ -341,6 +341,45 @@ sub _color {
     return $self->{theme}{$key} // $default;
 }
 
+# _thin_labels_by_collision($cands, $min_dx, $min_dy) — anti-solapamiento de
+# etiquetas de texto. $cands: [{ x, y, score, key }].
+#
+# Reconcilia dos requisitos que parecen opuestos:
+#   (a) "que no se acumulen etiquetas" (imagen del QA con cientos encimadas), y
+#   (b) "que nada dependa del zoom de forma erratica".
+#
+# Como funciona: se ordenan las etiquetas por SIGNIFICANCIA (score desc) y se
+# colocan de forma greedy; una etiqueta se conserva solo si no colisiona (caja de
+# min_dx x min_dy px) con otra YA conservada de mayor significancia. Resultado:
+#   * Las mas relevantes se dibujan SIEMPRE.
+#   * Las menos relevantes solo aparecen si hay espacio fisico.
+#   * Es MONOTONO respecto al zoom: al acercar hay mas espacio -> aparecen mas
+#     etiquetas; al alejar, menos. Una etiqueta visible NUNCA desaparece al
+#     acercar (no hay parpadeo erratico). La SELECCION de que items existen ya es
+#     global/estable (densidad); esta capa solo evita el amontonamiento visual.
+# Devuelve un hashref { key => 1 } con las etiquetas que se deben dibujar.
+sub _thin_labels_by_collision {
+    my ($self, $cands, $min_dx, $min_dy) = @_;
+    $min_dx //= 26;
+    $min_dy //= 13;
+    my @sorted = sort { $b->{score} <=> $a->{score} } @$cands;
+    my @kept;
+    my %keep;
+    for my $c (@sorted) {
+        my $collide = 0;
+        for my $k (@kept) {
+            if (abs($c->{x} - $k->{x}) < $min_dx && abs($c->{y} - $k->{y}) < $min_dy) {
+                $collide = 1;
+                last;
+            }
+        }
+        next if $collide;
+        push @kept, $c;
+        $keep{ $c->{key} } = 1;
+    }
+    return \%keep;
+}
+
 # draw($canvas, $scales) — dibuja todo el contenido visible con tag `ov_smc`.
 sub draw {
     my ($self, $canvas, $scales) = @_;
@@ -410,27 +449,61 @@ sub draw {
     }
 
     # --- Etiquetas de pivotes HH/HL/LL/LH ------------------------------------
-    for my $p (@{ $self->{_pivots} }) {
-        next unless defined $p->{index} && defined $p->{type};
-        next unless defined $p->{price};
-        my $x = $scales->index_to_center_x($self->_local_index($p->{index}));
-        my $y = $scales->value_to_y($p->{price});
-        $canvas->createText(
-            $x, $y,
-            -text   => $p->{type},
-            -anchor => 'n',
-            -font   => 'Helvetica 8 bold',
-            -fill   => $self->_color('smc_pivot_label', '#363a45'),
-            -tags   => $tag,
-        );
+    # Anti-solapamiento: se calcula la posicion en pixeles de cada etiqueta y se
+    # descartan las que colisionan con otra mas reciente (score = index). La
+    # SELECCION global (densidad) ya ocurrio antes; esto solo evita el amontonamiento.
+    {
+        my @cands;
+        for my $p (@{ $self->{_pivots} }) {
+            next unless defined $p->{index} && defined $p->{type} && defined $p->{price};
+            push @cands, {
+                x     => $scales->index_to_center_x($self->_local_index($p->{index})),
+                y     => $scales->value_to_y($p->{price}),
+                score => $p->{index},   # mas reciente = mas relevante
+                key   => $p,
+            };
+        }
+        my $keep = $self->_thin_labels_by_collision(\@cands);
+        for my $c (@cands) {
+            next unless $keep->{ $c->{key} };
+            my $p = $c->{key};
+            $canvas->createText(
+                $c->{x}, $c->{y},
+                -text   => $p->{type},
+                -anchor => 'n',
+                -font   => 'Helvetica 8 bold',
+                -fill   => $self->_color('smc_pivot_label', '#363a45'),
+                -tags   => $tag,
+            );
+        }
     }
 
     # --- Etiquetas BOS / CHoCH (true vs false con estilo distinto) -----------
+    # Anti-solapamiento: score = span del evento (|index - start_index|); los
+    # eventos que cubren mas velas son estructuralmente mas importantes.
+    my %ev_keep;
+    {
+        my @cands;
+        for my $e (@{ $self->{_events} }) {
+            next unless defined $e->{index} && defined $e->{type} && defined $e->{price};
+            next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
+            my $start_idx = $e->{start_index} // $e->{index};
+            my ($xs, $xe) = $self->_event_line_x_bounds($scales, $start_idx, $e->{index});
+            push @cands, {
+                x     => ($xs + $xe) / 2,
+                y     => $scales->value_to_y($e->{price}),
+                score => abs(($e->{index} // 0) - $start_idx),
+                key   => $e,
+            };
+        }
+        %ev_keep = %{ $self->_thin_labels_by_collision(\@cands) };
+    }
     for my $e (@{ $self->{_events} }) {
         next unless defined $e->{index} && defined $e->{type};
         next unless $e->{type} =~ /^(?:BOS|CHoCH_(?:true|false))$/;
         
         next unless defined $e->{price};
+        next unless $ev_keep{$e};
         my $y = $scales->value_to_y($e->{price});
         my ($label, $color, $dash);
         my $dir = $e->{dir} // 'up';

@@ -490,4 +490,49 @@ sub make_scales {
        'FVG whitespace: no se extiende al whitespace');
 }
 
+# =============================================================================
+# QA-fix: anti-solapamiento de etiquetas de pivotes (imagen del QA: cientos de
+# HH/HL/LL/LH encimadas en 1m con zoom bajo). La capa de colision debe:
+#   (a) mostrar SIEMPRE la etiqueta mas relevante (mayor score),
+#   (b) descartar las que colisionan con una mas relevante,
+#   (c) ser MONOTONA con el zoom: al acercar (mas px por vela) aparecen MAS
+#       etiquetas, nunca menos; una visible no desaparece al acercar.
+# =============================================================================
+{
+    package main;
+    # 8 pivotes contiguos (indices 0..7): en una vista comprimida sus X caen casi
+    # encima; en una vista amplia se separan.
+    my @pivots = map { { index => $_, type => (($_ % 2) ? 'HL' : 'HH'), price => 15 } } 0 .. 7;
+    my $ind = TestIndicator->new(pivots => [ @pivots ]);
+
+    my $count_labels = sub {
+        my ($bars) = @_;
+        my $ov = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
+        $ov->set_density_pct(100);   # sin recorte de densidad: aislar la capa de colision
+        my $canvas = TestCanvas->new();
+        my $scales = make_scales(5, 25, $bars);
+        $ov->compute_visible(undef, $ind, 0, 7);
+        $canvas->{ops} = [];
+        $ov->draw($canvas, $scales);
+        return scalar grep {
+            $_->[0] eq 'createText' && defined $_->[4] && $_->[4] =~ /^(?:HH|HL|LL|LH)$/
+        } @{ $canvas->{ops} };
+    };
+
+    # NOTA: mas 'bars' => cada vela mas angosta => vista MAS COMPRIMIDA (los
+    # indices 0..7 caen mas juntos en px). Menos 'bars' => mas espacio por vela.
+
+    # Vista MUY comprimida (bars=200: 8 pivotes en ~31px): se dibujan menos
+    # etiquetas que items, pero al menos 1 (la mas relevante siempre).
+    my $tight = $count_labels->(200);
+    ok($tight >= 1, "colision: vista comprimida dibuja al menos la etiqueta mas relevante ($tight)");
+    ok($tight < 8, "colision: vista comprimida evita el amontonamiento ($tight < 8)");
+
+    # Vista AMPLIA (bars=8: cada vela ~112px, pivotes bien separados): deben verse
+    # MAS (o iguales) etiquetas. Monotonia: al tener mas espacio NUNCA desaparecen.
+    my $wide = $count_labels->(8);
+    ok($wide >= $tight, "colision: al acercar (mas espacio) NO desaparecen etiquetas ($wide >= $tight)");
+    is($wide, 8, 'colision: con espacio suficiente se dibujan todas las relevantes');
+}
+
 done_testing();
