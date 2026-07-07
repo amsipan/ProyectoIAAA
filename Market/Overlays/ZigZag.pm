@@ -92,40 +92,23 @@ sub _seg_span {
     return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0));
 }
 
-# _filter_segments_continuous_by_element_density($elem, $items) — selecciona los
-# segmentos a dibujar según la densidad del elemento.
+# _filter_segments_continuous_by_element_density($elem, $items) — devuelve los
+# segmentos a dibujar, ordenados por índice.
 #
-# QA-fix (el zigzag "no se renderiza a la izquierda al panear con zoom bajo"):
-# antes se conservaban solo los ÚLTIMOS N segmentos por recencia, así que al
-# moverse a la izquierda esos tramos quedaban descartados. Ahora se rankea por
-# IMPORTANCIA (span en velas) sobre TODO el conjunto y se conservan los top-N;
-# los tramos grandes de cualquier zona del gráfico sobreviven al zoom/paneo.
+# IMPORTANTE (bug de "líneas cortadas"): el zigzag es una CADENA CONTINUA — el
+# to_index/to_price de cada segmento es el from del siguiente. Quitar segmentos
+# intermedios (por densidad, recencia o span) ROMPE la línea y deja huecos entre
+# las piernas verde/roja. Por eso aquí NO se recorta la cadena: se dibujan todos
+# los segmentos visibles. El decluttering del zigzag ya lo controla la RESOLUCIÓN
+# MTF (15m/30m/60m), no la densidad. Con pct=0 el elemento se oculta por completo.
+#
+# Esto es además 100% independiente del zoom: la misma cadena en cualquier vista.
 sub _filter_segments_continuous_by_element_density {
     my ($self, $elem, $items) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->element_density_pct($elem);
-    return [] if $pct <= 0;
-    my @by_index = sort { ($a->{from_index} // 0) <=> ($b->{from_index} // 0) } @$items;
-    return \@by_index if $pct >= 100 || @by_index == 0;
-
-    # QA-fix: usar el umbral de span GLOBAL (calculado en compute_visible sobre
-    # todos los segmentos). Se conservan los segmentos VISIBLES cuyo span lo
-    # alcanza; así el subconjunto es idéntico en cualquier zoom/paneo y no
-    # parpadea. Empate en el umbral: se incluye (>=) para no perder el borde.
-    my $thr = $self->{_seg_thresholds} ? $self->{_seg_thresholds}{$elem} : undef;
-    if (defined $thr) {
-        return [] if $thr eq '__none__';
-        return [ grep { _seg_span($_) >= $thr } @by_index ];
-    }
-
-    # Fallback (sin umbral precomputado, p.ej. mocks de test): top-N local por span.
-    my $keep = int((scalar(@by_index) * $pct + 99) / 100);
-    $keep = 1 if $keep < 1;
-    $keep = scalar(@by_index) if $keep > scalar(@by_index);
-    my @by_span = sort { _seg_span($b) <=> _seg_span($a)
-                         || ($b->{from_index} // 0) <=> ($a->{from_index} // 0) } @by_index;
-    my @kept = @by_span[0 .. $keep - 1];
-    return [ sort { ($a->{from_index} // 0) <=> ($b->{from_index} // 0) } @kept ];
+    return [] if $pct <= 0;   # 0% = ocultar la línea completa
+    return [ sort { ($a->{from_index} // 0) <=> ($b->{from_index} // 0) } @$items ];
 }
 
 sub _filter_by_density {
@@ -171,38 +154,7 @@ sub compute_visible {
     $self->{_start} = $start // 0;
     $self->{_end}   = $end   // 0;
     $self->{_compute_range} = [$self->{_start}, $self->{_end}];
-
-    # QA-fix (parpadeo del zigzag al zoom/pan): el umbral de densidad se calcula
-    # sobre TODOS los segmentos (conjunto global), no sobre los de la ventana. En
-    # draw() se conservan los segmentos visibles cuyo span supera ese umbral, de
-    # modo que el subconjunto dibujado sea idéntico en cualquier zoom/paneo.
-    my $ind = defined $indicator ? $indicator : $self->{indicator};
-    my $vals = ($ind && $ind->can('get_values')) ? $ind->get_values() : undef;
-    $self->{_seg_thresholds} = {
-        INTERNAL => $self->_segment_span_threshold('INTERNAL',
-                        $vals ? ($vals->{internal_segments} || []) : []),
-        EXTERNAL => $self->_segment_span_threshold('EXTERNAL',
-                        $vals ? ($vals->{external_segments} || []) : []),
-        CHANNEL  => $self->_segment_span_threshold('CHANNEL',
-                        $vals ? ($vals->{trend_channels} || []) : []),
-    };
     return $self;
-}
-
-# _segment_span_threshold($elem, $global_segments) — span mínimo que deja pasar
-# ceil(N*pct/100) segmentos del conjunto GLOBAL, rankeados por span (importancia).
-# Devuelve undef cuando no hay recorte (pct>=100) o no hay segmentos.
-sub _segment_span_threshold {
-    my ($self, $elem, $segments) = @_;
-    return undef unless $segments && @$segments;
-    my $pct = $self->element_density_pct($elem);
-    return undef if $pct >= 100;
-    return '__none__' if $pct <= 0;
-    my @by_span = sort { _seg_span($b) <=> _seg_span($a) } @$segments;
-    my $keep = int((scalar(@by_span) * $pct + 99) / 100);
-    $keep = 1 if $keep < 1;
-    $keep = scalar(@by_span) if $keep > scalar(@by_span);
-    return _seg_span($by_span[$keep - 1]);
 }
 
 sub compute_range {

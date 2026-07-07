@@ -246,16 +246,31 @@ sub _triangle_wave_rows {
        'canal: +2 líneas sólidas por trend_channel');
 }
 
-# 10. Densidad ZigZag conserva continuidad: no dibuja segmentos aislados/cortados.
+# 10. El zigzag es una CADENA CONTINUA: se dibujan TODOS los segmentos (no se
+# recorta por densidad, eso rompería la línea dejando huecos entre piernas).
 {
     my $ind = Market::Indicators::ZigZag->new(swing_length => 5, internal_resolution => 30);
-    $ind->{_ext_segments} = [
-        map { { from_index => $_, to_index => $_ + 10, from_price => 100 + $_, to_price => 105 + $_, dir => 'up' } } (0, 10, 20, 30)
-    ];
+    my @segs = map { { from_index => $_, to_index => $_ + 10, from_price => 100 + $_, to_price => 105 + $_, dir => 'up' } } (0, 10, 20, 30);
+    $ind->{_ext_segments} = [ @segs ];
     my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
+
+    # Aunque la densidad sea baja, la cadena se dibuja completa y en orden.
     $ov->set_element_density_pct('EXTERNAL', 50);
     my $kept = $ov->_filter_segments_continuous_by_element_density('EXTERNAL', $ind->{_ext_segments});
-    is_deeply([ map { $_->{from_index} } @$kept ], [20, 30], 'ZigZag densidad: conserva el bloque reciente continuo');
+    is_deeply([ map { $_->{from_index} } @$kept ], [0, 10, 20, 30],
+        'ZigZag: cadena continua completa (densidad no fragmenta la línea)');
+
+    # Continuidad: el to_index de cada segmento es el from_index del siguiente.
+    my $continuous = 1;
+    for my $i (1 .. $#$kept) {
+        $continuous = 0 if $kept->[$i]{from_index} != $kept->[$i-1]{to_index};
+    }
+    ok($continuous, 'ZigZag: segmentos encadenados sin huecos (to == from siguiente)');
+
+    # 0% oculta la línea por completo.
+    $ov->set_element_density_pct('EXTERNAL', 0);
+    my $none = $ov->_filter_segments_continuous_by_element_density('EXTERNAL', $ind->{_ext_segments});
+    is_deeply($none, [], 'ZigZag: densidad 0% oculta la línea completa');
 }
 
 # 11. Canal demasiado macro se descarta para evitar canales gigantes no locales.
@@ -283,17 +298,16 @@ sub _triangle_wave_rows {
     ok(length $txt > 10, 'snapshot: salida no vacía');
 }
 
-# 13. QA-fix: estabilidad al zoom/pan. El subconjunto de segmentos elegidos por
-# densidad se calcula sobre el conjunto GLOBAL (umbral de span en compute_visible),
-# así que no debe cambiar al acercar/alejar el zoom ni al panear.
+# 13. QA-fix: la cadena del zigzag es IDÉNTICA e independiente del zoom/paneo.
+# Se dibujan todos los segmentos visibles, sin fragmentar ni depender de la
+# ventana. Cambiar [start,end] no altera qué segmentos visibles se encadenan.
 {
-    # Segmentos de distinta importancia (span): dos grandes (span 30) y dos
-    # pequeños (span 5), repartidos por el histórico.
+    # Cadena continua de 4 segmentos (to == from siguiente).
     my @segs = (
-        { from_index => 0,  to_index => 30, from_price => 100, to_price => 130, dir => 'up'   }, # span 30
-        { from_index => 30, to_index => 35, from_price => 130, to_price => 125, dir => 'down' }, # span 5
-        { from_index => 35, to_index => 65, from_price => 125, to_price => 155, dir => 'up'   }, # span 30
-        { from_index => 65, to_index => 70, from_price => 155, to_price => 150, dir => 'down' }, # span 5
+        { from_index => 0,  to_index => 20, from_price => 100, to_price => 130, dir => 'up'   },
+        { from_index => 20, to_index => 35, from_price => 130, to_price => 120, dir => 'down' },
+        { from_index => 35, to_index => 55, from_price => 120, to_price => 150, dir => 'up'   },
+        { from_index => 55, to_index => 70, from_price => 150, to_price => 140, dir => 'down' },
     );
 
     my $kept_from = sub {
@@ -301,27 +315,25 @@ sub _triangle_wave_rows {
         my $ind = Market::Indicators::ZigZag->new(swing_length => 5, internal_resolution => 30);
         $ind->{_ext_segments} = [ map { { %$_ } } @segs ];
         my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
-        $ov->set_element_density_pct('EXTERNAL', 50);   # global: quedan los 2 de span 30
+        $ov->set_element_density_pct('EXTERNAL', 50);
         $ov->compute_visible(undef, $ind, $start, $end);
         my @visible = grep { $ov->_segment_visible($_) } @{ $ind->{_ext_segments} };
         my $kept = $ov->_filter_segments_continuous_by_element_density('EXTERNAL', \@visible);
         return [ map { $_->{from_index} } @$kept ];
     };
 
-    # Ventana amplia [0,70]: pasan los 2 segmentos de span grande (from 0 y 35).
-    is_deeply($kept_from->(0, 70), [0, 35],
-        'QA zigzag: ventana amplia conserva los 2 segmentos de mayor span');
+    # Ventana amplia: cadena completa.
+    is_deeply($kept_from->(0, 70), [0, 20, 35, 55],
+        'QA zigzag: ventana amplia dibuja la cadena completa');
 
-    # Ventana estrecha [0,34] centrada en el primer segmento grande: el segmento
-    # grande (from 0) SIGUE dibujándose; el pequeño (from 30) NO aparece aunque
-    # esté aislado en la ventana. Estable respecto a la amplia.
-    is_deeply($kept_from->(0, 34), [0],
-        'QA zigzag: al acercar zoom, el segmento importante se MANTIENE y el débil NO aparece');
+    # Ventana estrecha en la zona izquierda: solo los segmentos que solapan, pero
+    # continuos entre sí (sin huecos). Cada uno se dibuja íntegro, no depende del zoom.
+    is_deeply($kept_from->(0, 30), [0, 20],
+        'QA zigzag: al acercar zoom, los segmentos visibles siguen encadenados sin fragmentar');
 
-    # Paneo a la zona del segundo segmento grande [35,70]: aparece el grande
-    # (from 35), no el pequeño (from 65).
-    is_deeply($kept_from->(35, 70), [35],
-        'QA zigzag: al panear, el segmento importante de esa zona se dibuja (no depende de recencia)');
+    # Paneo a la derecha: la sub-cadena de esa zona, también continua.
+    is_deeply($kept_from->(40, 70), [35, 55],
+        'QA zigzag: al panear, los segmentos de esa zona se dibujan encadenados');
 }
 
 done_testing();
