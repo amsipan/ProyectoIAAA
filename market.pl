@@ -25,7 +25,7 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-my $archivo_csv = 'Data/2026_06_29.csv';
+my $archivo_csv = 'Data/2026_07_06.csv';
 print "[*] Leyendo base de datos histórica...\n";
 open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
 my $header = <$fh>;

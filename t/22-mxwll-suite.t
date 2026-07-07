@@ -417,4 +417,39 @@ SKIP: {
     is(scalar(@{ $ind->{fib_ratios} }), 5, '0060 Mxwll: set_fibonacci_timeframe(D) → 5 niveles');
 }
 
+# =============================================================================
+# QA-fix: el Fibonacci del Mxwll debe aparecer SIEMPRE, incluso en temporalidades
+# altas con pocas velas (donde el FSM de pivotes externos ext_sens=25 no alcanza
+# a confirmar los 4 ejes). Fallback anclado al max/min GLOBALES del dataset;
+# 100% independiente del zoom (usa todo el historial, no la ventana visible).
+# =============================================================================
+{
+    # Pocas velas (< ext_sens): el FSM externo NO confirma upaxis/dnaxis.
+    my @rows = (
+        [10, 12, 9, 11], [11, 14, 10, 13], [13, 18, 12, 17],
+        [17, 19, 15, 16], [16, 17, 11, 12], [12, 13, 8, 9],
+    );
+    my $md  = build_ohlc(\@rows);
+    my $ind = Market::Indicators::Mxwll_Suite->new(timeframe => '1h');  # 5 niveles
+    $ind->update_last($md, $_) for 0 .. $md->last_index;
+
+    my $ext = $ind->{_ext};
+    ok(!(defined $ext->{upaxis} && defined $ext->{upaxis2}),
+        'QA fib: con pocas velas el FSM externo NO confirma (reproduce el bug)');
+
+    my $fibs = $ind->get_values->{fibs};
+    ok(defined $fibs, 'QA fib: aun asi get_values->{fibs} está definido (fallback global)');
+    is(scalar(@{ $fibs->{levels} }), 5, 'QA fib: dibuja los 5 niveles del timeframe');
+
+    # Anclado al max/min globales: high global=19 (idx2), low global=8 (idx5).
+    my ($hi, $lo) = (19, 8);
+    my %pt = ($fibs->{y1} => 1, $fibs->{y2} => 1);
+    ok($pt{$hi} && $pt{$lo}, 'QA fib: anclado al max/min globales del dataset');
+
+    # Independiente del zoom: el resultado no cambia si re-consultamos (no hay
+    # estado de ventana en el calculo; depende solo del historial alimentado).
+    my $fibs2 = $ind->get_values->{fibs};
+    is_deeply($fibs2, $fibs, 'QA fib: resultado estable/determinista (no depende del zoom)');
+}
+
 done_testing();

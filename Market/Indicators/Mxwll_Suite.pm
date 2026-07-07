@@ -513,28 +513,67 @@ sub _compute_aoe {
 }
 
 # --- Auto Fibs: linea entre el ultimo swing alto y bajo + niveles ------------
+# El anclaje preferido son los pivotes de la estructura externa (upaxis/dnaxis).
+# En temporalidades altas con pocas velas el FSM de pivotes (ext_sens) puede no
+# alcanzar a confirmar los 4 ejes; en ese caso se usa un FALLBACK anclado al
+# maximo y minimo GLOBALES de todo el dataset alimentado. Asi el Fibonacci se
+# dibuja SIEMPRE (no desaparece en 1h/2h/4h/D) y es 100% independiente del zoom:
+# depende del historial completo, nunca de la ventana visible.
 sub _compute_fibs {
     my ($self) = @_;
     my $ext = $self->{_ext};
-    return undef unless defined $ext->{upaxis} && defined $ext->{dnaxis}
-                     && defined $ext->{upaxis2} && defined $ext->{dnaxis2};
 
     my ($x1, $y1, $x2, $y2);
-    # La pierna mas reciente define la direccion (upaxis2 vs dnaxis2).
-    if ($ext->{upaxis2} >= $ext->{dnaxis2}) {
-        # Ultimo pivote fue alto: pierna baja->alta.
-        $x1 = $ext->{dnaxis2}; $y1 = $ext->{dnaxis};
-        $x2 = $ext->{upaxis2}; $y2 = $ext->{upaxis};
+    if (defined $ext->{upaxis} && defined $ext->{dnaxis}
+        && defined $ext->{upaxis2} && defined $ext->{dnaxis2}) {
+        # La pierna mas reciente define la direccion (upaxis2 vs dnaxis2).
+        if ($ext->{upaxis2} >= $ext->{dnaxis2}) {
+            # Ultimo pivote fue alto: pierna baja->alta.
+            $x1 = $ext->{dnaxis2}; $y1 = $ext->{dnaxis};
+            $x2 = $ext->{upaxis2}; $y2 = $ext->{upaxis};
+        } else {
+            $x1 = $ext->{upaxis2}; $y1 = $ext->{upaxis};
+            $x2 = $ext->{dnaxis2}; $y2 = $ext->{dnaxis};
+        }
     } else {
-        $x1 = $ext->{upaxis2}; $y1 = $ext->{upaxis};
-        $x2 = $ext->{dnaxis2}; $y2 = $ext->{dnaxis};
+        # Fallback: max-high y min-low globales del dataset (indices incluidos).
+        my ($hi_idx, $hi_val, $lo_idx, $lo_val) = $self->_global_hi_lo();
+        return undef unless defined $hi_idx && defined $lo_idx && $hi_val != $lo_val;
+        # La pierna termina en el extremo mas reciente (define direccion).
+        if ($hi_idx >= $lo_idx) {
+            $x1 = $lo_idx; $y1 = $lo_val;   # pierna baja -> alta
+            $x2 = $hi_idx; $y2 = $hi_val;
+        } else {
+            $x1 = $hi_idx; $y1 = $hi_val;   # pierna alta -> baja
+            $x2 = $lo_idx; $y2 = $lo_val;
+        }
     }
+
     my $span = $y2 - $y1;
     my @levels;
     for my $r (@{ $self->{fib_ratios} }) {
         push @levels, { ratio => $r, price => $y1 + $span * $r };
     }
     return { x1 => $x1, y1 => $y1, x2 => $x2, y2 => $y2, levels => \@levels };
+}
+
+# _global_hi_lo — extremo maximo (high) y minimo (low) de TODO el historial
+# alimentado, con sus indices. Recorre solo hasta _last_index. Es determinista y
+# no depende de la ventana visible (regla: nada depende del zoom).
+sub _global_hi_lo {
+    my ($self) = @_;
+    my $H = $self->{_highs};
+    my $L = $self->{_lows};
+    my $last = $self->{_last_index};
+    return () unless defined $last && $last >= 0;
+    my ($hi_idx, $hi_val, $lo_idx, $lo_val);
+    for my $i (0 .. $last) {
+        my $h = $H->[$i];
+        my $l = $L->[$i];
+        if (defined $h && (!defined $hi_val || $h > $hi_val)) { $hi_val = $h; $hi_idx = $i; }
+        if (defined $l && (!defined $lo_val || $l < $lo_val)) { $lo_val = $l; $lo_idx = $i; }
+    }
+    return ($hi_idx, $hi_val, $lo_idx, $lo_val);
 }
 
 # =============================================================================
