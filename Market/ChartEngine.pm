@@ -107,6 +107,8 @@ sub new {
         vertical_drag_y  => undef,
         _replay_select_mode => 0,
         _selected_bar       => undef,
+        _vwap_select_mode   => 0,
+        _vp_select_mode     => 0,
         show_grid           => 1,
 
         %args,
@@ -873,6 +875,21 @@ sub render {
             $self->_draw_replay_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
         }
     }
+    elsif ($self->{_vwap_select_mode}) {
+        $self->_clear_chart_crosshair();
+        # Banner siempre; línea de hover solo si hay cursor sobre el chart.
+        $self->_draw_vwap_select_banner();
+        if (defined $self->{last_mouse_x}) {
+            $self->_draw_vwap_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
+        }
+    }
+    elsif ($self->{_vp_select_mode}) {
+        $self->_clear_chart_crosshair();
+        $self->_draw_vp_select_banner();
+        if (defined $self->{last_mouse_x}) {
+            $self->_draw_vp_select_hover(undef, $self->{last_mouse_x}, $self->{last_mouse_y});
+        }
+    }
     elsif (defined $self->{last_mouse_x}) {
         $self->_draw_crosshair_all();
     }
@@ -1201,6 +1218,15 @@ sub _replay_session_active {
 
 sub _replay_escape_key {
     my ($self) = @_;
+    # Precedencia: cancelar anclajes (VWAP / Volume Profile) antes que salir de Replay.
+    if ($self->{_vwap_select_mode}) {
+        $self->cancel_vwap_select_mode();
+        return $self;
+    }
+    if ($self->{_vp_select_mode}) {
+        $self->cancel_vp_select_mode();
+        return $self;
+    }
     return $self unless $self->_replay_session_active();
     my $cb = $self->{replay_keyboard_callbacks}{exit};
     $cb->() if ref($cb) eq 'CODE';
@@ -1287,6 +1313,7 @@ sub _select_mode_blank_cursor {
 sub _chart_plot_cursor {
     my ($self) = @_;
     return $self->_select_mode_blank_cursor() if $self->{_replay_select_mode};
+    return 'crosshair' if $self->{_vwap_select_mode} || $self->{_vp_select_mode};
     return 'crosshair';
 }
 
@@ -1420,6 +1447,443 @@ sub is_replay_select_mode {
 sub selected_bar {
     my ($self) = @_;
     return $self->{_selected_bar};
+}
+
+# ---------------------------------------------------------------------------
+# Anchored VWAP — modo "elige vela de anclaje" (como el tool nativo de TV)
+# ---------------------------------------------------------------------------
+
+sub is_vwap_select_mode {
+    my ($self) = @_;
+    return $self->{_vwap_select_mode} ? 1 : 0;
+}
+
+sub set_vwap_select_mode {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    if (!$on && $self->{_vwap_select_mode}) {
+        $self->_clear_vwap_select_hover();
+        $self->_clear_vwap_select_banner();
+    }
+    $self->{_vwap_select_mode} = $on;
+    # No pelear con Select Bar de Replay: si Replay select está activo, no
+    # forzar cursor VWAP encima.
+    if ($on && !$self->{_replay_select_mode}) {
+        my $c = $self->{price_canvas};
+        $self->_set_cursor($c, 'crosshair') if $c;
+        eval { $c->focus } if $c;
+    }
+    if (ref($self->{vwap_select_mode_callback}) eq 'CODE') {
+        $self->{vwap_select_mode_callback}->($on);
+    }
+    $self->request_render() if $on;
+    return $self;
+}
+
+# begin_vwap_placement — activar capa + pedir clic de ancla (si aún no hay).
+sub begin_vwap_placement {
+    my ($self) = @_;
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vwap', 1) if $mgr;
+    my $ind = $self->{vwap_indicator};
+    if ($ind && $ind->can('has_anchor') && !$ind->has_anchor()) {
+        delete $self->{_vwap_anchor_before_select};
+        $self->set_vwap_select_mode(1);
+    }
+    else {
+        $self->set_vwap_select_mode(0);
+    }
+    # Alimentar datos aunque aún no haya ancla (precios/vol listos para el clic).
+    $self->sync_overlay_indicators();
+    $self->request_render();
+    return $self;
+}
+
+sub end_vwap_overlay {
+    my ($self) = @_;
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vwap', 0) if $mgr;
+    delete $self->{_vwap_anchor_before_select};
+    $self->set_vwap_select_mode(0);
+    $self->request_render();
+    return $self;
+}
+
+# confirm_vwap_anchor($idx) — fija ancla, recalcula, sale de select mode.
+sub confirm_vwap_anchor {
+    my ($self, $idx) = @_;
+    return $self unless defined $idx;
+    my $ind = $self->{vwap_indicator};
+    return $self unless $ind && $ind->can('set_anchor');
+
+    # Clamp a tope de Replay si aplica.
+    my $replay = $self->{replay_controller};
+    if ($replay && $replay->is_active() && defined $replay->current_index()) {
+        my $top = $replay->current_index();
+        $idx = $top if $idx > $top;
+    }
+    my $last = $self->{market_data} ? $self->{market_data}->last_index() : undef;
+    $idx = $last if defined $last && $idx > $last;
+    $idx = 0 if $idx < 0;
+
+    # Asegurar feed al menos hasta el final efectivo (o ancla).
+    $self->sync_overlay_indicators();
+    $ind->set_anchor($idx);
+    delete $self->{_vwap_anchor_before_select};
+    $self->_clear_vwap_select_hover();
+    $self->_clear_vwap_select_banner();
+    $self->set_vwap_select_mode(0);
+    if (ref($self->{vwap_anchor_callback}) eq 'CODE') {
+        $self->{vwap_anchor_callback}->($idx);
+    }
+    $self->request_render();
+    return $self;
+}
+
+# reanchor_vwap — volver a pedir clic sin apagar la capa.
+# Guarda ancla previa para poder restaurarla con Esc.
+sub reanchor_vwap {
+    my ($self) = @_;
+    my $ind = $self->{vwap_indicator};
+    if ($ind && $ind->can('has_anchor') && $ind->has_anchor()) {
+        $self->{_vwap_anchor_before_select} = $ind->anchor_index();
+    }
+    else {
+        delete $self->{_vwap_anchor_before_select};
+    }
+    $ind->clear_anchor() if $ind && $ind->can('clear_anchor');
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vwap', 1) if $mgr;
+    $self->set_vwap_select_mode(1);
+    $self->sync_overlay_indicators();
+    $self->request_render();
+    return $self;
+}
+
+# cancel_vwap_select_mode — Esc: salir del modo clic sin confirmar.
+# Si había ancla previa (re-anclar), la restaura.
+sub cancel_vwap_select_mode {
+    my ($self) = @_;
+    return $self unless $self->{_vwap_select_mode};
+
+    my $ind = $self->{vwap_indicator};
+    my $prev = $self->{_vwap_anchor_before_select};
+    delete $self->{_vwap_anchor_before_select};
+
+    $self->_clear_vwap_select_hover();
+    $self->_clear_vwap_select_banner();
+    $self->set_vwap_select_mode(0);
+
+    if (defined $prev && $ind && $ind->can('set_anchor')) {
+        $self->sync_overlay_indicators();
+        $ind->set_anchor($prev);
+    }
+    if (ref($self->{vwap_select_cancel_callback}) eq 'CODE') {
+        $self->{vwap_select_cancel_callback}->(defined $prev ? $prev : undef);
+    }
+    # Solo con GUI real (tests headless no tienen price_canvas).
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub _clear_vwap_select_hover {
+    my ($self) = @_;
+    my $c = $self->{price_canvas};
+    eval { $c->delete('vwap_select_hover') } if $c;
+    return $self;
+}
+
+sub _clear_vwap_select_banner {
+    my ($self) = @_;
+    my $c = $self->{price_canvas};
+    eval { $c->delete('vwap_select_banner') } if $c;
+    return $self;
+}
+
+# Banner fijo en el chart: "Clic en una vela… (Esc cancela)"
+sub _draw_vwap_select_banner {
+    my ($self) = @_;
+    return unless $self->{_vwap_select_mode};
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $self->_clear_vwap_select_banner();
+
+    my ($cw, $ch) = $self->_canvas_size($canvas);
+    $cw ||= 200;
+    my $msg = 'Clic en una vela para anclar VWAP  |  Esc cancela';
+    # Fondo discreto arriba-centro (no tapa el panel de controles)
+    my $pad_x = 10;
+    my $pad_y = 4;
+    my $ty = 14;
+    my $tx = int($cw / 2);
+    # Caja aproximada centrada
+    my $box_w = 340;
+    my $x1 = $tx - int($box_w / 2);
+    my $x2 = $tx + int($box_w / 2);
+    my $y1 = 4;
+    my $y2 = 28;
+    $canvas->createRectangle(
+        $x1, $y1, $x2, $y2,
+        -fill    => '#E3F2FD',
+        -outline => '#2962FF',
+        -width   => 1,
+        -tags    => 'vwap_select_banner',
+    );
+    $canvas->createText(
+        $tx, $ty,
+        -text   => $msg,
+        -fill   => '#0D47A1',
+        -font   => ['Helvetica', 10, 'bold'],
+        -anchor => 'center',
+        -tags   => 'vwap_select_banner',
+    );
+    # Banner siempre encima del hover de línea
+    eval { $canvas->raise('vwap_select_banner') };
+    return $self;
+}
+
+sub _draw_vwap_select_hover {
+    my ($self, $widget, $pixel_x, $pixel_y) = @_;
+    return unless $self->{_vwap_select_mode};
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $self->_clear_vwap_select_hover();
+
+    my $x = defined $pixel_x ? $pixel_x : $self->{last_mouse_x};
+    # Siempre banner aunque el cursor no esté sobre el chart
+    $self->_draw_vwap_select_banner();
+    return unless defined $x;
+    # Snap al centro de vela
+    my $idx = $self->_global_index_from_x($x);
+    my ($start, $end) = eval { $self->compute_window() };
+    return unless defined $start && defined $end;
+    my $bars = $end - $start + 1;
+    return if $bars < 1;
+
+    my $scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width}   = $self->_canvas_width($canvas);
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $line_x = $x;
+    if (defined $idx && $idx >= $start && $idx <= $end) {
+        $line_x = $scale->index_to_center_x($idx - $start);
+    }
+    my ($cw, $ch) = $self->_canvas_size($canvas);
+    $ch ||= 1;
+    # Línea vertical azul (mismo lenguaje visual que el VWAP de TV)
+    $canvas->createLine(
+        $line_x, 0, $line_x, $ch,
+        -fill  => '#2962FF',
+        -width => 1,
+        -dash  => [4, 3],
+        -tags  => 'vwap_select_hover',
+    );
+    eval { $canvas->raise('vwap_select_banner') };
+    return $self;
+}
+
+# ---------------------------------------------------------------------------
+# Anchored Volume Profile — modo "elige vela de anclaje" (AVP TradingView)
+# ---------------------------------------------------------------------------
+
+sub is_vp_select_mode {
+    my ($self) = @_;
+    return $self->{_vp_select_mode} ? 1 : 0;
+}
+
+sub set_vp_select_mode {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    if (!$on && $self->{_vp_select_mode}) {
+        $self->_clear_vp_select_hover();
+        $self->_clear_vp_select_banner();
+    }
+    $self->{_vp_select_mode} = $on;
+    if ($on) {
+        # No mezclar con VWAP select ni Replay select
+        $self->set_vwap_select_mode(0) if $self->{_vwap_select_mode};
+        if (!$self->{_replay_select_mode}) {
+            my $c = $self->{price_canvas};
+            $self->_set_cursor($c, 'crosshair') if $c;
+            eval { $c->focus } if $c;
+        }
+    }
+    if (ref($self->{vp_select_mode_callback}) eq 'CODE') {
+        $self->{vp_select_mode_callback}->($on);
+    }
+    $self->request_render() if $on && $self->{price_canvas};
+    return $self;
+}
+
+sub begin_vp_placement {
+    my ($self) = @_;
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vp', 1) if $mgr;
+    my $ind = $self->{vp_indicator};
+    if ($ind && $ind->can('has_anchor') && !$ind->has_anchor()) {
+        delete $self->{_vp_anchor_before_select};
+        $self->set_vp_select_mode(1);
+    }
+    else {
+        $self->set_vp_select_mode(0);
+    }
+    $self->sync_overlay_indicators();
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub end_vp_overlay {
+    my ($self) = @_;
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vp', 0) if $mgr;
+    delete $self->{_vp_anchor_before_select};
+    $self->set_vp_select_mode(0);
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub confirm_vp_anchor {
+    my ($self, $idx) = @_;
+    return $self unless defined $idx;
+    my $ind = $self->{vp_indicator};
+    return $self unless $ind && $ind->can('set_anchor');
+
+    my $replay = $self->{replay_controller};
+    if ($replay && $replay->is_active() && defined $replay->current_index()) {
+        my $top = $replay->current_index();
+        $idx = $top if $idx > $top;
+    }
+    my $last = $self->{market_data} ? $self->{market_data}->last_index() : undef;
+    $idx = $last if defined $last && $idx > $last;
+    $idx = 0 if $idx < 0;
+
+    $self->sync_overlay_indicators();
+    $ind->set_anchor($idx);
+    delete $self->{_vp_anchor_before_select};
+    $self->_clear_vp_select_hover();
+    $self->_clear_vp_select_banner();
+    $self->set_vp_select_mode(0);
+    if (ref($self->{vp_anchor_callback}) eq 'CODE') {
+        $self->{vp_anchor_callback}->($idx);
+    }
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub reanchor_vp {
+    my ($self) = @_;
+    my $ind = $self->{vp_indicator};
+    if ($ind && $ind->can('has_anchor') && $ind->has_anchor()) {
+        $self->{_vp_anchor_before_select} = $ind->anchor_index();
+    }
+    else {
+        delete $self->{_vp_anchor_before_select};
+    }
+    $ind->clear_anchor() if $ind && $ind->can('clear_anchor');
+    my $mgr = $self->{overlay_manager};
+    $mgr->set_visible('vp', 1) if $mgr;
+    $self->set_vp_select_mode(1);
+    $self->sync_overlay_indicators();
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub cancel_vp_select_mode {
+    my ($self) = @_;
+    return $self unless $self->{_vp_select_mode};
+    my $ind = $self->{vp_indicator};
+    my $prev = $self->{_vp_anchor_before_select};
+    delete $self->{_vp_anchor_before_select};
+    $self->_clear_vp_select_hover();
+    $self->_clear_vp_select_banner();
+    $self->set_vp_select_mode(0);
+    if (defined $prev && $ind && $ind->can('set_anchor')) {
+        $self->sync_overlay_indicators();
+        $ind->set_anchor($prev);
+    }
+    if (ref($self->{vp_select_cancel_callback}) eq 'CODE') {
+        $self->{vp_select_cancel_callback}->(defined $prev ? $prev : undef);
+    }
+    $self->request_render() if $self->{price_canvas};
+    return $self;
+}
+
+sub _clear_vp_select_hover {
+    my ($self) = @_;
+    my $c = $self->{price_canvas};
+    eval { $c->delete('vp_select_hover') } if $c;
+    return $self;
+}
+
+sub _clear_vp_select_banner {
+    my ($self) = @_;
+    my $c = $self->{price_canvas};
+    eval { $c->delete('vp_select_banner') } if $c;
+    return $self;
+}
+
+sub _draw_vp_select_banner {
+    my ($self) = @_;
+    return unless $self->{_vp_select_mode};
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $self->_clear_vp_select_banner();
+    my ($cw, $ch) = $self->_canvas_size($canvas);
+    $cw ||= 200;
+    my $msg = 'Clic en una vela para anclar Volume Profile  |  Esc cancela';
+    my $tx = int($cw / 2);
+    my $box_w = 400;
+    my $x1 = $tx - int($box_w / 2);
+    my $x2 = $tx + int($box_w / 2);
+    $canvas->createRectangle(
+        $x1, 4, $x2, 28,
+        -fill => '#E1F5FE', -outline => '#0288D1', -width => 1,
+        -tags => 'vp_select_banner',
+    );
+    $canvas->createText(
+        $tx, 14,
+        -text => $msg, -fill => '#01579B',
+        -font => ['Helvetica', 10, 'bold'], -anchor => 'center',
+        -tags => 'vp_select_banner',
+    );
+    eval { $canvas->raise('vp_select_banner') };
+    return $self;
+}
+
+sub _draw_vp_select_hover {
+    my ($self, $widget, $pixel_x, $pixel_y) = @_;
+    return unless $self->{_vp_select_mode};
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $self->_clear_vp_select_hover();
+    $self->_draw_vp_select_banner();
+    my $x = defined $pixel_x ? $pixel_x : $self->{last_mouse_x};
+    return unless defined $x;
+    my $idx = $self->_global_index_from_x($x);
+    my ($start, $end) = eval { $self->compute_window() };
+    return unless defined $start && defined $end;
+    my $bars = $end - $start + 1;
+    return if $bars < 1;
+    my $scale = Market::Panels::Scales->new(
+        bars => $bars, right_margin => RIGHT_MARGIN,
+    );
+    $scale->{width} = $self->_canvas_width($canvas);
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $line_x = $x;
+    if (defined $idx && $idx >= $start && $idx <= $end) {
+        $line_x = $scale->index_to_center_x($idx - $start);
+    }
+    my ($cw, $ch) = $self->_canvas_size($canvas);
+    $ch ||= 1;
+    $canvas->createLine(
+        $line_x, 0, $line_x, $ch,
+        -fill => '#0288D1', -width => 1, -dash => [4, 3],
+        -tags => 'vp_select_hover',
+    );
+    eval { $canvas->raise('vp_select_banner') };
+    return $self;
 }
 
 sub set_selected_bar {
@@ -1795,6 +2259,8 @@ sub _bind_all_canvas {
             $self->{active_canvas} = undef;
             $self->_draw_crosshair_all();
             $self->_clear_replay_select_hover();
+            $self->_clear_vwap_select_hover();
+            $self->_clear_vp_select_hover() if $self->can('_clear_vp_select_hover');
             $self->_clear_pointer_symbol($p_canvas);
         });
     }
@@ -2255,6 +2721,32 @@ sub _start_horizontal_drag {
                 $self->{replay_bar_selected_callback}->($idx);
             }
             $self->request_render();
+        }
+        return;
+    }
+
+    # Anchored VWAP (TradingView): clic fija la vela de anclaje.
+    if ($self->{_vwap_select_mode}) {
+        my $idx = $self->_global_index_from_x($x);
+        if (!defined $idx) {
+            my ($ws, $we) = eval { $self->compute_window() };
+            $idx = $we if defined $we;
+        }
+        if (defined $idx) {
+            $self->confirm_vwap_anchor($idx);
+        }
+        return;
+    }
+
+    # Anchored Volume Profile: clic fija ancla.
+    if ($self->{_vp_select_mode}) {
+        my $idx = $self->_global_index_from_x($x);
+        if (!defined $idx) {
+            my ($ws, $we) = eval { $self->compute_window() };
+            $idx = $we if defined $we;
+        }
+        if (defined $idx) {
+            $self->confirm_vp_anchor($idx);
         }
         return;
     }
@@ -2845,6 +3337,16 @@ sub _on_mouse_move {
         $self->_clear_chart_crosshair();
         $self->_draw_replay_select_hover($widget, $pixel_x, $pixel_y);
     }
+    elsif ($self->{_vwap_select_mode}) {
+        $self->_set_cursor($widget, 'crosshair') if $widget;
+        $self->_clear_chart_crosshair();
+        $self->_draw_vwap_select_hover($widget, $pixel_x, $pixel_y);
+    }
+    elsif ($self->{_vp_select_mode}) {
+        $self->_set_cursor($widget, 'crosshair') if $widget;
+        $self->_clear_chart_crosshair();
+        $self->_draw_vp_select_hover($widget, $pixel_x, $pixel_y);
+    }
     else {
         $self->_draw_crosshair_all();
         $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
@@ -3033,8 +3535,17 @@ sub set_timeframe {
         $self->{_vp_fed_up_to} = -1;
     }
     if ($self->{vwap_indicator}) {
+        # Cambio de TF: índices de vela cambian → ancla previa ya no es válida.
+        $self->{vwap_indicator}->clear_anchor();
         $self->{vwap_indicator}->reset();
         $self->{_vwap_fed_up_to} = -1;
+        $self->set_vwap_select_mode(0);
+    }
+    if ($self->{vp_indicator}) {
+        $self->{vp_indicator}->clear_anchor() if $self->{vp_indicator}->can('clear_anchor');
+        $self->{vp_indicator}->reset();
+        $self->{_vp_fed_up_to} = -1;
+        $self->set_vp_select_mode(0) if $self->can('set_vp_select_mode');
     }
     if ($self->{mxwll_indicator}) {
         $self->{mxwll_indicator}->reset();

@@ -1,0 +1,182 @@
+================================================================================
+INFORME IMPLEMENTOR → ARQUITECTO
+Task 0053 (Select Bar) + 0052 (Escape/tab) — handoff con problema ABIERTO
+================================================================================
+Fecha: 2026-07-05
+Repo:   ProyectoIAAA (WSL Fedora35 + WSLg)
+HEAD:   1454216 (main, pusheado backup + origin)
+Tests:  1170 PASS (prove -l t, 28 archivos)
+
+Pedido Bryan (resumen):
+  - Modo Select Bar: SOLO tijera negra dibujada + línea azul; SIN cursor OS.
+  - Escape (y Exit X): salir de replay incluso en Select Bar; volver a pestaña
+    Capas; deseleccionar botón Replay.
+  - Crosshair dibujado (líneas grises) tampoco debe aparecer en Select Bar.
+
+================================================================================
+1. LO QUE QUEDÓ RESUELTO (validar con Bryan)
+================================================================================
+
+A) Crosshair DIBUJADO suprimido en Select Bar
+   - _draw_crosshair_all early-return + _clear_chart_crosshair en render/motion.
+   - render() ya no llama _draw_crosshair_all en select mode.
+   - _on_time_axis_motion respeta select mode (hover azul, no crosshair).
+
+B) Cursor crosshair OS eliminado (parcialmente)
+   - market.pl: quitado -cursor => 'crosshair' al crear price_canvas/atr_canvas.
+   - init_plot_cursors() aplica crosshair solo fuera de select mode.
+   - Enter/Motion/Leave usan _chart_plot_cursor() (no fuerzan crosshair).
+
+C) Escape + pestaña Capas + botón Replay
+   - _replay_session_active(): true si select_mode OR rc->is_active OR replay_on.
+   - _sync_replay_ui_cleanup() llama _show_default_tab() → active_tab='Capas'.
+   - market.pl: ui_vars{show_default_tab} cambia panel y $active_tab.
+   - Tests: t/17-ui-wiring.t Test 21 (Escape en select sin replay activo).
+
+D) Tijera negra Helvetica 22 (tag replay_select_scissors) — sin regresión 0042.
+
+================================================================================
+2. PROBLEMA NO RESUELTO — CURSOR OS SIGUE VISIBLE (handoff arquitecto)
+================================================================================
+
+Síntoma actual (reporte Bryan tras commit 1454216):
+  Ya NO aparece la cruz (crosshair). Pero SÍ aparece un cursor de flecha/mouse
+  normal, "medio transparente", encima de la tijera dibujada. Bryan quiere que
+  el ÚNICO puntero visible sea la tijera (glyph canvas), como TradingView.
+
+Comportamiento esperado: cursor del SO completamente invisible sobre price/atr
+canvas (y frames del plot) mientras _replay_select_mode == 1.
+
+Implementación actual (_select_mode_blank_cursor en ChartEngine.pm):
+  1. configure(-cursor => '')  — cadena vacía
+  2. fallback: 'left_ptr' si probe falla
+
+Por qué se eligió '':
+  Probe runtime en Fedora35/WSLg (perl Tk headless, misma distro):
+
+    none     → FAIL  bad cursor spec "none"
+    blank    → FAIL  bad cursor spec "blank"
+    @/tmp/blank_cursor.xbm → FAIL  bad cursor spec (sintaxis @file no soportada)
+    Bitmap inline → FAIL  format error in bitmap data
+    Bitmap como -cursor => $bmp → FAIL  bad cursor spec "imageN"
+    '' (vacío) → OK, cget devuelve cadena vacía
+
+  Con '' el test headless dice éxito; Bryan en WSLg GUI ve flecha semitransparente.
+  Hipótesis: WSLg/XWayland no oculta el puntero con cursor Tk vacío; muestra
+  fallback del compositor (ghost arrow) o hereda cursor del ancestro ($mw / frame).
+
+Intentos previos (commits ae3326f, a28d714) también fallaron:
+  - assets/blank_cursor.xbm (1x1)
+  - none / blank
+  - suprimir crosshair dibujado (eso sí funciona)
+
+================================================================================
+3. PISTAS PARA EL ARQUITECTO (siguiente iteración)
+================================================================================
+
+P1) Verificar en GUI qué devuelve cget(-cursor) con app abierta en select mode
+    (puede diferir del probe headless).
+
+P2) Cursor en ancestros: aplicar '' también a $mw, $chart_frame, $price_frame,
+    $atr_frame cuando mouse está sobre plot (no solo canvas hijo).
+
+P3) X11 directo vía Tcl:
+    $canvas->id->invoke('blt::...')  o  wm pointer / XFixesHideCursor
+    (requiere investigar qué expone Perl/Tk 8.x en Fedora35).
+
+P4) Tcl image create bitmap + cursor (probe Tcl falló: id->invoke no disponible
+    en el stub usado; probar con MainWindow real y path sin espacios).
+
+P5) dotbox / left_ptr son visibles — NO sirven como solución final; solo debug.
+
+P6) Alternativa UX si OS no permite ocultar: tijera más grande centrada en
+    offset del hotspot de left_ptr (workaround visual, no ideal).
+
+P7) Comprobar si el "semitransparente" es el glyph ✂ mal renderizado vs cursor OS
+    (captura pantalla + zoom; comparar con cursor fuera del chart).
+
+Archivos clave:
+  Market/ChartEngine.pm  → _select_mode_blank_cursor, _apply_select_mode_cursor,
+                           _plot_cursor_targets, _set_cursor
+  market.pl              → init_plot_cursors, plot_frames, sin crosshair default
+  assets/blank_cursor.xbm → no usable con @file en este Tk build
+
+================================================================================
+4. COMMITS DE LA SESIÓN (cadena relevante)
+================================================================================
+
+1454216  fix(0053): cursor vacio ''; Escape+tab Capas; init_plot_cursors
+ae3326f  fix(0053): blank XBM + frames; re-apply cursor on Motion
+a28d714  fix(0053): suprimir crosshair dibujado en select mode
+f078275  fix(0052): bind all shortcuts + 0053 tijera negra
+a64e21f  feat(0050,0051): atajos replay TV
+
+================================================================================
+5. ARCHIVOS MODIFICADOS (1454216 vs ae3326f)
+================================================================================
+
+Market/ChartEngine.pm
+  - _select_mode_blank_cursor: '' + exists cache + left_ptr fallback
+  - _replay_session_active / _replay_escape_key ampliado
+  - init_plot_cursors()
+  - render: select mode no dibuja crosshair
+  - _on_time_axis_motion: select mode
+  - _clear_chart_crosshair: delete tags directo en canvas
+  - _set_cursor: soporta '' y arrayref @path
+
+Market/UI/Callbacks.pm
+  - _show_default_tab()
+  - _sync_replay_ui_cleanup → show_default_tab
+
+market.pl
+  - sin -cursor crosshair en price/atr canvas
+  - replay_on_ref, init_plot_cursors()
+  - show_default_tab → Capas
+
+t/17-ui-wiring.t   — Test 21 Escape select bar + tab Capas
+t/25-replay-select-bar.t — cursor '' en select mode
+
+================================================================================
+6. DIFF COMPLETO (ae3326f → 1454216)
+================================================================================
+
+diff --git a/Market/ChartEngine.pm b/Market/ChartEngine.pm
+--- a/Market/ChartEngine.pm
++++ b/Market/ChartEngine.pm
+@@ render: select mode limpia crosshair y dibuja hover; no _draw_crosshair_all
+@@ _set_cursor: acepta '' (invisible); normaliza arrayref
+@@ _replay_session_active + _replay_escape_key (select bar sin rc activo)
+@@ _select_mode_blank_cursor: '' en lugar de none/xbm (ver probe)
+@@ init_plot_cursors()
+@@ _on_time_axis_motion: rama select mode
+@@ _clear_chart_crosshair: delete price_crosshair/atr_crosshair en canvas
+
+diff --git a/Market/UI/Callbacks.pm
+@@ _show_default_tab; _sync_replay_ui_cleanup llama show_default_tab
+
+diff --git a/market.pl
+@@ quita -cursor crosshair; replay_on_ref; init_plot_cursors; show_default_tab
+
+diff --git a/t/17-ui-wiring.t
+@@ Test 21 Escape en Select Bar
+
+diff --git a/t/25-replay-select-bar.t
+@@ assert cursor '' en select mode; mock cget
+
+(Ver git diff ae3326f..1454216 en repo para patch literal.)
+
+================================================================================
+7. CRITERIO DE CIERRE 0053 (pendiente validación arquitecto + Bryan)
+================================================================================
+
+[ ] En WSLg, Select Bar: cero cursor OS (ni cruz ni flecha ni ghost semitransparente)
+[ ] Solo tijera negra + línea azul visibles
+[ ] Escape / Exit X → Capas, Replay deseleccionado, replay_off
+[ ] prove -l t verde
+
+Estado: PARCIAL — funcionalidad replay/escape OK; cursor OS invisible NO logrado
+en WSLg pese a configure(-cursor=>'') exitoso en probe.
+
+================================================================================
+FIN INFORME — implementor
+================================================================================

@@ -56,7 +56,8 @@ tensorial) capaces de predecir cambios de estructura de mercado.
   módulos tocados y sobre `market.pl` (ver AGENTS.md), más la suite de regresión `prove -l t`.
 - Para los algoritmos de ML (Viterbi tensorial, Pearson): validar contra los valores de
   referencia del material del profesor (p. ej. la salida esperada del ejercicio de Viterbi).
-- `t/` está reservada para tests automatizados futuros.
+- `t/` contiene la suite de regresión automatizada (`prove -l t`); cada task de
+  indicador/overlay debe añadir o extender tests según `docs/PHASE2_DEBUG_CONTRACT.md`.
 
 ## Reglas de arquitectura
 

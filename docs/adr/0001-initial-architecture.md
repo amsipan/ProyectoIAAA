@@ -32,6 +32,8 @@ base de Fase 1, el PDF de especificación de Fase 2 y las clases.
 - **Mezclar cálculo dentro de los overlays**: rechazado, el PDF separa explícitamente
   Indicators (cálculo) de Overlays (render).
 
-## Preguntas abiertas
-- Ubicación definitiva de Replay / Volume Profile / Anchored VWAP como packages (ver ROADMAP).
-- Si el registro de overlays debe ser una clase nueva (`OverlayManager`) o vivir en ChartEngine.
+## Preguntas abiertas (históricas — resueltas en código; ver ROADMAP 2026-07-08)
+- ~~Ubicación definitiva de Replay / Volume Profile / Anchored VWAP~~ → `ReplayController`;
+  VP y VWAP como `Indicators/` + `Overlays/`.
+- ~~Registro de overlays~~ → `OverlayManager` (el feed/render-loop pesado sigue en parte en
+  `ChartEngine`; ver TECH_DEBT).

@@ -1,15 +1,15 @@
 # AI Context
 
 Resumen reutilizable del proyecto para que cualquier sesión de IA recupere contexto rápido.
-Última actualización: 2026-06-22 (cierre funcional 1ª entrega Fase 2 + rediseño de UI).
+Última actualización: 2026-07-08 (sync docs con código post-tasks 0054–0062 y fixes SMC/Mxwll/ZigZag).
 
 ## Producto
 
 Plataforma de trading/charting financiero tipo TradingView, construida en Perl 5 + Tk.
 Renderiza velas OHLCV con indicadores técnicos, paneles sincronizados e interacciones de
-usuario (zoom, drag, crosshair, timeframes). Es la base de visualización sobre la que se
-montan, en el segundo bimestre, los modelos de Machine Learning (HMM/Viterbi tensorial)
-para predecir cambios de estructura de mercado (no precio vela a vela).
+usuario (zoom, drag, crosshair, timeframes, Replay). Es la base de visualización sobre la que
+se montan, en el segundo bimestre y a fin de semestre, los modelos de Machine Learning
+(HMM/Viterbi tensorial) para predecir cambios de estructura de mercado (no precio vela a vela).
 
 Contexto académico: asignatura de IA y Aprendizaje Automático, EPN 2026A, GR1SW.
 Integrantes: Bryan Ayala, Juan Chugá, Sebastián Jibaja, Oscar Tamayo.
@@ -20,147 +20,179 @@ Repo remoto: `https://github.com/amsipan/ProyectoIAAA` (branch `main`).
 - El estudiante/operador que analiza estructura de mercado de forma visual e interactiva.
 - El profesor que evalúa contra una rúbrica y un PDF de especificación por fase.
 - Las fases posteriores de ML, que consumen las etiquetas (BOS/CHoCH/FVG/liquidez,
-  ATR por bins, volumen) como observaciones discretas para entrenar el HMM.
+  ATR por bins, volumen, strategy flags) como observaciones discretas para entrenar el HMM.
 
 ## Estado por fases
 
 - **Fase 1 (Primer bimestre) — COMPLETADA y evaluada (89/100).** Motor gráfico, paneles,
-  ATR, interacciones de UI, 3 timeframes (1m/5m/15m).
-- **Fase 2 (Segundo bimestre) — 1ª ENTREGA FUNCIONALMENTE COMPLETA (código).** Todo el
-  contenido mínimo del PDF para el 29/06 está implementado y verificado por tests:
-  8 timeframes, sistema Replay sin fuga de futuro, arquitectura de Overlays, motor SMC
-  (BOS/CHoCH/FVG/Fibonacci), módulo de liquidez (swings/EQH/EQL/BSL/SSL, FSM Sweep/Grab/Run,
-  volumen multi-TF, 7 zonas), y UI (TF/Replay/toggles). **672 tests PASS** (`t/00`–`t/18`).
-  Pendiente: aceptación visual final del usuario y la 2ª entrega (13/07: SMC unificado con
-  concurrencia, Strategy Builder, Volume Profile, Anchored VWAP).
+  ATR, interacciones de UI, 3 timeframes (1m/5m/15m). Eje temporal TradingView cerrado en
+  `0000g`–`0000j`.
+- **Fase 2 — 1ª entrega (29/06) — COMPLETA en código y tests.** 8 timeframes, Replay sin
+  fuga de futuro, Overlays, SMC (BOS/CHoCH/FVG/Fibonacci), Liquidez (swings/EQH/EQL/BSL/SSL,
+  FSM Sweep/Grab/Run, volumen multi-TF, 7 zonas), UI inline.
+- **Fase 2 — 2ª entrega (13/07) — IMPLEMENTADA en gran parte (código + tests + pulido).**
+  - Strategy Builder, Volume Profile, Anchored VWAP (`t/19`–`t/21`).
+  - Mxwll Suite, ZigZag interno/externo + canal de tendencia clásico (`t/22`, `t/24`).
+  - Replay calque TradingView (panel inline, Select Bar, velocidades, Go-to, atajos) —
+    tasks `0041`–`0053` (0047 baja prio; 0053 cursor SO pausado por límite WSLg).
+  - Feedback profe/QA 2ª ronda `0054`–`0062` (densidad BSL/SSL, anclaje liquidez→SMC,
+    pivotes SMC, EQH/EQL INT/EXT, recolor RUN, FVG near price, Fib 3 niveles en TF bajas,
+    canal clásico, slider de densidad).
+  - Fixes posteriores: estabilidad overlays al zoom/pan, grid toggle, ZigZag cadena continua,
+    Fib Mxwll, anti-solapamiento etiquetas SMC.
+  - Suite: **29 archivos** `t/*.t` (índices no contiguos: `t/00`–`t/26`, `t/37`, `t/58`).
+  - **Pendiente / parcial:** concurrencia liquidez→estructura con pesos de probabilidad
+    (spec `0006`, aún sin task formal post-0062); 0047 tijeras vectoriales; 0053 cursor OS.
 - **Fase 3 (ML recurrente) — FUTURA.** HMM + Viterbi tensorial (órdenes superiores),
-  posibles LSTM/Transformers. Insumo: las etiquetas que produce la Fase 2.
+  Pearson/PCC, discretización. Specs `0011`/`0012`. Insumo: etiquetas de Fase 2.
+
+Fuente de estado de tasks: **`tasks/README.md`** (más actual que este archivo si divergen).
 
 ## Módulos principales (estado actual)
 
-### Fase 1 (base)
-- `market.pl` — punto de entrada; UI Tk INLINE (sin menubar ni Optionmenu — ver TECH_DEBT
-  F6/F7), controles, tema, orquestación inicial. Las acciones de la barra se construyen con
-  factorías de `Market/UI/Callbacks.pm`.
-- `Market/MarketData.pm` — capa de datos: OHLCV, 8 timeframes (1m/5m/15m/1h/2h/4h/D/W) por
-  fronteras de reloj (W=lunes ISO), slicing (soporta índices negativos), anclas.
-- `Market/ChartEngine.pm` — orquestador: render, zoom, drag, crosshair, ejes, Replay,
-  overlays (archivo grande, ~2600 líneas; god object — ver TECH_DEBT).
-- `Market/IndicatorManager.pm` — contenedor genérico de indicadores desacoplados.
-- `Market/Indicators/ATR.pm` — ATR (14 periodos, incremental O(1) por vela).
-- `Market/Panels/{PricePanel,ATRPanel,Scales}.pm` — render de velas/ATR + conversión datos↔píxeles.
+### Capa aplicación y orquestación
+- `market.pl` — punto de entrada; UI Tk **inline por pestañas** (Capas, SMC, Liq, Mxwll,
+  ZigZag, Estrategia, Escala, Replay); sin menubar ni Optionmenu (popups erráticos en WSLg).
+- `Market/ChartEngine.pm` — orquestador: render, zoom, drag, crosshair, ejes, Replay visual,
+  feed de overlays (`sync_overlay_indicators`). ~3300+ líneas; god object — ver TECH_DEBT.
+- `Market/MarketData.pm` — OHLCV, 8 TF (1m/5m/15m/1h/2h/4h/D/W) por fronteras de reloj
+  (W=lunes ISO), slicing, anclas de sesión.
+- `Market/IndicatorManager.pm` — contenedor de indicadores base (ATR).
+- `Market/ReplayController.pm` — índice-tope de Replay, play/pause/step, 9 velocidades,
+  intervalos (sin Tk de dibujo).
+- `Market/OverlayManager.pm` — registro de overlays activables.
 
-### Fase 2 (implementados)
-- `Market/Indicators/SMC_Structures.pm` — cálculo PURO de zigzag (HH/HL/LL/LH por FSM),
-  BOS/CHoCH (true/false), major high/low, FVG con mitigación progresiva, Fibonacci. Getters
-  NO-mutantes (idempotentes, task 0014). Poda de FVGs inactivos para rendimiento (0017).
-- `Market/Overlays/SMC_Structures.pm` — render en Canvas (tag `ov_smc`); tope de recencia.
-- `Market/Indicators/Liquidity.pm` — swings, EQH/EQL (tol `ATR*0.10`), BSL/SSL, FSM
-  Sweep/Grab/Run (5 estados), volumen multi-TF por timestamp (0013), 7 zonas. Optimizado con
-  cache de epochs + prefix-sum + búsqueda binaria (0016).
-- `Market/Overlays/Liquidity.pm` — render Tabla 2 del PDF (tag `ov_liq`); toggles por elemento.
-- `Market/ReplayController.pm` — índice-tope de Replay; truncado sin fuga de futuro (0002/0015).
-- `Market/OverlayManager.pm` + `Market/Overlays/{Base,Example}.pm` — patrón base de overlays.
-- `Market/UI/Callbacks.pm` — factorías puras (sin Tk) de callbacks de la barra; testeables headless.
-- `Market/Debug/TimeAxisSnapshot.pm` — diagnóstico removible del eje temporal. Captura por estado o rango (`timeframe`/`start_ts`/`end_ts`/`canvas_width`): labels, X, índices, timestamps, cadencia, `bar_w`, gaps, deltas. No es producto final; sirve para comparar con TradingView sin screenshots.
-- `Market/Debug/IndicatorSnapshot.pm` — diagnóstico removible y genérico de indicadores/overlays. Convierte la salida estructurada (items `index`/`type`/`price`/`state`/`meta`) en texto determinista comparable en tests, con guard de Replay. Contrato y patrón: `docs/PHASE2_DEBUG_CONTRACT.md`. Self-test: `t/08`. **Capa del arquitecto; el implementor no la edita.**
+### Indicadores (cálculo PURO, sin Tk) — `Market/Indicators/`
+- `ATR.pm` — ATR 14, O(1) por vela.
+- `SMC_Structures.pm` — HH/HL/LL/LH, BOS/CHoCH, major high/low, FVG (+ near price), Fibonacci
+  (3 niveles en TF bajas). Getters idempotentes; filtros de densidades/ATR.
+- `Liquidity.pm` — niveles BSL/SSL, EQH/EQL INT/EXT, FSM Sweep/Grab/Run, volumen multi-TF,
+  7 zonas; pivotes anclables a SMC; k/significancia para menos ruido.
+- `Strategy_Builder.pm` — SuperTrend, HalfTrend, Range Filter, Supply/Demand.
+- `VolumeProfile.pm` — perfil de volumen.
+- `AnchoredVWAP.pm` — VWAP multipivot.
+- `Mxwll_Suite.pm` — suite unificada estilo referencia Mxwll/Pine.
+- `ZigZag.pm` — dirección interna/externa + canal de tendencia clásico (2 paralelas por pierna).
 
-## Módulos a crear (2ª entrega Fase 2 — aún NO existen)
+### Overlays (render Canvas) — `Market/Overlays/`
+- `Base.pm` / `Example.pm` — contrato: `set_visible`, `compute_visible`, `draw`, `clear`, `tag`.
+- Pares de render: `SMC_Structures`, `Liquidity`, `Strategy_Builder`, `VolumeProfile`,
+  `AnchoredVWAP`, `Mxwll_Suite`, `ZigZag`.
 
-- `Market/Indicators/Strategy_Builder.pm` + `Market/Overlays/Strategy_Builder.pm` — SuperTrend,
-  HalfTrend, Range Filter, Supply, Demand.
-- Volume Profile y Anchored VWAP (ubicación de package por confirmar; ver specs 0008/0009).
-- Concurrencia liquidez→estructura (pesos de probabilidad; spec 0006).
+### Paneles y UI
+- `Market/Panels/{PricePanel,ATRPanel,Scales}.pm` — velas/ATR + mapeo datos↔píxeles;
+  recolor de velas RUN; línea de precio de cabeza de Replay.
+- `Market/UI/Callbacks.pm` — factorías de callbacks (testeables headless).
+- `Market/UI/ReplayPanel.pm` (+ `ReplayDropdown`, `ReplayGotoMenu`, `ReplaySpeedMenu`,
+  `ReplayIntervalMenu`) — barra Replay inline estilo TradingView.
+
+### Debug (capa del arquitecto; implementor no edita)
+- `Market/Debug/TimeAxisSnapshot.pm` — eje temporal por estado o rango.
+- `Market/Debug/IndicatorSnapshot.pm` — items estructurados → texto determinista + guard Replay.
+  Contrato: `docs/PHASE2_DEBUG_CONTRACT.md`. Self-test: `t/08`.
+
+## Módulos / trabajo aún pendiente
+
+- **Spec 0006** — concurrencia liquidez → BOS/CHoCH (pesos de probabilidad); no formalizada
+  como lote de tasks post-0062.
+- **0047** — tijeras vectoriales (baja prioridad).
+- **0053** — ocultar cursor del SO en Select Bar (pausado: límite WSLg).
+- **Fase 3** — `Algorithm/Viterbi` (u equivalente) + Pearson; aún no en `Market/`.
 
 ## Stack detectado
 
 - **Lenguaje:** Perl 5 (POO con `bless`, `package`).
 - **GUI:** Tk (Canvas). Confirmado en código y PDF.
-- **Tensores/ML (Fase 2-3):** AI::MXNet (NDArray) — slice estilo NumPy, GPU opcional.
-  Requiere parches MXNet en Fedora35 (ver `docs/SETUP_FEDORA35.md`).
-- **Gráficas de análisis (PCC/heatmap):** Chart::Plotly (en los ejemplos del profesor).
-- **Datos:** `Data/2026_03.csv` — 29.888 velas 1-minuto; aunque el nombre dice `03`, el contenido real va de `2026-04-01T00:00:00-05:00` a `2026-04-30T23:59:00-05:00`. Comparación visual confirmada contra TradingView `NQ1!` (NASDAQ 100 E-mini Futures, CME) en 15m, zona `UTC-5` Bogotá/Quito.
+- **Tensores/ML (Fase 3):** AI::MXNet (NDArray). Parches en Fedora35: `docs/SETUP_FEDORA35.md`.
+- **Gráficas de análisis (PCC/heatmap):** Chart::Plotly (material del profesor).
+- **Datos:**
+  - `Data/2026_03.csv` — dataset principal de desarrollo (~29.888 velas 1m; contenido real
+    abril 2026 `UTC-5`, no marzo). Calibración visual vs TradingView `NQ1!` / CME 15m.
+  - `Data/2026_06_29.csv`, `Data/2026_07_06.csv` — datasets adicionales (entregas / pruebas).
 - **Tiempo:** `Time::Moment`.
-- **Entorno:** WSL Fedora35 (EOL; mirrors en `archives.fedoraproject.org`). WSLg para GUI.
-- **VCS:** Git.
+- **Entorno:** WSL Fedora35 (EOL) + WSLg.
+- **VCS:** Git; remote GitHub. Working tree en OneDrive; **gitdir separado** en
+  `C:\Users\ASUS ROG\.gitdirs\ProyectoIAAA.git` (ver `AGENTS.md`).
 
 ## Estructura de carpetas
 
 ```
 ProyectoIAAA/
-  market.pl                     # entrada, UI Tk inline (controles, sin popups)
+  market.pl                     # entrada, UI Tk inline por pestañas
   Market/
     MarketData.pm               # datos: 8 timeframes
     ChartEngine.pm              # orquestador/render/zoom/drag/replay/overlays
-    IndicatorManager.pm         # contenedor de indicadores
-    ReplayController.pm         # índice-tope de Replay (Fase 2)
-    OverlayManager.pm           # registro de overlays (Fase 2)
+    IndicatorManager.pm
+    ReplayController.pm
+    OverlayManager.pm
     Indicators/                 # CÁLCULO (sin Tk)
-      ATR.pm
-      SMC_Structures.pm         # Fase 2 (zigzag/BOS/CHoCH/FVG/Fib)
-      Liquidity.pm              # Fase 2 (swings/EQH/EQL/BSL/SSL/FSM/volumen/zonas)
-    Overlays/                   # RENDER (Fase 2)
+      ATR.pm  SMC_Structures.pm  Liquidity.pm
+      Strategy_Builder.pm  VolumeProfile.pm  AnchoredVWAP.pm
+      Mxwll_Suite.pm  ZigZag.pm
+    Overlays/                   # RENDER
       Base.pm  Example.pm
-      SMC_Structures.pm  Liquidity.pm
+      SMC_Structures.pm  Liquidity.pm  Strategy_Builder.pm
+      VolumeProfile.pm  AnchoredVWAP.pm  Mxwll_Suite.pm  ZigZag.pm
     Panels/
       PricePanel.pm  ATRPanel.pm  Scales.pm
     UI/
-      Callbacks.pm              # factorías de callbacks de la barra (Fase 2)
-    Debug/                      # diagnóstico removible (capa del arquitecto)
+      Callbacks.pm  ReplayPanel.pm  ReplayDropdown.pm
+      ReplayGotoMenu.pm  ReplaySpeedMenu.pm  ReplayIntervalMenu.pm
+    Debug/                      # arquitecto only
       TimeAxisSnapshot.pm  IndicatorSnapshot.pm
-  Data/2026_03.csv
-  docs/                         # documentación SDD (esta carpeta)
-    PHASE2_DEBUG_CONTRACT.md    # contrato de verificación por debug (Fase 2)
-    material_profesor/          # PDFs/docx originales del profesor + textos extraídos
-  specs/                        # qué construir y por qué
-  tasks/                        # unidades de trabajo (0000*–0018)
-  t/                            # 19 archivos de test (t/00–t/18), 672 tests
+  Data/
+    2026_03.csv  2026_06_29.csv  2026_07_06.csv
+  assets/                       # cursores XBM (Select Bar)
+  docs/                         # SDD + handoffs + material_profesor/
+    reference_indicators/       # Pine/TV originals (LuxAlgo, Mxwll, DIY, ZigZag…)
+  specs/                        # qué y por qué
+  tasks/                        # unidades de trabajo (0000*–0062+)
+  t/                            # suite Test::More (29 archivos)
+  scratch/                      # probes/capturas (no producto)
 ```
 
 ## Flujos principales
 
-1. **Carga y agregación de datos:** `market.pl` lee el CSV → `MarketData` almacena 1m y
-   construye 5m/15m por fronteras reales de reloj (`_bucket_timestamp`).
-2. **Render del chart:** `ChartEngine` calcula la ventana visible (offset desde el final),
-   delega a `PricePanel`/`ATRPanel` usando `Scales` para mapear datos↔píxeles.
-3. **Indicadores:** `IndicatorManager` propaga cada vela a los indicadores (`update_last`,
-   O(1)); al cambiar timeframe se hace `reset_all` + recálculo vela por vela.
-4. **(Fase 2) Overlays SMC/Liquidez:** alimentación BAJO DEMANDA — el indicador pesado solo
-   se calcula cuando su capa está visible (`sync_overlay_indicators`). Con las capas OFF al
-   abrir, el arranque es instantáneo (solo velas+ATR como Fase 1). Los overlays dibujan solo la
-   estructura reciente (tope de recencia) sobre la ventana visible, respetando el `replay_idx`.
-5. **(Fase 2) Replay:** `ReplayController` fija un índice-tope; indicadores y overlays se
-   recalculan SOLO hasta ese índice (cero fuga de futuro, verificado en `t/16`).
+1. **Carga y agregación:** CSV → `MarketData` (1m) → `build_timeframes` (fronteras de reloj).
+2. **Render:** `ChartEngine.compute_window` → `Scales` → `PricePanel`/`ATRPanel` + ejes.
+3. **ATR base:** `IndicatorManager` con `update_last`; al cambiar TF, `reset_all` + recálculo.
+4. **Overlays pesados:** alimentación **bajo demanda** solo si la capa está visible
+   (`sync_overlay_indicators`). Liquidez puede alimentarse por chunks no bloqueantes.
+   Overlays dibujan ventana visible + contexto; respetan `replay_idx`.
+5. **Replay:** `ReplayController` fija índice-tope; indicadores/overlays solo hasta ese índice
+   (cero fuga de futuro, `t/16` y regresiones posteriores). UI en pestaña Replay (Select Bar,
+   play, jump-to-real-time, atajos de ventana).
 
 ## Integraciones externas
 
 Ninguna en runtime (app de escritorio local). Dependencias CPAN: `Tk`, `Time::Moment`,
-y para Fase 2/3 `AI::MXNet`, `Chart::Plotly`. Datos desde archivo CSV local.
+y para Fase 3 `AI::MXNet`, `Chart::Plotly`. Datos desde CSV local.
 
 ## Riesgos conocidos
 
-- **Aceptación visual pendiente:** el código de la 1ª entrega pasa 672 tests, pero la
-  validación visual con el usuario sigue abierta. Última ronda (task 0018) corrigió fallos de
-  UI: barra saturada/popups (menubar y Optionmenu abrían ventanas X erráticas bajo WSLg → ahora
-  controles inline), toggles que no restauraban líneas, arranque pesado (alimentación bajo
-  demanda), overlays amontonados (tope de recencia), y regresión del paneo izquierdo (espacio
-  vacío restaurado). Verificar en GUI antes de cerrar formalmente.
-- **Rendimiento a escala:** los indicadores SMC/Liquidity tenían O(n²) que colgaba la app con
-  las 29888 velas (tasks 0016/0017, resueltas). Lección: los tests usaban 10-35 velas y no lo
-  detectaban; añadir cotas de tiempo a escala en features pesadas futuras.
-- `ChartEngine.pm` es muy grande (~2600 líneas) y concentra orquestación + render + ejes +
-  eventos + Replay + overlays: god object. Ver TECH_DEBT.
-- Validación visual contra TradingView: apoyarse primero en `Market/Debug/TimeAxisSnapshot.pm`
-  (eje) y `Market/Debug/IndicatorSnapshot.pm` (indicadores); el usuario solo confirma percepción.
-- El entorno (Fedora35 EOL + parches MXNet manuales) es frágil de reproducir.
-- El proyecto vive en OneDrive vía junction `C:\m\...`; algunas herramientas no "ven"
-  archivos hidratados desde la nube en listados recursivos (cosmético).
-- WSL no tiene salida a github:443 (timeouts); el backup se sube con git de Windows. Hay dos
-  copias del repo: canónica en OneDrive (`/mnt/c/m/...`) y copia de trabajo en Fedora
-  (`~/Documents/ProyectoIA/ProyectoIAAA`), que se sincroniza por `cp -a` desde la canónica.
+- **`ChartEngine.pm` god object** (~3300+ líneas): orquestación + render + ejes + eventos +
+  Replay + feed overlays. Ver TECH_DEBT. No refactorizar “de paso”.
+- **Rendimiento:** historial de O(n²) en Liq/SMC (resuelto 0016/0017). Cualquier loop
+  estructuras×velas es sospechoso; tests sintéticos cortos no bastan.
+- **Densidad visual:** controlada por filtros en origen + slider de densidad + tope de
+  recencia; el profe es sensible al “ruido” de etiquetas.
+- **WSLg/Tk:** menubar/Optionmenu rotos; clics en botones con Canvas requieren `Tk::bind` en
+  todos los widgets; atajos globales con `$mw->bind(all => ...)`; xdotool poco fiable.
+- **Docs vs código:** este archivo y `ARCHITECTURE`/`ROADMAP` se sincronizaron el 2026-07-08;
+  si hay duda, **código + `tasks/README.md` + `git log` mandan**.
+- Entorno Fedora35 EOL + parches MXNet frágiles; OneDrive junction; gitdir fuera de OneDrive.
 
 ## Preguntas abiertas
 
-Ver `docs/ROADMAP.md` (decisiones pendientes) y la sección 18 de
-`../Requisitos_Proyecto_2do_Bimestre.md`. Principales: número final de estados del HMM,
-ubicación de packages para Replay/VolumeProfile/VWAP, parámetros exactos de tolerancias.
+Ver `docs/ROADMAP.md`. Principales aún abiertas:
+
+- Número final de estados ocultos del HMM (“más de cuatro”).
+- Concurrencia liquidez→estructura (spec 0006): diseño de pesos y cableado.
+- Normalizar vs estandarizar antes de Pearson (Fase 3).
+- Parámetros calibrables (k, N, umbrales de volumen) — valores base del PDF, ajustables.
+
+**Cerradas por implementación (antes abiertas):**
+
+- Ubicación de packages: Replay → `ReplayController`; VolumeProfile y AnchoredVWAP →
+  `Indicators/` + `Overlays/` como el resto.
+- Fibonacci: niveles estándar; en TF bajas solo 3 niveles (task 0060).

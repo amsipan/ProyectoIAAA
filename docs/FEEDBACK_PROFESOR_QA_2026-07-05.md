@@ -1,9 +1,14 @@
 # Feedback Profesor / QA Tester — 2026-07-05
 
-> **Estado:** ARCHIVO A COMPLETAR. Fuente cruda para formalizar tasks. NO editar el
-> contenido citado (transcripciones/mensajes textuales); las notas del arquitecto van
-> claramente marcadas aparte. Origen: cosas que el profesor mencionó para mejorar,
-> anotadas por un compañero, más lo que observó el QA tester al abrir la app.
+> **Estado (2026-07-08):** fuente cruda **archivada** y formalizada en tasks **0054–0062**
+> (ver `tasks/README.md`). Las secciones 1–4 (citas textuales) **no se reescriben**.
+> La sección 5 (mapa del arquitecto al 05/07) quedó **histórica**: varios ❌/⚠️ de esa fecha
+> se cerraron en 0054–0062 (densidad BSL/SSL, anclaje SMC, EQH/EQL INT/EXT, recolor RUN,
+> FVG near price unificado, Fib 3 niveles, canal clásico, slider densidad). No usar la §5
+> como checklist de pendientes sin contrastar código/tasks.
+>
+> Origen: cosas que el profesor mencionó para mejorar, anotadas por un compañero, más lo
+> que observó el QA tester al abrir la app.
 
 ---
 
@@ -132,16 +137,17 @@ ATR, sino ajustadas a los extremos reales):
 - Se dibuja por PIERNA de tendencia (una tendencia = un canal), no por cada micro-segmento zigzag.
 - Sólidas, no un offset de ATR.
 
-**Estado:** ❌ FALTA rehacer. Requiere reescribir la generación del canal en `Indicators/ZigZag.pm`
-(nueva geometría de canal por pierna) y ajustar el render en `Overlays/ZigZag.pm`. El botón/toggle
-CHANNEL ya existe (`market.pl` panel ZigZag). Decidir: ¿el canal cuelga del ZigZag externo o de una
-trendline propia? (probablemente del zigzag externo, que es el que marca las piernas grandes).
+**Estado al 05/07:** ❌ FALTA rehacer (diagnóstico histórico).  
+**Estado al 08/07:** ✅ **cerrado en task 0061** — canal de tendencia clásico (2 paralelas por
+pierna) en `Indicators/ZigZag.pm` + `Overlays/ZigZag.pm`; ya no es envelope ATR.
 
 ---
 
 ## 6. Pendiente
 
-- [ ] Formalizar cada punto como task en `tasks/` (numeración siguiente disponible).
-- [ ] Confirmar con Bryan alcance del slider (global vs por familia).
-- [ ] Verificar en app real puntos ⚠️ (7 EQH/EQL internos; 1/3/6 densidad; 9 qué capa FVG).
-- [ ] Aclarar cuánto pidió exactamente el profesor (el compañero no recuerda el detalle completo).
+- [x] Formalizar cada punto como task en `tasks/` → **0054–0062** (ver `tasks/README.md`).
+- [x] Alcance del slider: **Fase A global** (0062); por familia solo si se pide después.
+- [x] Verificar en app real puntos ⚠️ del mapa §5 → cubierto en verificación de 0054–0062
+  (EQH/EQL INT/EXT, densidades, FVG near price unificado en SMC).
+- [ ] Aclarar con el profesor cualquier matiz que el compañero no recordara (abierto si aparece
+  feedback nuevo en clase).

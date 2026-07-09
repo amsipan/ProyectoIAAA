@@ -199,8 +199,18 @@ my %vis_mxelem = ( STRUCTURE => 1, SWINGS => 1, OB => 1, FVG => 1, AOE => 1, FIB
 my $cb_smc = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc');
 my $cb_liq = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'strategy');
-my $cb_vp = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vp');
-my $cb_vwap = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'vwap');
+my $cb_vwap = Market::UI::Callbacks->make_vwap_toggle($chart_engine);
+my $cb_vwap_reanchor = Market::UI::Callbacks->make_vwap_reanchor($chart_engine);
+my $cb_vwap_band = Market::UI::Callbacks->make_vwap_band_setter($chart_engine);
+# Defaults TradingView Anchored VWAP (captura profe): #1 on mult=1, #2/#3 off.
+my %vwap_band_on   = (1 => 1, 2 => 0, 3 => 0);
+my %vwap_band_mult = (1 => '1', 2 => '2', 3 => '3');
+my $cb_vp = Market::UI::Callbacks->make_vp_toggle($chart_engine);
+my $cb_vp_reanchor = Market::UI::Callbacks->make_vp_reanchor($chart_engine);
+my $cb_vp_settings = Market::UI::Callbacks->make_vp_settings_setter($chart_engine);
+# Defaults TV AVP: Number of Rows=24, Value Area=70, Volume=Total (azul).
+my $vp_row_size = '24';
+my $vp_va_pct   = '70';
 my $cb_mxwll = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'mxwll');
 my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
@@ -230,6 +240,7 @@ my %overlay_cb = (
     smc => $cb_smc, liq => $cb_liq, strategy => $cb_strategy,
     vp => $cb_vp, vwap => $cb_vwap, mxwll => $cb_mxwll, zigzag => $cb_zigzag,
 );
+# cb_vp ya es make_vp_toggle (ancla), no make_overlay_toggle genérico.
 my %overlay_button;
 my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
 my $refresh_overlay_button = sub {
@@ -336,6 +347,35 @@ for my $name (qw(Capas SMC Liq Mxwll ZigZag Estrategia Escala Replay)) {
 # ocultando una fila inferior con pack/packForget. La barra superior solo deja
 # un resumen compacto (grupo/item + valor); el detalle (grupos, específicos y
 # la barra 1..100) aparece bajo demanda para ahorrar espacio.
+# Recargar app (derecha del menú, discreto): cierra el proceso y relanza market.pl.
+# Debe empacarse ANTES que Densidad con -side => 'right' para quedar al borde
+# derecho (pack ordena de fuera hacia dentro).
+my $reload_app = sub {
+    my $script = $0;
+    # Ruta absoluta del script (funciona en WSL y en Windows nativo).
+    if ($script !~ m{^/} && $script !~ m{^[A-Za-z]:}) {
+        require Cwd;
+        $script = Cwd::abs_path($script) // $script;
+    }
+    my $dir = $script;
+    $dir =~ s{[\\/][^\\/]+$}{};
+    chdir $dir if length $dir && -d $dir;
+    print "[*] Recargando aplicacion...\n";
+    # exec reemplaza el proceso: no hace falta MainLoop ni destroy.
+    exec($^X, '-I.', $script);
+    # Solo si exec falla:
+    warn "No se pudo recargar: $! (script=$script perl=$^X)\n";
+    eval { $mw->messageBox(-type => 'ok', -icon => 'error',
+        -title => 'Recargar', -message => "No se pudo reiniciar:\n$!"); };
+};
+$tab_row->Button(
+    -text    => 'Recargar',
+    -padx    => 4,
+    -pady    => 0,
+    -relief  => 'groove',
+    -command => $reload_app,
+)->pack(-side => 'right', -padx => 3);
+
 my $density_global_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'right', -padx => 4);
 $density_global_box->Label(-text => 'Densidad:')->pack(-side => 'left', -padx => 3);
 my %density_items = (
@@ -498,8 +538,143 @@ $show_density_items->();
         -command => sub { $set_overlay_visible->('strategy', $vis_strategy ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Perfil Vol', -variable => \$vis_vp,
         -command => sub { $set_overlay_visible->('vp', $vis_vp ? 1 : 0); })->pack(-side => 'left');
+    my $vp_hint;
+    my $set_vp_hint = sub {
+        my ($on) = @_;
+        return unless $vp_hint;
+        if ($on) {
+            $vp_hint->configure(-text => 'Clic vela AVP… (Esc)', -fg => '#01579B');
+        } else {
+            $vp_hint->configure(-text => '', -fg => '#666666');
+        }
+    };
+    $chart_engine->{vp_select_mode_callback} = sub { $set_vp_hint->($_[0] ? 1 : 0); };
+    $chart_engine->{vp_anchor_callback} = sub { $set_vp_hint->(0); };
+    $chart_engine->{vp_select_cancel_callback} = sub { $set_vp_hint->(0); };
+    $p->Button(
+        -text => 'Anclar VP',
+        -command => sub {
+            $vis_vp = 1;
+            $cb_vp_reanchor->();
+            $refresh_overlay_button->('vp') if $overlay_button{vp};
+            $set_vp_hint->(1);
+        },
+    )->pack(-side => 'left', -padx => 2);
+    $vp_hint = $p->Label(-text => '', -fg => '#01579B', -font => ['Helvetica', 9, 'bold'])
+        ->pack(-side => 'left', -padx => 2);
+    # AVP Inputs (TV): Row Size + Value Area %
+    my $vp_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 3);
+    $vp_box->Label(-text => 'Rows:')->pack(-side => 'left', -padx => 1);
+    my $vp_rows_ent = $vp_box->Entry(-textvariable => \$vp_row_size, -width => 5, -justify => 'right');
+    $vp_rows_ent->pack(-side => 'left', -padx => 1);
+    $vp_box->Label(-text => 'VA%:')->pack(-side => 'left', -padx => 1);
+    my $vp_va_ent = $vp_box->Entry(-textvariable => \$vp_va_pct, -width => 3, -justify => 'right');
+    $vp_va_ent->pack(-side => 'left', -padx => 1);
+    my $apply_vp_settings = sub {
+        my $rs = $vp_row_size;
+        $rs = '24' if !defined $rs || $rs eq '';
+        $rs =~ s/,/./g;
+        $rs = 24 unless $rs =~ /^\d+$/;
+        $rs = 1 if $rs < 1;
+        $rs = 5000 if $rs > 5000;
+        $vp_row_size = $rs;
+        my $va = $vp_va_pct;
+        $va = '70' if !defined $va || $va eq '';
+        $va =~ s/,/./g;
+        $va = 70 unless $va =~ /^\d+\.?\d*$/;
+        $va = 1 if $va < 1;
+        $va = 100 if $va > 100;
+        $vp_va_pct = $va;
+        $cb_vp_settings->(row_size => $rs, value_area_pct => $va);
+    };
+    $vp_rows_ent->Tk::bind('<Return>', $apply_vp_settings);
+    $vp_rows_ent->Tk::bind('<FocusOut>', $apply_vp_settings);
+    $vp_va_ent->Tk::bind('<Return>', $apply_vp_settings);
+    $vp_va_ent->Tk::bind('<FocusOut>', $apply_vp_settings);
+    # Aplicar defaults al arranque
+    $apply_vp_settings->();
+
     $p->Checkbutton(-text => 'VWAP', -variable => \$vis_vwap,
         -command => sub { $set_overlay_visible->('vwap', $vis_vwap ? 1 : 0); })->pack(-side => 'left');
+    my $vwap_hint;
+    my $set_vwap_hint = sub {
+        my ($on) = @_;
+        return unless $vwap_hint;
+        if ($on) {
+            $vwap_hint->configure(
+                -text => 'Clic en una vela… (Esc cancela)',
+                -fg   => '#0D47A1',
+            );
+        }
+        else {
+            $vwap_hint->configure(-text => '', -fg => '#666666');
+        }
+    };
+    $chart_engine->{vwap_select_mode_callback} = sub {
+        my ($on) = @_;
+        $set_vwap_hint->($on ? 1 : 0);
+    };
+    $chart_engine->{vwap_anchor_callback} = sub {
+        $set_vwap_hint->(0);
+    };
+    $chart_engine->{vwap_select_cancel_callback} = sub {
+        $set_vwap_hint->(0);
+    };
+
+    $p->Button(
+        -text => 'Anclar VWAP',
+        -command => sub {
+            $vis_vwap = 1;
+            $cb_vwap_reanchor->();
+            $refresh_overlay_button->('vwap') if $overlay_button{vwap};
+            $set_vwap_hint->(1);
+        },
+    )->pack(-side => 'left', -padx => 2);
+    $vwap_hint = $p->Label(
+        -text   => '',
+        -fg     => '#0D47A1',
+        -font   => ['Helvetica', 9, 'bold'],
+    )->pack(-side => 'left', -padx => 4);
+
+    # Anchored VWAP — Bands Settings (como Inputs de TradingView)
+    my $vwap_bands = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $vwap_bands->Label(-text => 'Bands:')->pack(-side => 'left', -padx => 2);
+    for my $n (1, 2, 3) {
+        my $row = $vwap_bands->Frame()->pack(-side => 'left', -padx => 2);
+        $row->Checkbutton(
+            -text     => "#$n",
+            -variable => \$vwap_band_on{$n},
+            -command  => sub {
+                $cb_vwap_band->($n,
+                    on   => $vwap_band_on{$n} ? 1 : 0,
+                    mult => $vwap_band_mult{$n},
+                );
+            },
+        )->pack(-side => 'left');
+        my $ent = $row->Entry(
+            -textvariable => \$vwap_band_mult{$n},
+            -width        => 3,
+            -justify      => 'right',
+        );
+        $ent->pack(-side => 'left', -padx => 1);
+        # Aplicar mult al salir del campo o Enter (sin Optionmenu: WSLg-safe).
+        my $apply_mult = sub {
+            my $raw = $vwap_band_mult{$n};
+            $raw = '1' if !defined $raw || $raw eq '';
+            $raw =~ s/,/./g;
+            unless ($raw =~ /^-?\d*\.?\d+$/) {
+                $vwap_band_mult{$n} = $n;  # reset default TV
+                $raw = $n;
+            }
+            my $m = 0 + $raw;
+            $m = 0.01 if $m < 0.01;
+            $vwap_band_mult{$n} = $m;
+            $cb_vwap_band->($n, on => $vwap_band_on{$n} ? 1 : 0, mult => $m);
+        };
+        $ent->Tk::bind('<Return>', $apply_mult);
+        $ent->Tk::bind('<FocusOut>', $apply_mult);
+    }
+
     $p->Checkbutton(-text => 'Mxwll', -variable => \$vis_mxwll,
         -command => sub { $set_overlay_visible->('mxwll', $vis_mxwll ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'ZigZag', -variable => \$vis_zigzag,

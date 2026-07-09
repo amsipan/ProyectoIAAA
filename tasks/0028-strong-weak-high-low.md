@@ -19,7 +19,7 @@ sesgo de tendencia del swing.
   * `trailing.top`/`trailing.bottom` = extremos trailing.
   * Etiqueta "Strong High" si `swingTrend.bias == BEARISH`, si no "Weak High"
     (y análogo para Low con BULLISH).
-- Referencia guardada en `docs/material_profesor/LuxAlgo_SMC_reference.pine`.
+- Referencia guardada en `docs/reference_indicators/luxalgo_smc.txt`.
 
 ## Interpretación de la nota del profe
 "Strong High cuando coincide lo de arriba con el value de abajo" — probablemente

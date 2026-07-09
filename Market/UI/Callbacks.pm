@@ -746,6 +746,136 @@ sub make_overlay_toggle {
     };
 }
 
+# make_vwap_toggle($chart) — capa Anchored VWAP estilo TradingView:
+# al activar sin ancla entra en modo "clic en vela"; al desactivar oculta la capa
+# (conserva ancla si ya se fijó, para re-mostrar sin re-elegir).
+sub make_vwap_toggle {
+    my ($class, $chart) = @_;
+    die "make_vwap_toggle: requiere \$chart" unless $chart;
+    return sub {
+        my ($on) = @_;
+        if ($on) {
+            if ($chart->can('begin_vwap_placement')) {
+                $chart->begin_vwap_placement();
+            }
+            else {
+                my $mgr = $chart->{overlay_manager};
+                $mgr->set_visible('vwap', 1) if $mgr;
+                $chart->request_render();
+            }
+        }
+        else {
+            if ($chart->can('end_vwap_overlay')) {
+                $chart->end_vwap_overlay();
+            }
+            else {
+                my $mgr = $chart->{overlay_manager};
+                $mgr->set_visible('vwap', 0) if $mgr;
+                $chart->request_render();
+            }
+        }
+    };
+}
+
+# make_vwap_reanchor($chart) — vuelve a pedir clic de ancla (botón opcional).
+sub make_vwap_reanchor {
+    my ($class, $chart) = @_;
+    die "make_vwap_reanchor: requiere \$chart" unless $chart;
+    return sub {
+        return unless $chart->can('reanchor_vwap');
+        $chart->reanchor_vwap();
+    };
+}
+
+# make_vp_toggle($chart) — Anchored Volume Profile (AVP TradingView).
+sub make_vp_toggle {
+    my ($class, $chart) = @_;
+    die "make_vp_toggle: requiere \$chart" unless $chart;
+    return sub {
+        my ($on) = @_;
+        if ($on) {
+            if ($chart->can('begin_vp_placement')) {
+                $chart->begin_vp_placement();
+            }
+            else {
+                my $mgr = $chart->{overlay_manager};
+                $mgr->set_visible('vp', 1) if $mgr;
+                $chart->request_render() if $chart->can('request_render');
+            }
+        }
+        else {
+            if ($chart->can('end_vp_overlay')) {
+                $chart->end_vp_overlay();
+            }
+            else {
+                my $mgr = $chart->{overlay_manager};
+                $mgr->set_visible('vp', 0) if $mgr;
+                $chart->request_render() if $chart->can('request_render');
+            }
+        }
+    };
+}
+
+sub make_vp_reanchor {
+    my ($class, $chart) = @_;
+    die "make_vp_reanchor: requiere \$chart" unless $chart;
+    return sub {
+        return unless $chart->can('reanchor_vp');
+        $chart->reanchor_vp();
+    };
+}
+
+# make_vp_settings_setter — Row Size + Value Area % (TV Inputs).
+sub make_vp_settings_setter {
+    my ($class, $chart) = @_;
+    die "make_vp_settings_setter: requiere \$chart" unless $chart;
+    return sub {
+        my (%opts) = @_;
+        my $ind = $chart->{vp_indicator};
+        return unless $ind;
+        if (exists $opts{row_size} && $ind->can('set_row_size')) {
+            $ind->set_row_size($opts{row_size});
+        }
+        if (exists $opts{value_area_pct} && $ind->can('set_value_area_pct')) {
+            $ind->set_value_area_pct($opts{value_area_pct});
+        }
+        $chart->request_render() if $chart->can('request_render') && $chart->{price_canvas};
+    };
+}
+
+# make_vwap_band_setter($chart) — aplica ajustes de bandas estilo TV Inputs:
+#   Bands Multiplier #1/#2/#3 (on/off + multiplicador).
+# Uso: $cb->(1, on => 1, mult => 1.0);  # banda 1
+#      $cb->(2, on => 0);               # solo apagar #2
+# Recalcula el indicador si hay ancla y pide re-render.
+sub make_vwap_band_setter {
+    my ($class, $chart) = @_;
+    die "make_vwap_band_setter: requiere \$chart" unless $chart;
+    return sub {
+        my ($n, %opts) = @_;
+        return unless defined $n && $n >= 1 && $n <= 3;
+        my $ind = $chart->{vwap_indicator};
+        return unless $ind && $ind->can('set_band');
+        my %args;
+        $args{on}   = $opts{on} ? 1 : 0 if exists $opts{on};
+        if (exists $opts{mult} && defined $opts{mult} && $opts{mult} ne '') {
+            my $m = 0 + $opts{mult};
+            $m = 0.01 if $m < 0.01;  # evitar mult 0 o negativo
+            $args{mult} = $m;
+        }
+        $ind->set_band($n, %args) if keys %args;
+        # Overlay: BAND_n sigue el on/off (fill solo tiene sentido con banda 1).
+        my $ov = $chart->{vwap_overlay};
+        if ($ov && $ov->can('set_element_visible') && exists $opts{on}) {
+            $ov->set_element_visible("BAND_$n", $opts{on} ? 1 : 0);
+            if ($n == 1 && $ov->can('set_element_visible')) {
+                $ov->set_element_visible('BAND_FILL', $opts{on} ? 1 : 0);
+            }
+        }
+        $chart->request_render() if $chart->can('request_render');
+    };
+}
+
 # make_liq_element_toggle($chart, $element) — toggle de una familia concreta de
 # liquidez (BSL/SSL/EQH/EQL/SWEEP/GRAB/RUN) vía set_element_visible del overlay.
 # La visibilidad general del overlay ov_liq se controla aparte (make_overlay_toggle).

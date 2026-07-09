@@ -1,19 +1,23 @@
 # AGENTS.md — Proyecto Motor de Charting Financiero (Tk/Perl)
 
-> **ESTAMOS EN FASE 2 (segundo bimestre).** Antes de escribir código, lee en este orden:
+> **ESTAMOS EN FASE 2 (segundo bimestre), con 1ª y gran parte de 2ª entrega implementadas.**
+> Antes de escribir código, lee en este orden:
 > 1. `docs/AI_CONTEXT.md` — resumen del proyecto y estado por fases.
 > 2. `docs/ARCHITECTURE.md` — capas, estado actual vs planificado, problemas.
 > 3. `docs/CONSTITUTION.md` — principios no negociables (separación cálculo/render, etc.).
 > 4. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos OFICIALES de Fase 2.
-> 5. La spec concreta en `specs/` y su task en `tasks/`.
+> 5. La spec concreta en `specs/` y su task en `tasks/` (ver **`tasks/README.md`** para estado).
 >
-> **Estado actual:** la 1ª entrega de Fase 2 está funcionalmente implementada y testeada. El eje temporal TradingView quedó cerrado en `0000g`–`0000j`; las tareas `0001`–`0018` cubren temporalidades, Replay, overlays SMC/Liquidez, rendimiento y UI inline. Antes de seguir, validar visualmente la GUI y registrar nuevos fallos como task incremental.
+> **Estado actual (2026-07-08):** Fase 1 cerrada (89/100). Fase 2: temporalidades, Replay,
+> overlays SMC/Liquidez/Strategy/VP/VWAP/Mxwll/ZigZag, UI por pestañas, calibración profe/QA
+> (tasks hasta **0062**). Pendientes notables: spec **0006** (concurrencia), **0047** (baja
+> prio), **0053** (cursor SO pausado WSLg), y **Fase 3 ML**. Si docs y código divergen,
+> mandan **código + `tasks/README.md` + `git log`**.
 >
 > **Flujo de trabajo (SDD):** toma una task de `tasks/` → implementa solo eso → verifica con
 > `perl -I. -c` de los archivos tocados + `prove -l t` → no toques nada fuera de "Archivos relevantes"/"Qué no tocar" de la task.
 >
-> **Entregas Fase 2 (PDF oficial):** 1ª = **29/06**, 2ª = **13/07**. (En una clase se dijo
-> "29 de julio"; el PDF manda: 29/06.) Vale 20/100.
+> **Entregas Fase 2 (PDF oficial):** 1ª = **29/06**, 2ª = **13/07**. Vale 20/100.
 
 > ⚠️ **GIT DIR SEPARADO DE ONEDRIVE (05/07).** El repo vive en OneDrive, pero `.git` fue
 > movido FUERA con `git init --separate-git-dir` para que OneDrive no sincronice los objetos
@@ -29,16 +33,19 @@
 
 ## Resumen
 
-Aplicación de visualización de datos OHLCV con indicador técnico ATR, construida con Perl/Tk para la asignatura IA y Aprendizaje Automático (EPN, 2026A, GR1SW). El profesor evaluó con una rúbrica (ver `Rubrica_Proyecto_GUI.xlsx`, hoja `AA-GR1`, columna `Grupo 2`). Puntaje base: 89/100 (Fase 1).
+Aplicación de visualización de datos OHLCV con indicadores técnicos y overlays de estructura
+de mercado, construida con Perl/Tk para la asignatura IA y Aprendizaje Automático (EPN, 2026A,
+GR1SW). El profesor evaluó Fase 1 con una rúbrica (ver `Rubrica_Proyecto_GUI.xlsx`, hoja
+`AA-GR1`, columna `Grupo 2`). Puntaje base: 89/100 (Fase 1).
 
-## Fase 2 — qué se añade (resumen)
+## Fase 2 — qué incluye (resumen)
 
-Extender la plataforma con: nuevas temporalidades (1m,5m,15m,1h,2h,4h,D,W), **sistema Replay**
-(sin mostrar velas futuras), **Overlays** avanzados SMC (BOS/CHoCH/FVG/Fibonacci), **módulo de
-liquidez** unificado (swing points, EQH/EQL, sweep/grab/run con máquina de estados, pesado de
-volumen multi-TF), **DIY Strategy Builder** (SuperTrend, HalfTrend, Range Filter, Supply,
-Demand), **Perfil de Volumen** avanzado y **Anchored VWAP**. Carpeta nueva `Market/Overlays/`
-(render) separada de `Market/Indicators/` (cálculo). Detalle por feature en `specs/`.
+- Temporalidades 1m,5m,15m,1h,2h,4h,D,W.
+- **Sistema Replay** (sin velas futuras; UX tipo TradingView Bar Replay).
+- **Overlays:** SMC (BOS/CHoCH/FVG/Fibonacci), Liquidez (EQH/EQL, sweep/grab/run, FSM,
+  multi-TF), Strategy Builder, Volume Profile, Anchored VWAP, Mxwll Suite, ZigZag + canal.
+- Separación `Market/Indicators/` (cálculo) vs `Market/Overlays/` (render).
+- Detalle por feature en `specs/`; estado de implementación en `tasks/README.md`.
 
 Regla de rendimiento clave (PDF §2): los indicadores de alta complejidad calculan **solo sobre
 las velas visibles + una ventana de contexto indexada**, nunca todo el historial por frame.
@@ -47,46 +54,53 @@ las velas visibles + una ventana de contexto indexada**, nunca todo el historial
 
 - **Lenguaje:** Perl 5 con Tk para GUI nativa
 - **Entorno de ejecución:** WSL Fedora35 (EOL, mirrors en `archives.fedoraproject.org`)
-- **Dependencias Perl:** `Time::Moment`, `Tk` (módulos CPAN ya instalados en Fedora35)
-- **Datos:** `Data/2026_03.csv` — 29,888 velas 1-minuto (marzo 2026)
+- **Dependencias Perl:** `Time::Moment`, `Tk` (módulos CPAN ya instalados en Fedora35);
+  Fase 3: `AI::MXNet`, `Chart::Plotly`
+- **Datos:** `Data/2026_03.csv` (~29.888 velas 1m; contenido real abril 2026 UTC-5);
+  también `Data/2026_06_29.csv`, `Data/2026_07_06.csv`
 - **Control de versiones:** Git, remote `https://github.com/amsipan/ProyectoIAAA`
 
 ## Estructura
 
 ```
 ProyectoIAAA/
-  market.pl                  # Punto de entrada, UI Tk, controles
+  market.pl                  # Entrada, UI Tk por pestañas, controles
   Market/
-    MarketData.pm            # Capa de datos: OHLCV, timeframes, slicing
-    ChartEngine.pm           # Motor principal: render, zoom, crosshair, drag
-    IndicatorManager.pm      # Gestor de indicadores
+    MarketData.pm            # Datos: OHLCV, timeframes, slicing
+    ChartEngine.pm           # Orquestador: render, zoom, crosshair, drag, replay, overlays
+    IndicatorManager.pm      # Gestor de indicadores base
+    ReplayController.pm      # Índice-tope Replay, velocidades, intervalos
+    OverlayManager.pm        # Registro de overlays
     Indicators/              # CÁLCULO (sin Tk)
-      ATR.pm                 # Cálculo del ATR (14 periodos)
-      SMC_Structures.pm      # Fase 2 implementado: BOS/CHoCH/FVG/Fibonacci
-      Liquidity.pm           # Fase 2 implementado: swings, EQH/EQL, sweep/grab/run, FSM
-      Strategy_Builder.pm    # 2ª entrega, por crear: SuperTrend/HalfTrend/RangeFilter/Supply/Demand
-    Overlays/                # RENDER sobre Canvas (separado de cálculo)
-      SMC_Structures.pm      # Fase 2 implementado
-      Liquidity.pm           # Fase 2 implementado
-      Strategy_Builder.pm    # 2ª entrega, por crear
+      ATR.pm
+      SMC_Structures.pm
+      Liquidity.pm
+      Strategy_Builder.pm
+      VolumeProfile.pm
+      AnchoredVWAP.pm
+      Mxwll_Suite.pm
+      ZigZag.pm
+    Overlays/                # RENDER sobre Canvas
+      Base.pm  Example.pm
+      SMC_Structures.pm  Liquidity.pm
+      Strategy_Builder.pm  VolumeProfile.pm  AnchoredVWAP.pm
+      Mxwll_Suite.pm  ZigZag.pm
     Panels/
-      PricePanel.pm          # Render de velas japonesas + crosshair
-      ATRPanel.pm            # Render línea ATR + crosshair sincronizado
-      Scales.pm              # Conversión coordenadas ↔ valores
-    Debug/
-      TimeAxisSnapshot.pm    # Diagnóstico removible del eje temporal por rango/estado
-      IndicatorSnapshot.pm   # Diagnóstico removible genérico de indicadores/overlays Fase 2
+      PricePanel.pm  ATRPanel.pm  Scales.pm
+    UI/
+      Callbacks.pm
+      ReplayPanel.pm  ReplayDropdown.pm
+      ReplayGotoMenu.pm  ReplaySpeedMenu.pm  ReplayIntervalMenu.pm
+    Debug/                   # Arquitecto only
+      TimeAxisSnapshot.pm  IndicatorSnapshot.pm
   Data/
-    2026_03.csv              # Datos OHLCV 1-minuto, ~29888 filas
-  docs/                      # Documentación SDD (LEER PRIMERO)
-    AI_CONTEXT.md  CONSTITUTION.md  ARCHITECTURE.md  ROADMAP.md  TECH_DEBT.md
-    SETUP_FEDORA35.md        # Parches MXNet (pendiente de verificar)
-    adr/                     # Decisiones de arquitectura
-    material_profesor/       # PDFs/docx originales del profesor + textos/imágenes extraídos
-  specs/                     # QUÉ construir y POR QUÉ (Fase 2)
-  tasks/                     # Unidades de trabajo accionables (NNNN-nombre.md)
-  Rubrica_Proyecto_GUI.xlsx  # Rúbrica del profesor (NO BORRAR)
-  PDF_BASE_EXTRACTED.txt     # Requisitos extraídos del PDF de Fase 1 (NO BORRAR)
+    2026_03.csv  2026_06_29.csv  2026_07_06.csv
+  assets/                    # blank_cursor XBM (Select Bar)
+  docs/                      # SDD (LEER PRIMERO)
+    reference_indicators/    # Pine/TV source code canónico (consultar para portar)
+  specs/  tasks/  t/  scratch/
+  Rubrica_Proyecto_GUI.xlsx  # NO BORRAR
+  PDF_BASE_EXTRACTED.txt     # NO BORRAR
   AGENTS.md                  # Este archivo
 ```
 
@@ -111,16 +125,13 @@ terminada. La "validación visual" con WSLg es complementaria, nunca la única p
 El agente **arquitecto** puede verificar visualmente la app: lanzar `market.pl` en WSLg, **navegar
 con clicks/teclado** (xdotool), capturar a PNG (ImageMagick `import -window <id>`, NO `root`) y
 **leer la imagen**. Herramientas ya instaladas en Fedora35: `ImageMagick`, `xwininfo`, `xdotool`.
-Flujo completo, reglas de oro (capturar por window-id, coords de referencia, hover con doble
-mousemove, copiar PNG a `AppData/Local/Temp/opencode` para leerlo) y scripts reutilizables
-(`scratch/capture_app.sh`, `scratch/validate_0042.sh`) documentados en
+Flujo completo, reglas de oro y scripts reutilizables documentados en
 **`docs/ARQUITECTO_REVISION_VISUAL.md`**. El **implementor solo procesa texto**: la comparación
-"¿se ve como la referencia?" es responsabilidad del arquitecto; el usuario da el visto bueno final.
+"¿se ve como la referencia?" es del arquitecto; el usuario da el visto bueno final.
 
 ### Debug del eje temporal contra TradingView
 
-Antes de pedir capturas internas de la app, usar `Market/Debug/TimeAxisSnapshot.pm` vía `ChartEngine::debug_time_axis_snapshot(...)`. Permite pasar `timeframe`, `start_ts`, `end_ts` y `canvas_width` para obtener exactamente lo que la app dibujaría: `labels_text`, cadencia, índices, timestamps, coordenadas X, `bar_w`, gaps y resumen. El usuario solo debe aportar/confirmar el screenshot o rango de TradingView; la comparación de nuestra app debe hacerse por snapshot textual/estructurado.
-
+Usar `Market/Debug/TimeAxisSnapshot.pm` vía `ChartEngine::debug_time_axis_snapshot(...)`.
 Caso calibrado `0000g`:
 
 ```perl
@@ -135,82 +146,52 @@ $chart->debug_time_axis_snapshot(
 Debe producir la secuencia TradingView esperada en `labels_text` con cadencia dominante `90`.
 
 ```bash
-# Validación de sintaxis (sin GUI):
-wsl -d Fedora35 -- bash -lc "cd '/mnt/c/Users/ASUS ROG/OneDrive - Escuela Politécnica Nacional/Académico/Universidad/Semestres/05_quinto_semestre/ia/proyecto_iaaa/Proyecto/ProyectoIAAA' && perl -I. -c Market/ChartEngine.pm && perl -I. -c Market/Panels/PricePanel.pm && perl -I. -c Market/Panels/ATRPanel.pm && perl -I. -c Market/MarketData.pm && perl -I. -c market.pl"
+# Validación de sintaxis (sin GUI) — desde WSL, copia canónica o de trabajo:
+wsl -d Fedora35 -- bash -lc "cd /mnt/c/m/ia/proyecto_iaaa/Proyecto/ProyectoIAAA && perl -I. -c Market/ChartEngine.pm && perl -I. -c market.pl"
 
-# Ejecutar (desde WSL Fedora35 con WSLg para GUI):
-cd ~/Documents/ProyectoIA/ProyectoIAAA
+# Suite de regresión:
+wsl -d Fedora35 -- bash -lc "cd /mnt/c/m/ia/proyecto_iaaa/Proyecto/ProyectoIAAA && prove -l t"
+
+# Ejecutar GUI (WSLg):
+cd ~/Documents/ProyectoIA/ProyectoIAAA   # o la ruta canónica montada
 perl -I. market.pl
 ```
 
-La copia en Fedora35 está en `~/Documents/ProyectoIA/ProyectoIAAA` y debe mantenerse sync con GitHub (`git pull`).
+La copia en Fedora35 (`~/Documents/ProyectoIA/ProyectoIAAA`) debe mantenerse sincronizada con el
+working tree canónico / GitHub.
 
-## Cambios principales realizados (commits recientes)
+## Decisiones de diseño vigentes (importantes para futuros cambios)
 
-### Zoom y escala temporal (commits 9952bd7 → 1941241)
-- **Zoom multiplicativo** (`_wheel_zoom_delta`): factor = 1 + zoom_scale/10. Cerca pasos pequeños, lejos pasos grandes.
-- **Ctrl+rueda** ancla la vela bajo el crosshair con shift exacto (`ctrl_zoom_x_shift`).
-- **MAX_VISIBLE_BARS = 40000** — límite tipo TradingView (el CSV solo tiene ~29888 velas 1m).
-- **Downsample por píxel**: cuando `bar_w < 2`, PricePanel y ATRPanel agrupan datos por píxel (high/low para velas, promedio para ATR).
-
-### Escala de tiempo (Req. 5.6)
-- Estado actual tras Task 0000: el crosshair está bien (`Thu 23 Apr '26`), pero `compute_intraday_labels` fue llevado a un stride equidistante que debe corregirse en `0000b`.
-- Regla vigente para implementar: el eje inferior debe usar **fronteras reales de reloj/calendario** tipo TradingView, no fase arbitraria ni primera vela visible como fecha.
-- Escalera objetivo 1m: `[1,5,15,30,60,90,180,360,720,1440,...]`; 5m: `[5,15,30,60,90,180,360,1440,...]`; 15m: `[15,30,60,90,180,360,1440,2880,4320,...]`.
-- En 1m con intervalo 5, solo marca `:00, :05, :10...`; en 3h marca `00:00,03:00,06:00...` cuando existan velas/fronteras reales.
-- Las velas mantienen separación horizontal uniforme por índice; los ticks no tienen que ser visualmente equidistantes si hay gaps.
-
-### Timeframes corregidos (MarketData.pm)
-- Agrupación 5m/15m por **fronteras reales de reloj** (`_bucket_timestamp`): porciones `:00-:04`, `:05-:09`, no cada N filas consecutivas.
-
-### Crosshair
-- X anclada al centro de vela (`_snap_crosshair_x`).
-- Label de precio redondeado a `tick_size = 0.25`.
-- Label de tiempo respeta `ctrl_zoom_x_shift`.
-- Solo cursores nativos Tk/Windows; no se dibuja cursor duplicado en Canvas.
-
-### ATR — Modo manual independiente
-- `set_atr_scale_mode('auto'|'manual')` independiente de price scale.
-- Eje ATR tiene drag vertical para zoom (igual que price axis).
-- Panel ATR tiene paneo vertical por arrastre dentro del canvas (`_apply_atr_vertical_drag_from_start`).
-- Teclas en foco ATR: `a`/`m` = auto/manual, `+/-` = zoom vertical, `Up/Down` = desplazar vertical.
-- Al cambiar timeframe o reset, ATR vuelve a auto.
-- Controles ATR en barra inferior derecha, controles Precio en izquierda, separados visualmente (frames con `relief => 'groove'`).
-
-### UI (market.pl)
-- Timeframes como `Radiobutton` con `active_tf` compartido.
-- `Precio: Auto/Manual` en caja izquierda, `ATR: Auto/Manual` en caja derecha.
-- Callbacks `scale_mode_callback` y `atr_scale_mode_callback` sincronizan estado de botones con motor.
-
-## Decisiones de diseño (importante para futuros cambios)
-
-1. **Separación horizontal uniforme**: Las velas se dibujan con índice (0, 1, 2...), no con coordenada de tiempo real. Esto implica que fines de semana y gaps nocturnos no crean huecos visuales, igual que TradingView por defecto.
-
-2. **Eje Y de precio**: 5% padding sobre min/max de velas visibles.
-
-3. **Offset y visible_bars**: El offset cuenta desde el final (vista más reciente). `compute_window` calcula `start/end` en índices globales.
-
-4. **Coalescing de render**: `request_render()` usa `after(20ms)` para no saturar con renders múltiples.
-
-5. **Tema claro**: Colores inyectados vía `%theme` en `market.pl` → `ChartEngine` → paneles y escalas. Todos los colores usan defaults con `//`.
-
-6. **ATR**: Siempre 14 periodos. Se recalcula completo al cambiar timeframe.
-
-7. **Pulido visual pendiente antes de Fase 2**: `tasks/0000` ya aceptó la etiqueta inferior del crosshair (`Thu 23 Apr '26`). Ejecutar ahora `tasks/0000b-time-axis-tradingview-scale.md`: eje temporal inferior por fronteras reales de reloj/calendario estilo TradingView; no volver al criterio de grid equidistante.
+1. **Separación horizontal uniforme:** velas por índice (0,1,2…), no tiempo continuo; gaps no
+   crean huecos visuales (como TradingView por defecto).
+2. **Eje Y de precio:** padding ~5% sobre min/max de velas visibles (modo auto).
+3. **Offset y visible_bars:** offset desde el final (vista más reciente); `compute_window`
+   calcula `start/end` globales y respeta tope de Replay.
+4. **Coalescing de render:** `request_render()` con `after(20ms)`.
+5. **Tema claro:** colores vía `%theme` en `market.pl` → ChartEngine → paneles; defaults con `//`.
+6. **ATR:** 14 periodos; se recalcula al cambiar timeframe.
+7. **Eje temporal inferior:** fronteras reales de reloj/calendario (TradingView), no grid
+   equidistante arbitrario; ver tasks `0000b`–`0000j`.
+8. **Cálculo ≠ render:** nunca Tk dentro de `Indicators/`.
+9. **Overlays bajo demanda:** no alimentar capas OFF al arrancar.
+10. **Replay:** cero fuga de futuro en feed, getters y dibujo.
+11. **UI WSLg:** inline; no menubar/Optionmenu; clics con `Tk::bind` en todos los widgets de un
+    botón con Canvas; atajos globales con `$mw->bind(all => ...)`; etiquetas ASCII (no glyphs
+    rotos en Fedora35).
 
 ## Archivos que NO se deben borrar
 
 - `Rubrica_Proyecto_GUI.xlsx` — requisitos oficiales del profesor
-- `PDF_BASE_EXTRACTED.txt` — especificaciones extraídas del PDF del profesor
-- `Data/2026_03.csv` — única fuente de datos
+- `PDF_BASE_EXTRACTED.txt` — especificaciones extraídas del PDF de Fase 1
+- `Data/2026_03.csv` (y CSVs de Data/ en uso) — fuentes de datos
+- `docs/material_profesor/` — material original del profesor
 
 ## Notas para el futuro
 
-- Fedora35 está EOL; los mirrors son lentos. Si hay que instalar paquetes nuevos, usar `dnf --releasever=35` con repos `archives.fedoraproject.org`.
-- WSLg funciona para GUI; la variable `DISPLAY` se configura automáticamente.
-- `git diff --check` puede mostrar warning CRLF en `market.pl` — es inofensivo (Windows ↔ Linux).
-- Suite de tests en `t/` (Test::More, sin GUI): `prove -l t`. Fase 1 cubierta por `t/00`–`t/07`
-  (142 tests). El harness de debug de indicadores es `t/08`. La validación de Fase 2 es por test +
-  snapshot de debug (ver `docs/PHASE2_DEBUG_CONTRACT.md`); la comparación visual con WSLg es
-  complementaria.
-- La copia en Fedora35 (`~/Documents/ProyectoIA/ProyectoIAAA`) tiene un stash con el cambio local viejo (`MAX_VISIBLE_BARS = 4000`).
+- Fedora35 está EOL; mirrors lentos. Paquetes nuevos: `dnf --releasever=35` +
+  `archives.fedoraproject.org`.
+- WSLg: `DISPLAY` automático; xdotool a menudo no entrega input a Tk (captura de ventana sí sirve).
+- `git diff --check` puede avisar CRLF en `market.pl` — inofensivo Windows↔Linux.
+- Suite `t/` con Test::More (sin GUI): `prove -l t`. Contrato de indicadores:
+  `docs/PHASE2_DEBUG_CONTRACT.md`.
+- Handoffs y lecciones Tk: `docs/HANDOFF_*`, `docs/INFORME_IMPLEMENTOR_*`, `tasks/README.md` §0049.

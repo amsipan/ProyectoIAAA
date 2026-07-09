@@ -1,0 +1,202 @@
+================================================================================
+INFORME IMPLEMENTOR EPN — Lote CALQUE Bar Replay (sesion completa)
+Para: agente arquitecto / Bryan
+HEAD: a64e21f | Tests: 1153 PASS (28 archivos t/*.t)
+Fecha: 2026-07-05
+================================================================================
+
+CONTEXTO
+--------
+- Stack: Perl/Tk WSL Fedora35
+- Push: solo PowerShell (backup + origin, rama main)
+- 0045: APROBADO arquitecto
+- 0046: APROBADO arquitecto (94acbeb; d1c2aa5; 1134 PASS)
+- 0050: HECHO (a64e21f) — atajos TV exactos
+- 0051: HECHO (a64e21f) — atajos extra Bryan
+- 0047: NO tocar (tijeras vectoriales)
+
+COMMITS RELEVANTES (orden cronologico reciente)
+------------------------------------------------
+4314adb  feat(0046): Play/Pause toggle, jump RT, marca Replay on/off
+db19858  fix(0046): jump-to-live re-entra Select Bar estilo TradingView
+d1c2aa5  fix(0046): linea azul Select Bar solo con cursor en chart (TV)
+94acbeb  arch: close 0046 APPROVED (arquitecto)
+b1f295a  arch(0050): authorize TV-exact shortcuts
+4b204a7  arch(0051): authorize extra shortcuts
+a64e21f  feat(0050,0051): atajos teclado replay TV + extras
+
+(Acumulados previos: 47f1a5d linea precio replay_idx, c0e4f5d sin linea punteada
+vela confirmada, c4a1624 Select bar texto + Tk::bind clics, etc.)
+
+================================================================================
+0046 — APROBADO (resumen para contexto)
+================================================================================
+
+1. TOGGLE PLAY/PAUSE — make_replay_toggle_play; icono triangulo <-> barras pause
+2. JUMP TO REAL-TIME (>>) — chart vivo + replay_on=1 + re-entra Select Bar (TV)
+   Distinto de Exit X (replay_on=0)
+3. MARCA DE AGUA "Replay" — gris #d0d0d0, flag replay_watermark_on
+4. BOTON Mark: on / Mark: off — toggle marca en caliente
+
+================================================================================
+FIX UX — LINEA AZUL SELECT BAR (d1c2aa5, TradingView)
+================================================================================
+
+Problema: al entrar en Replay/Select Bar la linea vertical azul aparecia de
+inmediato centrada en la ultima vela aunque el cursor NO estuviera sobre el grafico.
+
+Causa: set_replay_select_mode(1) llamaba _seed_replay_select_hover(), que fijaba
+last_mouse_x/last_mouse_y en la ultima vela sin esperar <Motion>.
+
+Fix:
+- set_replay_select_mode(1): borra last_mouse_x/y y _clear_replay_select_hover()
+- La linea se dibuja solo si last_mouse_x definido (render ~654-655)
+- <Leave> en price/atr/time canvas ya limpia hover al salir del chart
+- _seed_replay_select_hover queda legacy (no invocado)
+
+Archivos: ChartEngine.pm, Callbacks.pm (comentarios), t/25-replay-select-bar.t
+
+================================================================================
+0050 — ATAJOS TECLADO OFICIALES TRADINGVIEW (HECHO)
+================================================================================
+
+Objetivo: calque TV exacto — solo 2 atajos oficiales.
+
+| Atajo Tk        | Accion                                              |
+|-----------------|-----------------------------------------------------|
+| <Shift-Down>    | Toggle Play/Pause (solo replay activo)              |
+| <Shift-Right>   | Step forward O mover seleccion (precedencia abajo)  |
+
+Precedencia Shift+Right (documentada en codigo):
+  1. _replay_select_mode ON  -> adjust_selected_bar(+1) [como antes]
+  2. replay activo, NO select -> make_replay_step_fwd (callback real del boton)
+  3. nada activo             -> no hace nada
+
+Shift+Left SIN CAMBIOS en 0050 (solo seleccion en Select Bar).
+
+Implementacion:
+- Handlers: ChartEngine::_replay_shift_down_key, _replay_shift_right_key
+- Binds en canvas PRECIO y ATR: $w->Tk::bind($seq,$cb) sin '+'
+- Guard por estado dentro del callback (no binds dinamicos)
+- Callbacks cableados via replay_keyboard_callbacks (ReplayPanel al construirse)
+- Reusa make_replay_toggle_play y make_replay_step_fwd (sin duplicar logica)
+
+Tests: t/17-ui-wiring.t Test 18 (precedencia Shift+Right, Shift+Down toggle)
+
+================================================================================
+0051 — ATAJOS EXTRA NO-TV (HECHO)
+================================================================================
+
+Objetivo: mejoras Bryan independientes del calque TV puro.
+
+| Atajo Tk        | Accion                                              |
+|-----------------|-----------------------------------------------------|
+| <Shift-Left>    | Step back O mover seleccion (misma precedencia)     |
+| <Escape>        | Salir replay (= Exit X), solo si is_active          |
+| <Key-m>         | RAMIFICA: replay activo -> toggle marca;            |
+|                 | fuera replay -> set_scale_mode('manual') como HOY   |
+
+Precedencia Shift+Left:
+  1. select_mode ON  -> adjust_selected_bar(-1)
+  2. replay activo   -> make_replay_step_back
+  3. nada            -> no hace nada
+
+Factorizacion Mark (una sola fuente de verdad):
+- NUEVO: Callbacks::make_replay_toggle_watermark
+- NUEVO: Callbacks::_sync_replay_mark_button
+- NUEVO: ReplayPanel::sync_mark_button
+- Boton Mark deja de tener logica inline; usa toggle_watermark
+- Tecla M en replay invoca el MISMO callback; sincroniza texto Mark: on/off
+
+Handlers: _replay_shift_left_key, _replay_escape_key, _replay_key_m('price'|'atr')
+Key-m ATR: fuera replay -> set_atr_scale_mode('manual') (sin regresion)
+
+Tests: t/17-ui-wiring.t Test 19
+  - precedencia Shift+Left (select vs replay-activo)
+  - make_replay_toggle_watermark alterna flag + texto Mark
+  - Escape -> is_active==0, replay_on=0
+  - M fuera replay -> is_auto_scale=0 (escala manual)
+
+================================================================================
+ARQUITECTURA MODULAR (mantener)
+================================================================================
+
+ReplayController     -> replay_idx, play/pause/step, tick_ms, jump_to_end
+ChartEngine            -> compute_window, render, watermark, select hover,
+                          replay_keyboard_callbacks + handlers 0050/0051
+PricePanel/ATRPanel    -> replay_head_candle, sin velas > replay_idx
+ReplayPanel            -> UI inline, cablea replay_keyboard_callbacks al chart
+Callbacks.pm           -> factorias; make_replay_toggle_watermark (0051)
+                         NO logica de dibujo en Callbacks
+
+replay_keyboard_callbacks (hash en chart, set por ReplayPanel):
+  toggle_play, step_fwd, step_back, exit, toggle_watermark
+
+Anti-patrones: bind() sin Tk::bind; duplicar play/pause en atajos; re-bindear
+<Key-m> sin ramificar (rompe escala manual fuera de replay).
+
+================================================================================
+UX ACUMULADA (pedidos Bryan — debe QUEDAR)
+================================================================================
+
+- Pestaña Replay inline; Select bar texto ASCII + boton v (go-to)
+- Select Bar inmediato al activar Replay; linea azul SOLO con cursor en chart
+- Clic vela N: N desaparece, N-1 ultima visible, Play revela N
+- Ancla 80% + hueco 20% derecho fijo al zoom
+- Linea precio horizontal en replay_idx; sin linea punteada vela confirmada
+- Botones multimedia Tk::bind (clics Fedora35)
+- Exit X restaura chart completo; >> = chart vivo + re-Select Bar
+- Play/Pause toggle, Mark on/off, marca de agua gris
+- Atajos TV: Shift+Down (play/pause), Shift+Right (step / seleccion)
+- Atajos extra: Shift+Left (step back / seleccion), Esc (exit), M (marca o manual)
+
+================================================================================
+VERIFICACION
+================================================================================
+
+perl -I. -c market.pl
+perl -I. -c Market/ChartEngine.pm
+perl -I. -c Market/UI/Callbacks.pm
+perl -I. -c Market/UI/ReplayPanel.pm
+prove -l t                    # 1153 PASS
+timeout 20 perl -I. market.pl # smoke OK
+
+Runtime WSLg (cursor sobre canvas precio o ATR — foco en Enter):
+[ ] Shift+Down: play/pause; icono triangulo refleja estado
+[ ] Shift+Right: en Select Bar mueve seleccion; en replay avanza 1 vela
+[ ] Shift+Left: en Select Bar mueve seleccion; en replay retrocede 1 vela
+[ ] Escape: sale replay (= Exit X), replay_on=0
+[ ] M en replay: toggle Mark: on/off + marca de agua
+[ ] M fuera replay: escala precio/ATR manual (sin regresion)
+[ ] Linea azul solo con cursor dentro del chart (d1c2aa5)
+[ ] >> chart vivo + re-Select Bar; Exit X sale del replay
+
+================================================================================
+ESTADO TASKS
+================================================================================
+
+0045  APROBADO arquitecto
+0046  APROBADO arquitecto (d1c2aa5)
+0047  NO TOCAR
+0050  HECHO (a64e21f) — pendiente validacion visual arquitecto
+0051  HECHO (a64e21f) — pendiente validacion visual arquitecto
+
+================================================================================
+PROMPT CORTO PARA ARQUITECTO
+================================================================================
+
+Eres arquitecto ProyectoIAAA. HEAD a64e21f, 1153 tests PASS.
+Lee docs/HANDOFF_ARQUITECTO_2026-07-05.md + este informe.
+
+Validar en WSLg:
+- 0046 cerrado (ya aprobado); confirmar linea azul solo con hover (d1c2aa5)
+- 0050: Shift+Down toggle, Shift+Right precedencia select > step
+- 0051: Shift+Left step back, Esc exit, M ramifica marca vs escala manual
+- Boton Mark y tecla M comparten make_replay_toggle_watermark
+
+Si OK: marcar 0050 y 0051 cerrados en tasks/README. NO autorizar 0047.
+Reglas: 0048 ASCII, 0049 Tk Fedora35 (Tk::bind sin '+'), prove -l t verde.
+
+================================================================================
+FIN INFORME
+================================================================================

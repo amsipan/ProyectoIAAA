@@ -27,8 +27,8 @@ pero hay varios candidatos ya calculados en el código sin render.
 
 ## ENFOQUE DECIDIDO (04/07) — DESBLOQUEADA
 "El canal" = el **Swing Channel** del indicador ZigZag Volume Profile (ChartPrime)
-que el profe mandó implementar (ver `docs/material_profesor/ZigZag_VolumeProfile_
-ChartPrime_reference.pine`, `drawBinLevel` usa `channelLineArray` con offset ATR).
+que el profe mandó implementar (ver `docs/reference_indicators/zigzag_volumeprofile_chartprime.txt`,
+`drawBinLevel` usa `channelLineArray` con offset ATR).
 Es decir: dos líneas PARALELAS al segmento del ZigZag EXTERNO, desplazadas ±ancho
 (basado en ATR), que envuelven el movimiento. Aunque en las capturas del profe el
 Swing Channel está deshabilitado, "el canal" es exactamente esa estructura y ahora

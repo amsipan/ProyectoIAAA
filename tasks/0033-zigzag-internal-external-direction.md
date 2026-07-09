@@ -13,8 +13,8 @@
   * `imagenes/zigzag_config_zzmtf.png` — config exacta del indicador interno.
   * `imagenes/zigzag_config_volumeprofile.png` — config exacta del indicador externo.
   * `imagenes/zigzag_resultado_replay.png` — RESULTADO OBJETIVO (1m con ambos zigzag).
-  * `ZigZag_MTF_Fibonacci_reference.pine` (LonesomeTheBlue).
-  * `ZigZag_VolumeProfile_ChartPrime_reference.pine` (ChartPrime).
+  * `docs/reference_indicators/zigzag_mtf_fibonacci_lonesometheblue.txt` (LonesomeTheBlue).
+  * `docs/reference_indicators/zigzag_volumeprofile_chartprime.txt` (ChartPrime).
 
 ## DECISIÓN DE ALCANCE (confirmada por Bryan, 04/07)
 El ZigZag CONVIVE con las etiquetas HH/HL/LL/LH y con SMC/Mxwll existentes; NO

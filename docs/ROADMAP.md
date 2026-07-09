@@ -1,74 +1,80 @@
 # Roadmap
 
-Última actualización: 2026-06-22. Separa estado actual de objetivos. Las fechas vienen del
-PDF oficial de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`).
+Última actualización: 2026-07-08. Separa estado actual de objetivos. Fechas del PDF oficial
+de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`). Estado de tasks:
+`tasks/README.md`.
 
 ## Estado actual
 
-- Fase 1 completa y evaluada (89/100): motor gráfico, paneles, ATR, interacciones, 1m/5m/15m.
-- Eje temporal TradingView cerrado en `0000g`–`0000j` (tests verdes, snapshot de debug).
-- **1ª entrega Fase 2 funcionalmente completa (código).** Todo el contenido mínimo del PDF
-  para el 29/06 está implementado y verificado por **672 tests** (`t/00`–`t/18`):
-  - Temporalidades 1m/5m/15m/1h/2h/4h/D/W (`0001`).
-  - Sistema Replay sin fuga de futuro (`0002`, `0015`).
-  - Arquitectura base de Overlays (`0003`).
-  - Motor SMC: zigzag/BOS/CHoCH/FVG/Fibonacci (`0005`–`0007`), getters idempotentes (`0014`).
-  - Módulo de liquidez: swings/EQH/EQL/BSL/SSL, FSM Sweep/Grab/Run, volumen multi-TF, 7 zonas
-    (`0009`–`0011`, `0013`).
-  - Render de overlays SMC y Liquidez (`0008`, `0012`).
-  - UI: timeframes + Replay + toggles (`0004`), rediseñada a controles inline (`0018`).
-  - Rendimiento: corregidos cuelgues O(n²) en Liquidity y SMC con el dataset real (`0016`, `0017`).
-- **Pendiente para cerrar la 1ª entrega:** aceptación visual final del usuario en la GUI
-  (varias rondas hechas; última en `0018d` restauró el paneo izquierdo de Fase 1).
+- **Fase 1** completa y evaluada (89/100): motor gráfico, paneles, ATR, interacciones, 1m/5m/15m.
+- Eje temporal TradingView cerrado en `0000g`–`0000j`.
+- **1ª entrega Fase 2 (29/06) — completa en código:** temporalidades 1m..W, Replay, Overlays,
+  SMC, Liquidez, UI, optimizaciones 0016/0017.
+- **2ª entrega Fase 2 (13/07) — gran parte implementada y testeada:**
+  - Strategy Builder, Volume Profile, Anchored VWAP (`t/19`–`t/21`).
+  - Mxwll Suite, ZigZag + canal de tendencia (`t/22`, `t/24`).
+  - Replay calque TradingView (0041–0053; 0047 baja prio; 0053 pausado WSLg).
+  - Feedback profe/QA 0054–0062 (densidad, anclajes, recolor RUN, Fib TF bajas, slider, etc.).
+  - Fixes recientes: overlays estables en zoom/pan, grid, ZigZag continuo, Fib Mxwll,
+    anti-solapamiento etiquetas SMC.
+- Suite de tests: **29 archivos** en `t/`.
 
-## Objetivo inmediato — aceptación visual de la 1ª entrega
+## Objetivo inmediato
 
-- Validar en GUI (WSLg): arranque instantáneo, cambio de TF, capas SMC/Liquidez legibles
-  (tope de recencia), Replay sin futuro, paneo con espacio a ambos lados y sin temblor, y que
-  Fase 1 (zoom/drag/crosshair) siga intacta.
-- Si algo falla, registrar el fallo en una task `0018x` antes de corregir (como F1–F7).
+- Cerrar restos de pulido UX/visual que el profe o Bryan marquen (issues puntuales → task nueva).
+- Decidir y, si aplica, formalizar **spec 0006** (concurrencia liquidez→estructura).
+- Mantener docs/código alineados; no abrir Fase 3 sin entorno MXNet verificado.
 
-## Objetivo a la 1ª entrega — 29/06 (contenido mínimo exigido por el PDF)
+## Objetivo 1ª entrega — 29/06 (PDF) — CUMPLIDO en código
 
-- Motor base con soporte de **múltiples temporalidades** (1m,5m,15m,1h,2h,4h,D,W).
-- **Sistema Replay funcional**, sin filtración de velas futuras.
-- **Arquitectura base de Overlays** gráficos (`Market/Overlays/`).
-- Avances del **motor analítico de SMC** con etiquetas ubicadas en el tiempo (BOS/CHoCH).
-- **FVG** con desvanecimiento progresivo (mitigación).
-- **Módulo de liquidez** implementado (swing points, EQH/EQL, sweep/grab/run, máquina de estados).
+- Múltiples temporalidades; Replay sin futuro; Overlays; SMC (BOS/CHoCH/FVG); Liquidez + FSM.
 
-## Objetivo a la 2ª entrega — 13/07
+## Objetivo 2ª entrega — 13/07 (PDF) — MAYORMENTE CUMPLIDO en código
 
-- Sistema SMC unificado completo (Estructuras + FVG + máquina de estados de liquidez
-  interactiva con pesado multi-temporal).
-- **DIY Custom Strategy Builder** operativo (SuperTrend, HalfTrend, Range Filter, Supply, Demand).
-- **Perfil de Volumen avanzado** con modos de contingencia (sesión / BOS-CHoCH / pasado lejano).
-- **Anchored VWAP** multipivot (5 tipos de anclaje).
+| Objetivo PDF | Estado en repo |
+|--------------|----------------|
+| SMC unificado + liquidez interactiva multi-TF | ✅ Implementado + calibrado (0054–0062) |
+| DIY Strategy Builder (ST/HT/RF/S/D) | ✅ `Strategy_Builder` + overlay + `t/19` |
+| Perfil de Volumen avanzado | ✅ `VolumeProfile` + `t/20` |
+| Anchored VWAP multipivot | ✅ `AnchoredVWAP` + `t/21` |
+| Concurrencia liquidez→estructura (pesos) | ⏳ Spec `0006` sin lote de tasks formal post-0062 |
+
+Extras no listados como tabla PDF pero en producto: Mxwll, ZigZag MTF, canal clásico, slider
+de densidad, Replay UX TradingView.
 
 ## Objetivo a fin de semestre (Fase 3 — ML recurrente)
 
-- HMM con Viterbi tensorial (orden 1 → 2 → 3/4) sobre AI::MXNet, con logaritmos.
-- Selección de features con Pearson/PCC (descartar columnas redundantes).
-- Discretización de la data continua a etiquetas enteras (K-Means/KNN, EM, PCA según material U5).
-- Posibles LSTM / Transformers (mencionados como exploración, no confirmados como obligatorios).
+- HMM con Viterbi tensorial (orden 1 → 2 → 3/4) sobre AI::MXNet, con logaritmos (spec `0011`).
+- Selección de features con Pearson/PCC (spec `0012`).
+- Discretización de data continua a etiquetas enteras (K-Means/KNN, EM, PCA — material U5).
+- Posibles LSTM / Transformers (exploración; no confirmados como obligatorios).
 
 ## Decisiones pendientes (por confirmar con el profesor)
 
 - **Número final de estados ocultos del HMM.** Base: alcista, bajista, lateral choppy, lateral
-  seno + auxiliares de espera/confirmación. El profesor dice "más de cuatro". Sin número fijo.
-- **Ubicación de packages para Replay, Volume Profile y Anchored VWAP.** El PDF nombra packages
-  para SMC/Liquidity/Strategy_Builder pero no para estos tres. Supuesto razonable: Replay en un
-  controlador propio; VolumeProfile y VWAP como Indicator+Overlay igual que el resto.
-- **Parámetros numéricos por calibrar:** tolerancia EQH/EQL (PDF: `ATR*0.10`), profundidad k de
-  swing (PDF: k=3 inicial), N velas de confirmación de Run/Acceptance (PDF: N=3 inicial), umbral
-  de volumen anómalo, pesos por temporalidad. Valores iniciales del PDF; ajustar por experimentación.
-- **Normalizar vs estandarizar antes de covarianza/Pearson:** ejercicio abierto que el profesor
-  deja para experimentar. Implementar ambos y comparar.
-- **Niveles de Fibonacci exactos:** el audio los transcribe mal; usar los estándar (0.236, 0.382,
-  0.5, 0.618, 0.786), con 0.618 como nivel clave.
+  seno + auxiliares. El profesor dice "más de cuatro". Sin número fijo.
+- **Diseño de concurrencia liquidez→estructura (spec 0006):** cómo se materializan los pesos
+  de probabilidad en UI y en features para el HMM.
+- **Parámetros numéricos por calibrar:** tolerancia EQH/EQL (`ATR*0.10`), k de swing, N de
+  aceptación Run, umbrales de volumen, pesos por TF. Base PDF; se ajustan por experimentación
+  (varios ya endurecidos en 0054–0056).
+- **Normalizar vs estandarizar** antes de covarianza/Pearson (Fase 3).
+
+## Decisiones cerradas (implementación)
+
+- **Packages Replay / VolumeProfile / VWAP:** `ReplayController`; VP y VWAP como
+  `Indicators/` + `Overlays/` (mismo patrón que SMC/Liquidez).
+- **Fibonacci:** niveles estándar 0.236/0.382/0.5/0.618/0.786; en TF bajas solo 3 niveles
+  (task 0060). Ancla en major high/low.
+- **Replay UX:** panel **inline** en pestaña Replay (no flotante); `>>` = jump-to-real-time;
+  etiquetas ASCII por mojibake Fedora35; atajos en bind de ventana.
+- **Liquidez:** pivotes externos desde SMC cuando aplica (0055); densidades filtradas en origen
+  + slider (0054, 0062).
+- **Canal:** tendencia clásico (2 paralelas por pierna), no envelope ATR (0061).
 
 ## Features candidatas / exploratorias
 
-- Toggle de niveles HTF sobre gráficos LTF (solapamiento multi-temporal de contexto).
-- Heatmap de correlación de features (Chart::Plotly) como herramienta de análisis offline.
-- App Android nativa / almacenamiento en VPS (fuera del alcance académico actual).
+- Toggle de niveles HTF sobre gráficos LTF (contexto multi-temporal).
+- Heatmap de correlación de features (Chart::Plotly) offline.
+- App Android / VPS (fuera del alcance académico actual).
+- Tijeras vectoriales Select Bar (0047) y cursor SO invisible (0053, limitado por WSLg).
