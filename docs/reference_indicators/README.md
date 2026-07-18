@@ -1,42 +1,30 @@
 # Referencias TradingView / código fuente de indicadores
 
-Textos **originales** de indicadores de TradingView (lenguaje **Pine Script**) que el
-profesor autorizó usar como referencia para portar funcionalidad a Perl
-(`Market/Indicators/`, `Market/Overlays/`).
-
-Se guardan como **`.txt`** (texto plano), igual que cuando los exportaste/copiaste.
-No hace falta otra extensión: Pine Script es código en texto; TradingView a veces usa
-la extensión informal `.pine`, pero es lo mismo.
+Textos **originales** de indicadores de TradingView (Pine Script) usados como
+referencia para portar a Perl (`Market/Indicators/`, `Market/Overlays/`).
 
 **Única ubicación canónica** de estos sources en el repo.
 
-Última organización: 2026-07-08.
-
-## ¿Qué es “Pine” entonces?
-
-- **Pine Script** = el lenguaje de programación de indicadores de TradingView.
-- El archivo es solo el código fuente (líneas que empiezan con `//@version=…`,
-  `indicator(...)`, etc.).
-- En este proyecto los guardamos como **`.txt`** para abrirlos fácil en cualquier editor.
+Última organización: 2026-07-17 (SMC Pro Neon + Structures/FVG LudoGH).
 
 ## Inventario
 
-| Archivo | Origen (autor / script TV) | Módulo Perl relacionado |
-|---------|----------------------------|-------------------------|
-| `luxalgo_smc.txt` | LuxAlgo — Smart Money Concepts | `SMC_Structures` (+ partes Liq/Mxwll) |
-| `mxwll_suite.txt` | Mxwll Capital — Mxwll Suite | `Mxwll_Suite` |
-| `diy_custom_strategy_builder_zp.txt` | ZP (@ZPayab) — DIY Custom Strategy Builder | `Strategy_Builder` |
-| `zigzag_mtf_fibonacci_lonesometheblue.txt` | LonesomeTheBlue — ZigZag MTF + Fibonacci | `ZigZag` / Fib |
-| `zigzag_volumeprofile_chartprime.txt` | ChartPrime — ZigZag Volume Profile | `VolumeProfile` / `ZigZag` |
+| Archivo | Origen | Módulo Perl | Config canónica |
+|---------|--------|-------------|-----------------|
+| `smc_pro_neon.txt` | Smart Money Concepts Pro [Neon] (LuxAlgo lineage, v6) | `SMC_Pro` | Captura `docs/material_profesor/capturas_config/smc_pro_neon_config.jpg` |
+| `smc_structures_and_fvg_ludogh68.txt` | SMC Structures and FVG (LudoGH68, MPL-2.0) | `SMC_Structures_FVG` | Captura `.../smc_structures_and_fvg_config.jpg` |
+| `luxalgo_smc.txt` | LuxAlgo Smart Money Concepts v5 (clásico) | lectura / paridad histórica | — |
+| `mxwll_suite.txt` | Mxwll Capital | **deprecado en producto** (no calibrar estructura) | — |
+| `diy_custom_strategy_builder_zp.txt` | ZP DIY Custom Strategy Builder | `Strategy_Builder` | (fase posterior) |
+| `zigzag_mtf_fibonacci_lonesometheblue.txt` | LonesomeTheBlue ZigZag MTF + Fib | `ZigZag` | (fase posterior) |
+| `zigzag_volumeprofile_chartprime.txt` | ChartPrime ZigZag Volume Profile | `VolumeProfile` / `ZigZag` | (fase posterior) |
 
-## Cómo añadir un source nuevo
+## Regla de configuración
 
-1. Copiar el código completo desde TradingView a un `.txt`.
-2. Guardarlo **solo aquí**, nombre estable en ASCII: `autor_nombre_corto.txt`.
-3. Añadir una fila a la tabla de arriba.
-4. No dejar copias en `Downloads/` ni en `docs/material_profesor/`.
+Los **defaults del Pine no mandan**. Mandan las **capturas del profesor**.
+Ejemplo: en LudoGH, `Reduce mitigated FVG` default es `false` en el source, pero
+en la captura del profe está **ON**.
 
 ## Licencias
 
-Varios scripts son MPL-2.0 / CC BY-NC-SA. Uso académico de referencia; no republicar
-como producto comercial sin revisar la licencia del original.
+CC BY-NC-SA / MPL-2.0 según cada script. Uso académico de referencia.

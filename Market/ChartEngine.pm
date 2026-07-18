@@ -9,8 +9,10 @@ use Market::Panels::PricePanel;
 use Market::Panels::ATRPanel;
 use Market::ReplayController;
 use Market::OverlayManager;
-use Market::Indicators::SMC_Structures;
-use Market::Overlays::SMC_Structures;
+use Market::Indicators::SMC_Pro;
+use Market::Overlays::SMC_Pro;
+use Market::Indicators::SMC_Structures_FVG;
+use Market::Overlays::SMC_Structures_FVG;
 use Market::Indicators::Liquidity;
 use Market::Overlays::Liquidity;
 use Market::Indicators::Strategy_Builder;
@@ -19,8 +21,6 @@ use Market::Indicators::VolumeProfile;
 use Market::Overlays::VolumeProfile;
 use Market::Indicators::AnchoredVWAP;
 use Market::Overlays::AnchoredVWAP;
-use Market::Indicators::Mxwll_Suite;
-use Market::Overlays::Mxwll_Suite;
 use Market::Indicators::ZigZag;
 use Market::Overlays::ZigZag;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
@@ -136,25 +136,30 @@ sub new {
     # spec 0003: OverlayManager — registro de overlays.
     $self->{overlay_manager} = Market::OverlayManager->new();
 
-    # spec 0004 / task 0008: overlay SMC_Structures. Consume el indicador de
-    # cálculo (capa Indicators). El indicador se alimenta incrementalmente en
-    # render() hasta el tope efectivo (respeta replay_idx). El overlay solo lee.
-    $self->{smc_indicator} = Market::Indicators::SMC_Structures->new(
-        k                => 3,
-        swing_atr_factor => 2.0,
-        # PROFE: pivotes causales (sin lookback) para no "saltar" el extremo real
-        # de cada tramo y etiquetar HH/HL/LH/LL en el pico/valle verdadero.
-        causal_pivots       => 1,
-        reversal_atr_factor => 1.0,
-    );
-    $self->{smc_overlay} = Market::Overlays::SMC_Structures->new(
-        indicator => $self->{smc_indicator},
+    # spec 0013: SMC Pro [Neon] + Structures/FVG (LudoGH) — config capturas profe.
+    # Reemplaza el híbrido SMC_Structures + Mxwll como verdad de estructura.
+    $self->{smc_pro_indicator} = Market::Indicators::SMC_Pro->new();
+    $self->{smc_pro_overlay} = Market::Overlays::SMC_Pro->new(
+        indicator => $self->{smc_pro_indicator},
         theme     => $self->{theme},
-        visible   => 0,   # task 0018 (F4): capas OFF por defecto (arranque limpio)
+        visible   => 0,
     );
-    $self->{overlay_manager}->register('smc', $self->{smc_overlay});
-    # Alimentado incremental: último índice global ya procesado por el indicador.
+    $self->{overlay_manager}->register('smc_pro', $self->{smc_pro_overlay});
+    $self->{_smc_pro_fed_up_to} = -1;
+
+    # Alias legacy: Liquidity y feed coordinado usan pivotes swing de SMC Pro.
+    $self->{smc_indicator} = $self->{smc_pro_indicator};
+    $self->{smc_overlay}   = $self->{smc_pro_overlay};
     $self->{_smc_fed_up_to} = -1;
+
+    $self->{smc_fvg_indicator} = Market::Indicators::SMC_Structures_FVG->new();
+    $self->{smc_fvg_overlay} = Market::Overlays::SMC_Structures_FVG->new(
+        indicator => $self->{smc_fvg_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
+    $self->{_smc_fvg_fed_up_to} = -1;
 
     # spec 0005 / task 0012: overlay Liquidity. Consume el indicador de cálculo
     # (capa Indicators). Mismo patrón que SMC: alimentación incremental en render
@@ -196,14 +201,7 @@ sub new {
     $self->{overlay_manager}->register('vwap', $self->{vwap_overlay});
     $self->{_vwap_fed_up_to} = -1;
 
-    $self->{mxwll_indicator} = Market::Indicators::Mxwll_Suite->new();
-    $self->{mxwll_overlay}   = Market::Overlays::Mxwll_Suite->new(
-        indicator => $self->{mxwll_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
-    );
-    $self->{overlay_manager}->register('mxwll', $self->{mxwll_overlay});
-    $self->{_mxwll_fed_up_to} = -1;
+    # Mxwll eliminado del producto activo (spec 0013): no calibrar estructura con él.
 
     $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
         internal_resolution => 30,
@@ -315,11 +313,14 @@ sub sync_overlay_indicators {
     # task 0055: Liquidity puede depender de pivotes SMC aunque el overlay SMC esté apagado.
     # Si Liq quiere alimentación, SMC también debe alimentarse hasta feed_to para no dejar
     # Liquidity en modo externo sin pivotes.
-    my $smc_wants_feed = $self->_overlay_wants_feed('smc') ? 1 : 0;
+    # smc_pro (alias registro 'smc' para Liquidity) + smc_fvg
+    my $smc_wants_feed = (
+        $self->_overlay_wants_feed('smc_pro')
+        || $self->_overlay_wants_feed('smc')
+    ) ? 1 : 0;
+    my $smc_fvg_wants_feed = $self->_overlay_wants_feed('smc_fvg') ? 1 : 0;
     if ($liq_wants_feed && $self->{liq_indicator}) {
-        # task 0055: pivotes SMC hasta feed_to (sin futuro en Replay).
-        # task 0063: en la app real puede alimentarse por chunks para que activar
-        # Liquidez no congele la UI; tests/headless conservan comportamiento full.
+        # task 0055: pivotes SMC Pro hasta feed_to (sin futuro en Replay).
         if ($self->{_liq_background_feed_enabled}
             && (($self->{_liq_fed_up_to} // -1) < $feed_to)) {
             my $done = $self->_feed_liquidity_stack_chunk($feed_to, $self->{_liq_feed_chunk_size} // 300);
@@ -328,7 +329,11 @@ sub sync_overlay_indicators {
             $self->_feed_liquidity_stack_to($feed_to);
         }
     } elsif ($smc_wants_feed) {
-        $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
+        $self->_feed_indicator_to($self->{smc_pro_indicator} // $self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
+        $self->{_smc_pro_fed_up_to} = $self->{_smc_fed_up_to};
+    }
+    if ($smc_fvg_wants_feed) {
+        $self->_feed_indicator_to($self->{smc_fvg_indicator}, '_smc_fvg_fed_up_to', $feed_to);
     }
     $self->_feed_indicator_to($self->{strategy_indicator}, '_strategy_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('strategy');
@@ -336,8 +341,6 @@ sub sync_overlay_indicators {
         if $self->_overlay_wants_feed('vp');
     $self->_feed_indicator_to($self->{vwap_indicator}, '_vwap_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('vwap');
-    $self->_feed_indicator_to($self->{mxwll_indicator}, '_mxwll_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('mxwll');
     $self->_feed_indicator_to($self->{zigzag_indicator}, '_zigzag_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('zigzag');
     return $feed_to;
@@ -865,8 +868,28 @@ sub render {
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
         # feed_to en sync_overlay_indicators.
+        # Tope de feed para que overlays NO usen el fin del ZOOM como data_end
+        # (BOS largos deben dibujarse aunque pivote/rotura estén fuera de pantalla).
+        # Preferencia: cursor de feed SMC → last_index de la serie → viewport (fallback).
+        my $feed_end;
+        if (defined $self->{_smc_fed_up_to} && $self->{_smc_fed_up_to} >= 0) {
+            $feed_end = $self->{_smc_fed_up_to};
+        }
+        elsif ($self->{market_data} && $self->{market_data}->can('last_index')) {
+            my $li = $self->{market_data}->last_index();
+            $feed_end = $li if defined $li;
+        }
+        $feed_end //= $end;
+        for my $name (qw(smc_pro smc_fvg smc)) {
+            my $ov = $self->{overlay_manager}->get($name);
+            $ov->{_feed_end} = $feed_end if $ov;
+        }
+
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
+        # Velas siempre por encima de líneas de indicadores (BOS/CHoCH/EQ/OB…).
+        eval { $self->{price_canvas}->raise('candle'); 1 };
+        eval { $self->{price_canvas}->raise('price_label'); 1 };
     }
 
     if ($self->{_replay_select_mode}) {
@@ -3514,11 +3537,16 @@ sub set_timeframe {
     for (my $i = 0; $i < $self->{market_data}->size(); $i++) {
         $self->{indicator_manager}->update_last($self->{market_data}, $i);
     }
-    # spec 0004 / task 0008: reset del indicador SMC al cambiar timeframe para
-    # que el overlay se recalcule sobre la nueva serie.
-    if ($self->{smc_indicator}) {
-        $self->{smc_indicator}->reset();
+    # spec 0013: reset SMC Pro + Structures/FVG al cambiar timeframe.
+    if ($self->{smc_pro_indicator} || $self->{smc_indicator}) {
+        my $ind = $self->{smc_pro_indicator} // $self->{smc_indicator};
+        $ind->reset() if $ind;
         $self->{_smc_fed_up_to} = -1;
+        $self->{_smc_pro_fed_up_to} = -1;
+    }
+    if ($self->{smc_fvg_indicator}) {
+        $self->{smc_fvg_indicator}->reset();
+        $self->{_smc_fvg_fed_up_to} = -1;
     }
     # spec 0005 / task 0012: reset del indicador de liquidez (mismo criterio).
     if ($self->{liq_indicator}) {
@@ -3546,10 +3574,6 @@ sub set_timeframe {
         $self->{vp_indicator}->reset();
         $self->{_vp_fed_up_to} = -1;
         $self->set_vp_select_mode(0) if $self->can('set_vp_select_mode');
-    }
-    if ($self->{mxwll_indicator}) {
-        $self->{mxwll_indicator}->reset();
-        $self->{_mxwll_fed_up_to} = -1;
     }
     if ($self->{zigzag_indicator}) {
         $self->{zigzag_indicator}->reset();
@@ -4351,16 +4375,9 @@ sub get_all_timestamps {
 
 }
 
-# task 0060: propagar TF activo a SMC/Mxwll (solo set de ratios, sin Tk).
+# Fib de estructura ya no vive en SMC Pro (captura FVG/fibs en fase posterior / Structures OFF).
 sub _sync_fibonacci_levels_for_timeframe {
     my ($self, $tf) = @_;
-    $tf //= eval { $self->{market_data}->{active_tf} };
-    if ($self->{smc_indicator} && $self->{smc_indicator}->can('set_fibonacci_timeframe')) {
-        $self->{smc_indicator}->set_fibonacci_timeframe($tf);
-    }
-    if ($self->{mxwll_indicator} && $self->{mxwll_indicator}->can('set_fibonacci_timeframe')) {
-        $self->{mxwll_indicator}->set_fibonacci_timeframe($tf);
-    }
     return $self;
 }
 

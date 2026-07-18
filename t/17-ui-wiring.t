@@ -414,7 +414,7 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     my $chart = MockChart->new(overlay_manager => $mgr, market_data => MockMarketData->new(50));
 
     # SMC off
-    my $smc_cb = Market::UI::Callbacks->make_overlay_toggle($chart, 'smc');
+    my $smc_cb = Market::UI::Callbacks->make_overlay_toggle($chart, 'smc_pro');
     $smc_cb->(0);
     # Liq on
     my $liq_cb = Market::UI::Callbacks->make_overlay_toggle($chart, 'liq');
@@ -423,10 +423,10 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     $smc_cb->(1);
 
     is_deeply($mgr->{vis_calls},
-              [ ['smc', 0], ['liq', 1], ['smc', 1] ],
+              [ ['smc_pro', 0], ['liq', 1], ['smc_pro', 1] ],
               'overlay_manager->set_visible recibe (nombre, bool) en orden');
-    is($mgr->{states}{smc}, 1, 'estado final smc = on (no afectado por liq)');
-    is($mgr->{states}{liq}, 1, 'estado final liq = on (no afectado por smc)');
+    is($mgr->{states}{smc_pro}, 1, 'estado final smc_pro = on (no afectado por liq)');
+    is($mgr->{states}{liq}, 1, 'estado final liq = on (no afectado por smc_pro)');
     ok($chart->render_count() >= 3, 'cada toggle de overlay dispara re-render');
 }
 
@@ -519,12 +519,14 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     like($src, qr/\$density_detail_row->packForget/, '0067: densidad se colapsa para ahorrar espacio');
     like($src, qr/\$density_summary_label = \$density_global_box->Label/, '0067: densidad muestra resumen compacto siempre visible');
     like($src, qr/my \$liq_density_pct = 20;/, '0063: densidad inicial de la app es baja para exposición');
-    like($src, qr/my \$smc_density_pct = 35;/, '0064: densidad SMC inicial baja');
-    like($src, qr/my \$mxwll_density_pct = 35;/, '0064: densidad Mxwll inicial baja');
+    # spec 0013: SMC/Mxwll density sliders eliminados (paridad TV sin filtrar).
+    like($src, qr/smc_pro/, '0013: capa SMC Pro en market.pl');
+    like($src, qr/smc_fvg/, '0013: capa FVG Structures en market.pl');
+    unlike($src, qr/vis_mxwll/, '0013: Mxwll fuera de la UI de producto');
     like($src, qr/my \$zigzag_density_pct = 35;/, '0064: densidad ZigZag inicial baja');
     like($src, qr/qw\(GLOBAL BSL SSL EQH EQL SWEEP GRAB RUN\)/, '0065: selector incluye familias específicas Liq');
     like($src, qr/qw\(GLOBAL INTERNAL EXTERNAL CHANNEL\)/, '0065: selector incluye familias específicas ZigZag');
-    like($src, qr/for my \$name \(qw\(Capas SMC Liq Mxwll ZigZag Estrategia Escala Replay\)\)/, '0066: UI separa pestañas SMC, Mxwll y Estrategia');
+    like($src, qr/for my \$name \(qw\(Capas SMC Liq ZigZag Estrategia Escala Replay\)\)/, '0013: UI sin pestaña Mxwll; SMC Pro + FVG');
     like($src, qr/my \$overlay_button_text = sub \{ \$_\[0\] \? 'Ocultar' : 'Mostrar' \}/, '0066: botones contextuales alternan Mostrar/Ocultar');
     like($src, qr/\$overlay_button\{strategy\}/, '0066: Estrategia tiene boton Mostrar/Ocultar en su pestaña');
     like($src, qr/qw\(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER\)/, '0066: Estrategia expone subcapas tecnicas opcionales');
