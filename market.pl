@@ -25,29 +25,48 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-# Dataset largo (1m): Abr–Jul 2026 (~100k velas) para probar TF altos (1h/4h/D/W).
-# Mar + Abr–Jul 2026 (warm-up). TV aún tiene más historial pre-2026.
-my @csv_hist = ('Data/2026_03.csv', 'Data/2026_04_to_07.csv');
-print "[*] Leyendo base de datos histórica...\n";
-for my $archivo_csv (@csv_hist) {
-    next unless -f $archivo_csv;
-    open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
-    my $header = <$fh>;
-    while (my $linea = <$fh>) {
-        chomp $linea;
-        my @columnas = split /,/, $linea;
-        $market_data->add_candle(\@columnas);
-    }
-    close $fh;
-    print "[*]   + $archivo_csv\n";
+# Dataset canónico: UN solo CSV, el más grande de Downloads\Proyecto (= 2026_06.csv).
+# Antes se cargaba Data/2026_03.csv (mal nombrado: era ABRIL) + 2026_04_to_07.csv
+# (empieza otra vez en abril) → la serie repetía todo abril. Eso no era zoom/SMC.
+# Copia en Data/ para portabilidad; fallback a la ruta de Downloads si falta.
+my @csv_candidates = (
+    'Data/2026_06.csv',
+    'C:/Users/bryan/Downloads/Proyecto/2026_06.csv',
+);
+my $archivo_csv;
+for my $cand (@csv_candidates) {
+    if (-f $cand) { $archivo_csv = $cand; last; }
 }
+die "CRÍTICO: no se encontró 2026_06.csv (Data/ ni Downloads\\Proyecto)\n"
+    unless defined $archivo_csv;
 
-print "[*] Construyendo temporalidades...\n";
-$market_data->build_timeframes();
+print "[*] Leyendo dataset (1 archivo, el más grande de Downloads\\Proyecto)...\n";
+open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
+my $header = <$fh>;
+my $n_file = 0;
+my ($ts_first, $ts_last);
+while (my $linea = <$fh>) {
+    chomp $linea;
+    my @columnas = split /,/, $linea;
+    next if @columnas < 5;
+    $ts_first = $columnas[0] if !defined $ts_first;
+    $ts_last  = $columnas[0];
+    $market_data->add_candle(\@columnas);
+    $n_file++;
+}
+close $fh;
+print "[*]   archivo : $archivo_csv\n";
+print "[*]   velas 1m: $n_file\n";
+print "[*]   first   : ", ($ts_first // '?'), "\n";
+print "[*]   last    : ", ($ts_last  // '?'), "\n";
+print "[*] Velas en memoria: ", $market_data->size(), " (TF altos se construyen al usarlos)\n";
+$market_data->build_timeframes();  # lazy no-op; eager=>1 solo si se necesita todo
 $market_data->set_timeframe('1m');
+print "[*] Calculando ATR 1m...\n";
 for (my $i = 0; $i < $market_data->size(); $i++) {
     $indicator_manager->update_last($market_data, $i);   # ATR es O(1)/vela
 }
+print "[*] Listo — abriendo UI\n";
 
 # ==========================================
 # 2. VENTANA PRINCIPAL

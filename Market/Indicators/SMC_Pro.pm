@@ -94,23 +94,48 @@ sub new {
 # Pine max_lines_count / max_labels_count: al superar, caen los más antiguos.
 sub _push_capped {
     my ($self, $arr_key, $item, $max) = @_;
-    push @{ $self->{$arr_key} }, $item;
-    while (@{ $self->{$arr_key} } > $max) {
-        shift @{ $self->{$arr_key} };
+    return unless ref($item) eq 'HASH';
+    my $arr = $self->{$arr_key};
+    unless (ref($arr) eq 'ARRAY') {
+        $arr = [];
+        $self->{$arr_key} = $arr;
+    }
+    push @$arr, $item;
+    my $n = @$arr;
+    if ($n > $max) {
+        splice @$arr, 0, $n - $max;
     }
     return;
 }
 
 # Presupuesto compartido de LÍNEAS (eventos BOS/CHoCH + EQ) = max_lines_count.
 # Las etiquetas de pivote van en MAX_LABELS por separado.
+# Recorte estable (shift del más antiguo). NO usar merge+sort sobre el buffer:
+# reventaba Tk ("Not a HASH reference") en series largas y abortaba el draw.
 sub _push_line_item {
     my ($self, $arr_key, $item) = @_;
+    return unless ref($item) eq 'HASH';
+    $self->{$arr_key} = [] unless ref($self->{$arr_key}) eq 'ARRAY';
+    $self->{_events}  = [] unless ref($self->{_events}) eq 'ARRAY';
+    $self->{_eqhl}    = [] unless ref($self->{_eqhl}) eq 'ARRAY';
+
     push @{ $self->{$arr_key} }, $item;
+
     my $total = @{ $self->{_events} } + @{ $self->{_eqhl} };
     while ($total > MAX_LINES) {
-        # Descartar el dibujo de línea más antiguo entre events y eqhl
         my $e0 = $self->{_events}[0];
         my $q0 = $self->{_eqhl}[0];
+        # Saltar basura no-hash si la hubiera
+        if (defined $e0 && ref($e0) ne 'HASH') {
+            shift @{ $self->{_events} };
+            $total = @{ $self->{_events} } + @{ $self->{_eqhl} };
+            next;
+        }
+        if (defined $q0 && ref($q0) ne 'HASH') {
+            shift @{ $self->{_eqhl} };
+            $total = @{ $self->{_events} } + @{ $self->{_eqhl} };
+            next;
+        }
         my $use_ev = !defined $q0;
         if (defined $e0 && defined $q0) {
             my $ei = $e0->{index} // 0;

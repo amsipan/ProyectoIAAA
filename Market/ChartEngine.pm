@@ -32,7 +32,9 @@ use Market::Overlays::ZigZag;
 use constant {
     RIGHT_MARGIN     => 0,
     MIN_VISIBLE_BARS => 2,
-    MAX_VISIBLE_BARS => 40000,
+    # Tope de velas DIBUJADAS (no borra dataset). 40k en 1m tumba Tk;
+    # 3000 mantiene pan/zoom usables; el histório completo sigue en MarketData.
+    MAX_VISIBLE_BARS => 3000,
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
@@ -313,11 +315,8 @@ sub sync_overlay_indicators {
     # task 0055: Liquidity puede depender de pivotes SMC aunque el overlay SMC esté apagado.
     # Si Liq quiere alimentación, SMC también debe alimentarse hasta feed_to para no dejar
     # Liquidity en modo externo sin pivotes.
-    # smc_pro (alias registro 'smc' para Liquidity) + smc_fvg
-    my $smc_wants_feed = (
-        $self->_overlay_wants_feed('smc_pro')
-        || $self->_overlay_wants_feed('smc')
-    ) ? 1 : 0;
+    # smc_pro y alias 'smc' (tests legacy): solo si alguno está visible (o ninguno registrado).
+    my $smc_wants_feed = $self->_any_named_overlay_wants(qw(smc_pro smc)) ? 1 : 0;
     my $smc_fvg_wants_feed = $self->_overlay_wants_feed('smc_fvg') ? 1 : 0;
     if ($liq_wants_feed && $self->{liq_indicator}) {
         # task 0055: pivotes SMC Pro hasta feed_to (sin futuro en Replay).
@@ -329,11 +328,16 @@ sub sync_overlay_indicators {
             $self->_feed_liquidity_stack_to($feed_to);
         }
     } elsif ($smc_wants_feed) {
-        $self->_feed_indicator_to($self->{smc_pro_indicator} // $self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
-        $self->{_smc_pro_fed_up_to} = $self->{_smc_fed_up_to};
+        # Feed por chunks (no bloquear Tk con 100k+ velas 1m). Mismo resultado final.
+        my $done = $self->_feed_smc_chunk($feed_to, $self->{_smc_feed_chunk_size} // 1200);
+        $self->_schedule_smc_background_feed($feed_to) unless $done;
     }
     if ($smc_fvg_wants_feed) {
-        $self->_feed_indicator_to($self->{smc_fvg_indicator}, '_smc_fvg_fed_up_to', $feed_to);
+        my $fvg_done = $self->_feed_indicator_chunk(
+            $self->{smc_fvg_indicator}, '_smc_fvg_fed_up_to', $feed_to,
+            $self->{_smc_feed_chunk_size} // 1200
+        );
+        $self->_schedule_smc_background_feed($feed_to) unless $fvg_done;
     }
     $self->_feed_indicator_to($self->{strategy_indicator}, '_strategy_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('strategy');
@@ -414,6 +418,25 @@ sub _overlay_wants_feed {
     my $ov  = $mgr ? $mgr->get($name) : undef;
     return 1 unless $ov;                 # sin overlay (tests t/16) → alimentar
     return $ov->is_visible() ? 1 : 0;    # con overlay → solo si visible
+}
+
+# _any_named_overlay_wants(@names) — true si ALGUNO de los nombres registrados
+# está visible. Si NINGUNO está registrado, true (tests sin capa). Si hay al
+# menos uno registrado y todos OFF, false (arranque on-demand).
+# Evita el bug: get('smc_pro') inexistente ⇒ "sin overlay" ⇒ alimentar siempre
+# aunque exista 'smc' apagado.
+sub _any_named_overlay_wants {
+    my ($self, @names) = @_;
+    my $mgr = $self->{overlay_manager};
+    return 1 unless $mgr;
+    my $found = 0;
+    for my $name (@names) {
+        my $ov = $mgr->get($name);
+        next unless $ov;
+        $found = 1;
+        return 1 if $ov->is_visible();
+    }
+    return $found ? 0 : 1;
 }
 
 
@@ -567,6 +590,86 @@ sub _schedule_liquidity_background_feed {
             $self->request_render() if $ov && $ov->is_visible();
         } else {
             $self->_schedule_liquidity_background_feed();
+        }
+    });
+    return $self;
+}
+
+# --- SMC Pro / FVG: feed no bloqueante (misma idea que Liquidity) ---
+sub _feed_indicator_chunk {
+    my ($self, $indicator, $cursor_key, $feed_to, $chunk) = @_;
+    return 1 unless $indicator && defined $feed_to && $feed_to >= 0;
+    $chunk ||= 1200;
+    my $fed = $self->{$cursor_key};
+    $fed = -1 unless defined $fed;
+    return 1 if $fed >= $feed_to;
+    if ($feed_to < $fed) {
+        # Retroceso (replay): reset + un chunk desde 0
+        $indicator->reset() if $indicator->can('reset');
+        $self->{$cursor_key} = -1;
+        $fed = -1;
+    }
+    my $to = $fed + $chunk;
+    $to = $feed_to if $to > $feed_to;
+    $self->_feed_indicator_to($indicator, $cursor_key, $to);
+    return (($self->{$cursor_key} // -1) >= $feed_to) ? 1 : 0;
+}
+
+sub _feed_smc_chunk {
+    my ($self, $feed_to, $chunk) = @_;
+    my $ind = $self->{smc_pro_indicator} // $self->{smc_indicator};
+    my $done = $self->_feed_indicator_chunk($ind, '_smc_fed_up_to', $feed_to, $chunk);
+    $self->{_smc_pro_fed_up_to} = $self->{_smc_fed_up_to};
+    return $done;
+}
+
+sub _schedule_smc_background_feed {
+    my ($self, $target) = @_;
+    return if $self->{_smc_background_feed_pending};
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+    return unless $canvas;
+    $self->{_smc_background_feed_pending} = 1;
+    my $delay = $self->{_smc_feed_after_ms} // 16;
+    $canvas->after($delay, sub {
+        $self->{_smc_background_feed_pending} = 0;
+        my $ok = eval {
+            my $md = $self->{market_data};
+            return 1 unless $md;
+            my $last = $md->size() - 1;
+            return 1 if $last < 0;
+            my $replay = $self->{replay_controller};
+            my $feed_to = $target;
+            if ($replay && $replay->is_active() && defined $replay->current_index()) {
+                $feed_to = $replay->current_index();
+                $feed_to = $last if $feed_to > $last;
+            } else {
+                $feed_to = $last if !defined $feed_to || $feed_to > $last;
+            }
+
+            # Solo capas realmente registradas y visibles (mismo criterio on-demand).
+            my $need_smc = $self->_any_named_overlay_wants(qw(smc_pro smc));
+            my $need_fvg = $self->_overlay_wants_feed('smc_fvg');
+            return 1 unless $need_smc || $need_fvg;
+
+            my $chunk = $self->{_smc_feed_chunk_size} // 1200;
+            my $done = 1;
+            if ($need_smc) {
+                $done = 0 unless $self->_feed_smc_chunk($feed_to, $chunk);
+            }
+            if ($need_fvg) {
+                $done = 0 unless $self->_feed_indicator_chunk(
+                    $self->{smc_fvg_indicator}, '_smc_fvg_fed_up_to', $feed_to, $chunk
+                );
+            }
+            # Re-render para ir mostrando estructura (prefijo causal válido).
+            $self->request_render();
+            $self->_schedule_smc_background_feed($feed_to) unless $done;
+            1;
+        };
+        if (!$ok) {
+            warn "SMC background feed: $@";
+            # Intentar pintar lo ya calculado y no dejar la capa muda.
+            eval { $self->request_render() };
         }
     });
     return $self;
@@ -843,6 +946,10 @@ sub render {
 
     $self->{price_panel}->set_scale($price_scale);
     $self->{price_panel}->set_run_candles($self->compute_run_candle_map());
+    # Reutilizar en crosshair/snap (evita new Scales en cada Motion).
+    $self->{_last_price_scale} = $price_scale;
+    $self->{_last_atr_scale}   = $atr_scale;
+    $self->{_last_window}      = [$start, $end];
 
     $self->{atr_panel}->set_scale($atr_scale);
 
@@ -3333,12 +3440,16 @@ sub _snap_crosshair_x {
     my $bars = $end - $start + 1;
     return $self->round($raw_x) if $bars < 1;
 
-    my $scale = Market::Panels::Scales->new(
-        bars         => $bars,
-        right_margin => RIGHT_MARGIN,
-    );
-    $scale->{width} = $self->_canvas_width($self->{price_canvas});
-    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    # Preferir la escala del último render (misma geometría X que las velas).
+    my $scale = $self->{_last_price_scale};
+    if (!$scale || ($scale->{bars} || 0) != $bars) {
+        $scale = Market::Panels::Scales->new(
+            bars         => $bars,
+            right_margin => RIGHT_MARGIN,
+        );
+        $scale->{width} = $self->_canvas_width($self->{price_canvas});
+        $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    }
     my $local = $scale->x_to_index($raw_x);
     return $self->round($scale->index_to_center_x($local));
 }
@@ -3350,6 +3461,15 @@ sub _on_mouse_move {
 
     my $pixel_x = $self->_snap_crosshair_x($raw_x);
     my $pixel_y = $self->round($raw_y);
+
+    # Skip si el crosshair no se mueve de pixel (ahorra delete/create Tk).
+    if (defined $self->{last_mouse_x} && defined $self->{last_mouse_y}
+        && $self->{last_mouse_x} == $pixel_x
+        && $self->{last_mouse_y} == $pixel_y
+        && defined $self->{active_canvas} && $self->{active_canvas} == $widget)
+    {
+        return;
+    }
 
     $self->{last_mouse_x} = $pixel_x;
     $self->{last_mouse_y} = $pixel_y;
@@ -3530,7 +3650,13 @@ sub set_timeframe {
     }
     $self->clear_replay_select_state();
 
-    $self->{market_data}->build_tf_candles($tf) if $tf ne '1m';
+    # Lazy: construir el TF solo al elegirlo (cacheado en MarketData).
+    if ($tf ne '1m' && $self->{market_data}->can('ensure_timeframe')) {
+        $self->{market_data}->ensure_timeframe($tf);
+    }
+    elsif ($tf ne '1m') {
+        $self->{market_data}->build_tf_candles($tf);
+    }
     $self->{market_data}->set_timeframe($tf);
     $self->_sync_fibonacci_levels_for_timeframe($tf);
     $self->{indicator_manager}->reset_all();
@@ -4359,10 +4485,14 @@ sub get_all_timestamps {
     my $last_tm = defined $last_ts ? eval { Time::Moment->from_string($last_ts) } : undef;
     my $tf_minutes = $self->_timeframe_minutes();
 
+    my $md = $self->{market_data};
+    my $can_cache = $md && $md->can('_parse_tm_cached');
     for (my $i = $start; $i <= $end; $i++) {
-        my $ts = ($i >= 0 && $i <= $last_index) ? $self->{market_data}->get_timestamp($i) : undef;
+        my $ts = ($i >= 0 && $i <= $last_index) ? $md->get_timestamp($i) : undef;
         if (defined $ts) {
-            my $parsed = eval { Time::Moment->from_string($ts) };
+            my $parsed = $can_cache
+                ? $md->_parse_tm_cached($ts)
+                : eval { Time::Moment->from_string($ts) };
             push @timestamps, { index => $i, ts => $parsed } if $parsed;
         }
         elsif (defined $last_tm && $i > $last_index) {

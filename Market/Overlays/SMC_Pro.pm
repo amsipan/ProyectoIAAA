@@ -171,6 +171,27 @@ sub _center_x {
     return $scales->index_to_center_x($self->_local($global_i));
 }
 
+# Clip a píxeles del plot (± margen). No cambia la lógica de datos: solo evita
+# geometría de decenas de miles de px que degrada Tk (crosshair/pan).
+sub _plot_x_bounds {
+    my ($self, $scales) = @_;
+    my $w = $scales->{width} // 0;
+    $w = 1 if $w < 1;
+    return (-120, $w + 120);
+}
+
+sub _clip_seg_x {
+    my ($self, $scales, $x1, $x2) = @_;
+    my ($lo, $hi) = $self->_plot_x_bounds($scales);
+    # Completamente fuera
+    return if ($x1 < $lo && $x2 < $lo) || ($x1 > $hi && $x2 > $hi);
+    $x1 = $lo if $x1 < $lo;
+    $x1 = $hi if $x1 > $hi;
+    $x2 = $lo if $x2 < $lo;
+    $x2 = $hi if $x2 > $hi;
+    return ($x1, $x2);
+}
+
 sub _bar_left_x {
     my ($self, $scales, $global_i) = @_;
     return $scales->index_to_x($self->_local($global_i));
@@ -219,6 +240,9 @@ sub draw {
         next if ($ob->{index} // 0) > $data_end;
         my $x1 = $self->_center_x($scales, $ob->{index});
         my $x2 = $x_data_right;
+        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
+        next unless @cx;
+        ($x1, $x2) = @cx;
         next if $x2 < $x1;
         my $y1 = $y_of->($ob->{hi});
         my $y2 = $y_of->($ob->{lo});
@@ -243,6 +267,9 @@ sub draw {
         next if $anchor > $data_end;
         my $x1 = $self->_center_x($scales, $anchor);
         my $x2 = $x_data_right;
+        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
+        next unless @cx;
+        ($x1, $x2) = @cx;
         next if $x2 < $x1;
         my $y = $y_of->($lv->{price});
         eval {
@@ -272,6 +299,9 @@ sub draw {
         my $col = ($sw->{side} // '') eq 'high' ? $bear : $bull;
         my $x1 = $self->_center_x($scales, $anchor);
         my $x2 = $x_data_right;
+        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
+        next unless @cx;
+        ($x1, $x2) = @cx;
         next if $x2 < $x1;
         my $y = $y_of->($sw->{price});
         eval {
@@ -305,6 +335,9 @@ sub draw {
         my $p2 = $eq->{price};
         my $x1 = $self->_center_x($scales, $i1);
         my $x2 = $self->_center_x($scales, $i2);
+        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
+        next unless @cx;
+        ($x1, $x2) = @cx;
         my $y1 = $y_of->($p1);
         my $y2 = $y_of->($p2);
         eval {
@@ -326,7 +359,7 @@ sub draw {
         };
     }
 
-    # 5) BOS/CHoCH ENCIMA — segmento cerrado pivote → rotura (width 2)
+    # 5) BOS/CHoCH ENCIMA — segmento cerrado pivote → rotura
     for my $e (@{ $self->{_events} }) {
         my $break_i = $e->{index};
         my $start_i = $e->{start_index} // $break_i;
@@ -338,6 +371,9 @@ sub draw {
         my $dash = (($e->{scope} // '') eq 'internal') ? '.' : '';
         my $x1 = $self->_center_x($scales, $start_i);
         my $x2 = $self->_center_x($scales, $break_i);
+        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
+        next unless @cx;
+        ($x1, $x2) = @cx;
         my $y  = $y_of->($e->{price});
         eval {
             $canvas->createLine(
@@ -349,8 +385,9 @@ sub draw {
             );
             my $lbl = $e->{type} // 'BOS';
             $lbl .= ' i' if ($e->{scope} // '') eq 'internal';  # internos: dejar " i"
+            my $mid_x = ($x1 + $x2) / 2;
             $canvas->createText(
-                ($x1 + $x2) / 2, $y - 8,
+                $mid_x, $y - 8,
                 -text => $lbl,
                 -fill => $col,
                 -font => ['TkDefaultFont', 7],
