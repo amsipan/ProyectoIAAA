@@ -163,60 +163,30 @@ sub new {
     $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
     $self->{_smc_fvg_fed_up_to} = -1;
 
-    # spec 0005 / task 0012: overlay Liquidity. Consume el indicador de cálculo
-    # (capa Indicators). Mismo patrón que SMC: alimentación incremental en render
-    # hasta el tope efectivo (respeta replay_idx); el overlay solo lee.
-    $self->{liq_indicator} = Market::Indicators::Liquidity->new(k => 3, level_atr_factor => 1.0, eqhl_liquidity => 1);
-    $self->{liq_indicator}->use_external_pivots(1);   # task 0055: BSL/SSL anclados a pivotes SMC
-    $self->{liq_overlay} = Market::Overlays::Liquidity->new(
-        indicator => $self->{liq_indicator},
-        theme     => $self->{theme},
-        visible   => 0,   # task 0018 (F4): capas OFF por defecto (arranque limpio)
-    );
-    $self->{overlay_manager}->register('liq', $self->{liq_overlay});
-    $self->{_liq_fed_up_to} = -1;
+    # --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel ---
+    # PASO A PASO: capas futuras DESACTIVADAS (código de módulos se conserva).
+    # No se registran → no feed, no dibujo, no interferencia con canal/SMC.
+    # Reactivar cuando ORDEN_PROYECTO_DEFINITIVO llegue a esa fase:
+    #   Liquidity, Strategy_Builder, VolumeProfile, AnchoredVWAP, ZigZag.
+    # (Mxwll ya fuera de producto — spec 0013.)
+    #
+    # if (0) {
+    #   use Market::Indicators::Liquidity; ... register liq/strategy/vp/vwap/zigzag
+    # }
 
-    $self->{strategy_indicator} = Market::Indicators::Strategy_Builder->new();
-    $self->{strategy_overlay}   = Market::Overlays::Strategy_Builder->new(
-        indicator => $self->{strategy_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
+    # Parallel Channel (herramienta nativa TV del video del profe)
+    require Market::Drawing::ParallelChannel;
+    require Market::Overlays::ParallelChannel;
+    $self->{pchan_drawing} = Market::Drawing::ParallelChannel->new(
+        extend_right => 1,
+        extend_left  => 0,
     );
-    $self->{overlay_manager}->register('strategy', $self->{strategy_overlay});
-    $self->{_strategy_fed_up_to} = -1;
-
-    $self->{vp_indicator} = Market::Indicators::VolumeProfile->new();
-    $self->{vp_overlay}   = Market::Overlays::VolumeProfile->new(
-        indicator => $self->{vp_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
+    $self->{pchan_overlay} = Market::Overlays::ParallelChannel->new(
+        drawing => $self->{pchan_drawing},
+        theme   => $self->{theme},
+        visible => 1,
     );
-    $self->{overlay_manager}->register('vp', $self->{vp_overlay});
-    $self->{_vp_fed_up_to} = -1;
-
-    $self->{vwap_indicator} = Market::Indicators::AnchoredVWAP->new();
-    $self->{vwap_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator => $self->{vwap_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
-    );
-    $self->{overlay_manager}->register('vwap', $self->{vwap_overlay});
-    $self->{_vwap_fed_up_to} = -1;
-
-    # Mxwll eliminado del producto activo (spec 0013): no calibrar estructura con él.
-
-    $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
-        internal_resolution => 30,
-        internal_period     => 2,
-        swing_length        => 150,
-    );
-    $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
-        indicator => $self->{zigzag_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
-    );
-    $self->{overlay_manager}->register('zigzag', $self->{zigzag_overlay});
-    $self->{_zigzag_fed_up_to} = -1;
+    $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
 
     $self->_sync_fibonacci_levels_for_timeframe();
 
@@ -991,6 +961,9 @@ sub render {
             my $ov = $self->{overlay_manager}->get($name);
             $ov->{_feed_end} = $feed_end if $ov;
         }
+        if ( my $pov = $self->{overlay_manager}->get('pchan') ) {
+            $pov->{_data_end} = $feed_end;
+        }
 
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
@@ -1348,7 +1321,11 @@ sub _replay_session_active {
 
 sub _replay_escape_key {
     my ($self) = @_;
-    # Precedencia: cancelar anclajes (VWAP / Volume Profile) antes que salir de Replay.
+    # Precedencia: cancelar herramienta Parallel Channel / anclajes antes que Replay.
+    if ( $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active() ) {
+        $self->cancel_parallel_channel_tool();
+        return $self;
+    }
     if ($self->{_vwap_select_mode}) {
         $self->cancel_vwap_select_mode();
         return $self;
@@ -2835,6 +2812,12 @@ sub _horizontal_zoom {
 
 sub _start_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
+
+    # Parallel Channel: 3 clics (no inicia paneo)
+    if ( $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active() ) {
+        $self->_pchan_click( $x, $y );
+        return;
+    }
 
     if ($self->{_replay_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
@@ -4530,4 +4513,70 @@ sub _timeframe_minutes {
     return 10080 if $tf eq 'W';
     return 1;
 }
+
+# ---------------------------------------------------------------------------
+# Parallel Channel (drawing tool TV) — Fase actual
+# ---------------------------------------------------------------------------
+sub start_parallel_channel_tool {
+    my ($self) = @_;
+    return $self unless $self->{pchan_drawing};
+    $self->{pchan_drawing}->start_tool();
+    if ( ref( $self->{pchan_mode_callback} ) eq 'CODE' ) {
+        $self->{pchan_mode_callback}->( 1, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub cancel_parallel_channel_tool {
+    my ($self) = @_;
+    return $self unless $self->{pchan_drawing};
+    $self->{pchan_drawing}->cancel_tool();
+    if ( ref( $self->{pchan_mode_callback} ) eq 'CODE' ) {
+        $self->{pchan_mode_callback}->( 0, $self->{pchan_drawing}->draft_count() );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub clear_parallel_channel {
+    my ($self) = @_;
+    return $self unless $self->{pchan_drawing};
+    $self->{pchan_drawing}->clear_channel();
+    $self->{pchan_drawing}->cancel_tool();
+    if ( ref( $self->{pchan_mode_callback} ) eq 'CODE' ) {
+        $self->{pchan_mode_callback}->( 0, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub _pchan_click {
+    my ( $self, $x, $y ) = @_;
+    my $draw = $self->{pchan_drawing};
+    return unless $draw && $draw->is_tool_active();
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my ( $ws, $we ) = eval { $self->compute_window() };
+        $idx = $we if defined $we;
+    }
+    return unless defined $idx;
+
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+    return unless defined $price;
+
+    my $status = $draw->add_point( { index => $idx, price => $price } );
+    if ( ref( $self->{pchan_mode_callback} ) eq 'CODE' ) {
+        my $active = $draw->is_tool_active() ? 1 : 0;
+        my $n      = $active ? $draw->draft_count() : 3;
+        $self->{pchan_mode_callback}->( $active, $n );
+    }
+    $self->request_render();
+    return $status;
+}
+
 1;

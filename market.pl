@@ -339,8 +339,11 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 }
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
+# --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel ---
+# PASO A PASO: pestañas Liq / ZigZag / Estrategia desactivadas (código de paneles
+# abajo conservado en comentarios / sin empaquetar). Reactivar al llegar a esa fase.
 my %panel;
-$panel{$_} = $panel_row->Frame() for qw(Capas SMC Liq ZigZag Estrategia Escala Replay);
+$panel{$_} = $panel_row->Frame() for qw(Capas SMC Escala Replay);
 
 my $active_tab = 'Capas';
 my $show_panel = sub {
@@ -360,20 +363,15 @@ $ui_vars{show_default_tab} = sub {
     $show_panel->('Capas');
 };
 
-# --- Botones de pestaña en la fila superior ---
-# Etiquetas más explícitas para exposición; las claves internas se conservan para
-# no tocar callbacks ni lógica de Replay.
 my %tab_label = (
-    Capas     => 'Capas',
-    SMC       => 'SMC',
-    Liq       => 'Liquidez',
-    ZigZag    => 'ZigZag',
-    Estrategia=> 'Estrategia',
-    Escala    => 'Escala',
-    Replay    => 'Replay',
+    Capas  => 'Capas',
+    SMC    => 'SMC',
+    Escala => 'Escala',
+    Replay => 'Replay',
+    # Desactivadas (fase futura): Liq, ZigZag, Estrategia
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(Capas SMC Liq ZigZag Estrategia Escala Replay)) {
+for my $name (qw(Capas SMC Escala Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -458,7 +456,8 @@ if ($ENV{MARKET_RELOAD}) {
     print "[*] RELOAD: fresh process started (MARKET_RELOAD=1)\n";
 }
 
-# ---- Panel "Capas": overlays principales + HTF ----
+# ---- Panel "Capas": solo fase actual (SMC + Parallel Channel) ----
+# Desactivado (conservado en repo, sin UI): Liquidez, Estrategia, VP, VWAP, ZigZag.
 {
     my $p = $panel{Capas};
     $p->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
@@ -466,151 +465,43 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'SMC Structures+FVG', -variable => \$vis_smc_fvg,
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
-    $p->Checkbutton(-text => 'Liquidez', -variable => \$vis_liq,
-        -command => sub { $set_overlay_visible->('liq', $vis_liq ? 1 : 0); })->pack(-side => 'left');
-    $p->Checkbutton(-text => 'Estrategia', -variable => \$vis_strategy,
-        -command => sub { $set_overlay_visible->('strategy', $vis_strategy ? 1 : 0); })->pack(-side => 'left');
-    $p->Checkbutton(-text => 'Perfil Vol', -variable => \$vis_vp,
-        -command => sub { $set_overlay_visible->('vp', $vis_vp ? 1 : 0); })->pack(-side => 'left');
-    my $vp_hint;
-    my $set_vp_hint = sub {
-        my ($on) = @_;
-        return unless $vp_hint;
-        if ($on) {
-            $vp_hint->configure(-text => 'Clic vela AVP… (Esc)', -fg => '#01579B');
-        } else {
-            $vp_hint->configure(-text => '', -fg => '#666666');
-        }
-    };
-    $chart_engine->{vp_select_mode_callback} = sub { $set_vp_hint->($_[0] ? 1 : 0); };
-    $chart_engine->{vp_anchor_callback} = sub { $set_vp_hint->(0); };
-    $chart_engine->{vp_select_cancel_callback} = sub { $set_vp_hint->(0); };
-    $p->Button(
-        -text => 'Anclar VP',
-        -command => sub {
-            $vis_vp = 1;
-            $cb_vp_reanchor->();
-            $refresh_overlay_button->('vp') if $overlay_button{vp};
-            $set_vp_hint->(1);
-        },
-    )->pack(-side => 'left', -padx => 2);
-    $vp_hint = $p->Label(-text => '', -fg => '#01579B', -font => ['Helvetica', 9, 'bold'])
-        ->pack(-side => 'left', -padx => 2);
-    # AVP Inputs (TV): Row Size + Value Area %
-    my $vp_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 3);
-    $vp_box->Label(-text => 'Rows:')->pack(-side => 'left', -padx => 1);
-    my $vp_rows_ent = $vp_box->Entry(-textvariable => \$vp_row_size, -width => 5, -justify => 'right');
-    $vp_rows_ent->pack(-side => 'left', -padx => 1);
-    $vp_box->Label(-text => 'VA%:')->pack(-side => 'left', -padx => 1);
-    my $vp_va_ent = $vp_box->Entry(-textvariable => \$vp_va_pct, -width => 3, -justify => 'right');
-    $vp_va_ent->pack(-side => 'left', -padx => 1);
-    my $apply_vp_settings = sub {
-        my $rs = $vp_row_size;
-        $rs = '24' if !defined $rs || $rs eq '';
-        $rs =~ s/,/./g;
-        $rs = 24 unless $rs =~ /^\d+$/;
-        $rs = 1 if $rs < 1;
-        $rs = 5000 if $rs > 5000;
-        $vp_row_size = $rs;
-        my $va = $vp_va_pct;
-        $va = '70' if !defined $va || $va eq '';
-        $va =~ s/,/./g;
-        $va = 70 unless $va =~ /^\d+\.?\d*$/;
-        $va = 1 if $va < 1;
-        $va = 100 if $va > 100;
-        $vp_va_pct = $va;
-        $cb_vp_settings->(row_size => $rs, value_area_pct => $va);
-    };
-    $vp_rows_ent->Tk::bind('<Return>', $apply_vp_settings);
-    $vp_rows_ent->Tk::bind('<FocusOut>', $apply_vp_settings);
-    $vp_va_ent->Tk::bind('<Return>', $apply_vp_settings);
-    $vp_va_ent->Tk::bind('<FocusOut>', $apply_vp_settings);
-    # Aplicar defaults al arranque
-    $apply_vp_settings->();
 
-    $p->Checkbutton(-text => 'VWAP', -variable => \$vis_vwap,
-        -command => sub { $set_overlay_visible->('vwap', $vis_vwap ? 1 : 0); })->pack(-side => 'left');
-    my $vwap_hint;
-    my $set_vwap_hint = sub {
-        my ($on) = @_;
-        return unless $vwap_hint;
-        if ($on) {
-            $vwap_hint->configure(
-                -text => 'Clic en una vela… (Esc cancela)',
+    # Parallel Channel (herramienta TV del video del profe)
+    my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
+    $pchan_box->Label(-text => 'Canal:')->pack(-side => 'left', -padx => 2);
+    my $pchan_hint = $pchan_box->Label(
+        -text => '',
+        -fg   => '#0D47A1',
+        -font => [ 'Helvetica', 9, 'bold' ],
+    );
+    $chart_engine->{pchan_mode_callback} = sub {
+        my ( $active, $n ) = @_;
+        if ($active) {
+            my $step = ( $n // 0 ) + 1;
+            $step = 3 if $step > 3;
+            $pchan_hint->configure(
+                -text => "Clic $step/3… (Esc cancela)",
                 -fg   => '#0D47A1',
             );
         }
         else {
-            $vwap_hint->configure(-text => '', -fg => '#666666');
+            $pchan_hint->configure( -text => '', -fg => '#666666' );
         }
     };
-    $chart_engine->{vwap_select_mode_callback} = sub {
-        my ($on) = @_;
-        $set_vwap_hint->($on ? 1 : 0);
-    };
-    $chart_engine->{vwap_anchor_callback} = sub {
-        $set_vwap_hint->(0);
-    };
-    $chart_engine->{vwap_select_cancel_callback} = sub {
-        $set_vwap_hint->(0);
-    };
+    $pchan_box->Button(
+        -text    => 'Parallel Channel',
+        -command => sub { $chart_engine->start_parallel_channel_tool(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $pchan_box->Button(
+        -text    => 'Cancelar',
+        -command => sub { $chart_engine->cancel_parallel_channel_tool(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $pchan_box->Button(
+        -text    => 'Borrar canal',
+        -command => sub { $chart_engine->clear_parallel_channel(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $pchan_hint->pack( -side => 'left', -padx => 4 );
 
-    $p->Button(
-        -text => 'Anclar VWAP',
-        -command => sub {
-            $vis_vwap = 1;
-            $cb_vwap_reanchor->();
-            $refresh_overlay_button->('vwap') if $overlay_button{vwap};
-            $set_vwap_hint->(1);
-        },
-    )->pack(-side => 'left', -padx => 2);
-    $vwap_hint = $p->Label(
-        -text   => '',
-        -fg     => '#0D47A1',
-        -font   => ['Helvetica', 9, 'bold'],
-    )->pack(-side => 'left', -padx => 4);
-
-    # Anchored VWAP — Bands Settings (como Inputs de TradingView)
-    my $vwap_bands = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $vwap_bands->Label(-text => 'Bands:')->pack(-side => 'left', -padx => 2);
-    for my $n (1, 2, 3) {
-        my $row = $vwap_bands->Frame()->pack(-side => 'left', -padx => 2);
-        $row->Checkbutton(
-            -text     => "#$n",
-            -variable => \$vwap_band_on{$n},
-            -command  => sub {
-                $cb_vwap_band->($n,
-                    on   => $vwap_band_on{$n} ? 1 : 0,
-                    mult => $vwap_band_mult{$n},
-                );
-            },
-        )->pack(-side => 'left');
-        my $ent = $row->Entry(
-            -textvariable => \$vwap_band_mult{$n},
-            -width        => 3,
-            -justify      => 'right',
-        );
-        $ent->pack(-side => 'left', -padx => 1);
-        # Aplicar mult al salir del campo o Enter (sin Optionmenu: WSLg-safe).
-        my $apply_mult = sub {
-            my $raw = $vwap_band_mult{$n};
-            $raw = '1' if !defined $raw || $raw eq '';
-            $raw =~ s/,/./g;
-            unless ($raw =~ /^-?\d*\.?\d+$/) {
-                $vwap_band_mult{$n} = $n;  # reset default TV
-                $raw = $n;
-            }
-            my $m = 0 + $raw;
-            $m = 0.01 if $m < 0.01;
-            $vwap_band_mult{$n} = $m;
-            $cb_vwap_band->($n, on => $vwap_band_on{$n} ? 1 : 0, mult => $m);
-        };
-        $ent->Tk::bind('<Return>', $apply_mult);
-        $ent->Tk::bind('<FocusOut>', $apply_mult);
-    }
-
-    $p->Checkbutton(-text => 'ZigZag', -variable => \$vis_zigzag,
-        -command => sub { $set_overlay_visible->('zigzag', $vis_zigzag ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
 }
@@ -637,69 +528,10 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack(-side => 'left', -padx => 3);
 }
 
-# ---- Panel "Liquidez": capa principal + densidad por familia ----
-{
-    my $p = $panel{Liq};
-    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $main_box->Label(-text => 'Liquidez:')->pack(-side => 'left', -padx => 3);
-    $overlay_button{liq} = $main_box->Button(
-        -text => $overlay_button_text->($vis_liq),
-        -command => sub { $toggle_overlay_visible->('liq'); },
-    )->pack(-side => 'left');
-
-    my $families_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $families_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
-    for my $elem (qw(BSL SSL EQH EQL SWEEP GRAB RUN)) {
-        $families_box->Checkbutton(-text => $elem, -variable => \$vis_elem{$elem},
-            -command => sub { $cb_elem{$elem}->($vis_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
-    }
-}
-
-# ---- Panel "ZigZag": interno/externo + resolución MTF (task 0033) ----
-{
-    my $p = $panel{ZigZag};
-    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $main_box->Label(-text => 'ZigZag:')->pack(-side => 'left', -padx => 3);
-    $overlay_button{zigzag} = $main_box->Button(
-        -text => $overlay_button_text->($vis_zigzag),
-        -command => sub { $toggle_overlay_visible->('zigzag'); },
-    )->pack(-side => 'left');
-    my $filters_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $filters_box->Label(-text => 'Tipos:')->pack(-side => 'left', -padx => 3);
-    $filters_box->Checkbutton(-text => 'Interno', -variable => \$vis_zzelem{INTERNAL},
-        -command => sub { $cb_zzelem{INTERNAL}->($vis_zzelem{INTERNAL} ? 1 : 0); })->pack(-side => 'left');
-    $filters_box->Checkbutton(-text => 'Externo', -variable => \$vis_zzelem{EXTERNAL},
-        -command => sub { $cb_zzelem{EXTERNAL}->($vis_zzelem{EXTERNAL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
-    $filters_box->Checkbutton(-text => 'Canal', -variable => \$vis_zzelem{CHANNEL},
-        -command => sub { $cb_zzelem{CHANNEL}->($vis_zzelem{CHANNEL} ? 1 : 0); })->pack(-side => 'left', -padx => 4);
-    $p->Label(-text => 'Res MTF:')->pack(-side => 'left', -padx => 3);
-    for my $res (qw(15 30 60)) {
-        $p->Radiobutton(-text => "${res}m", -value => $res, -variable => \$zigzag_resolution,
-            -indicatoron => 0, -padx => 4,
-            -command => sub { $cb_zzres{$res}->(); })->pack(-side => 'left');
-    }
-}
-
-# ---- Panel "Estrategia": capa principal + subcapas técnicas ----
-{
-    my $p = $panel{Estrategia};
-    my %strategy_label = (
-        SUPERTREND => 'SuperTrend', HALFTREND => 'HalfTrend',
-        RANGEFILTER => 'RangeFilter', SUPPLY_DEMAND => 'Supply/Demand',
-    );
-    my $main_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $main_box->Label(-text => 'Estrategia:')->pack(-side => 'left', -padx => 3);
-    $overlay_button{strategy} = $main_box->Button(
-        -text => $overlay_button_text->($vis_strategy),
-        -command => sub { $toggle_overlay_visible->('strategy'); },
-    )->pack(-side => 'left');
-    my $filters_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $filters_box->Label(-text => 'Elementos:')->pack(-side => 'left', -padx => 3);
-    for my $elem (qw(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER)) {
-        $filters_box->Checkbutton(-text => $strategy_label{$elem}, -variable => \$vis_strategy_elem{$elem},
-            -command => sub { $cb_strategy_elem{$elem}->($vis_strategy_elem{$elem} ? 1 : 0); })->pack(-side => 'left');
-    }
-}
+# ---- Paneles Liq / ZigZag / Estrategia: DESACTIVADOS (fase futura) ----
+# El código de UI de esas pestañas se eliminó del árbol de pestañas activas.
+# Módulos Market/Indicators|Overlays se conservan en el repo.
+# Reactivar: añadir pestaña en %panel + botones de pestaña + re-registrar en ChartEngine.
 
 # ---- Panel "Escala": Precio/ATR Auto-Manual + Reset Vista ----
 {
