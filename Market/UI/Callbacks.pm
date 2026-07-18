@@ -415,7 +415,9 @@ sub chart_tf_minutes {
     if ($chart->can('_timeframe_minutes')) {
         return $chart->_timeframe_minutes();
     }
-    my $tf = eval { $chart->{market_data}{active_tf} } || '1m';
+    my $tf = eval { $chart->{market_data}{active_tf} }
+          // eval { $chart->{market_data}->base_timeframe() }
+          || '15m';
     return 5 if $tf eq '5m';
     return 15 if $tf eq '15m';
     return 60 if $tf eq '1h';

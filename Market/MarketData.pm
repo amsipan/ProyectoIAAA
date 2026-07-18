@@ -3,18 +3,60 @@ use strict;
 use warnings;
 use Time::Moment;
 
+# Resolución relativa de TFs (más bajo = más fino).
+my %TF_RANK = (
+    '1m'  => 1,
+    '5m'  => 5,
+    '15m' => 15,
+    '1h'  => 60,
+    '2h'  => 120,
+    '4h'  => 240,
+    'D'   => 1440,
+    'W'   => 10080,
+);
+
 sub new {
     my ($class) = @_;
     my $self = {
         data      => { '1m' => [], '5m' => [], '15m' => [], '1h' => [], '2h' => [], '4h' => [], 'D' => [], 'W' => [] },
         active_tf => '1m',
-        # TFs ya agregados (lazy). 1m siempre listo (serie base).
+        # Serie nativa cargada desde CSV (1m por defecto; 15m si export TV 15m).
+        base_tf   => '1m',
+        # TFs ya agregados (lazy). La base siempre está "lista".
         _tf_built => { '1m' => 1 },
-        # Cache Time::Moment por string de timestamp 1m (evita re-parse en agregación).
+        # Cache Time::Moment por string de timestamp (evita re-parse en agregación).
         _tm_cache => {},
     };
     bless $self, $class;
     return $self;
+}
+
+sub base_timeframe {
+    my ($self) = @_;
+    return $self->{base_tf} // '1m';
+}
+
+# set_base_timeframe($tf) — define la serie nativa (p.ej. '1m' o '15m').
+# Limpia todas las series y marca solo la base como construida.
+# Llamar ANTES de add_candle cuando se carga un CSV no-1m.
+sub set_base_timeframe {
+    my ($self, $tf) = @_;
+    return unless defined $tf && exists $self->{data}{$tf};
+    $self->{base_tf}   = $tf;
+    $self->{active_tf} = $tf;
+    for my $k (keys %{ $self->{data} }) {
+        $self->{data}{$k} = [];
+    }
+    $self->{_tf_built} = { $tf => 1 };
+    $self->{_tm_cache} = {};
+    return $self;
+}
+
+sub _tf_rank {
+    my ($self, $tf) = @_;
+    return $TF_RANK{$tf} if defined $tf && exists $TF_RANK{$tf};
+    return int($tf) if defined $tf && $tf =~ /^\d+$/;
+    return 0;
 }
 
 sub get_data {
@@ -24,11 +66,12 @@ sub get_data {
 
 sub add_candle {
     my ($self, $candle) = @_;
-    push @{ $self->{data}->{'1m'} }, $candle;
-    # Invalidar agregados y cache de parse al crecer la base 1m.
+    my $base = $self->base_timeframe();
+    push @{ $self->{data}->{$base} }, $candle;
+    # Invalidar agregados (no la base) al crecer la serie nativa.
     if ($self->{_tf_built}) {
         for my $tf (keys %{ $self->{_tf_built} }) {
-            next if $tf eq '1m';
+            next if $tf eq $base;
             delete $self->{_tf_built}{$tf};
             $self->{data}{$tf} = [] if exists $self->{data}{$tf};
         }
@@ -39,12 +82,23 @@ sub add_candle {
 sub build_tf_candles {
     my ($self, $tf) = @_;
     return unless defined $tf;
-    return if $tf eq '1m';
+    my $base = $self->base_timeframe();
+    return if $tf eq $base;
+
+    # No se puede construir un TF más fino que la base (p.ej. 1m/5m con base 15m).
+    my $rank_tf   = $self->_tf_rank($tf);
+    my $rank_base = $self->_tf_rank($base);
+    if ($rank_tf > 0 && $rank_base > 0 && $rank_tf < $rank_base) {
+        $self->{data}{$tf} = [] if exists $self->{data}{$tf};
+        $self->{_tf_built}{$tf} = 1;
+        return;
+    }
+
     # Idempotente: no reconstruir si ya está (lazy multi-llamada OK).
     if ($self->{_tf_built}{$tf} && @{ $self->{data}{$tf} || [] }) {
         return;
     }
-    my $base_data = $self->{data}->{'1m'};
+    my $base_data = $self->{data}->{$base};
     return unless $base_data && @$base_data;
 
     my @aggregated;
@@ -224,7 +278,9 @@ sub _session_bucket_timestamp {
 sub build_timeframes {
     my ($self, %opts) = @_;
     if ($opts{eager}) {
-        for my $tf ('5m', '15m', '1h', '2h', '4h', 'D', 'W') {
+        my $base = $self->base_timeframe();
+        for my $tf ('1m', '5m', '15m', '1h', '2h', '4h', 'D', 'W') {
+            next if $tf eq $base;
             $self->build_tf_candles($tf);
         }
     }
@@ -236,7 +292,8 @@ sub build_timeframes {
 sub ensure_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf;
-    return if $tf eq '1m';
+    my $base = $self->base_timeframe();
+    return if $tf eq $base;
     $self->build_tf_candles($tf) if exists $self->{data}{$tf} || $tf =~ /^(?:5m|15m|1h|2h|4h|D|W|\d+)$/;
     return $self;
 }
@@ -245,9 +302,9 @@ sub set_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf;
     # Aceptar TFs conocidos aunque el array aún esté vacío (lazy).
-    if (exists $self->{data}->{$tf} || $tf eq '1m') {
+    if (exists $self->{data}->{$tf}) {
         $self->ensure_timeframe($tf);
-        $self->{active_tf} = $tf if exists $self->{data}->{$tf};
+        $self->{active_tf} = $tf;
     }
 }
 
@@ -297,14 +354,15 @@ sub get_timestamp {
 
 sub merge_delta_row {
     my ($self, $row) = @_;
-    my $arr = $self->{data}->{'1m'};
-    
+    my $base = $self->base_timeframe();
+    my $arr  = $self->{data}->{$base};
+
     if (@$arr && $arr->[-1]->[0] eq $row->[0]) {
         my $last = $arr->[-1];
         $last->[2] = $row->[2] if $row->[2] > $last->[2];
         $last->[3] = $row->[3] if $row->[3] < $last->[3];
         $last->[4] = $row->[4];
-        $last->[5] += $row->[5];
+        $last->[5] = ($last->[5] // 0) + ($row->[5] // 0);
     } else {
         $self->add_candle($row);
     }

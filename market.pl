@@ -25,11 +25,23 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-# Dataset canónico: UN solo CSV, el más grande de Downloads\Proyecto (= 2026_06.csv).
-# Antes se cargaba Data/2026_03.csv (mal nombrado: era ABRIL) + 2026_04_to_07.csv
-# (empieza otra vez en abril) → la serie repetía todo abril. Eso no era zoom/SMC.
-# Copia en Data/ para portabilidad; fallback a la ruta de Downloads si falta.
+# Dataset canónico: export TradingView NQ1! 15m (ISO UTC-5, ETH).
+# Base nativa = 15m; 1h/2h/4h/D/W se agregan desde 15m. 1m/5m quedan vacíos
+# (botones UI se mantienen; no hay data más fina que la base).
+# Copia portable en Data/; fallback a Downloads si falta la copia.
+my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 15.csv';
+my $tv_dst = 'Data/tv_nq1_15m.csv';
+if (-f $tv_src && !-f $tv_dst) {
+    require File::Copy;
+    File::Copy::copy($tv_src, $tv_dst)
+        or warn "[!] No se pudo copiar $tv_src → $tv_dst: $!\n";
+    print "[*] CSV TV 15m copiado a $tv_dst\n" if -f $tv_dst;
+}
+
 my @csv_candidates = (
+    $tv_dst,
+    $tv_src,
+    # Fallbacks legacy 1m (solo si no hay export 15m)
     'Data/2026_06.csv',
     'C:/Users/bryan/Downloads/Proyecto/2026_06.csv',
 );
@@ -37,36 +49,51 @@ my $archivo_csv;
 for my $cand (@csv_candidates) {
     if (-f $cand) { $archivo_csv = $cand; last; }
 }
-die "CRÍTICO: no se encontró 2026_06.csv (Data/ ni Downloads\\Proyecto)\n"
+die "CRÍTICO: no se encontró dataset (tv_nq1_15m.csv ni export TV ni 2026_06.csv)\n"
     unless defined $archivo_csv;
 
-print "[*] Leyendo dataset (1 archivo, el más grande de Downloads\\Proyecto)...\n";
+# Detectar base: export 15m de TV o nombre *15m* → base 15m; si no, 1m.
+my $base_tf = '1m';
+if ($archivo_csv =~ /15m|15\.csv|_15\.csv|, 15\.csv/i) {
+    $base_tf = '15m';
+}
+$market_data->set_base_timeframe($base_tf);
+
+print "[*] Leyendo dataset (base=$base_tf)...\n";
 open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
-my $header = <$fh>;
+my $header = <$fh>;  # time,open,high,low,close,Plot|Volume
 my $n_file = 0;
 my ($ts_first, $ts_last);
 while (my $linea = <$fh>) {
     chomp $linea;
+    $linea =~ s/\r//g;
     my @columnas = split /,/, $linea;
     next if @columnas < 5;
-    $ts_first = $columnas[0] if !defined $ts_first;
-    $ts_last  = $columnas[0];
-    $market_data->add_candle(\@columnas);
+    # TV export: 6ª col a menudo vacía (header "Plot") → volume 0
+    my $vol = 0;
+    if (defined $columnas[5] && $columnas[5] =~ /^-?\d+(?:\.\d+)?$/) {
+        $vol = 0 + $columnas[5];
+    }
+    my $candle = [ @columnas[0 .. 4], $vol ];
+    $ts_first = $candle->[0] if !defined $ts_first;
+    $ts_last  = $candle->[0];
+    $market_data->add_candle($candle);
     $n_file++;
 }
 close $fh;
 print "[*]   archivo : $archivo_csv\n";
-print "[*]   velas 1m: $n_file\n";
+print "[*]   base_tf : $base_tf\n";
+print "[*]   velas   : $n_file\n";
 print "[*]   first   : ", ($ts_first // '?'), "\n";
 print "[*]   last    : ", ($ts_last  // '?'), "\n";
-print "[*] Velas en memoria: ", $market_data->size(), " (TF altos se construyen al usarlos)\n";
 $market_data->build_timeframes();  # lazy no-op; eager=>1 solo si se necesita todo
-$market_data->set_timeframe('1m');
-print "[*] Calculando ATR 1m...\n";
+$market_data->set_timeframe($base_tf);
+print "[*] Velas en memoria ($base_tf): ", $market_data->size(), " (TF altos se construyen al usarlos)\n";
+print "[*] Calculando ATR $base_tf...\n";
 for (my $i = 0; $i < $market_data->size(); $i++) {
     $indicator_manager->update_last($market_data, $i);   # ATR es O(1)/vela
 }
-print "[*] Listo — abriendo UI\n";
+print "[*] Listo — abriendo UI en $base_tf\n";
 
 # ==========================================
 # 2. VENTANA PRINCIPAL
@@ -146,7 +173,7 @@ my $atr_canvas = $atr_frame->Canvas(
 # ==========================================
 my $scale_mode = 'auto';
 my $atr_scale_mode = 'auto';
-my $active_tf = '1m';
+my $active_tf = $base_tf;  # UI resalta el TF base (15m con export TV)
 my $htf_enabled = 0;
 my $replay_on   = 0;
 my $replay_select_mode = 0;

@@ -176,10 +176,13 @@ sub _process_fvg {
 
 sub _trim_fvgs {
     my ($self) = @_;
-    # Pine: if size > fvgHistoryNbr + 1 remove oldest → keep fvgHistoryNbr+1.
-    # Captura "Number of FVG to show = 5" → cap estricto a 5 para paridad visual.
-    my $max = $self->{fvg_history} // 5;
-    $max = 1 if $max < 1;
+    # Pine (LudoGH): if array.size(fvgBoxes) > fvgHistoryNbr + 1 → remove oldest.
+    # Con Number of FVG = 5 → se mantienen hasta 6 cajas (history+1), no 5.
+    # Cap estricto a 5 hacía desaparecer FVGs aún no mitigados (p.ej. 16-jul 17:15
+    # se recortaba el 17-jul 07:30 y no llegaba al final del chart como en TV).
+    my $hist = $self->{fvg_history} // 5;
+    $hist = 1 if $hist < 1;
+    my $max = $hist + 1;
     while (@{ $self->{_fvgs} } > $max) {
         shift @{ $self->{_fvgs} };
     }

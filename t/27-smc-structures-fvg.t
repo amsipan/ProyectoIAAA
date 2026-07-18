@@ -119,17 +119,18 @@ use Market::Overlays::Base;
     }
     $ind = Market::Indicators::SMC_Structures_FVG->new( fvg_history => 5 );
     $ind->update_last( $md, $_ ) for 0 .. $md->last_index;
-    # May or may not create many; force push via internal if needed
-    if ( scalar( @{ $ind->get_fvg() } ) < 5 ) {
-        for my $k ( 0 .. 9 ) {
-            push @{ $ind->{_fvgs} }, {
-                index => $k, left => $k, right => $k + 1,
-                hi => 10 + $k, lo => 1 + $k, type => 'bull', mitig => 0, active => 1,
-            };
-            $ind->_trim_fvgs;
-        }
+    # Pine: size > fvgHistoryNbr + 1 → keep history+1 (=6 con history=5)
+    for my $k ( 0 .. 9 ) {
+        push @{ $ind->{_fvgs} }, {
+            index => $k, left => $k, right => $k + 1,
+            hi => 10 + $k, lo => 1 + $k, type => 'bull', mitig => 0, active => 1,
+        };
+        $ind->_trim_fvgs;
     }
-    ok( scalar( @{ $ind->get_fvg() } ) <= 5, 'FVG cap <= 5' );
+    is( scalar( @{ $ind->get_fvg() } ), 6, 'FVG cap = history+1 (Pine: 5→keep 6)' );
+    # El más antiguo (left=0..3) debe haber salido; quedan left 4..9
+    my @lefts = sort { $a <=> $b } map { $_->{left} } @{ $ind->get_fvg() };
+    is_deeply( \@lefts, [ 4, 5, 6, 7, 8, 9 ], 'trim quita los más antiguos, conserva 6' );
 }
 
 # -----------------------------------------------------------------------------
@@ -193,6 +194,75 @@ use Market::Overlays::Base;
         } );
     }
     is( scalar( @{ $ind->get_events() } ), 10, 'max 10 structure breaks' );
+}
+
+# -----------------------------------------------------------------------------
+# FVG draw: ancla X al centro de vela (no borde izq. del slot)
+# -----------------------------------------------------------------------------
+{
+    package MockCanvasFVG;
+    sub new { bless { ops => [] }, shift }
+    sub delete { 1 }
+    sub createRectangle {
+        my ( $self, @a ) = @_;
+        push @{ $self->{ops} }, [ createRectangle => @a ];
+    }
+    sub createText {
+        my ( $self, @a ) = @_;
+        push @{ $self->{ops} }, [ createText => @a ];
+    }
+    sub createLine {
+        my ( $self, @a ) = @_;
+        push @{ $self->{ops} }, [ createLine => @a ];
+    }
+    package MockScalesFVG;
+    sub new {
+        my ( $class, %a ) = @_;
+        bless {
+            plot_width => $a{plot_width} // 400,
+            bars       => $a{bars}       // 10,
+            x_shift    => 0,
+            plot_left  => 0,
+            plot_right => $a{plot_width} // 400,
+        }, $class;
+    }
+    sub plot_width { $_[0]{plot_width} }
+    sub index_to_x {
+        my ( $self, $i ) = @_;
+        my $bw = $self->{plot_width} / ( $self->{bars} || 1 );
+        return $i * $bw;
+    }
+    sub index_to_center_x {
+        my ( $self, $i ) = @_;
+        my $bw = $self->{plot_width} / ( $self->{bars} || 1 );
+        return $i * $bw + $bw / 2;
+    }
+    sub value_to_y { my ( $s, $p ) = @_; return 1000 - $p; }
+
+    package main;
+    my $ind = Market::Indicators::SMC_Structures_FVG->new();
+    # Inyectar un FVG sintético left=2 right=5
+    push @{ $ind->{_fvgs} }, {
+        type => 'bear', left => 2, right => 5, hi => 110, lo => 100,
+        active => 1, mitig => 0,
+    };
+    my $ov = Market::Overlays::SMC_Structures_FVG->new( indicator => $ind, visible => 1 );
+    $ov->compute_visible( undef, $ind, 0, 9 );
+    my $canvas = MockCanvasFVG->new();
+    my $scales = MockScalesFVG->new( plot_width => 400, bars => 10 );
+    my $bar_w  = 40;
+    my $center_2 = 2 * $bar_w + $bar_w / 2;  # 100
+    my $center_5 = 5 * $bar_w + $bar_w / 2;  # 220
+    my $left_2   = 2 * $bar_w;               # 80  (borde izq. — incorrecto)
+    $ov->draw( $canvas, $scales );
+    my ($rect) = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    ok( $rect, 'draw emite createRectangle FVG' );
+    ok( $rect && abs( ( $rect->[1] // -1 ) - $center_2 ) < 0.5,
+        'FVG x1 = centro vela left (no se sale a la izquierda)' );
+    ok( $rect && abs( ( $rect->[1] // -1 ) - $left_2 ) > 1,
+        'FVG x1 no usa borde izquierdo del slot' );
+    ok( $rect && abs( ( $rect->[3] // -1 ) - $center_5 ) < 0.5,
+        'FVG x2 = centro vela right' );
 }
 
 done_testing();

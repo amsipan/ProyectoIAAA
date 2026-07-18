@@ -3651,16 +3651,22 @@ sub set_timeframe {
     $self->clear_replay_select_state();
 
     # Lazy: construir el TF solo al elegirlo (cacheado en MarketData).
-    if ($tf ne '1m' && $self->{market_data}->can('ensure_timeframe')) {
+    # Con base_tf=15m, ensure no construye 1m/5m (más finos que la base).
+    my $base_tf = '1m';
+    if ($self->{market_data}->can('base_timeframe')) {
+        $base_tf = $self->{market_data}->base_timeframe() // '1m';
+    }
+    if ($tf ne $base_tf && $self->{market_data}->can('ensure_timeframe')) {
         $self->{market_data}->ensure_timeframe($tf);
     }
-    elsif ($tf ne '1m') {
+    elsif ($tf ne $base_tf) {
         $self->{market_data}->build_tf_candles($tf);
     }
     $self->{market_data}->set_timeframe($tf);
     $self->_sync_fibonacci_levels_for_timeframe($tf);
     $self->{indicator_manager}->reset_all();
-    for (my $i = 0; $i < $self->{market_data}->size(); $i++) {
+    my $n_bars = $self->{market_data}->size() || 0;
+    for (my $i = 0; $i < $n_bars; $i++) {
         $self->{indicator_manager}->update_last($self->{market_data}, $i);
     }
     # spec 0013: reset SMC Pro + Structures/FVG al cambiar timeframe.

@@ -79,7 +79,11 @@ sub clear {
 
 sub _plot_bounds {
     my ($self, $scales) = @_;
-    my $w = $scales->{width} // 0;
+    # Scales reales usan width; mocks/tests a veces solo plot_width / plot_right.
+    my $w = $scales->{width}
+         // $scales->{plot_right}
+         // $scales->{plot_width}
+         // 0;
     $w = 1 if $w < 1;
     return ( -120, $w + 120 );
 }
@@ -110,27 +114,31 @@ sub draw {
     my $fvg_bear = $self->{theme}{fvg_bear}       // '#ef5350';
     my $fvg_mit  = $self->{theme}{fvg_mit}        // '#9e9e9e';
 
+    # Anclaje X como TV (bar_index / bar_time visual): centro de vela.
+    # Antes: index_to_x (borde izq. del slot) → la caja se salía a la izquierda
+    # de la vela (misma clase de bug que OB en SMC Pro).
     my $x_center = sub {
         my ($g) = @_;
         return $scales->index_to_center_x( ( $g // 0 ) - $win_start );
-    };
-    my $x_left = sub {
-        my ($g) = @_;
-        return $scales->index_to_x( ( $g // 0 ) - $win_start );
-    };
-    my $x_right = sub {
-        my ($g) = @_;
-        return $scales->index_to_x( ( $g // 0 ) - $win_start + 1 );
     };
     my $y_of = sub {
         my ($p) = @_;
         return $scales->value_to_y($p);
     };
 
-    # 1) FVG boxes
+    # 1) FVG boxes — left/right en centro de vela (Pine left=bar-2, right=bar_index)
     for my $f ( @{ $self->{_fvgs} } ) {
-        my $x1 = $x_left->( $f->{left}  // $f->{index} );
-        my $x2 = $x_right->( $f->{right} // $f->{index} );
+        my $li = $f->{left}  // $f->{index} // 0;
+        my $ri = $f->{right} // $f->{index} // $li;
+        my $x1 = $x_center->($li);
+        my $x2 = $x_center->($ri);
+        # Si left==right, dar ancho de 1 slot (borde dcho. del mismo bar)
+        if ( !defined $x2 || $x2 <= $x1 ) {
+            my $loc  = $ri - $win_start;
+            my $half = abs( $scales->index_to_center_x($loc) - $scales->index_to_x($loc) );
+            $half = 4 if $half < 1;
+            $x2 = $x1 + 2 * $half;
+        }
         my @cx = $self->_clip_x( $scales, $x1, $x2 );
         next unless @cx;
         ( $x1, $x2 ) = @cx;
@@ -153,7 +161,8 @@ sub draw {
                 ( $x1 + $x2 ) / 2,
                 ( $y1 + $y2 ) / 2,
                 -text => 'FVG',
-                -fill => '#ffffff',
+                # Negro: legible sobre fondo oscuro de la app y sobre stipple rojo/verde.
+                -fill => $self->{theme}{fvg_label} // '#000000',
                 -font => [ 'TkDefaultFont', 7 ],
                 -tags => [ $tag, 'sfvg_lbl' ],
             );
