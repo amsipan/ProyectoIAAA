@@ -437,7 +437,7 @@ if ($ENV{MARKET_RELOAD}) {
     $p->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
     $p->Checkbutton(-text => 'SMC Pro', -variable => \$vis_smc_pro,
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
-    $p->Checkbutton(-text => 'FVG (Structures)', -variable => \$vis_smc_fvg,
+    $p->Checkbutton(-text => 'SMC Structures+FVG', -variable => \$vis_smc_fvg,
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'Liquidez', -variable => \$vis_liq,
         -command => sub { $set_overlay_visible->('liq', $vis_liq ? 1 : 0); })->pack(-side => 'left');
@@ -602,7 +602,7 @@ if ($ENV{MARKET_RELOAD}) {
         -text => $overlay_button_text->($vis_smc_fvg),
         -command => sub { $toggle_overlay_visible->('smc_fvg'); },
     )->pack(-side => 'left', -padx => 2);
-    $main_box->Label(-text => 'FVG Structures')->pack(-side => 'left');
+    $main_box->Label(-text => 'SMC Structures+FVG')->pack(-side => 'left');
     my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $info_box->Label(
         -text => 'Config = capturas profe (Neon + LudoGH). Sin Mxwll. Sin density filter.',

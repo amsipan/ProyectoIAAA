@@ -28,16 +28,19 @@ Eliminar registro activo `mxwll` y el antiguo `smc` híbrido.
 - FVG Pro OFF  
 - Daily/Weekly/Monthly H/L ON  
 
-### Structures + FVG
+### Structures + FVG (LudoGH68) — captura profe
 
-- Display FVG ON; reduce mitigated ON; max 5  
-- Break with body OFF; current structure OFF  
-- BOS gray; CHoCH bull green / bear red  
-- Breaks history 10; all structure fibs OFF  
+- Display FVG **ON**; Reduce mitigated **ON**; Number of FVG **5**  
+- Break with candle's body **OFF**; Display current structure **OFF**  
+- BOS bull/bear **gray**; CHoCH bull **green** / bear **red**; width **1**  
+- Number of breaks **10**; all Structure Fibonacci levels **OFF**  
+- Source: `docs/reference_indicators/smc_structures_and_fvg_ludogh68.txt`  
+- Runtime: `Market::Indicators::SMC_Structures_FVG` + `Overlays::SMC_Structures_FVG`  
+- **No** usar `SMC_Structures` legacy ni FVG de Mxwll/SMC Pro para esta capa  
 
 ## UI
 
-Toggles claros: **SMC Pro** | **FVG (Structures)**.  
+Toggles: **SMC Pro** | **SMC Structures+FVG**.  
 Sin pestaña Mxwll. Sin density filter en estas capas (100% para paridad TV).
 
 ## Criterios de aceptación
