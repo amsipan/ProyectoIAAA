@@ -6,12 +6,18 @@ use warnings;
 # Market::Indicators::ZigZag — dirección interna (MTF) + externa (swing)
 # Task 0033: dos ZigZag conviven con SMC/Mxwll; cálculo puro sin Tk.
 #
-# Interno (ZZMTF): resolución HTF configurable (default 30m), period=2.
-#   Pivotes ph/pl con ventana len desde newbar; dir +1/-1; vértices consolidados
-#   vs último ajustable (add_to_zigzag / update_zigzag del .pine).
+# Interno (ZZMTF / LonesomeTheBlue): resolución HTF (default 30m profe), period=2.
+#   Captura profe: Show Zig Zag ON; Fibonacci OFF; colores verde/rojo.
+#   Source: docs/reference_indicators/zigzag_mtf_fibonacci_lonesometheblue.txt
+#   Pivotes ph/pl con ventana len desde newbar; dir +1/-1; último tramo ajustable.
+#
 # Externo (ChartPrime): swingLength=150, solo línea zigzag azul.
-# Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF → solo oscilación.
+#   Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF.
 #   Source: docs/reference_indicators/zigzag_volumeprofile_chartprime.txt
+#   max_external_segments=15 (paridad visual TV).
+#
+# compute_internal / compute_external: on-demand (producto 3.2).
+# external_only=1 ⇒ no calcular interno (compat fase 3.1 / atajos).
 #
 # Contrato: new / update_last($md,$i) / get_values / reset
 # =============================================================================
@@ -19,21 +25,41 @@ use warnings;
 use Time::Moment;
 
 my $MAX_VERTICES = 50;
+# ChartPrime: Amount of ZigZag Volume Profiles = 15 (captura profe)
+my $DEFAULT_MAX_EXT_SEGS = 15;
 
 sub new {
     my ($class, %args) = @_;
+    # Compat: external_only=1 → no interno. Si se pasa compute_*, gana compute_*.
+    my $external_only = exists $args{external_only} ? ( $args{external_only} ? 1 : 0 ) : 0;
+    my $compute_internal =
+        exists $args{compute_internal}
+      ? ( $args{compute_internal} ? 1 : 0 )
+      : ( $external_only ? 0 : 1 );
+    my $compute_external =
+        exists $args{compute_external} ? ( $args{compute_external} ? 1 : 0 ) : 1;
+
     my $self = {
-        # Fase 3.1: externo ChartPrime Length=150 (captura profe)
+        # ZZMTF captura profe: Resolution 30, Period 2, Show ZZ only (sin fib)
         internal_resolution => $args{internal_resolution} // 30,
         internal_period     => $args{internal_period}     // 2,
+        # ChartPrime captura profe: Length 150
         swing_length        => $args{swing_length}        // 150,
         atr_period          => $args{atr_period}          // 200,
         channel_width       => $args{channel_width}       // 1,
         channel_max_span    => $args{channel_max_span}    // 220,
-        # 1 = no calcular ZZ interno MTF (producto fase 3.1). Default 0 = tests t/24.
-        external_only       => exists $args{external_only} ? ($args{external_only} ? 1 : 0) : 0,
-        %args,
+        external_only       => $external_only,
+        compute_internal    => $compute_internal,
+        compute_external    => $compute_external,
+        max_external_segments => $args{max_external_segments} // $DEFAULT_MAX_EXT_SEGS,
     };
+    # No %args al final: evita que keys sueltas pisen flags ya resueltos.
+    for my $k ( keys %args ) {
+        next if $k =~ /^(?:external_only|compute_internal|compute_external|
+            internal_resolution|internal_period|swing_length|atr_period|
+            channel_width|channel_max_span|max_external_segments)$/x;
+        $self->{$k} = $args{$k};
+    }
     bless $self, $class;
     $self->reset();
     return $self;
@@ -77,9 +103,26 @@ sub set_internal_resolution {
 
 sub set_external_only {
     my ( $self, $bool ) = @_;
-    $self->{external_only} = $bool ? 1 : 0;
+    $self->{external_only}    = $bool ? 1 : 0;
+    $self->{compute_internal} = $bool ? 0 : 1;
     return $self;
 }
+
+sub set_compute_internal {
+    my ( $self, $bool ) = @_;
+    $self->{compute_internal} = $bool ? 1 : 0;
+    $self->{external_only}    = $self->{compute_internal} ? 0 : 1;
+    return $self;
+}
+
+sub set_compute_external {
+    my ( $self, $bool ) = @_;
+    $self->{compute_external} = $bool ? 1 : 0;
+    return $self;
+}
+
+sub wants_internal { $_[0]->{compute_internal} ? 1 : 0 }
+sub wants_external { $_[0]->{compute_external} ? 1 : 0 }
 
 sub update_last {
     my ($self, $market_data, $index) = @_;
@@ -89,21 +132,26 @@ sub update_last {
     return unless $candle;
     my ($ts, $open, $high, $low, $close) = @$candle[0 .. 4];
 
-    # Fase 3.1: solo externo (ChartPrime). Interno se reactiva en 3.2.
-    unless ( $self->{external_only} ) {
+    # On-demand: ZZMTF interno y/o ChartPrime externo (producto 3.2).
+    if ( $self->{compute_internal} ) {
         $self->_update_internal( $market_data, $index, $ts, $high, $low );
     }
-    $self->_update_external( $index, $high, $low, $close );
+    if ( $self->{compute_external} ) {
+        $self->_update_external( $index, $high, $low, $close );
+    }
 
     $self->{internal_direction}[$index] =
-        $self->{external_only}
-      ? 0
-      : ( $self->{_int_dir}
+        $self->{compute_internal}
+      ? ( $self->{_int_dir}
           ? $self->{_int_dir}
-          : ( $index > 0 ? ( $self->{internal_direction}[ $index - 1 ] // 0 ) : 0 ) );
-    $self->{external_direction}[$index] = defined $self->{_ext_bullish}
-        ? ( $self->{_ext_bullish} ? 1 : -1 )
-        : ( $index > 0 ? ( $self->{external_direction}[ $index - 1 ] // 0 ) : 0 );
+          : ( $index > 0 ? ( $self->{internal_direction}[ $index - 1 ] // 0 ) : 0 ) )
+      : 0;
+    $self->{external_direction}[$index] =
+        $self->{compute_external}
+      ? ( defined $self->{_ext_bullish}
+          ? ( $self->{_ext_bullish} ? 1 : -1 )
+          : ( $index > 0 ? ( $self->{external_direction}[ $index - 1 ] // 0 ) : 0 ) )
+      : 0;
     return $self;
 }
 
@@ -415,9 +463,13 @@ sub _update_external {
     my $at_high = defined $swing_high && $high >= $swing_high - 1e-9;
     my $at_low  = defined $swing_low  && $low  <= $swing_low  + 1e-9;
 
+    # ChartPrime (zigzag_volumeprofile_chartprime.txt):
+    #   priceHigh := low[1]  en el swing high  → vértice en la PARTE INFERIOR de la vela del máximo
+    #   priceLow  := low[1]  en el swing low   → vértice en el low de la vela del mínimo
+    # No usar high del extremo superior (eso es lo que veía el usuario en la app).
     if ($at_high) {
         $self->{_ext_pivot_high_idx}   = $index;
-        $self->{_ext_pivot_high_price} = $high;
+        $self->{_ext_pivot_high_price} = $low;
     }
     if ($at_low) {
         $self->{_ext_pivot_low_idx}    = $index;
@@ -452,10 +504,11 @@ sub _update_external {
         }
         $self->{_ext_trend} = $new_trend;
     } elsif (defined $new_trend) {
+        # Actualizar extremo del tramo activo: siempre con low (paridad ChartPrime)
         if ($new_trend > 0 && $at_high) {
-            $self->_ext_update_last($index, $high);
+            $self->_ext_update_last( $index, $low );
         } elsif ($new_trend < 0 && $at_low) {
-            $self->_ext_update_last($index, $low);
+            $self->_ext_update_last( $index, $low );
         }
     }
 
@@ -467,7 +520,7 @@ sub _ext_start_segment {
     return unless defined $i0 && defined $p0 && defined $i1 && defined $p1;
     push @{ $self->{_ext_vertices} }, { index => $i0, price => $p0 };
     push @{ $self->{_ext_vertices} }, { index => $i1, price => $p1 };
-    shift @{ $self->{_ext_vertices} } while @{ $self->{_ext_vertices} } > $MAX_VERTICES * 2;
+    $self->_trim_external_history();
     $self->_rebuild_external_segments();
 }
 
@@ -476,6 +529,24 @@ sub _ext_update_last {
     return unless @{ $self->{_ext_vertices} };
     $self->{_ext_vertices}[-1] = { index => $index, price => $price };
     $self->_rebuild_external_segments();
+}
+
+# ChartPrime: if SProfile.size() > volumeProfilesQty (15) → shift y zg.delete().
+# Cada segmento externo = 2 vértices (par). Conservar los N pares más recientes.
+sub _trim_external_history {
+    my ($self) = @_;
+    my $max_segs = $self->{max_external_segments} // $DEFAULT_MAX_EXT_SEGS;
+    $max_segs = $DEFAULT_MAX_EXT_SEGS if $max_segs < 1;
+    my $max_verts = $max_segs * 2;
+    # Techo duro también por MAX_VERTICES (interno/histórico)
+    my $hard = $MAX_VERTICES * 2;
+    $max_verts = $hard if $max_verts > $hard;
+    my $v = $self->{_ext_vertices} ||= [];
+    while ( @$v > $max_verts ) {
+        shift @$v;
+        shift @$v if @$v;    # quitar el par completo (inicio+fin del tramo más viejo)
+    }
+    return $self;
 }
 
 sub _rebuild_external_segments {
@@ -495,6 +566,11 @@ sub _rebuild_external_segments {
             dir          => $dir,
             consolidated => ($i < @verts - 2) ? 1 : 0,
         };
+    }
+    # Defensa: no más de max_external_segments (por si el buffer quedó impar)
+    my $max_segs = $self->{max_external_segments} // $DEFAULT_MAX_EXT_SEGS;
+    while ( @segs > $max_segs ) {
+        shift @segs;
     }
     $self->{_ext_segments} = \@segs;
 }

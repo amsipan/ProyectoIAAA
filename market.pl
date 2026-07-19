@@ -224,7 +224,10 @@ my $vis_liq = 0;
 my $vis_strategy = 0;
 my $vis_vp = 0;
 my $vis_vwap = 0;
-my $vis_zigzag = 0;
+# ZigZag: capas independientes (profe: externo ChartPrime + interno ZZMTF)
+my $vis_zz_ext = 0;
+my $vis_zz_int = 0;
+my $vis_zigzag = 0;    # legacy: true si alguno de los dos está ON
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 # Densidad: funcionalidad a eliminar. No panel UI. No usar en paridad SMC/TV
 # ni en features nuevas. API interna Liq/ZigZag queda al 100% (sin recorte)
@@ -235,7 +238,8 @@ if ($chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_densi
 if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set_density_pct')) {
     $chart_engine->{zigzag_overlay}->set_density_pct(100);
 }
-my %vis_zzelem = ( INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 );
+my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
+# Default profe ZZMTF: Resolution 30 min, Period 2, Show ZigZag only
 my $zigzag_resolution = 30;
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
@@ -306,7 +310,29 @@ my $toggle_overlay_visible = sub {
     $set_overlay_visible->($name, ${ $overlay_state_ref{$name} } ? 0 : 1);
 };
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
-               qw(15 30 60);
+               qw(15 30 60 120);
+# Toggle por capa ZZ (INTERNAL / EXTERNAL) con re-feed on-demand
+my $set_zz_layer = sub {
+    my ( $elem, $on ) = @_;
+    $elem = uc($elem // '');
+    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL';
+    $on = $on ? 1 : 0;
+    if ( $elem eq 'INTERNAL' ) {
+        $vis_zz_int = $on;
+        $vis_zzelem{INTERNAL} = $on;
+    }
+    else {
+        $vis_zz_ext = $on;
+        $vis_zzelem{EXTERNAL} = $on;
+    }
+    $vis_zigzag = ( $vis_zz_int || $vis_zz_ext ) ? 1 : 0;
+    if ( $chart_engine->can('set_zigzag_layer') ) {
+        $chart_engine->set_zigzag_layer( $elem, $on );
+    }
+    elsif ( $cb_zzelem{$elem} ) {
+        $cb_zzelem{$elem}->($on);
+    }
+};
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();
@@ -341,8 +367,8 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 }
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
-# --- FASE ACTUAL: SMC + HLD + Parallel Channel + ZigZag externo ---
-# PASO A PASO: Liq / Strategy / VWAP / VP / ZZ-interno desactivados.
+# --- FASE ACTUAL: SMC + HLD + Parallel Channel + ZigZag ext/int ---
+# PASO A PASO: Liq / Strategy / VWAP / VP / Fibonacci desactivados.
 my %panel;
 $panel{$_} = $panel_row->Frame() for qw(Capas SMC Escala Replay);
 
@@ -467,9 +493,32 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
         -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
-    # ZigZag externo ChartPrime (captura profe: solo línea, VP/Channel/PoC OFF)
-    $p->Checkbutton(-text => 'ZigZag externo', -variable => \$vis_zigzag,
-        -command => sub { $set_overlay_visible->('zigzag', $vis_zigzag ? 1 : 0); })->pack(-side => 'left');
+    # ZigZag externo ChartPrime (Length 150; VP/Channel/PoC OFF → solo azul)
+    $p->Checkbutton(
+        -text     => 'ZigZag externo',
+        -variable => \$vis_zz_ext,
+        -command  => sub { $set_zz_layer->( 'EXTERNAL', $vis_zz_ext ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+    # ZigZag interno ZZMTF (Show ZZ ON; fib OFF; verde/rojo; res 15/30/60)
+    $p->Checkbutton(
+        -text     => 'ZigZag interno',
+        -variable => \$vis_zz_int,
+        -command  => sub { $set_zz_layer->( 'INTERNAL', $vis_zz_int ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+    # Resolución MTF del ZZMTF (profe: 15, 30 o 60; default 30; 120=2h opcional)
+    my $zz_res_box = $p->Frame()->pack( -side => 'left', -padx => 4 );
+    $zz_res_box->Label( -text => 'ZZ int:', -fg => '#555' )->pack( -side => 'left' );
+    for my $mins (qw(15 30 60)) {
+        $zz_res_box->Radiobutton(
+            -text     => "${mins}m",
+            -value    => $mins,
+            -variable => \$zigzag_resolution,
+            -command  => sub {
+                $zigzag_resolution = $mins;
+                $cb_zzres{$mins}->() if $cb_zzres{$mins};
+            },
+        )->pack( -side => 'left' );
+    }
 
     # Parallel Channel (herramienta TV del video del profe)
     my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);

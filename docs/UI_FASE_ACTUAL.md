@@ -10,10 +10,12 @@
 | **Parallel Channel** | Herramienta TV (3 clics); un canal a la vez |
 | **HLD (4h/D)** | S/R de vela HTF (algoritmo profe, sin Pine); solo TF **4h** y **D** |
 | **ZigZag externo** | ChartPrime captura profe: **Length 150**, solo línea azul; VP/Channel/PoC **OFF** |
+| **ZigZag interno** | ZZMTF (LonesomeTheBlue): **Resolution 30** (UI 15/30/60), **Period 2**, **Show ZigZag ON**, Fibonacci **OFF**, colores **verde/rojo** |
 
 ## Desactivado (código conservado)
 
-- ZigZag **interno** / canal por pierna ZZ (fase 3.2+)
+- Fibonacci del ZZMTF / auto-fib en externo consolidado (fase 4)
+- Canal por pierna ZZ / Swing Channel ChartPrime
 - Liquidity
 - Strategy Builder
 - Anchored VWAP / Volume Profile

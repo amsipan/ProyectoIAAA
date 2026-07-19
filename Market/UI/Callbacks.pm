@@ -918,9 +918,17 @@ sub make_zigzag_element_toggle {
     die "make_zigzag_element_toggle: requiere \$element" unless defined $element;
     return sub {
         my ($on) = @_;
+        # INTERNAL/EXTERNAL: set_zigzag_layer (compute on-demand + re-feed).
+        # CHANNEL u otros: solo visibilidad de elemento (sin recálculo).
+        if ( $chart->can('set_zigzag_layer')
+            && ( uc($element) eq 'INTERNAL' || uc($element) eq 'EXTERNAL' ) )
+        {
+            $chart->set_zigzag_layer( $element, $on ? 1 : 0 );
+            return;
+        }
         my $ov = $chart->{zigzag_overlay};
         return unless $ov && $ov->can('set_element_visible');
-        $ov->set_element_visible($element, $on ? 1 : 0);
+        $ov->set_element_visible( $element, $on ? 1 : 0 );
         $chart->request_render();
     };
 }

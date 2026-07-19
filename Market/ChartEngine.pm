@@ -166,9 +166,10 @@ sub new {
     $self->{_smc_fvg_fed_up_to} = -1;
 
     # --- FASE ACTUAL ---
-    # Activo: SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag externo.
+    # Activo: SMC Pro, Structures+FVG, HLD, Parallel Channel,
+    #         ZigZag externo (ChartPrime) + ZigZag interno (ZZMTF).
     # Desactivado (no registrar): Liquidity, Strategy, VP, VWAP, Mxwll.
-    # ZZ interno/canal se dejan OFF en el overlay (fase 3.2+).
+    # ZZ CHANNEL / Fibonacci: OFF (captura profe).
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
     $self->{hld_indicator} = Market::Indicators::HLD->new();
@@ -193,16 +194,21 @@ sub new {
     );
     $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
 
-    # ZigZag externo — ChartPrime captura profe (Length 150; VP/Channel/PoC OFF)
+    # ZigZag — externo ChartPrime + interno ZZMTF (capturas profe).
+    # Defaults: res 30 / period 2 / sin fib; elementos OFF hasta toggle UI.
+    # compute_* arranca en 0: se activa al encender cada capa (on-demand).
     $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
-        swing_length  => 150,
-        external_only => 1,
+        swing_length        => 150,
+        internal_resolution => 30,
+        internal_period     => 2,
+        compute_internal    => 0,
+        compute_external    => 0,
     );
     $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
         indicator => $self->{zigzag_indicator},
         theme     => $self->{theme},
         visible   => 0,
-        elements  => { INTERNAL => 0, EXTERNAL => 1, CHANNEL => 0 },
+        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 },
     );
     $self->{overlay_manager}->register( 'zigzag', $self->{zigzag_overlay} );
     $self->{_zigzag_fed_up_to} = -1;
@@ -396,7 +402,46 @@ sub set_zigzag_internal_resolution {
     return unless $self->{zigzag_indicator};
     $self->{zigzag_indicator}->set_internal_resolution($minutes);
     $self->{_zigzag_fed_up_to} = -1;
+    # Re-feed inmediato si la capa está visible (cambio 15/30/60 del profe).
+    if ( $self->_overlay_wants_feed('zigzag') ) {
+        $self->sync_overlay_indicators();
+    }
     $self->request_render();
+}
+
+# set_zigzag_layer($elem, $on) — enciende/apaga INTERNAL o EXTERNAL.
+# Sincroniza element visibility, compute_* on-demand y visible del overlay
+# (visible si al menos un elemento ZZ está ON). Re-feed completo al cambiar.
+sub set_zigzag_layer {
+    my ( $self, $elem, $on ) = @_;
+    return unless $self->{zigzag_indicator} && $self->{zigzag_overlay};
+    $elem = uc( $elem // '' );
+    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL';
+    $on = $on ? 1 : 0;
+
+    my $ov  = $self->{zigzag_overlay};
+    my $ind = $self->{zigzag_indicator};
+    $ov->set_element_visible( $elem, $on );
+    if ( $elem eq 'INTERNAL' ) {
+        $ind->set_compute_internal($on);
+    }
+    else {
+        $ind->set_compute_external($on);
+    }
+
+    my $any =
+         ( $ov->is_element_visible('INTERNAL') ? 1 : 0 )
+      || ( $ov->is_element_visible('EXTERNAL') ? 1 : 0 );
+    $ov->set_visible($any);
+
+    # Flags de cómputo cambiaron → hay que recalcular desde cero.
+    $ind->reset();
+    $self->{_zigzag_fed_up_to} = -1;
+    if ($any) {
+        $self->sync_overlay_indicators();
+    }
+    $self->request_render();
+    return $self;
 }
 
 # _overlay_wants_feed($name) — true si el indicador asociado debe alimentarse:

@@ -4,8 +4,11 @@ use warnings;
 
 # =============================================================================
 # Market::Overlays::ZigZag — render ZZ
-# Fase 3.1 profe (ChartPrime captura): SOLO EXTERNAL (azul).
-# INTERNAL / CHANNEL off (interno = fase 3.2; canal ChartPrime Display OFF).
+# Fase 3.2 profe:
+#   INTERNAL = ZZMTF (verde/rojo, Resolution 30, Period 2, fib OFF)
+#   EXTERNAL = ChartPrime (azul, Length 150, VP/Channel/PoC OFF)
+#   CHANNEL  = OFF (Swing Channel ChartPrime Display OFF; no canal clásico)
+# Defaults de elementos los fija ChartEngine/UI; aquí EXTERNAL=1, INTERNAL=0.
 # =============================================================================
 
 my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
@@ -14,7 +17,7 @@ sub new {
     my ($class, %args) = @_;
     die "Overlays::ZigZag->new: requiere 'indicator'"
         unless defined $args{indicator};
-    # Defaults captura profe: solo línea zigzag externa
+    # Defaults: externo listo; interno se enciende por UI (ZigZag interno)
     my $elems = $args{elements} // {
         INTERNAL => 0,
         EXTERNAL => 1,
