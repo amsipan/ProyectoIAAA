@@ -88,22 +88,31 @@ use Market::Overlays::FibRetracement;
     is( $hit->{from_price}, 30000, 'elige pierna bajista cercana' );
 }
 
-# 4. extend_to_last hasta data_end
+# 4. Ancho = p1/p2; al mover p1 se mueve el borde de la caja
 {
     my $d = Market::Drawing::FibRetracement->new();
     $d->set_from_points(
         { index => 10, price => 30000 },
         { index => 40, price => 28408 },
     );
+    my $geo0 = $d->geometry_for( $d->get_fib(), data_end => 200, view_end => 100 );
+    is( $geo0->{left_index},  10, 'left = min(p1,p2)' );
+    is( $geo0->{right_index}, 40, 'right = max(p1,p2)' );
+
+    $d->set_p1( { index => 5, price => 30100 } );
+    my $geo1 = $d->geometry_for( $d->get_fib(), data_end => 200, view_end => 100 );
+    is( $geo1->{left_index},  5,  'mover p1 a la izq mueve el inicio de la caja' );
+    is( $geo1->{right_index}, 40, 'p2 sigue anclando el fin' );
+
+    $d->set_p2( { index => 60, price => 28300 } );
+    my $geo2 = $d->geometry_for( $d->get_fib(), data_end => 200, view_end => 100 );
+    is( $geo2->{left_index},  5,  'left sigue en p1' );
+    is( $geo2->{right_index}, 60, 'mover p2 mueve el fin de la caja' );
+
     $d->set_extend_to_last(1);
-    my $geo = $d->geometry_for(
-        $d->get_fib(),
-        data_end   => 200,
-        view_start => 0,
-        view_end   => 100,
-    );
-    is( $geo->{right_index}, 200, 'extend_to_last → right=data_end' );
-    ok( $geo->{left_index} <= 40, 'left sigue en anclas' );
+    my $geo3 = $d->geometry_for( $d->get_fib(), data_end => 200, view_end => 100 );
+    is( $geo3->{right_index}, 200, 'extend_to_last → right=data_end' );
+    is( $geo3->{left_index},  5,   'left sigue en anclas' );
 }
 
 # 5. Labels fuera: createText con anchor e (lado izquierdo)

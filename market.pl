@@ -335,6 +335,14 @@ my $set_zz_layer = sub {
         $cb_zzelem{$elem}->($on);
     }
 };
+# Fib "Desde ZZ ext" activa el overlay externo → marcar checkbox en la UI
+$chart_engine->{zz_external_ui_sync} = sub {
+    my ($on) = @_;
+    $on = $on ? 1 : 0;
+    $vis_zz_ext = $on;
+    $vis_zzelem{EXTERNAL} = $on;
+    $vis_zigzag = ( $vis_zz_int || $vis_zz_ext ) ? 1 : 0;
+};
 my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();

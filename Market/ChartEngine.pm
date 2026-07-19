@@ -4740,15 +4740,12 @@ sub start_fib_pick_zz {
     $self->cancel_parallel_channel_tool()
       if $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active();
 
-    # Asegurar ZZ externo calculado y visible-feed
+    # Activar ZZ externo (cálculo + overlay) y sincronizar checkbox UI
     if ( $self->{zigzag_indicator} && $self->{zigzag_indicator}->can('set_compute_external') ) {
-        $self->{zigzag_indicator}->set_compute_external(1);
-        if ( $self->{zigzag_overlay} ) {
-            $self->{zigzag_overlay}->set_element_visible( 'EXTERNAL', 1 );
-            $self->{zigzag_overlay}->set_visible(1);
-        }
-        $self->{_zigzag_fed_up_to} = -1;
-        $self->sync_overlay_indicators();
+        $self->set_zigzag_layer( 'EXTERNAL', 1 );
+    }
+    if ( ref( $self->{zz_external_ui_sync} ) eq 'CODE' ) {
+        $self->{zz_external_ui_sync}->(1);
     }
 
     $self->{fib_drawing}->start_pick_zz();
@@ -4863,14 +4860,12 @@ sub _fib_drag_to {
     return unless $scale && $scale->can('y_to_value');
     my $price = $scale->y_to_value($y);
 
+    # Solo anclas p1/p2: al moverlas, geometry_for recalcula el ancho de la caja
     if ( $handle eq 'p1' && defined $idx && defined $price ) {
         $draw->set_p1( { index => $idx, price => $price } );
     }
     elsif ( $handle eq 'p2' && defined $idx && defined $price ) {
         $draw->set_p2( { index => $idx, price => $price } );
-    }
-    elsif ( $handle eq 'right' && defined $idx ) {
-        $draw->set_right_index($idx);
     }
     $self->request_render();
 }

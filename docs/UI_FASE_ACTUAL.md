@@ -32,9 +32,10 @@ Base nativa **15m** (`Data/tv_nq1_15m.csv`). 4h/D se agregan desde 15m.
 
 1. **Fib Retracement** → clic 1 (nivel **1**) y clic 2 (nivel **0**), como en TV.
 2. **Desde ZZ ext** → modo “elige pierna”: clic en la **línea azul** del ZZ externo que quieras (no elige al azar). Impulso from→to = 1→0 (bajista: 1 arriba, 0 abajo).
-3. Arrastrar handles **azules** (p1/p2) o el naranja derecho para ajustar.
-4. **Hasta última vela** → proyecta la caja solo hasta la última vela del dataset (no más allá).
-5. **Borrar Fib** / Esc cancela el modo.
+3. Arrastrar handles **azules** (p1/p2): mueven precio **e** índice; la caja y las etiquetas se mueven con ellos (sin handles de ancho sueltos).
+4. **Hasta última vela** → proyecta la caja solo hasta la última vela del dataset.
+5. **Desde ZZ ext** también marca el checkbox **ZigZag externo** en Capas.
+6. **Borrar Fib** / Esc cancela el modo.
 
 ## HLD — recordatorio
 

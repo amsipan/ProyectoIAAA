@@ -166,7 +166,7 @@ sub _paint_fib {
         }
     }
 
-    # Handles anclas p1 / p2
+    # Handles solo en p1 y p2 (TV: mover ancla mueve caja + labels en X e Y)
     for my $name (qw(p1 p2)) {
         my $pt = $geo->{$name} or next;
         my $x  = $x_of->( $pt->{index} );
@@ -182,20 +182,6 @@ sub _paint_fib {
             1;
         };
     }
-
-    # Solo handle derecho para ampliar (sin Ext L/R fijos)
-    my $ymid = @$levels
-      ? $y_of->( ( $levels->[0]{price} + $levels->[-1]{price} ) / 2 )
-      : 100;
-    eval {
-        $canvas->createRectangle(
-            $x1 - 3, $ymid - 10, $x1 + 3, $ymid + 10,
-            -outline => '#ffffff',
-            -fill    => '#ff9800',
-            -tags    => [ $tag, 'fib_handle_right' ],
-        );
-        1;
-    };
 }
 
 sub _fmt_price {
@@ -242,7 +228,7 @@ sub _paint_draft {
     }
 }
 
-# hit_test → 'p1'|'p2'|'right'|undef  (left handle eliminado)
+# hit_test → solo 'p1'|'p2' (sin handles de ancho independientes)
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -269,18 +255,6 @@ sub hit_test {
     if ( $p2 && $near->( $x_of->( $p2->{index} ), $y_of->( $p2->{price} ), 12 ) ) {
         return 'p2';
     }
-
-    my $geo = $draw->geometry_for(
-        $fib,
-        data_end   => $self->{_data_end} // ( $self->{_range}[1] // 0 ),
-        view_start => $win_start,
-        view_end   => $self->{_range}[1] // 0,
-    );
-    return undef unless $geo;
-    my $x1   = $x_of->( $geo->{right_index} );
-    my @lv   = @{ $geo->{levels} || [] };
-    my $ymid = @lv ? $y_of->( ( $lv[0]{price} + $lv[-1]{price} ) / 2 ) : 0;
-    if ( $near->( $x1, $ymid, 14 ) ) { return 'right' }
     return undef;
 }
 

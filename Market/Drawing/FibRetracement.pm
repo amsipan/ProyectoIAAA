@@ -126,18 +126,16 @@ sub _commit_draft {
 }
 
 # set_from_points($p1, $p2) — p1 = nivel 1, p2 = nivel 0 (convención TV)
+# El ancho de la caja = siempre min/max de p1.index y p2.index (como TV).
+# No hay bordes de ancho independientes de los anclajes.
 sub set_from_points {
     my ( $self, $p1, $p2 ) = @_;
     return undef unless ref($p1) eq 'HASH' && ref($p2) eq 'HASH';
     my $i1 = 0 + ( $p1->{index} // 0 );
     my $i2 = 0 + ( $p2->{index} // 0 );
-    my $lo = $i1 < $i2 ? $i1 : $i2;
-    my $hi = $i1 > $i2 ? $i1 : $i2;
     $self->{fib} = {
         p1             => { index => $i1, price => 0 + $p1->{price} },
         p2             => { index => $i2, price => 0 + $p2->{price} },
-        left_index     => $lo,
-        right_index    => $hi,
         extend_to_last => $self->{extend_to_last} ? 1 : 0,
         background     => $self->{background}     ? 1 : 0,
         show_prices    => $self->{show_prices}    ? 1 : 0,
@@ -145,6 +143,16 @@ sub set_from_points {
         levels         => [ map { { %$_ } } @{ $self->{levels} || default_levels() } ],
     };
     return $self->{fib};
+}
+
+# Span horizontal de la caja: min/max de los índices de p1 y p2
+sub _span_indices {
+    my ( $self, $fib ) = @_;
+    $fib //= $self->{fib};
+    return ( 0, 0 ) unless $fib && $fib->{p1} && $fib->{p2};
+    my $i1 = $fib->{p1}{index} // 0;
+    my $i2 = $fib->{p2}{index} // 0;
+    return $i1 <= $i2 ? ( $i1, $i2 ) : ( $i2, $i1 );
 }
 
 # set_from_zz_leg($seg) — pierna del ZZ externo (from→to = impulso = 1→0)
@@ -177,6 +185,7 @@ sub set_extend_to_last {
     return $self;
 }
 
+# Mover p1: precio e índice; la caja (ancho + labels) se recalcula desde p1/p2
 sub set_p1 {
     my ( $self, $pt ) = @_;
     return $self unless $self->{fib} && ref($pt) eq 'HASH';
@@ -194,23 +203,6 @@ sub set_p2 {
         index => 0 + ( $pt->{index} // $self->{fib}{p2}{index} ),
         price => 0 + ( $pt->{price} // $self->{fib}{p2}{price} ),
     };
-    return $self;
-}
-
-sub set_left_index {
-    my ( $self, $i ) = @_;
-    return $self unless $self->{fib} && defined $i;
-    $self->{fib}{left_index} = 0 + $i;
-    return $self;
-}
-
-sub set_right_index {
-    my ( $self, $i ) = @_;
-    return $self unless $self->{fib} && defined $i;
-    $self->{fib}{right_index} = 0 + $i;
-    # Si el usuario mueve el borde a mano, desactivar extend_to_last
-    $self->{fib}{extend_to_last} = 0;
-    $self->{extend_to_last}      = 0;
     return $self;
 }
 
@@ -234,22 +226,19 @@ sub level_prices {
     return \@out;
 }
 
-# geometry_for — x range; extend_to_last ⇒ right = data_end (última vela)
+# geometry_for — ancho = min/max de p1.index y p2.index (TV).
+# extend_to_last ⇒ right = data_end (última vela), sin handles de ancho.
 sub geometry_for {
     my ( $self, $fib, %opts ) = @_;
     $fib //= $self->{fib};
     return undef unless $fib && $fib->{p1} && $fib->{p2};
 
-    my $view_start = $opts{view_start} // 0;
-    my $view_end   = $opts{view_end}   // 0;
-    my $data_end   = $opts{data_end}   // $view_end;
+    my $view_end = $opts{view_end} // 0;
+    my $data_end = $opts{data_end} // $view_end;
 
-    my $left  = $fib->{left_index}  // $fib->{p1}{index};
-    my $right = $fib->{right_index} // $fib->{p2}{index};
-    $left = $right if $left > $right;
+    my ( $left, $right ) = $self->_span_indices($fib);
 
     if ( $fib->{extend_to_last} ) {
-        # Proyectar solo hasta la última vela disponible (no más allá)
         my $last = defined $data_end ? $data_end : $view_end;
         $right = $last if defined $last && $last > $right;
     }
