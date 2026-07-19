@@ -17,10 +17,8 @@ print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
 # ==========================================
 # 1. DATOS E INDICADORES BASE (solo lo de Fase 1 para arranque instantáneo)
 # ==========================================
-# task 0018 (F3): el arranque solo precomputa lo imprescindible para pintar como
-# en Fase 1 (velas + ATR). SMC/Liquidity se alimentan BAJO DEMANDA dentro de
-# ChartEngine cuando el usuario activa su capa; aquí NO se registran ni se
-# alimentan (antes había un SMC extra que duplicaba el cómputo sobre 29888 velas).
+# Producto oficial: ATR al arranque; capas SMC/ZZ/HLD bajo demanda
+# (docs/PRODUCTO_OFICIAL.md). Legacy Liquidity/Mxwll/VP/VWAP no se cargan.
 my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
@@ -214,83 +212,34 @@ $chart_engine->bind_replay_window_shortcuts($mw);
 
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
-# Estado de visibilidad de capas (overlays OFF por defecto — task 0018 F4).
-# spec 0013: SMC Pro + FVG(Structures); Mxwll eliminado de la UI de producto.
+# Capas producto oficial (OFF por defecto). Ver docs/PRODUCTO_OFICIAL.md
 my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
 my $vis_hld     = 0;
-my $vis_liq = 0;
-my $vis_strategy = 0;
-my $vis_vp = 0;
-my $vis_vwap = 0;
-# ZigZag: capas independientes (externo / interno)
 my $vis_zz_ext = 0;
 my $vis_zz_int = 0;
-my $vis_zigzag = 0;    # legacy: true si alguna capa ZZ está ON
-my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
-# Densidad: funcionalidad a eliminar. No panel UI. No usar en paridad SMC/TV
-# ni en features nuevas. API interna Liq/ZigZag queda al 100% (sin recorte)
-# hasta borrar el código en una iteración posterior.
-if ($chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_density_pct')) {
-    $chart_engine->{liq_overlay}->set_density_pct(100);
-}
+my $vis_zigzag = 0;    # true si alguna capa ZZ está ON
 if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set_density_pct')) {
     $chart_engine->{zigzag_overlay}->set_density_pct(100);
 }
 my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
-# Default profe ZZMTF: Resolution 30 min, Period 2, Show ZigZag only
 my $zigzag_resolution = 30;
-# Fib Retracement (drawing tool TV): proyectar hasta última vela
 my $fib_extend_to_last = 0;
 
-# Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
-# -variable explícito al callback (Tk no lo pasa solo en -command).
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
 my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
-my $cb_liq = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
-my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'strategy');
-my $cb_vwap = Market::UI::Callbacks->make_vwap_toggle($chart_engine);
-my $cb_vwap_reanchor = Market::UI::Callbacks->make_vwap_reanchor($chart_engine);
-my $cb_vwap_band = Market::UI::Callbacks->make_vwap_band_setter($chart_engine);
-# Defaults TradingView Anchored VWAP (captura profe): #1 on mult=1, #2/#3 off.
-my %vwap_band_on   = (1 => 1, 2 => 0, 3 => 0);
-my %vwap_band_mult = (1 => '1', 2 => '2', 3 => '3');
-my $cb_vp = Market::UI::Callbacks->make_vp_toggle($chart_engine);
-my $cb_vp_reanchor = Market::UI::Callbacks->make_vp_reanchor($chart_engine);
-my $cb_vp_settings = Market::UI::Callbacks->make_vp_settings_setter($chart_engine);
-# Defaults TV AVP: Number of Rows=24, Value Area=70, Volume=Total (azul).
-my $vp_row_size = '24';
-my $vp_va_pct   = '70';
 my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
-my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
-              qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
-my %vis_strategy_elem = (
-    SUPERTREND => 0, HALFTREND => 0, RANGEFILTER => 0, SUPPLY_DEMAND => 1,
-);
-my %cb_strategy_elem = map {
-    my $elem = $_;
-    $elem => sub {
-        my ($on) = @_;
-        my $ov = $chart_engine->{strategy_overlay};
-        return unless $ov && $ov->can('set_element_visible');
-        $ov->set_element_visible($elem, $on ? 1 : 0);
-        $chart_engine->request_render();
-    }
-} qw(SUPERTREND HALFTREND RANGEFILTER SUPPLY_DEMAND);
 my %overlay_state_ref = (
     smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
-    liq => \$vis_liq, strategy => \$vis_strategy,
-    vp => \$vis_vp, vwap => \$vis_vwap, zigzag => \$vis_zigzag,
+    zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
     smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
-    liq => $cb_liq, strategy => $cb_strategy,
-    vp => $cb_vp, vwap => $cb_vwap, zigzag => $cb_zigzag,
+    zigzag => $cb_zigzag,
 );
-# cb_vp ya es make_vp_toggle (ancla), no make_overlay_toggle genérico.
 my %overlay_button;
 my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
 my $refresh_overlay_button = sub {
@@ -713,12 +662,8 @@ my $maximized = eval { $mw->state('zoomed'); 1 };
 $maximized ||= eval { $mw->attributes('-zoomed', 1); 1 };
 $mw->update if $maximized;
 $mw->after(200, sub {
-    print "[*] Render inicial (Fase 1: velas + ATR; capas bajo demanda)...\n";
+    print "[*] Render inicial (producto oficial: velas + ATR; capas bajo demanda)...\n";
     $chart_engine->render();
-    # Precálculo no bloqueante: Liquidez/SMC se alimentan por pedazos mientras la
-    # app queda interactiva. Así activar Liquidez o subir densidad no congela la UI.
-    $chart_engine->enable_liquidity_background_feed(chunk_size => 300, after_ms => 40)
-        if $chart_engine->can('enable_liquidity_background_feed');
     $mw->after(200,  sub { $chart_engine->request_render(); });
     $mw->after(800,  sub { $chart_engine->request_render(); });
 });

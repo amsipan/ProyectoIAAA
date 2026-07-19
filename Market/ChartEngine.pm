@@ -15,14 +15,6 @@ use Market::Indicators::SMC_Structures_FVG;
 use Market::Overlays::SMC_Structures_FVG;
 use Market::Indicators::HLD;
 use Market::Overlays::HLD;
-use Market::Indicators::Liquidity;
-use Market::Overlays::Liquidity;
-use Market::Indicators::Strategy_Builder;
-use Market::Overlays::Strategy_Builder;
-use Market::Indicators::VolumeProfile;
-use Market::Overlays::VolumeProfile;
-use Market::Indicators::AnchoredVWAP;
-use Market::Overlays::AnchoredVWAP;
 use Market::Indicators::ZigZag;
 use Market::Overlays::ZigZag;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
@@ -151,7 +143,7 @@ sub new {
     $self->{overlay_manager}->register('smc_pro', $self->{smc_pro_overlay});
     $self->{_smc_pro_fed_up_to} = -1;
 
-    # Alias legacy: Liquidity y feed coordinado usan pivotes swing de SMC Pro.
+    # Alias smc → smc_pro (nombres antiguos / tests).
     $self->{smc_indicator} = $self->{smc_pro_indicator};
     $self->{smc_overlay}   = $self->{smc_pro_overlay};
     $self->{_smc_fed_up_to} = -1;
@@ -165,11 +157,9 @@ sub new {
     $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
     $self->{_smc_fvg_fed_up_to} = -1;
 
-    # --- FASE ACTUAL ---
-    # Activo: SMC Pro, Structures+FVG, HLD, Parallel Channel,
-    #         ZigZag externo (ChartPrime) + ZigZag interno (ZZMTF).
-    # Desactivado (no registrar): Liquidity, Strategy, VP, VWAP, Mxwll.
-    # ZZ CHANNEL / Fibonacci: OFF (captura profe).
+    # --- PRODUCTO OFICIAL (docs/PRODUCTO_OFICIAL.md) ---
+    # smc_pro, smc_fvg, hld, pchan, zigzag, fib.
+    # NO registrar: Liquidity/Mxwll/Strategy/VP/VWAP (ver legacy/).
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
     $self->{hld_indicator} = Market::Indicators::HLD->new();
@@ -316,24 +306,10 @@ sub sync_overlay_indicators {
     # el costo se paga al activar la capa, una sola vez (cursor cacheado).
     # Si no hay overlay registrado (p.ej. tests t/16), se alimenta igual para
     # preservar el comportamiento verificado.
-    my $liq_wants_feed = $self->_overlay_wants_feed('liq') ? 1 : 0;
-    # task 0055: Liquidity puede depender de pivotes SMC aunque el overlay SMC esté apagado.
-    # Si Liq quiere alimentación, SMC también debe alimentarse hasta feed_to para no dejar
-    # Liquidity en modo externo sin pivotes.
-    # smc_pro y alias 'smc' (tests legacy): solo si alguno está visible (o ninguno registrado).
+    # Solo producto oficial (sin Liquidity/Strategy/VP/VWAP legacy).
     my $smc_wants_feed = $self->_any_named_overlay_wants(qw(smc_pro smc)) ? 1 : 0;
     my $smc_fvg_wants_feed = $self->_overlay_wants_feed('smc_fvg') ? 1 : 0;
-    if ($liq_wants_feed && $self->{liq_indicator}) {
-        # task 0055: pivotes SMC Pro hasta feed_to (sin futuro en Replay).
-        if ($self->{_liq_background_feed_enabled}
-            && (($self->{_liq_fed_up_to} // -1) < $feed_to)) {
-            my $done = $self->_feed_liquidity_stack_chunk($feed_to, $self->{_liq_feed_chunk_size} // 300);
-            $self->_schedule_liquidity_background_feed() unless $done;
-        } else {
-            $self->_feed_liquidity_stack_to($feed_to);
-        }
-    } elsif ($smc_wants_feed) {
-        # Feed por chunks (no bloquear Tk con 100k+ velas 1m). Mismo resultado final.
+    if ($smc_wants_feed) {
         my $done = $self->_feed_smc_chunk($feed_to, $self->{_smc_feed_chunk_size} // 1200);
         $self->_schedule_smc_background_feed($feed_to) unless $done;
     }
@@ -344,12 +320,6 @@ sub sync_overlay_indicators {
         );
         $self->_schedule_smc_background_feed($feed_to) unless $fvg_done;
     }
-    $self->_feed_indicator_to($self->{strategy_indicator}, '_strategy_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('strategy');
-    $self->_feed_indicator_to($self->{vp_indicator}, '_vp_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('vp');
-    $self->_feed_indicator_to($self->{vwap_indicator}, '_vwap_fed_up_to', $feed_to)
-        if $self->_overlay_wants_feed('vwap');
     $self->_feed_indicator_to($self->{zigzag_indicator}, '_zigzag_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('zigzag');
     return $feed_to;
@@ -360,51 +330,8 @@ sub sync_overlay_indicators {
 # Público para tests headless (mismo patrón que sync_overlay_indicators).
 sub compute_run_candle_map {
     my ($self) = @_;
-    my %map;
-
-    my $ind = $self->{liq_indicator};
-    return \%map unless $ind && $ind->can('get_events');
-
-    my $overlay = $self->{liq_overlay};
-    if ($overlay && $overlay->can('is_visible') && !$overlay->is_visible()) {
-        return \%map;
-    }
-    if ($overlay && $overlay->can('is_element_visible') && !$overlay->is_element_visible('RUN')) {
-        return \%map;
-    }
-
-    my $replay_max;
-    my $replay = $self->{replay_controller};
-    if ($replay && $replay->is_active() && defined $replay->current_index()) {
-        $replay_max = $replay->current_index();
-    }
-
-    my @candidates;
-    for my $e (@{ $ind->get_events() }) {
-        next unless defined $e->{type} && defined $e->{index};
-        next if defined $e->{relevant} && !$e->{relevant};
-        my $visible_after = $e->{confirm_index} // $e->{index};
-        next if defined $replay_max && $visible_after > $replay_max;
-        my $type = $e->{type};
-        if ($overlay && $overlay->can('is_element_visible')) {
-            next if ($type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN') && !$overlay->is_element_visible('SWEEP');
-            next if $type eq 'GRAB' && !$overlay->is_element_visible('GRAB');
-            next if $type eq 'RUN'  && !$overlay->is_element_visible('RUN');
-        }
-        next unless $type eq 'SWEEP_UP' || $type eq 'SWEEP_DOWN' || $type eq 'GRAB' || $type eq 'RUN';
-        push @candidates, $e;
-    }
-
-    my $draw_events = ($overlay && $overlay->can('filter_by_density'))
-        ? $overlay->filter_by_density(\@candidates, 'magnitude')
-        : \@candidates;
-    for my $e (@$draw_events) {
-        next unless defined $e->{type} && $e->{type} eq 'RUN';
-        my $draw_idx = $e->{marker_index} // $e->{index};
-        $map{ $draw_idx } = $e->{dir} // 'up';
-    }
-
-    return \%map;
+    # Liquidity RUN recolor es legacy; producto oficial no lo usa.
+    return {};
 }
 
 sub set_zigzag_internal_resolution {
@@ -511,132 +438,7 @@ sub _feed_indicator_to {
     return;
 }
 
-# task 0063: alimentación coordinada SMC → Liquidity. Mantiene el contrato de
-# 0055 (Liquidity usa pivotes SMC externos) y permite avanzar por chunks para no
-# bloquear Tk al activar la capa en un histórico largo.
-sub _reset_liquidity_feed_state {
-    my ($self) = @_;
-    return unless $self->{liq_indicator};
-    $self->{liq_indicator}->reset();
-    $self->{_liq_fed_up_to} = -1;
-    $self->{_liq_pivots_synced_to} = undef;
-    return;
-}
-
-sub _ensure_liquidity_target_state {
-    my ($self, $target) = @_;
-    return unless defined $target;
-    my $liq_fed = $self->{_liq_fed_up_to} // -1;
-    if ($liq_fed > $target) {
-        $self->_reset_liquidity_feed_state();
-        return;
-    }
-    # Los pivotes SMC visibles para Liquidity dependen del target efectivo
-    # (sobre todo en Replay). Si el target cambia, recalcular Liquidity evita que
-    # queden niveles procesados con pivotes confirmados bajo otro horizonte.
-    if ($liq_fed >= 0
-        && defined $self->{_liq_pivots_synced_to}
-        && $self->{_liq_pivots_synced_to} != $target) {
-        $self->_reset_liquidity_feed_state();
-    }
-    return;
-}
-
-sub _feed_liquidity_stack_to {
-    my ($self, $feed_to) = @_;
-    return unless defined $feed_to && $feed_to >= 0;
-    $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $feed_to);
-    $self->_ensure_liquidity_target_state($feed_to);
-    $self->_sync_liquidity_external_pivots_for_target($feed_to);
-    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $feed_to);
-    return 1;
-}
-
-sub _sync_liquidity_external_pivots_for_target {
-    my ($self, $target) = @_;
-    return unless defined $target;
-    return unless $self->{smc_indicator} && $self->{liq_indicator};
-    return if defined $self->{_liq_pivots_synced_to}
-        && $self->{_liq_pivots_synced_to} == $target;
-    my @pivots = grep {
-        defined $_->{index} && $_->{index} <= $target
-    } @{ $self->{smc_indicator}->get_pivots() };
-    $self->{liq_indicator}->set_external_pivots(\@pivots);
-    $self->{_liq_pivots_synced_to} = $target;
-    return;
-}
-
-sub _feed_liquidity_stack_chunk {
-    my ($self, $target, $chunk) = @_;
-    return 1 unless defined $target && $target >= 0;
-    $chunk ||= 600;
-    $self->_ensure_liquidity_target_state($target);
-
-    # Importante para mantener resultados idénticos al cálculo batch previo:
-    # SMC confirma pivotes con retraso; si alimentamos SMC y Liquidity en lockstep,
-    # Liquidity puede procesar velas antes de conocer pivotes SMC que batch sí conocía.
-    # Por eso el modo no bloqueante tiene dos fases:
-    #   1) SMC avanza por chunks hasta el target (sin congelar Tk).
-    #   2) Liquidity avanza por chunks usando la lista completa de pivotes SMC
-    #      válida hasta ese target. El resultado final coincide con _feed_*_to().
-    my $smc_fed = $self->{_smc_fed_up_to} // -1;
-    if ($smc_fed > $target) {
-        $self->{smc_indicator}->reset() if $self->{smc_indicator};
-        $self->{_smc_fed_up_to} = -1;
-        $self->_reset_liquidity_feed_state();
-        $smc_fed = -1;
-    }
-    if ($smc_fed < $target) {
-        my $smc_to = $smc_fed + $chunk;
-        $smc_to = $target if $smc_to > $target;
-        $self->_feed_indicator_to($self->{smc_indicator}, '_smc_fed_up_to', $smc_to);
-        return 0;
-    }
-
-    $self->_sync_liquidity_external_pivots_for_target($target);
-    my $liq_to = ($self->{_liq_fed_up_to} // -1) + $chunk;
-    $liq_to = $target if $liq_to > $target;
-    $self->_feed_indicator_to($self->{liq_indicator}, '_liq_fed_up_to', $liq_to);
-    return (($self->{_liq_fed_up_to} // -1) >= $target) ? 1 : 0;
-}
-
-sub enable_liquidity_background_feed {
-    my ($self, %opts) = @_;
-    $self->{_liq_background_feed_enabled} = 1;
-    $self->{_liq_feed_chunk_size} = $opts{chunk_size} if defined $opts{chunk_size};
-    $self->{_liq_feed_after_ms}   = $opts{after_ms}   if defined $opts{after_ms};
-    $self->_schedule_liquidity_background_feed();
-    return $self;
-}
-
-sub _schedule_liquidity_background_feed {
-    my ($self) = @_;
-    return unless $self->{_liq_background_feed_enabled};
-    return if $self->{_liq_background_feed_pending};
-    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
-    return unless $canvas;
-    $self->{_liq_background_feed_pending} = 1;
-    my $delay = $self->{_liq_feed_after_ms} // 80;
-    $canvas->after($delay, sub {
-        $self->{_liq_background_feed_pending} = 0;
-        my $replay = $self->{replay_controller};
-        return if $replay && $replay->is_active();  # nunca precalentar futuro durante Replay
-        my $md = $self->{market_data};
-        return unless $md && $md->can('size');
-        my $target = $md->size() - 1;
-        return if $target < 0;
-        my $done = $self->_feed_liquidity_stack_chunk($target, $self->{_liq_feed_chunk_size} // 300);
-        if ($done) {
-            my $ov = $self->{overlay_manager} ? $self->{overlay_manager}->get('liq') : undef;
-            $self->request_render() if $ov && $ov->is_visible();
-        } else {
-            $self->_schedule_liquidity_background_feed();
-        }
-    });
-    return $self;
-}
-
-# --- SMC Pro / FVG: feed no bloqueante (misma idea que Liquidity) ---
+# --- SMC Pro / FVG: feed no bloqueante ---
 sub _feed_indicator_chunk {
     my ($self, $indicator, $cursor_key, $feed_to, $chunk) = @_;
     return 1 unless $indicator && defined $feed_to && $feed_to >= 0;
@@ -1648,438 +1450,29 @@ sub selected_bar {
 # Anchored VWAP — modo "elige vela de anclaje" (como el tool nativo de TV)
 # ---------------------------------------------------------------------------
 
-sub is_vwap_select_mode {
-    my ($self) = @_;
-    return $self->{_vwap_select_mode} ? 1 : 0;
-}
-
-sub set_vwap_select_mode {
-    my ($self, $on) = @_;
-    $on = $on ? 1 : 0;
-    if (!$on && $self->{_vwap_select_mode}) {
-        $self->_clear_vwap_select_hover();
-        $self->_clear_vwap_select_banner();
-    }
-    $self->{_vwap_select_mode} = $on;
-    # No pelear con Select Bar de Replay: si Replay select está activo, no
-    # forzar cursor VWAP encima.
-    if ($on && !$self->{_replay_select_mode}) {
-        my $c = $self->{price_canvas};
-        $self->_set_cursor($c, 'crosshair') if $c;
-        eval { $c->focus } if $c;
-    }
-    if (ref($self->{vwap_select_mode_callback}) eq 'CODE') {
-        $self->{vwap_select_mode_callback}->($on);
-    }
-    $self->request_render() if $on;
-    return $self;
-}
-
-# begin_vwap_placement — activar capa + pedir clic de ancla (si aún no hay).
-sub begin_vwap_placement {
-    my ($self) = @_;
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vwap', 1) if $mgr;
-    my $ind = $self->{vwap_indicator};
-    if ($ind && $ind->can('has_anchor') && !$ind->has_anchor()) {
-        delete $self->{_vwap_anchor_before_select};
-        $self->set_vwap_select_mode(1);
-    }
-    else {
-        $self->set_vwap_select_mode(0);
-    }
-    # Alimentar datos aunque aún no haya ancla (precios/vol listos para el clic).
-    $self->sync_overlay_indicators();
-    $self->request_render();
-    return $self;
-}
-
-sub end_vwap_overlay {
-    my ($self) = @_;
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vwap', 0) if $mgr;
-    delete $self->{_vwap_anchor_before_select};
-    $self->set_vwap_select_mode(0);
-    $self->request_render();
-    return $self;
-}
-
-# confirm_vwap_anchor($idx) — fija ancla, recalcula, sale de select mode.
-sub confirm_vwap_anchor {
-    my ($self, $idx) = @_;
-    return $self unless defined $idx;
-    my $ind = $self->{vwap_indicator};
-    return $self unless $ind && $ind->can('set_anchor');
-
-    # Clamp a tope de Replay si aplica.
-    my $replay = $self->{replay_controller};
-    if ($replay && $replay->is_active() && defined $replay->current_index()) {
-        my $top = $replay->current_index();
-        $idx = $top if $idx > $top;
-    }
-    my $last = $self->{market_data} ? $self->{market_data}->last_index() : undef;
-    $idx = $last if defined $last && $idx > $last;
-    $idx = 0 if $idx < 0;
-
-    # Asegurar feed al menos hasta el final efectivo (o ancla).
-    $self->sync_overlay_indicators();
-    $ind->set_anchor($idx);
-    delete $self->{_vwap_anchor_before_select};
-    $self->_clear_vwap_select_hover();
-    $self->_clear_vwap_select_banner();
-    $self->set_vwap_select_mode(0);
-    if (ref($self->{vwap_anchor_callback}) eq 'CODE') {
-        $self->{vwap_anchor_callback}->($idx);
-    }
-    $self->request_render();
-    return $self;
-}
-
-# reanchor_vwap — volver a pedir clic sin apagar la capa.
-# Guarda ancla previa para poder restaurarla con Esc.
-sub reanchor_vwap {
-    my ($self) = @_;
-    my $ind = $self->{vwap_indicator};
-    if ($ind && $ind->can('has_anchor') && $ind->has_anchor()) {
-        $self->{_vwap_anchor_before_select} = $ind->anchor_index();
-    }
-    else {
-        delete $self->{_vwap_anchor_before_select};
-    }
-    $ind->clear_anchor() if $ind && $ind->can('clear_anchor');
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vwap', 1) if $mgr;
-    $self->set_vwap_select_mode(1);
-    $self->sync_overlay_indicators();
-    $self->request_render();
-    return $self;
-}
-
-# cancel_vwap_select_mode — Esc: salir del modo clic sin confirmar.
-# Si había ancla previa (re-anclar), la restaura.
-sub cancel_vwap_select_mode {
-    my ($self) = @_;
-    return $self unless $self->{_vwap_select_mode};
-
-    my $ind = $self->{vwap_indicator};
-    my $prev = $self->{_vwap_anchor_before_select};
-    delete $self->{_vwap_anchor_before_select};
-
-    $self->_clear_vwap_select_hover();
-    $self->_clear_vwap_select_banner();
-    $self->set_vwap_select_mode(0);
-
-    if (defined $prev && $ind && $ind->can('set_anchor')) {
-        $self->sync_overlay_indicators();
-        $ind->set_anchor($prev);
-    }
-    if (ref($self->{vwap_select_cancel_callback}) eq 'CODE') {
-        $self->{vwap_select_cancel_callback}->(defined $prev ? $prev : undef);
-    }
-    # Solo con GUI real (tests headless no tienen price_canvas).
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub _clear_vwap_select_hover {
-    my ($self) = @_;
-    my $c = $self->{price_canvas};
-    eval { $c->delete('vwap_select_hover') } if $c;
-    return $self;
-}
-
-sub _clear_vwap_select_banner {
-    my ($self) = @_;
-    my $c = $self->{price_canvas};
-    eval { $c->delete('vwap_select_banner') } if $c;
-    return $self;
-}
-
-# Banner fijo en el chart: "Clic en una vela… (Esc cancela)"
-sub _draw_vwap_select_banner {
-    my ($self) = @_;
-    return unless $self->{_vwap_select_mode};
-    my $canvas = $self->{price_canvas};
-    return unless $canvas;
-    $self->_clear_vwap_select_banner();
-
-    my ($cw, $ch) = $self->_canvas_size($canvas);
-    $cw ||= 200;
-    my $msg = 'Clic en una vela para anclar VWAP  |  Esc cancela';
-    # Fondo discreto arriba-centro (no tapa el panel de controles)
-    my $pad_x = 10;
-    my $pad_y = 4;
-    my $ty = 14;
-    my $tx = int($cw / 2);
-    # Caja aproximada centrada
-    my $box_w = 340;
-    my $x1 = $tx - int($box_w / 2);
-    my $x2 = $tx + int($box_w / 2);
-    my $y1 = 4;
-    my $y2 = 28;
-    $canvas->createRectangle(
-        $x1, $y1, $x2, $y2,
-        -fill    => '#E3F2FD',
-        -outline => '#2962FF',
-        -width   => 1,
-        -tags    => 'vwap_select_banner',
-    );
-    $canvas->createText(
-        $tx, $ty,
-        -text   => $msg,
-        -fill   => '#0D47A1',
-        -font   => ['Helvetica', 10, 'bold'],
-        -anchor => 'center',
-        -tags   => 'vwap_select_banner',
-    );
-    # Banner siempre encima del hover de línea
-    eval { $canvas->raise('vwap_select_banner') };
-    return $self;
-}
-
-sub _draw_vwap_select_hover {
-    my ($self, $widget, $pixel_x, $pixel_y) = @_;
-    return unless $self->{_vwap_select_mode};
-    my $canvas = $self->{price_canvas};
-    return unless $canvas;
-    $self->_clear_vwap_select_hover();
-
-    my $x = defined $pixel_x ? $pixel_x : $self->{last_mouse_x};
-    # Siempre banner aunque el cursor no esté sobre el chart
-    $self->_draw_vwap_select_banner();
-    return unless defined $x;
-    # Snap al centro de vela
-    my $idx = $self->_global_index_from_x($x);
-    my ($start, $end) = eval { $self->compute_window() };
-    return unless defined $start && defined $end;
-    my $bars = $end - $start + 1;
-    return if $bars < 1;
-
-    my $scale = Market::Panels::Scales->new(
-        bars         => $bars,
-        right_margin => RIGHT_MARGIN,
-    );
-    $scale->{width}   = $self->_canvas_width($canvas);
-    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
-    my $line_x = $x;
-    if (defined $idx && $idx >= $start && $idx <= $end) {
-        $line_x = $scale->index_to_center_x($idx - $start);
-    }
-    my ($cw, $ch) = $self->_canvas_size($canvas);
-    $ch ||= 1;
-    # Línea vertical azul (mismo lenguaje visual que el VWAP de TV)
-    $canvas->createLine(
-        $line_x, 0, $line_x, $ch,
-        -fill  => '#2962FF',
-        -width => 1,
-        -dash  => [4, 3],
-        -tags  => 'vwap_select_hover',
-    );
-    eval { $canvas->raise('vwap_select_banner') };
-    return $self;
-}
-
-# ---------------------------------------------------------------------------
-# Anchored Volume Profile — modo "elige vela de anclaje" (AVP TradingView)
-# ---------------------------------------------------------------------------
-
-sub is_vp_select_mode {
-    my ($self) = @_;
-    return $self->{_vp_select_mode} ? 1 : 0;
-}
-
-sub set_vp_select_mode {
-    my ($self, $on) = @_;
-    $on = $on ? 1 : 0;
-    if (!$on && $self->{_vp_select_mode}) {
-        $self->_clear_vp_select_hover();
-        $self->_clear_vp_select_banner();
-    }
-    $self->{_vp_select_mode} = $on;
-    if ($on) {
-        # No mezclar con VWAP select ni Replay select
-        $self->set_vwap_select_mode(0) if $self->{_vwap_select_mode};
-        if (!$self->{_replay_select_mode}) {
-            my $c = $self->{price_canvas};
-            $self->_set_cursor($c, 'crosshair') if $c;
-            eval { $c->focus } if $c;
-        }
-    }
-    if (ref($self->{vp_select_mode_callback}) eq 'CODE') {
-        $self->{vp_select_mode_callback}->($on);
-    }
-    $self->request_render() if $on && $self->{price_canvas};
-    return $self;
-}
-
-sub begin_vp_placement {
-    my ($self) = @_;
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vp', 1) if $mgr;
-    my $ind = $self->{vp_indicator};
-    if ($ind && $ind->can('has_anchor') && !$ind->has_anchor()) {
-        delete $self->{_vp_anchor_before_select};
-        $self->set_vp_select_mode(1);
-    }
-    else {
-        $self->set_vp_select_mode(0);
-    }
-    $self->sync_overlay_indicators();
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub end_vp_overlay {
-    my ($self) = @_;
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vp', 0) if $mgr;
-    delete $self->{_vp_anchor_before_select};
-    $self->set_vp_select_mode(0);
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub confirm_vp_anchor {
-    my ($self, $idx) = @_;
-    return $self unless defined $idx;
-    my $ind = $self->{vp_indicator};
-    return $self unless $ind && $ind->can('set_anchor');
-
-    my $replay = $self->{replay_controller};
-    if ($replay && $replay->is_active() && defined $replay->current_index()) {
-        my $top = $replay->current_index();
-        $idx = $top if $idx > $top;
-    }
-    my $last = $self->{market_data} ? $self->{market_data}->last_index() : undef;
-    $idx = $last if defined $last && $idx > $last;
-    $idx = 0 if $idx < 0;
-
-    $self->sync_overlay_indicators();
-    $ind->set_anchor($idx);
-    delete $self->{_vp_anchor_before_select};
-    $self->_clear_vp_select_hover();
-    $self->_clear_vp_select_banner();
-    $self->set_vp_select_mode(0);
-    if (ref($self->{vp_anchor_callback}) eq 'CODE') {
-        $self->{vp_anchor_callback}->($idx);
-    }
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub reanchor_vp {
-    my ($self) = @_;
-    my $ind = $self->{vp_indicator};
-    if ($ind && $ind->can('has_anchor') && $ind->has_anchor()) {
-        $self->{_vp_anchor_before_select} = $ind->anchor_index();
-    }
-    else {
-        delete $self->{_vp_anchor_before_select};
-    }
-    $ind->clear_anchor() if $ind && $ind->can('clear_anchor');
-    my $mgr = $self->{overlay_manager};
-    $mgr->set_visible('vp', 1) if $mgr;
-    $self->set_vp_select_mode(1);
-    $self->sync_overlay_indicators();
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub cancel_vp_select_mode {
-    my ($self) = @_;
-    return $self unless $self->{_vp_select_mode};
-    my $ind = $self->{vp_indicator};
-    my $prev = $self->{_vp_anchor_before_select};
-    delete $self->{_vp_anchor_before_select};
-    $self->_clear_vp_select_hover();
-    $self->_clear_vp_select_banner();
-    $self->set_vp_select_mode(0);
-    if (defined $prev && $ind && $ind->can('set_anchor')) {
-        $self->sync_overlay_indicators();
-        $ind->set_anchor($prev);
-    }
-    if (ref($self->{vp_select_cancel_callback}) eq 'CODE') {
-        $self->{vp_select_cancel_callback}->(defined $prev ? $prev : undef);
-    }
-    $self->request_render() if $self->{price_canvas};
-    return $self;
-}
-
-sub _clear_vp_select_hover {
-    my ($self) = @_;
-    my $c = $self->{price_canvas};
-    eval { $c->delete('vp_select_hover') } if $c;
-    return $self;
-}
-
-sub _clear_vp_select_banner {
-    my ($self) = @_;
-    my $c = $self->{price_canvas};
-    eval { $c->delete('vp_select_banner') } if $c;
-    return $self;
-}
-
-sub _draw_vp_select_banner {
-    my ($self) = @_;
-    return unless $self->{_vp_select_mode};
-    my $canvas = $self->{price_canvas};
-    return unless $canvas;
-    $self->_clear_vp_select_banner();
-    my ($cw, $ch) = $self->_canvas_size($canvas);
-    $cw ||= 200;
-    my $msg = 'Clic en una vela para anclar Volume Profile  |  Esc cancela';
-    my $tx = int($cw / 2);
-    my $box_w = 400;
-    my $x1 = $tx - int($box_w / 2);
-    my $x2 = $tx + int($box_w / 2);
-    $canvas->createRectangle(
-        $x1, 4, $x2, 28,
-        -fill => '#E1F5FE', -outline => '#0288D1', -width => 1,
-        -tags => 'vp_select_banner',
-    );
-    $canvas->createText(
-        $tx, 14,
-        -text => $msg, -fill => '#01579B',
-        -font => ['Helvetica', 10, 'bold'], -anchor => 'center',
-        -tags => 'vp_select_banner',
-    );
-    eval { $canvas->raise('vp_select_banner') };
-    return $self;
-}
-
-sub _draw_vp_select_hover {
-    my ($self, $widget, $pixel_x, $pixel_y) = @_;
-    return unless $self->{_vp_select_mode};
-    my $canvas = $self->{price_canvas};
-    return unless $canvas;
-    $self->_clear_vp_select_hover();
-    $self->_draw_vp_select_banner();
-    my $x = defined $pixel_x ? $pixel_x : $self->{last_mouse_x};
-    return unless defined $x;
-    my $idx = $self->_global_index_from_x($x);
-    my ($start, $end) = eval { $self->compute_window() };
-    return unless defined $start && defined $end;
-    my $bars = $end - $start + 1;
-    return if $bars < 1;
-    my $scale = Market::Panels::Scales->new(
-        bars => $bars, right_margin => RIGHT_MARGIN,
-    );
-    $scale->{width} = $self->_canvas_width($canvas);
-    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
-    my $line_x = $x;
-    if (defined $idx && $idx >= $start && $idx <= $end) {
-        $line_x = $scale->index_to_center_x($idx - $start);
-    }
-    my ($cw, $ch) = $self->_canvas_size($canvas);
-    $ch ||= 1;
-    $canvas->createLine(
-        $line_x, 0, $line_x, $ch,
-        -fill => '#0288D1', -width => 1, -dash => [4, 3],
-        -tags => 'vp_select_hover',
-    );
-    eval { $canvas->raise('vp_select_banner') };
-    return $self;
-}
+# VWAP/VP placement = legacy (docs/LEGACY.md). Stubs (no dibujo / no estado).
+sub is_vwap_select_mode { 0 }
+sub set_vwap_select_mode { $_[0] }
+sub begin_vwap_placement { $_[0] }
+sub end_vwap_overlay { $_[0] }
+sub confirm_vwap_anchor { $_[0] }
+sub reanchor_vwap { $_[0] }
+sub cancel_vwap_select_mode { $_[0] }
+sub _clear_vwap_select_hover { $_[0] }
+sub _clear_vwap_select_banner { $_[0] }
+sub _draw_vwap_select_banner { $_[0] }
+sub _draw_vwap_select_hover { $_[0] }
+sub is_vp_select_mode { 0 }
+sub set_vp_select_mode { $_[0] }
+sub begin_vp_placement { $_[0] }
+sub end_vp_overlay { $_[0] }
+sub confirm_vp_anchor { $_[0] }
+sub reanchor_vp { $_[0] }
+sub cancel_vp_select_mode { $_[0] }
+sub _clear_vp_select_hover { $_[0] }
+sub _clear_vp_select_banner { $_[0] }
+sub _draw_vp_select_banner { $_[0] }
+sub _draw_vp_select_hover { $_[0] }
 
 sub set_selected_bar {
     my ($self, $idx) = @_;
@@ -3776,33 +3169,6 @@ sub set_timeframe {
         $self->{smc_fvg_indicator}->reset();
         $self->{_smc_fvg_fed_up_to} = -1;
     }
-    # spec 0005 / task 0012: reset del indicador de liquidez (mismo criterio).
-    if ($self->{liq_indicator}) {
-        $self->{liq_indicator}->reset();
-        $self->{_liq_fed_up_to} = -1;
-        $self->{_liq_pivots_synced_to} = undef;
-    }
-    if ($self->{strategy_indicator}) {
-        $self->{strategy_indicator}->reset();
-        $self->{_strategy_fed_up_to} = -1;
-    }
-    if ($self->{vp_indicator}) {
-        $self->{vp_indicator}->reset();
-        $self->{_vp_fed_up_to} = -1;
-    }
-    if ($self->{vwap_indicator}) {
-        # Cambio de TF: índices de vela cambian → ancla previa ya no es válida.
-        $self->{vwap_indicator}->clear_anchor();
-        $self->{vwap_indicator}->reset();
-        $self->{_vwap_fed_up_to} = -1;
-        $self->set_vwap_select_mode(0);
-    }
-    if ($self->{vp_indicator}) {
-        $self->{vp_indicator}->clear_anchor() if $self->{vp_indicator}->can('clear_anchor');
-        $self->{vp_indicator}->reset();
-        $self->{_vp_fed_up_to} = -1;
-        $self->set_vp_select_mode(0) if $self->can('set_vp_select_mode');
-    }
     if ($self->{zigzag_indicator}) {
         $self->{zigzag_indicator}->reset();
         $self->{_zigzag_fed_up_to} = -1;
@@ -4869,5 +4235,8 @@ sub _fib_drag_to {
     }
     $self->request_render();
 }
+
+# Legacy no-op (market.pl puede llamar al arranque)
+sub enable_liquidity_background_feed { return $_[0]; }
 
 1;

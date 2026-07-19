@@ -1,29 +1,25 @@
-# UI — fase actual (paso a paso)
+# UI — producto oficial (paso a paso)
 
-## Activo
+Lista canónica: **`docs/PRODUCTO_OFICIAL.md`**.  
+Código viejo aislado: **`docs/LEGACY.md`** + carpeta `legacy/`.
+
+## Activo (oficial)
 
 | Pieza | Notas |
 |--------|--------|
 | Chart OHLC + TF + Replay + Escala | Base |
-| **SMC Pro** | Indicador 1 verificado |
-| **SMC Structures+FVG** | Indicador 2 verificado |
-| **Parallel Channel** | Herramienta TV (3 clics); un canal a la vez |
-| **HLD (4h/D)** | S/R de vela HTF (algoritmo profe, sin Pine); solo TF **4h** y **D** |
-| **ZigZag externo** | ChartPrime captura profe: **Length 150**, solo línea azul; VP/Channel/PoC **OFF** |
-| **ZigZag interno** | ZZMTF: **Resolution 30** (UI 15/30/60), **Period 2**, Show ZigZag ON, fib OFF |
-| **Fib Retracement** | Herramienta nativa TV: 2 clics / Desde ZZ ext, bandas, anclas p1/p2, hasta última vela |
+| **SMC Pro** | Neon TV |
+| **SMC Structures+FVG** | LudoGH |
+| **Parallel Channel** | 3 clics TV |
+| **HLD (4h/D)** | Video profe |
+| **ZigZag externo / interno** | ChartPrime + ZZMTF |
+| **Fib Retracement** | Herramienta TV |
 
-## Desactivado (código conservado)
+## No reactivar sin rediseño
 
-- Fibonacci del panel ZZMTF (Show Fibonacci del script LonesomeTheBlue)
-- Canal por pierna ZZ / Swing Channel ChartPrime
-- Liquidity
-- Strategy Builder
-- Anchored VWAP / Volume Profile
-- Mxwll (fuera de producto)
-- Placeholder “HTF sobre LTF” (eliminado de la UI; no implementado)
-
-**Reactivar:** comentarios `FASE ACTUAL` / `PASO A PASO` en `market.pl` y `ChartEngine.pm`.
+- Liquidity (en `legacy/`) — no es paridad TV 1:1; rehacer desde PDF
+- Mxwll, Strategy, VP, VWAP, SMC_Structures unificado — `legacy/`
+- Placeholder HTF sobre LTF — eliminado
 
 ## Dataset
 
