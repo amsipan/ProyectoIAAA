@@ -47,7 +47,7 @@ sub feed_all {
     ok($ind->can('get_values'),  'contrato: get_values');
     ok($ind->can('reset'),       'contrato: reset');
     my $v = $ind->get_values();
-    for my $k (qw(internal_vertices external_vertices internal_segments external_segments external_channel trend_channels internal_direction external_direction fib_levels)) {
+    for my $k (qw(internal_vertices external_vertices internal_segments external_segments external_channel trend_channels internal_direction external_direction)) {
         ok(exists $v->{$k}, "get_values tiene '$k'");
     }
 }
@@ -394,90 +394,6 @@ sub _triangle_wave_rows {
     # Paneo a la derecha: la sub-cadena de esa zona, también continua.
     is_deeply($kept_from->(40, 70), [35, 55],
         'QA zigzag: al panear, los segmentos de esa zona se dibujan encadenados');
-}
-
-# 14. Fibonacci fase 4: anclado a última pierna externa CONSOLIDADA (no tip vivo)
-{
-    is_deeply(
-        Market::Indicators::ZigZag::fib_ratios_for_timeframe('1m'),
-        [ 0.382, 0.5, 0.618 ],
-        'fib ratios TF baja: 3 niveles'
-    );
-    is_deeply(
-        Market::Indicators::ZigZag::fib_ratios_for_timeframe('1h'),
-        [ 0.236, 0.382, 0.5, 0.618, 0.786 ],
-        'fib ratios TF alta: 5 niveles'
-    );
-
-    my $ind = Market::Indicators::ZigZag->new(
-        compute_internal => 0,
-        compute_external => 1,
-        timeframe        => '1m',
-        swing_length     => 5,
-    );
-    # Dos piernas: consolidada 100→200, viva 200→150 (no se usa para ancla)
-    $ind->{_ext_segments} = [
-        {
-            from_index => 0,  to_index => 10,
-            from_price => 100, to_price => 200,
-            dir => 'up', consolidated => 1,
-        },
-        {
-            from_index => 10, to_index => 20,
-            from_price => 200, to_price => 150,
-            dir => 'down', consolidated => 0,
-        },
-    ];
-    my $fibs = $ind->get_external_fib_levels();
-    is( scalar @$fibs, 3, 'fib 1m: 3 niveles' );
-    # TV: price(r) = to - r*(to-from); to=200, from=100 → 200 - r*100
-    is( $fibs->[0]{price}, 200 - 0.382 * 100, 'fib 0.382 precio' );
-    is( $fibs->[1]{price}, 200 - 0.5 * 100,   'fib 0.5 precio' );
-    is( $fibs->[2]{price}, 200 - 0.618 * 100, 'fib 0.618 precio' );
-    my $anchored_to_tip = 0;
-    for my $f (@$fibs) {
-        $anchored_to_tip = 1 if abs( ( $f->{to_price} // 0 ) - 150 ) < 1e-9;
-    }
-    ok( !$anchored_to_tip, 'fib: no ancla al tip vivo (to=150)' );
-
-    # Solo tramo vivo → sin fib
-    $ind->{_ext_segments} = [
-        {
-            from_index => 0, to_index => 5,
-            from_price => 10, to_price => 20,
-            dir => 'up', consolidated => 0,
-        },
-    ];
-    is_deeply( $ind->get_external_fib_levels(), [], 'fib: sin consolidado → vacío' );
-
-    # Draw FIBS
-    $ind->{_ext_segments} = [
-        {
-            from_index => 0,  to_index => 10,
-            from_price => 100, to_price => 200,
-            dir => 'up', consolidated => 1,
-        },
-        {
-            from_index => 10, to_index => 20,
-            from_price => 200, to_price => 150,
-            dir => 'down', consolidated => 0,
-        },
-    ];
-    my $ov = Market::Overlays::ZigZag->new(
-        indicator => $ind,
-        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0, FIBS => 1 },
-    );
-    $ov->set_visible(1);
-    $ov->compute_visible( undef, $ind, 0, 30 );
-    my $canvas = ZZTestCanvas->new();
-    my $scales = Market::Panels::Scales->new( min_y => 50, max_y => 250, bars => 31 );
-    $scales->{width}  = 400;
-    $scales->{height} = 300;
-    $ov->draw( $canvas, $scales );
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
-    is( scalar @lines, 3, 'draw FIBS: 3 líneas en TF 1m' );
-    is( scalar @texts, 3, 'draw FIBS: 3 labels' );
 }
 
 done_testing();

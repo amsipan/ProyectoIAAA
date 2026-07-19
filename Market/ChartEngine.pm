@@ -194,28 +194,37 @@ sub new {
     );
     $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
 
-    # ZigZag — externo ChartPrime + interno ZZMTF + Fib consolidado (fase 4).
-    # Defaults: res 30 / period 2; elementos OFF hasta toggle UI.
-    # compute_* arranca en 0: se activa al encender cada capa (on-demand).
-    # Fib ON fuerza compute_external aunque EXTERNAL esté oculto.
+    # ZigZag — externo ChartPrime + interno ZZMTF.
+    # Fib Retracement = Drawing tool (ver fib_drawing abajo), no elemento ZZ.
     $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
         swing_length        => 150,
         internal_resolution => 30,
         internal_period     => 2,
         compute_internal    => 0,
         compute_external    => 0,
-        timeframe           => '1m',
     );
     $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
         indicator => $self->{zigzag_indicator},
         theme     => $self->{theme},
         visible   => 0,
-        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0, FIBS => 0 },
+        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 },
     );
     $self->{overlay_manager}->register( 'zigzag', $self->{zigzag_overlay} );
     $self->{_zigzag_fed_up_to} = -1;
 
-    $self->_sync_fibonacci_levels_for_timeframe();
+    # Fib Retracement (herramienta nativa TV — 2 clics, bandas, anclas móviles)
+    require Market::Drawing::FibRetracement;
+    require Market::Overlays::FibRetracement;
+    $self->{fib_drawing} = Market::Drawing::FibRetracement->new(
+        extend_right => 0,
+        extend_left  => 0,
+    );
+    $self->{fib_overlay} = Market::Overlays::FibRetracement->new(
+        drawing => $self->{fib_drawing},
+        theme   => $self->{theme},
+        visible => 1,
+    );
+    $self->{overlay_manager}->register( 'fib', $self->{fib_overlay} );
 
     $self->bind_events();
 
@@ -411,14 +420,12 @@ sub set_zigzag_internal_resolution {
     $self->request_render();
 }
 
-# set_zigzag_layer($elem, $on) — INTERNAL | EXTERNAL | FIBS.
-# Sincroniza visibility, compute_* on-demand y visible del overlay.
-# FIBS (fase 4) no dibuja la línea azul, pero fuerza compute_external.
+# set_zigzag_layer($elem, $on) — INTERNAL | EXTERNAL.
 sub set_zigzag_layer {
     my ( $self, $elem, $on ) = @_;
     return unless $self->{zigzag_indicator} && $self->{zigzag_overlay};
     $elem = uc( $elem // '' );
-    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL' || $elem eq 'FIBS';
+    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL';
     $on = $on ? 1 : 0;
 
     my $ov  = $self->{zigzag_overlay};
@@ -426,17 +433,13 @@ sub set_zigzag_layer {
     $ov->set_element_visible( $elem, $on );
 
     my $want_int = $ov->is_element_visible('INTERNAL') ? 1 : 0;
-    # FIBS necesita pivotes externos aunque la línea azul esté oculta
-    my $want_ext =
-         ( $ov->is_element_visible('EXTERNAL') ? 1 : 0 )
-      || ( $ov->is_element_visible('FIBS')     ? 1 : 0 );
+    my $want_ext = $ov->is_element_visible('EXTERNAL') ? 1 : 0;
     $ind->set_compute_internal($want_int);
     $ind->set_compute_external($want_ext);
 
     my $any =
          $ov->is_element_visible('INTERNAL')
       || $ov->is_element_visible('EXTERNAL')
-      || $ov->is_element_visible('FIBS')
       || $ov->is_element_visible('CHANNEL');
     $ov->set_visible( $any ? 1 : 0 );
 
@@ -1033,6 +1036,9 @@ sub render {
         if ( my $pov = $self->{overlay_manager}->get('pchan') ) {
             $pov->{_data_end} = $feed_end;
         }
+        if ( my $fov = $self->{overlay_manager}->get('fib') ) {
+            $fov->{_data_end} = $feed_end;
+        }
         if ( my $hov = $self->{overlay_manager}->get('hld') ) {
             # Replay / feed: precio y fin de proyección = tope efectivo
             $hov->{_feed_end} = $feed_end;
@@ -1397,7 +1403,11 @@ sub _replay_session_active {
 
 sub _replay_escape_key {
     my ($self) = @_;
-    # Precedencia: cancelar herramienta Parallel Channel / anclajes antes que Replay.
+    # Precedencia: cancelar herramientas de dibujo antes que Replay.
+    if ( $self->{fib_drawing} && $self->{fib_drawing}->is_tool_active() ) {
+        $self->cancel_fib_retracement_tool();
+        return $self;
+    }
     if ( $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active() ) {
         $self->cancel_parallel_channel_tool();
         return $self;
@@ -2889,6 +2899,19 @@ sub _horizontal_zoom {
 sub _start_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
 
+    # Fib Retracement: 2 clics o drag de handles
+    if ( $self->{fib_drawing} && $self->{fib_drawing}->is_tool_active() ) {
+        $self->_fib_click( $x, $y );
+        return;
+    }
+    if ( $self->{fib_drawing} && $self->{fib_drawing}->get_fib() ) {
+        my $hit = $self->_fib_hit_test( $x, $y );
+        if ($hit) {
+            $self->{_fib_drag} = { handle => $hit };
+            return;
+        }
+    }
+
     # Parallel Channel: 3 clics (no inicia paneo)
     if ( $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active() ) {
         $self->_pchan_click( $x, $y );
@@ -2968,6 +2991,13 @@ sub _on_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
 
     $self->_on_mouse_move($widget, $x, $y);
+
+    # Drag de handles Fib (p1/p2/bordes) — no paneo
+    if ( $self->{_fib_drag} && $self->{fib_drawing} && $self->{fib_drawing}->get_fib() ) {
+        $self->_fib_drag_to( $x, $y );
+        return;
+    }
+
     return unless defined $self->{drag_start_x};
     my $canvas = $self->{price_canvas};
     return unless $canvas;
@@ -3401,6 +3431,7 @@ sub _end_drag {
     $self->{drag_start_offset} = undef;
     $self->{drag_start_x_shift} = undef;
     $self->{drag_cursor_canvas} = undef;
+    $self->{_fib_drag} = undef;
 }
 
 sub _vertical_drag {
@@ -4570,14 +4601,9 @@ sub get_all_timestamps {
 
 }
 
-# Fib de producto (fase 4): ratios del ZigZag según TF activo (task 0060).
-# No usa SMC/Mxwll como ancla.
+# Stub: Fib de producto es Drawing::FibRetracement (no ratios en SMC/ZZ).
 sub _sync_fibonacci_levels_for_timeframe {
     my ( $self, $tf ) = @_;
-    $tf //= eval { $self->{market_data}->{active_tf} } || '1m';
-    if ( $self->{zigzag_indicator} && $self->{zigzag_indicator}->can('set_fibonacci_timeframe') ) {
-        $self->{zigzag_indicator}->set_fibonacci_timeframe($tf);
-    }
     return $self;
 }
 
@@ -4658,6 +4684,162 @@ sub _pchan_click {
     }
     $self->request_render();
     return $status;
+}
+
+# ---------------------------------------------------------------------------
+# Fib Retracement (drawing tool TV) — 2 clics, bandas, handles
+# ---------------------------------------------------------------------------
+sub start_fib_retracement_tool {
+    my ($self) = @_;
+    return $self unless $self->{fib_drawing};
+    # Cancelar canal si estaba activo
+    $self->cancel_parallel_channel_tool()
+      if $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active();
+    $self->{fib_drawing}->start_tool();
+    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+        $self->{fib_mode_callback}->( 1, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub cancel_fib_retracement_tool {
+    my ($self) = @_;
+    return $self unless $self->{fib_drawing};
+    $self->{fib_drawing}->cancel_tool();
+    $self->{_fib_drag} = undef;
+    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+        $self->{fib_mode_callback}->( 0, $self->{fib_drawing}->draft_count() );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub clear_fib_retracement {
+    my ($self) = @_;
+    return $self unless $self->{fib_drawing};
+    $self->{fib_drawing}->clear_fib();
+    $self->{fib_drawing}->cancel_tool();
+    $self->{_fib_drag} = undef;
+    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+        $self->{fib_mode_callback}->( 0, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+# Ancla p1/p2 a la última pierna consolidada del ZZ externo (atajo profe)
+sub fib_anchor_from_external_zz {
+    my ($self) = @_;
+    return $self unless $self->{fib_drawing} && $self->{zigzag_indicator};
+
+    # Asegurar cómputo externo si aún no se alimentó
+    if ( $self->{zigzag_indicator}->can('set_compute_external') ) {
+        $self->{zigzag_indicator}->set_compute_external(1);
+        $self->{_zigzag_fed_up_to} = -1;
+        $self->sync_overlay_indicators();
+    }
+
+    my $vals = $self->{zigzag_indicator}->get_values();
+    my @segs = grep { $_->{consolidated} } @{ $vals->{external_segments} || [] };
+    return $self unless @segs;
+    my $leg = $segs[-1];
+    $self->{fib_drawing}->set_from_points(
+        { index => $leg->{from_index}, price => $leg->{from_price} },
+        { index => $leg->{to_index},   price => $leg->{to_price} },
+    );
+    $self->{fib_drawing}->cancel_tool();
+    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+        $self->{fib_mode_callback}->( 0, 2 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub set_fib_extend_left {
+    my ( $self, $on ) = @_;
+    return $self unless $self->{fib_drawing};
+    $self->{fib_drawing}->set_extend_left($on);
+    $self->request_render();
+    return $self;
+}
+
+sub set_fib_extend_right {
+    my ( $self, $on ) = @_;
+    return $self unless $self->{fib_drawing};
+    $self->{fib_drawing}->set_extend_right($on);
+    $self->request_render();
+    return $self;
+}
+
+sub _fib_click {
+    my ( $self, $x, $y ) = @_;
+    my $draw = $self->{fib_drawing};
+    return unless $draw && $draw->is_tool_active();
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my ( $ws, $we ) = eval { $self->compute_window() };
+        $idx = $we if defined $we;
+    }
+    return unless defined $idx;
+
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+    return unless defined $price;
+
+    my $status = $draw->add_point( { index => $idx, price => $price } );
+    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+        my $active = $draw->is_tool_active() ? 1 : 0;
+        my $n      = $active ? $draw->draft_count() : 2;
+        $self->{fib_mode_callback}->( $active, $n );
+    }
+    $self->request_render();
+    return $status;
+}
+
+sub _fib_hit_test {
+    my ( $self, $x, $y ) = @_;
+    my $ov = $self->{fib_overlay};
+    return undef unless $ov && $ov->can('hit_test');
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return undef unless $scale;
+    my ( $ws, $we ) = eval { $self->compute_window() };
+    return $ov->hit_test( $x, $y, $scale, $ws // 0 );
+}
+
+sub _fib_drag_to {
+    my ( $self, $x, $y ) = @_;
+    my $handle = $self->{_fib_drag}{handle} or return;
+    my $draw   = $self->{fib_drawing} or return;
+    my $fib    = $draw->get_fib() or return;
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my ( $ws, $we ) = eval { $self->compute_window() };
+        $idx = $we if defined $we;
+    }
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+
+    if ( $handle eq 'p1' && defined $idx && defined $price ) {
+        $draw->set_p1( { index => $idx, price => $price } );
+    }
+    elsif ( $handle eq 'p2' && defined $idx && defined $price ) {
+        $draw->set_p2( { index => $idx, price => $price } );
+    }
+    elsif ( $handle eq 'left' && defined $idx ) {
+        $draw->set_left_index($idx);
+    }
+    elsif ( $handle eq 'right' && defined $idx ) {
+        $draw->set_right_index($idx);
+    }
+    $self->request_render();
 }
 
 1;

@@ -224,10 +224,9 @@ my $vis_liq = 0;
 my $vis_strategy = 0;
 my $vis_vp = 0;
 my $vis_vwap = 0;
-# ZigZag: capas independientes (externo / interno / Fib consolidado)
+# ZigZag: capas independientes (externo / interno)
 my $vis_zz_ext = 0;
 my $vis_zz_int = 0;
-my $vis_zz_fib = 0;
 my $vis_zigzag = 0;    # legacy: true si alguna capa ZZ está ON
 my %vis_elem = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 # Densidad: funcionalidad a eliminar. No panel UI. No usar en paridad SMC/TV
@@ -239,9 +238,12 @@ if ($chart_engine->{liq_overlay} && $chart_engine->{liq_overlay}->can('set_densi
 if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set_density_pct')) {
     $chart_engine->{zigzag_overlay}->set_density_pct(100);
 }
-my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0, FIBS => 0 );
+my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
 # Default profe ZZMTF: Resolution 30 min, Period 2, Show ZigZag only
 my $zigzag_resolution = 30;
+# Fib Retracement (drawing tool TV)
+my $fib_extend_left  = 0;
+my $fib_extend_right = 0;
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
 # -variable explícito al callback (Tk no lo pasa solo en -command).
@@ -266,7 +268,7 @@ my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigza
 my %cb_elem = map { $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_) }
               qw(BSL SSL EQH EQL SWEEP GRAB RUN);
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
-                qw(INTERNAL EXTERNAL CHANNEL FIBS);
+                qw(INTERNAL EXTERNAL CHANNEL);
 my %vis_strategy_elem = (
     SUPERTREND => 0, HALFTREND => 0, RANGEFILTER => 0, SUPPLY_DEMAND => 1,
 );
@@ -312,25 +314,21 @@ my $toggle_overlay_visible = sub {
 };
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
                qw(15 30 60 120);
-# Toggle por capa ZZ (INTERNAL / EXTERNAL / FIBS) con re-feed on-demand
+# Toggle por capa ZZ (INTERNAL / EXTERNAL) con re-feed on-demand
 my $set_zz_layer = sub {
     my ( $elem, $on ) = @_;
     $elem = uc( $elem // '' );
-    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL' || $elem eq 'FIBS';
+    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL';
     $on = $on ? 1 : 0;
     if ( $elem eq 'INTERNAL' ) {
         $vis_zz_int = $on;
         $vis_zzelem{INTERNAL} = $on;
     }
-    elsif ( $elem eq 'EXTERNAL' ) {
+    else {
         $vis_zz_ext = $on;
         $vis_zzelem{EXTERNAL} = $on;
     }
-    else {
-        $vis_zz_fib = $on;
-        $vis_zzelem{FIBS} = $on;
-    }
-    $vis_zigzag = ( $vis_zz_int || $vis_zz_ext || $vis_zz_fib ) ? 1 : 0;
+    $vis_zigzag = ( $vis_zz_int || $vis_zz_ext ) ? 1 : 0;
     if ( $chart_engine->can('set_zigzag_layer') ) {
         $chart_engine->set_zigzag_layer( $elem, $on );
     }
@@ -372,7 +370,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 }
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
-# --- FASE ACTUAL: SMC + HLD + PChan + ZZ ext/int + Fib consolidado ---
+# --- FASE ACTUAL: SMC + HLD + PChan + ZZ ext/int + Fib Retracement tool ---
 # PASO A PASO: Liq / Strategy / VWAP / VP desactivados.
 my %panel;
 $panel{$_} = $panel_row->Frame() for qw(Capas SMC Escala Replay);
@@ -524,13 +522,6 @@ if ($ENV{MARKET_RELOAD}) {
             },
         )->pack( -side => 'left' );
     }
-    # Fibonacci anclado a pierna consolidada del ZZ externo (fase 4)
-    $p->Checkbutton(
-        -text     => 'Fibonacci',
-        -variable => \$vis_zz_fib,
-        -command  => sub { $set_zz_layer->( 'FIBS', $vis_zz_fib ? 1 : 0 ); },
-    )->pack( -side => 'left' );
-
     # Parallel Channel (herramienta TV del video del profe)
     my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
     $pchan_box->Label(-text => 'Canal:')->pack(-side => 'left', -padx => 2);
@@ -566,6 +557,56 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $chart_engine->clear_parallel_channel(); },
     )->pack( -side => 'left', -padx => 2 );
     $pchan_hint->pack( -side => 'left', -padx => 4 );
+
+    # Fib Retracement (clone herramienta nativa TV: 2 clics, bandas, handles)
+    my $fib_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 6 );
+    $fib_box->Label( -text => 'Fib:' )->pack( -side => 'left', -padx => 2 );
+    my $fib_hint = $fib_box->Label(
+        -text => '',
+        -fg   => '#0D47A1',
+        -font => [ 'Helvetica', 9, 'bold' ],
+    );
+    $chart_engine->{fib_mode_callback} = sub {
+        my ( $active, $n ) = @_;
+        if ($active) {
+            my $step = ( $n // 0 ) + 1;
+            $step = 2 if $step > 2;
+            $fib_hint->configure(
+                -text => "Clic $step/2… (Esc cancela)",
+                -fg   => '#0D47A1',
+            );
+        }
+        else {
+            $fib_hint->configure( -text => '', -fg => '#666666' );
+        }
+    };
+    $fib_box->Button(
+        -text    => 'Fib Retracement',
+        -command => sub { $chart_engine->start_fib_retracement_tool(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $fib_box->Button(
+        -text    => 'Desde ZZ ext',
+        -command => sub { $chart_engine->fib_anchor_from_external_zz(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $fib_box->Button(
+        -text    => 'Borrar Fib',
+        -command => sub { $chart_engine->clear_fib_retracement(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $fib_box->Checkbutton(
+        -text     => 'Ext←',
+        -variable => \$fib_extend_left,
+        -command  => sub {
+            $chart_engine->set_fib_extend_left( $fib_extend_left ? 1 : 0 );
+        },
+    )->pack( -side => 'left' );
+    $fib_box->Checkbutton(
+        -text     => 'Ext→',
+        -variable => \$fib_extend_right,
+        -command  => sub {
+            $chart_engine->set_fib_extend_right( $fib_extend_right ? 1 : 0 );
+        },
+    )->pack( -side => 'left' );
+    $fib_hint->pack( -side => 'left', -padx => 4 );
 
     $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
         -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
