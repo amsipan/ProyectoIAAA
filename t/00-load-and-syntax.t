@@ -5,7 +5,7 @@ use Test::More;
 use lib '.';
 
 # Producto oficial únicamente (docs/PRODUCTO_OFICIAL.md).
-# Legacy en legacy/ y t/legacy/ no se carga aquí.
+# Legacy está FUERA del repo (docs/LEGACY.md).
 
 use_ok('Market::MarketData');
 use_ok('Market::IndicatorManager');
@@ -52,11 +52,27 @@ for my $file (@syntax_files) {
     like($output, qr/syntax OK/, "$file reporta syntax OK");
 }
 
-# Asegurar que no se cargan módulos legacy en el árbol principal
-ok( !-f 'Market/Indicators/Liquidity.pm', 'Liquidity no está en Indicators/ (cuarentena legacy/)' );
-ok( !-f 'Market/Indicators/Mxwll_Suite.pm', 'Mxwll no está en Indicators/' );
-ok( -f 'legacy/Market/Indicators/Liquidity.pm', 'Liquidity cuarentenado en legacy/' );
+# Aislamiento fuerte: ningún módulo legacy en el árbol de producto
+for my $f (qw(
+    Market/Indicators/Liquidity.pm
+    Market/Indicators/Mxwll_Suite.pm
+    Market/Indicators/Strategy_Builder.pm
+    Market/Indicators/VolumeProfile.pm
+    Market/Indicators/AnchoredVWAP.pm
+    Market/Indicators/SMC_Structures.pm
+    Market/Overlays/Liquidity.pm
+    Market/Overlays/Mxwll_Suite.pm
+    Market/Overlays/Strategy_Builder.pm
+    Market/Overlays/VolumeProfile.pm
+    Market/Overlays/AnchoredVWAP.pm
+    Market/Overlays/SMC_Structures.pm
+)) {
+    ok( !-f $f, "ausente en producto: $f" );
+}
+
+ok( !-d 'legacy', 'carpeta legacy/ no está en el repo' );
+ok( !-d 't/legacy', 'carpeta t/legacy/ no está en el repo' );
 ok( -f 'docs/PRODUCTO_OFICIAL.md', 'existe PRODUCTO_OFICIAL.md' );
-ok( -f 'docs/LEGACY.md', 'existe LEGACY.md' );
+ok( -f 'docs/LEGACY.md', 'existe LEGACY.md (apunta fuera del repo)' );
 
 done_testing;

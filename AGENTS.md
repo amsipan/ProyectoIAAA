@@ -8,11 +8,11 @@
 > 4. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos OFICIALES de Fase 2.
 > 5. La spec concreta en `specs/` y su task en `tasks/` (ver **`tasks/README.md`** para estado).
 >
-> **Estado actual (2026-07-08):** Fase 1 cerrada (89/100). Fase 2: temporalidades, Replay,
-> overlays SMC/Liquidez/Strategy/VP/VWAP/Mxwll/ZigZag, UI por pestañas, calibración profe/QA
-> (tasks hasta **0062**). Pendientes notables: spec **0006** (concurrencia), **0047** (baja
-> prio), **0053** (cursor SO pausado WSLg), y **Fase 3 ML**. Si docs y código divergen,
-> mandan **código + `tasks/README.md` + `git log`**.
+> **Estado actual (2026-07-18):** Fase 1 cerrada. Producto oficial paso a paso en
+> **`docs/PRODUCTO_OFICIAL.md`**: SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag
+> ext/int, Fib Retracement. **Legacy fuera del repo** (`docs/LEGACY.md`). No reactivar
+> Liquidity/Mxwll/VP/VWAP/Strategy antiguos. Pendientes: Liquidity v2 (PDF+FSM), VWAP, etc.;
+> Fase 3 ML. Si docs y código divergen, mandan **código + PRODUCTO_OFICIAL + git log**.
 >
 > **Flujo de trabajo (SDD):** toma una task de `tasks/` → implementa solo eso → verifica con
 > `perl -I. -c` de los archivos tocados + `prove -l t` → no toques nada fuera de "Archivos relevantes"/"Qué no tocar" de la task.
@@ -38,14 +38,12 @@ de mercado, construida con Perl/Tk para la asignatura IA y Aprendizaje Automáti
 GR1SW). El profesor evaluó Fase 1 con una rúbrica (ver `Rubrica_Proyecto_GUI.xlsx`, hoja
 `AA-GR1`, columna `Grupo 2`). Puntaje base: 89/100 (Fase 1).
 
-## Fase 2 — qué incluye (resumen)
+## Fase 2 — producto oficial (resumen)
 
-- Temporalidades 1m,5m,15m,1h,2h,4h,D,W.
-- **Sistema Replay** (sin velas futuras; UX tipo TradingView Bar Replay).
-- **Overlays:** SMC (BOS/CHoCH/FVG/Fibonacci), Liquidez (EQH/EQL, sweep/grab/run, FSM,
-  multi-TF), Strategy Builder, Volume Profile, Anchored VWAP, Mxwll Suite, ZigZag + canal.
-- Separación `Market/Indicators/` (cálculo) vs `Market/Overlays/` (render).
-- Detalle por feature en `specs/`; estado de implementación en `tasks/README.md`.
+- Temporalidades 1m…W; **Replay** sin futuro.
+- **Oficial ahora:** SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag, Fib Retracement.
+- Separación Indicators (cálculo) vs Overlays/Drawing (render).
+- Lista canónica: `docs/PRODUCTO_OFICIAL.md`. Historial de specs en `specs/` / `tasks/`.
 
 Regla de rendimiento clave (PDF §2): los indicadores de alta complejidad calculan **solo sobre
 las velas visibles + una ventana de contexto indexada**, nunca todo el historial por frame.
@@ -71,20 +69,13 @@ ProyectoIAAA/
     IndicatorManager.pm      # Gestor de indicadores base
     ReplayController.pm      # Índice-tope Replay, velocidades, intervalos
     OverlayManager.pm        # Registro de overlays
-    Indicators/              # CÁLCULO (sin Tk)
-      ATR.pm
-      SMC_Structures.pm
-      Liquidity.pm
-      Strategy_Builder.pm
-      VolumeProfile.pm
-      AnchoredVWAP.pm
-      Mxwll_Suite.pm
-      ZigZag.pm
-    Overlays/                # RENDER sobre Canvas
-      Base.pm  Example.pm
-      SMC_Structures.pm  Liquidity.pm
-      Strategy_Builder.pm  VolumeProfile.pm  AnchoredVWAP.pm
-      Mxwll_Suite.pm  ZigZag.pm
+    Indicators/              # CÁLCULO (sin Tk) — solo producto oficial
+      ATR.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm
+    Overlays/                # RENDER
+      Base.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm
+      ParallelChannel.pm  FibRetracement.pm
+    Drawing/
+      ParallelChannel.pm  FibRetracement.pm
     Panels/
       PricePanel.pm  ATRPanel.pm  Scales.pm
     UI/

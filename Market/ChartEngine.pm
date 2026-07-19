@@ -159,7 +159,8 @@ sub new {
 
     # --- PRODUCTO OFICIAL (docs/PRODUCTO_OFICIAL.md) ---
     # smc_pro, smc_fvg, hld, pchan, zigzag, fib.
-    # NO registrar: Liquidity/Mxwll/Strategy/VP/VWAP (ver legacy/).
+    # Legacy (Liquidity/Mxwll/Strategy/VP/VWAP/SMC_Structures viejo):
+    #   FUERA del repo — docs/LEGACY.md
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
     $self->{hld_indicator} = Market::Indicators::HLD->new();
@@ -274,18 +275,11 @@ sub compute_window {
     return ($start_idx, $end_idx);
 }
 
-# sync_overlay_indicators — task 0015.
-# Lleva los indicadores SMC y Liquidity exactamente al tope de alimentación
-# efectivo según el estado de Replay. Los indicadores son máquinas
-# incrementales con estado; alimentarlos hasta el fin del dataset filtra
-# futuro (FVG mitigado por velas futuras, pivotes confirmados con velas
-# futuras) aunque el overlay filtre el dibujo por index <= end. Corrección:
-#   * Replay ACTIVO   → feed_to = replay_controller->current_index (replay_idx).
-#   * Replay INACTIVO → feed_to = size()-1 (vista normal intacta).
-# El avance/retroceso de cada indicador lo resuelve _feed_indicator_to.
-# Es público para que t/16 pueda verificar el cableado sin invocar render()
-# (que requiere UI completa) pero NO se invoca desde fuera de ChartEngine en
-# producción.
+# sync_overlay_indicators — task 0015 (producto oficial).
+# Alimenta indicadores oficiales hasta el tope de Replay (sin futuro).
+#   * Replay ACTIVO   → feed_to = replay_idx
+#   * Replay INACTIVO → feed_to = size()-1
+# Bajo demanda: solo capas visibles (smc_pro, smc_fvg, zigzag, …).
 sub sync_overlay_indicators {
     my ($self) = @_;
     return unless $self->{overlay_manager};
@@ -300,13 +294,7 @@ sub sync_overlay_indicators {
         $feed_to = $last_idx;
     }
 
-    # task 0018 (F3/F4): alimentación BAJO DEMANDA. Un indicador pesado
-    # (SMC/Liquidity) solo se alimenta si su overlay está visible. Con las capas
-    # apagadas por defecto, el arranque es instantáneo (no calcula nada pesado);
-    # el costo se paga al activar la capa, una sola vez (cursor cacheado).
-    # Si no hay overlay registrado (p.ej. tests t/16), se alimenta igual para
-    # preservar el comportamiento verificado.
-    # Solo producto oficial (sin Liquidity/Strategy/VP/VWAP legacy).
+    # Solo producto oficial.
     my $smc_wants_feed = $self->_any_named_overlay_wants(qw(smc_pro smc)) ? 1 : 0;
     my $smc_fvg_wants_feed = $self->_overlay_wants_feed('smc_fvg') ? 1 : 0;
     if ($smc_wants_feed) {
@@ -413,8 +401,7 @@ sub _any_named_overlay_wants {
 # respetando el cursor $self->{$cursor_key} (último índice ya alimentado).
 #   * Avance (feed_to > cursor): update_last de cursor+1 .. feed_to.
 #   * Retroceso (feed_to < cursor): reset() + realimentar 0 .. feed_to.
-# El indicador refleja entonces el estado que tendría si el dataset terminara
-# en feed_to (cero fuga de futuro en Replay). Mismo patrón para SMC y Liquidity.
+# El indicador refleja el estado si el dataset terminara en feed_to (sin futuro en Replay).
 sub _feed_indicator_to {
     my ($self, $indicator, $cursor_key, $feed_to) = @_;
     return unless $indicator && defined $feed_to;
@@ -811,7 +798,7 @@ sub render {
     # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx
     # (start/end ya vienen truncados por compute_window si Replay está activo).
     if ($self->{overlay_manager}) {
-        # task 0015: el cableado de alimentación de los indicadores SMC/Liquidity
+        # task 0015: alimentación de indicadores oficiales (sync_overlay_indicators)
         # se sincroniza con el tope de Replay (ver sync_overlay_indicators).
         $self->sync_overlay_indicators();
 

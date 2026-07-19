@@ -1,27 +1,36 @@
-# Código legacy (no producto oficial)
+# Código legacy — FUERA del repositorio GitHub
 
-Código del mes de desarrollo que **existía pero fallaba** o fue sustituido.  
-Cuarentena: `legacy/Market/` y `t/legacy/`. **No cargar en ChartEngine ni market.pl.**
+## Ubicación en disco (acceso local, no git)
 
-## Por qué se aisló
+```
+C:\ia\proyecto_iaaa\Proyecto\ProyectoIAAA_LEGACY_ARCHIVE\
+```
 
-| Módulo | Problema histórico |
-|--------|-------------------|
-| **Liquidity** | Sweep/Grab/Run con pivotes propios o SMC ruidoso; profe/QA: basura, posiciones arbitrarias |
-| **Mxwll Suite** | Profe: no fuente de verdad de estructura externa ni FVG |
-| **SMC_Structures** (unificado) | Reemplazado por SMC Pro + Structures_FVG |
-| **Strategy Builder** | No calibrado en el plan paso a paso actual |
-| **Volume Profile** (app) | No es el ChartPrime OFF del ZZ; fase posterior |
-| **Anchored VWAP** | Fase posterior (HLD anticipa VWAP para ATH) |
+| Contenido | Ruta en el archivo |
+|-----------|-------------------|
+| Módulos antiguos | `legacy/Market/Indicators/`, `legacy/Market/Overlays/` |
+| Tests antiguos | `t_legacy/` |
+| Nota de extracción | `README.md` en la raíz del archivo |
 
-## Liquidity y TradingView
+**No está en GitHub.** El repo de producto solo documenta esta ruta.
 
-No hay captura del profe de un indicador “Liquidity Sweep/Grab/Run” 1:1.  
-La fuente es el **PDF 2ª fase** + `maquina_estados_liquidez.png`.  
-**No** reactivar `legacy/.../Liquidity.pm` creyendo que TV lo valida.
+## Qué hay ahí (histórico, no usar en runtime)
 
-## Restaurar (solo si se rediseña)
+- Liquidity (BSL/SSL, Sweep/Grab/Run) — mal calibrado / pivotes dudosos  
+- Mxwll Suite  
+- Strategy Builder  
+- Volume Profile (app)  
+- Anchored VWAP  
+- SMC_Structures unificado (reemplazado por SMC Pro + Structures_FVG)  
+- Tests asociados (incl. t/16, t/18 ondemand liq, etc.)
 
-1. No copiar el feed viejo `SMC → Liquidity` sin revisar pivotes.  
-2. Preferir swings del **ZigZag externo** y/o **SMC Pro**.  
-3. Plan + tests nuevos; luego mover de `legacy/` al árbol principal.
+## Política hasta terminar el plan maestro
+
+1. **No copiar** de vuelta a `Market/Indicators` ni `Market/Overlays` del repo.  
+2. **No** `use` ni registrar en ChartEngine.  
+3. Si hace falta una idea antigua: abrir el archivo en el explorador o editor; copiar **lógica de referencia** a un módulo **nuevo**, no reactivar el archivo tal cual.  
+4. Liquidity se reimplementará **desde cero** (PDF + FSM del profe + pivotes del stack oficial).
+
+## Producto oficial
+
+Ver `docs/PRODUCTO_OFICIAL.md`.

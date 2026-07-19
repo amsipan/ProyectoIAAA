@@ -7,25 +7,26 @@
 ## Tema: “Visualización de Datos mediante Motor de Charting usando la librería Tk”
 
 Motor de gráficos financieros OHLCV en **Perl/Tk**, con indicadores y overlays de estructura
-de mercado (SMC, liquidez, strategy builder, volume profile, VWAP, etc.) y sistema **Replay**.
-Base de visualización para la fase de ML (HMM / Viterbi tensorial) a fin de semestre.
+de mercado y sistema **Replay**. Base para la fase de ML (HMM / Viterbi) a fin de semestre.
 
-Documentación de desarrollo (estado, arquitectura, tasks): ver **`AGENTS.md`** y **`docs/`**.
+**Producto oficial actual:** ver **`docs/PRODUCTO_OFICIAL.md`**  
+(SMC Pro, Structures+FVG, HLD, ZigZag, Fib Retracement, Parallel Channel).
+
+Código antiguo (Liquidity vieja, Mxwll, etc.) está **fuera de este repo**: **`docs/LEGACY.md`**.
 
 ## Estructura del proyecto (resumen)
 
 - **`market.pl`** — punto de entrada; UI por pestañas; carga CSV y lanza el loop Tk.
-- **`Data/`** — CSVs OHLCV (`2026_03.csv` principal; también datasets de junio/julio 2026).
-- **`Market/`** — código modular en capas:
-  - **Datos:** `MarketData.pm` (OHLCV, timeframes 1m…W, slicing).
-  - **Indicadores (cálculo, sin Tk):** `Indicators/*` (ATR, SMC, Liquidity, Strategy_Builder,
-    VolumeProfile, AnchoredVWAP, Mxwll_Suite, ZigZag).
-  - **Render:** `ChartEngine.pm`, `Panels/*`, `Overlays/*`, `Scales.pm`.
-  - **Replay / UI:** `ReplayController.pm`, `OverlayManager.pm`, `UI/*`.
-  - **Debug (arquitecto):** `Debug/*`.
-- **`docs/`** — SDD (`AI_CONTEXT`, `ARCHITECTURE`, `CONSTITUTION`, `ROADMAP`, …).
-- **`specs/`** / **`tasks/`** — requisitos y unidades de trabajo.
-- **`t/`** — suite `prove -l t` (Test::More, sin GUI).
+- **`Data/`** — CSVs OHLCV (p. ej. `tv_nq1_15m.csv`, datasets junio/julio 2026).
+- **`Market/`** — código modular:
+  - **Datos:** `MarketData.pm`
+  - **Indicadores oficiales:** ATR, SMC_Pro, SMC_Structures_FVG, HLD, ZigZag
+  - **Drawing tools:** ParallelChannel, FibRetracement
+  - **Render:** `ChartEngine.pm`, `Panels/*`, `Overlays/*`
+  - **Replay / UI:** `ReplayController.pm`, `OverlayManager.pm`, `UI/*`
+- **`docs/`** — SDD + material del profe + PRODUCTO_OFICIAL / LEGACY
+- **`specs/`** / **`tasks/`** — requisitos e historia del curso
+- **`t/`** — suite de tests del producto oficial
 
 ## Cómo empezar (agentes y desarrolladores)
 
