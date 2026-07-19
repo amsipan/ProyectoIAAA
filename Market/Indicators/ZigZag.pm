@@ -9,8 +9,9 @@ use warnings;
 # Interno (ZZMTF): resolución HTF configurable (default 30m), period=2.
 #   Pivotes ph/pl con ventana len desde newbar; dir +1/-1; vértices consolidados
 #   vs último ajustable (add_to_zigzag / update_zigzag del .pine).
-# Externo (ChartPrime simplificado): swingLength=150, solo línea zigzag azul.
-#   isBullish por nuevo highest/lowest; último segmento se ajusta.
+# Externo (ChartPrime): swingLength=150, solo línea zigzag azul.
+# Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF → solo oscilación.
+#   Source: docs/reference_indicators/zigzag_volumeprofile_chartprime.txt
 #
 # Contrato: new / update_last($md,$i) / get_values / reset
 # =============================================================================
@@ -22,14 +23,15 @@ my $MAX_VERTICES = 50;
 sub new {
     my ($class, %args) = @_;
     my $self = {
+        # Fase 3.1: externo ChartPrime Length=150 (captura profe)
         internal_resolution => $args{internal_resolution} // 30,
         internal_period     => $args{internal_period}     // 2,
         swing_length        => $args{swing_length}        // 150,
         atr_period          => $args{atr_period}          // 200,
         channel_width       => $args{channel_width}       // 1,
-        # Canal local: evita macro-canales enormes en 1m que cruzan media pantalla
-        # y no representan el canal pequeño de tendencia que se espera visualmente.
         channel_max_span    => $args{channel_max_span}    // 220,
+        # 1 = no calcular ZZ interno MTF (producto fase 3.1). Default 0 = tests t/24.
+        external_only       => exists $args{external_only} ? ($args{external_only} ? 1 : 0) : 0,
         %args,
     };
     bless $self, $class;
@@ -73,6 +75,12 @@ sub set_internal_resolution {
     return $self;
 }
 
+sub set_external_only {
+    my ( $self, $bool ) = @_;
+    $self->{external_only} = $bool ? 1 : 0;
+    return $self;
+}
+
 sub update_last {
     my ($self, $market_data, $index) = @_;
     return unless $market_data && defined $index;
@@ -81,15 +89,21 @@ sub update_last {
     return unless $candle;
     my ($ts, $open, $high, $low, $close) = @$candle[0 .. 4];
 
-    $self->_update_internal($market_data, $index, $ts, $high, $low);
-    $self->_update_external($index, $high, $low, $close);
+    # Fase 3.1: solo externo (ChartPrime). Interno se reactiva en 3.2.
+    unless ( $self->{external_only} ) {
+        $self->_update_internal( $market_data, $index, $ts, $high, $low );
+    }
+    $self->_update_external( $index, $high, $low, $close );
 
-    $self->{internal_direction}[$index] = $self->{_int_dir}
-        ? $self->{_int_dir}
-        : ($index > 0 ? ($self->{internal_direction}[$index - 1] // 0) : 0);
+    $self->{internal_direction}[$index] =
+        $self->{external_only}
+      ? 0
+      : ( $self->{_int_dir}
+          ? $self->{_int_dir}
+          : ( $index > 0 ? ( $self->{internal_direction}[ $index - 1 ] // 0 ) : 0 ) );
     $self->{external_direction}[$index] = defined $self->{_ext_bullish}
-        ? ($self->{_ext_bullish} ? 1 : -1)
-        : ($index > 0 ? ($self->{external_direction}[$index - 1] // 0) : 0);
+        ? ( $self->{_ext_bullish} ? 1 : -1 )
+        : ( $index > 0 ? ( $self->{external_direction}[ $index - 1 ] // 0 ) : 0 );
     return $self;
 }
 

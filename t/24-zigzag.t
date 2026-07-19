@@ -154,27 +154,37 @@ sub feed_all {
 }
 
 # 7. Overlay: tag, toggles, draw headless
+# Defaults captura profe fase 3.1: EXTERNAL ON, INTERNAL/CHANNEL OFF
 {
-    my $ind = Market::Indicators::ZigZag->new(internal_resolution => 5, swing_length => 8);
-    my @rows = map { [10+$_, 12+$_, 9+$_, 11+$_] } 0 .. 15;
-    feed_all($ind, build_ohlc(\@rows));
-    my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
-    ok(Market::Overlays::Base->validate($ov), 'overlay ZigZag valida contrato');
-    is($ov->tag(), 'ov_zigzag', 'tag ov_zigzag');
-    ok($ov->is_element_visible('INTERNAL'), 'toggle interno ON por defecto');
-    ok($ov->is_element_visible('EXTERNAL'), 'toggle externo ON por defecto');
+    my $ind = Market::Indicators::ZigZag->new(
+        internal_resolution => 5,
+        swing_length        => 8,
+        external_only       => 0,
+    );
+    my @rows = _triangle_wave_rows();
+    feed_all( $ind, build_ohlc( \@rows ) );
+    my $ov = Market::Overlays::ZigZag->new( indicator => $ind );
+    ok( Market::Overlays::Base->validate($ov), 'overlay ZigZag valida contrato' );
+    is( $ov->tag(), 'ov_zigzag', 'tag ov_zigzag' );
+    ok( !$ov->is_element_visible('INTERNAL'),
+        'toggle interno OFF por defecto (fase 3.1 ChartPrime solo externo)' );
+    ok( $ov->is_element_visible('EXTERNAL'), 'toggle externo ON por defecto' );
+    ok( !$ov->is_element_visible('CHANNEL'),
+        'toggle canal OFF (Swing Channel Display OFF captura profe)' );
     $ov->set_visible(1);
-    $ov->compute_visible(undef, $ind, 0, 15);
+    my $last = $#rows;
+    $ov->compute_visible( undef, $ind, 0, $last );
     my $canvas = ZZTestCanvas->new();
-    my $scales = Market::Panels::Scales->new(min_y => 5, max_y => 30, bars => 16);
-    $scales->{width} = 400; $scales->{height} = 300;
-    $ov->draw($canvas, $scales);
+    my $scales = Market::Panels::Scales->new( min_y => 50, max_y => 140, bars => $last + 1 );
+    $scales->{width}  = 400;
+    $scales->{height} = 300;
+    $ov->draw( $canvas, $scales );
     my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    ok(@lines >= 1, 'draw: al menos una línea (externo azul)');
+    ok( @lines >= 1, 'draw: al menos una línea (externo azul)' );
     $ov->set_visible(0);
     $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-    is(scalar(grep { $_->[0] ne 'delete' } @{ $canvas->{ops} }), 0, 'visible=0: sin ops');
+    $ov->draw( $canvas, $scales );
+    is( scalar( grep { $_->[0] ne 'delete' } @{ $canvas->{ops} } ), 0, 'visible=0: sin ops' );
 }
 
 # Fixture compartida: onda triangular con varios swings externos (task 0061).

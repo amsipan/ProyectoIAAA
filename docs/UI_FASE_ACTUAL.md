@@ -9,10 +9,11 @@
 | **SMC Structures+FVG** | Indicador 2 verificado |
 | **Parallel Channel** | Herramienta TV (3 clics); un canal a la vez |
 | **HLD (4h/D)** | S/R de vela HTF (algoritmo profe, sin Pine); solo TF **4h** y **D** |
+| **ZigZag externo** | ChartPrime captura profe: **Length 150**, solo línea azul; VP/Channel/PoC **OFF** |
 
 ## Desactivado (código conservado)
 
-- ZigZag (+ canal por pierna ZZ)
+- ZigZag **interno** / canal por pierna ZZ (fase 3.2+)
 - Liquidity
 - Strategy Builder
 - Anchored VWAP / Volume Profile

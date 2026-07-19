@@ -341,9 +341,8 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 }
 
 # --- Paneles (uno por pestaña). Se construyen una vez; se muestran/ocultan. ---
-# --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel ---
-# PASO A PASO: pestañas Liq / ZigZag / Estrategia desactivadas (código de paneles
-# abajo conservado en comentarios / sin empaquetar). Reactivar al llegar a esa fase.
+# --- FASE ACTUAL: SMC + HLD + Parallel Channel + ZigZag externo ---
+# PASO A PASO: Liq / Strategy / VWAP / VP / ZZ-interno desactivados.
 my %panel;
 $panel{$_} = $panel_row->Frame() for qw(Capas SMC Escala Replay);
 
@@ -458,8 +457,7 @@ if ($ENV{MARKET_RELOAD}) {
     print "[*] RELOAD: fresh process started (MARKET_RELOAD=1)\n";
 }
 
-# ---- Panel "Capas": solo fase actual (SMC + Parallel Channel) ----
-# Desactivado (conservado en repo, sin UI): Liquidez, Estrategia, VP, VWAP, ZigZag.
+# ---- Panel "Capas": fase actual (sin Liq/VWAP/VP/Strategy) ----
 {
     my $p = $panel{Capas};
     $p->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
@@ -469,6 +467,9 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
         -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
+    # ZigZag externo ChartPrime (captura profe: solo línea, VP/Channel/PoC OFF)
+    $p->Checkbutton(-text => 'ZigZag externo', -variable => \$vis_zigzag,
+        -command => sub { $set_overlay_visible->('zigzag', $vis_zigzag ? 1 : 0); })->pack(-side => 'left');
 
     # Parallel Channel (herramienta TV del video del profe)
     my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);

@@ -165,12 +165,10 @@ sub new {
     $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
     $self->{_smc_fvg_fed_up_to} = -1;
 
-    # --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel + HLD ---
-    # PASO A PASO: capas futuras DESACTIVADAS (código de módulos se conserva).
-    # No se registran → no feed, no dibujo, no interferencia.
-    # Reactivar cuando ORDEN_PROYECTO_DEFINITIVO llegue a esa fase:
-    #   Liquidity, Strategy_Builder, VolumeProfile, AnchoredVWAP, ZigZag.
-    # (Mxwll ya fuera de producto — spec 0013.)
+    # --- FASE ACTUAL ---
+    # Activo: SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag externo.
+    # Desactivado (no registrar): Liquidity, Strategy, VP, VWAP, Mxwll.
+    # ZZ interno/canal se dejan OFF en el overlay (fase 3.2+).
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
     $self->{hld_indicator} = Market::Indicators::HLD->new();
@@ -194,6 +192,20 @@ sub new {
         visible => 1,
     );
     $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
+
+    # ZigZag externo — ChartPrime captura profe (Length 150; VP/Channel/PoC OFF)
+    $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
+        swing_length  => 150,
+        external_only => 1,
+    );
+    $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
+        indicator => $self->{zigzag_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+        elements  => { INTERNAL => 0, EXTERNAL => 1, CHANNEL => 0 },
+    );
+    $self->{overlay_manager}->register( 'zigzag', $self->{zigzag_overlay} );
+    $self->{_zigzag_fed_up_to} = -1;
 
     $self->_sync_fibonacci_levels_for_timeframe();
 
@@ -978,9 +990,12 @@ sub render {
 
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
-        # Velas siempre por encima de líneas de indicadores (BOS/CHoCH/EQ/OB…).
+        # Velas por encima de líneas de indicadores (BOS/CHoCH/EQ/OB/HLD lines…).
         eval { $self->{price_canvas}->raise('candle'); 1 };
         eval { $self->{price_canvas}->raise('price_label'); 1 };
+        # Etiquetas HLD siempre encima de las velas (chip + texto legible).
+        eval { $self->{price_canvas}->raise('hld_lbl_bg'); 1 };
+        eval { $self->{price_canvas}->raise('hld_lbl'); 1 };
     }
 
     if ($self->{_replay_select_mode}) {
