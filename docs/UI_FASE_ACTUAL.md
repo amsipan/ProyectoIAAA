@@ -30,11 +30,11 @@ Base nativa **15m** (`Data/tv_nq1_15m.csv`). 4h/D se agregan desde 15m.
 
 ## Fib Retracement — uso
 
-1. **Fib Retracement** → clic 1 (nivel 1) y clic 2 (nivel 0), p. ej. extremos de la pierna azul.
-2. O **Desde ZZ ext** para anclar a la última pierna consolidada del ZigZag externo.
-3. Arrastrar handles azules (p1/p2) o naranjas (bordes L/R) para mover/ampliar.
-4. **Ext← / Ext→** extienden el rectángulo al borde de la vista.
-5. **Borrar Fib** limpia el dibujo.
+1. **Fib Retracement** → clic 1 (nivel **1**) y clic 2 (nivel **0**), como en TV.
+2. **Desde ZZ ext** → modo “elige pierna”: clic en la **línea azul** del ZZ externo que quieras (no elige al azar). Impulso from→to = 1→0 (bajista: 1 arriba, 0 abajo).
+3. Arrastrar handles **azules** (p1/p2) o el naranja derecho para ajustar.
+4. **Hasta última vela** → proyecta la caja solo hasta la última vela del dataset (no más allá).
+5. **Borrar Fib** / Esc cancela el modo.
 
 ## HLD — recordatorio
 

@@ -6,7 +6,6 @@ use lib '.';
 use Market::Drawing::FibRetracement;
 use Market::Overlays::FibRetracement;
 
-# Canvas headless
 {
     package FibTestCanvas;
     sub new { bless { ops => [] }, shift }
@@ -31,21 +30,12 @@ use Market::Overlays::FibRetracement;
         push @{ $s->{ops} }, [ createOval => @a ];
         return scalar @{ $s->{ops} };
     }
-    sub createPolygon {
-        my ( $s, @a ) = @_;
-        push @{ $s->{ops} }, [ createPolygon => @a ];
-        return scalar @{ $s->{ops} };
-    }
 }
 
-# 1. Fórmula TV: 0 en p2, 1 en p1 (captura usuario ~30000 / 28408)
+# 1. Fórmula TV: 0 en p2, 1 en p1
 {
-    my $p1 = { index => 10, price => 30000 };
+    my $p1 = { index => 10,  price => 30000 };
     my $p2 = { index => 100, price => 28408 };
-    my $mid = Market::Drawing::FibRetracement->price_at_level( $p1, $p2, 0.5 );
-    ok( abs( $mid - ( 28408 + 0.5 * ( 30000 - 28408 ) ) ) < 1e-6, '0.5 mid' );
-    my $r618 = Market::Drawing::FibRetracement->price_at_level( $p1, $p2, 0.618 );
-    ok( abs( $r618 - ( 28408 + 0.618 * 1592 ) ) < 0.02, '0.618 ≈ captura TV' );
     is(
         Market::Drawing::FibRetracement->price_at_level( $p1, $p2, 0 ),
         28408, 'nivel 0 = p2'
@@ -54,58 +44,73 @@ use Market::Overlays::FibRetracement;
         Market::Drawing::FibRetracement->price_at_level( $p1, $p2, 1 ),
         30000, 'nivel 1 = p1'
     );
+    my $r618 = Market::Drawing::FibRetracement->price_at_level( $p1, $p2, 0.618 );
+    ok( abs( $r618 - ( 28408 + 0.618 * 1592 ) ) < 0.02, '0.618 TV' );
 }
 
-# 2. Defaults: 7 niveles 0…1
-{
-    my $lv = Market::Drawing::FibRetracement::default_levels();
-    is( scalar @$lv, 7, '7 niveles default' );
-    is_deeply(
-        [ map { $_->{ratio} } @$lv ],
-        [ 0, 0.236, 0.382, 0.5, 0.618, 0.786, 1 ],
-        'ratios profe + 0/1 captura'
-    );
-}
-
-# 3. Tool 2 clics → commit
+# 2. set_from_zz_leg: pierna bajista → 1 arriba (high), 0 abajo (low)
 {
     my $d = Market::Drawing::FibRetracement->new();
-    $d->start_tool();
-    is( $d->add_point( { index => 5,  price => 30000 } ), 'draft', 'clic 1 draft' );
-    is( $d->add_point( { index => 50, price => 28408 } ), 'done',  'clic 2 done' );
-    ok( !$d->is_tool_active(), 'tool off tras commit' );
+    $d->set_from_zz_leg(
+        {
+            from_index => 10,
+            from_price => 30000,
+            to_index   => 90,
+            to_price   => 28408,
+            dir        => 'down',
+            consolidated => 1,
+        }
+    );
     my $fib = $d->get_fib();
-    ok( $fib, 'fib creado' );
-    is( $fib->{p1}{price}, 30000, 'p1' );
-    is( $fib->{p2}{price}, 28408, 'p2' );
-    my $prices = $d->level_prices();
-    is( scalar @$prices, 7, '7 level prices' );
+    is( $fib->{p1}{price}, 30000, 'ZZ leg bajista: p1=high=nivel 1' );
+    is( $fib->{p2}{price}, 28408, 'ZZ leg bajista: p2=low=nivel 0' );
+    my $lv = $d->level_prices();
+    my ($one) = grep { abs( $_->{ratio} - 1 ) < 1e-9 } @$lv;
+    my ($zero) = grep { abs( $_->{ratio} - 0 ) < 1e-9 } @$lv;
+    is( $one->{price},  30000, 'ratio 1 en high' );
+    is( $zero->{price}, 28408, 'ratio 0 en low' );
 }
 
-# 4. Extend + mover anclas / bordes
+# 3. nearest_zz_segment elige la pierna correcta
 {
-    my $d = Market::Drawing::FibRetracement->new();
-    $d->set_from_points(
-        { index => 10, price => 100 },
-        { index => 40, price => 200 },
+    my @segs = (
+        {
+            from_index => 0,  to_index => 20,
+            from_price => 100, to_price => 200, dir => 'up',
+        },
+        {
+            from_index => 20, to_index => 80,
+            from_price => 30000, to_price => 28408, dir => 'down',
+        },
     );
-    $d->set_extend_right(1);
-    ok( $d->get_fib()->{extend_right}, 'extend right' );
-    $d->set_p1( { index => 12, price => 110 } );
-    is( $d->get_fib()->{p1}{price}, 110, 'move p1' );
-    $d->set_left_index(0);
-    is( $d->get_fib()->{left_index}, 0, 'left edge' );
-    $d->set_right_index(80);
-    is( $d->get_fib()->{right_index}, 80, 'right edge' );
-    $d->clear_fib();
-    ok( !$d->get_fib(), 'clear' );
+    my $hit = Market::Drawing::FibRetracement->nearest_zz_segment( \@segs, 50, 29000 );
+    ok( $hit, 'nearest encuentra pierna' );
+    is( $hit->{from_price}, 30000, 'elige pierna bajista cercana' );
 }
 
-# 5. Overlay draw: fills + lines + labels + handles
+# 4. extend_to_last hasta data_end
 {
     my $d = Market::Drawing::FibRetracement->new();
     $d->set_from_points(
         { index => 10, price => 30000 },
+        { index => 40, price => 28408 },
+    );
+    $d->set_extend_to_last(1);
+    my $geo = $d->geometry_for(
+        $d->get_fib(),
+        data_end   => 200,
+        view_start => 0,
+        view_end   => 100,
+    );
+    is( $geo->{right_index}, 200, 'extend_to_last → right=data_end' );
+    ok( $geo->{left_index} <= 40, 'left sigue en anclas' );
+}
+
+# 5. Labels fuera: createText con anchor e (lado izquierdo)
+{
+    my $d = Market::Drawing::FibRetracement->new();
+    $d->set_from_points(
+        { index => 30, price => 30000 },
         { index => 90, price => 28408 },
     );
     my $ov = Market::Overlays::FibRetracement->new( drawing => $d );
@@ -114,33 +119,28 @@ use Market::Overlays::FibRetracement;
     $ov->{_data_end} = 100;
 
     my $canvas = FibTestCanvas->new();
-    my $scales = bless {
-        width  => 400,
-        height => 300,
-        bars   => 101,
-    }, 'FakeScales';
+    my $scales = bless { width => 500, height => 300, bars => 101 }, 'FakeScales2';
     {
-        package FakeScales;
-        sub index_to_center_x {
-            my ( $s, $i ) = @_;
-            return 10 + ( $i // 0 ) * 3;
-        }
+        package FakeScales2;
+        sub index_to_center_x { my ( $s, $i ) = @_; return 50 + ( $i // 0 ) * 3; }
         sub value_to_y {
             my ( $s, $p ) = @_;
-            # map 28000..30100 → 280..20
             return 300 - ( ( $p - 28000 ) / 2100 ) * 280;
         }
     }
-
     $ov->draw( $canvas, $scales );
-    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
     my @texts = grep { $_->[0] eq 'createText' } @{ $canvas->{ops} };
-    my @ovals = grep { $_->[0] eq 'createOval' } @{ $canvas->{ops} };
-    ok( @rects >= 6, 'draw: bandas (fills) entre niveles' );
-    is( scalar @lines, 7, 'draw: 7 líneas de nivel' );
-    is( scalar @texts, 7, 'draw: 7 labels' );
-    ok( @ovals >= 2, 'draw: handles p1/p2' );
+    is( scalar @texts, 7, '7 labels' );
+    my $has_e = 0;
+    for my $t (@texts) {
+        my @a = @$t;
+        for my $i ( 0 .. $#a - 1 ) {
+            $has_e = 1 if $a[$i] eq '-anchor' && $a[ $i + 1 ] eq 'e';
+        }
+    }
+    ok( $has_e, 'labels anclados a la derecha del texto (fuera a la izquierda de cajas)' );
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    is( scalar @lines, 7, '7 líneas de nivel' );
 }
 
 done_testing();

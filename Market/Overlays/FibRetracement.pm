@@ -4,16 +4,19 @@ use warnings;
 
 # =============================================================================
 # Render Fib Retracement estilo TradingView:
-# bandas de color entre niveles + líneas + labels "0.618 (29395.75)" + handles
+# bandas + líneas + labels FUERA a la izquierda (misma altura) + handles
 # =============================================================================
+
+# Espacio a la izquierda de las cajas para las etiquetas (px)
+my $LABEL_OUTSIDE_PX = 110;
 
 sub new {
     my ( $class, %args ) = @_;
     my $self = {
-        drawing => $args{drawing},
-        theme   => $args{theme} || {},
-        visible => exists $args{visible} ? ( $args{visible} ? 1 : 0 ) : 1,
-        _range  => [ 0, 0 ],
+        drawing   => $args{drawing},
+        theme     => $args{theme} || {},
+        visible   => exists $args{visible} ? ( $args{visible} ? 1 : 0 ) : 1,
+        _range    => [ 0, 0 ],
         _data_end => undef,
     };
     die "Overlays::FibRetracement: requiere 'drawing'"
@@ -94,27 +97,28 @@ sub _paint_fib {
     if ( $x1 < $x0 ) {
         ( $x0, $x1 ) = ( $x1, $x0 );
     }
-    # Mínimo ancho visual
     $x1 = $x0 + 40 if $x1 - $x0 < 40;
 
-    my $w = $scales->{width} // 800;
-    if ( $geo->{p1} && ( $geo->{extend_right} || 0 ) ) {
-        # geometry already expanded; ensure canvas bounds for extend flags on fib hash
+    # Cajas empiezan un poco a la derecha si hace falta sitio para labels
+    # Labels van FUERA a la izquierda de x0 (anchor e), misma Y que la línea.
+    my $box_left = $x0;
+    if ( $box_left < $LABEL_OUTSIDE_PX + 4 ) {
+        # Si el ancla está muy a la izquierda, no empujar la caja (evitar overflow);
+        # el label puede quedar parcialmente en el margen.
     }
 
-    # Bandas entre niveles consecutivos (orden por ratio 0→1)
+    # Bandas entre niveles consecutivos
     if ( $geo->{background} ) {
         for my $i ( 0 .. $#$levels - 1 ) {
-            my $lo = $levels->[$i];
-            my $hi = $levels->[ $i + 1 ];
+            my $lo  = $levels->[$i];
+            my $hi  = $levels->[ $i + 1 ];
             my $y_a = $y_of->( $lo->{price} );
             my $y_b = $y_of->( $hi->{price} );
             my ( $yt, $yb ) = $y_a < $y_b ? ( $y_a, $y_b ) : ( $y_b, $y_a );
             my $fill = $hi->{fill} // $hi->{color} // '#787b86';
-            # Stipple para simular transparencia (Tk sin alpha fácil)
             eval {
                 $canvas->createRectangle(
-                    $x0, $yt, $x1, $yb,
+                    $box_left, $yt, $x1, $yb,
                     -fill    => $fill,
                     -outline => '',
                     -stipple => 'gray25',
@@ -125,13 +129,13 @@ sub _paint_fib {
         }
     }
 
-    # Líneas + labels (visibles, width 2)
+    # Líneas + labels FUERA a la izquierda, a la misma altura
     for my $lv (@$levels) {
         my $y   = $y_of->( $lv->{price} );
         my $col = $lv->{color} // '#787b86';
         eval {
             $canvas->createLine(
-                $x0, $y, $x1, $y,
+                $box_left, $y, $x1, $y,
                 -fill  => $col,
                 -width => 2,
                 -tags  => [ $tag, 'fib_line' ],
@@ -146,11 +150,13 @@ sub _paint_fib {
             $r_txt = '0' if $r_txt eq '' || $r_txt eq '-';
             my $p_txt = _fmt_price( $lv->{price} );
             my $label = "$r_txt ($p_txt)";
+            # Fuera de las cajitas: a la izquierda del borde, ancla este (derecha del texto)
+            my $lx = $box_left - 6;
             eval {
                 $canvas->createText(
-                    $x0 + 4, $y,
+                    $lx, $y,
                     -text   => $label,
-                    -anchor => 'w',
+                    -anchor => 'e',
                     -fill   => $col,
                     -font   => [ 'Helvetica', 9, 'bold' ],
                     -tags   => [ $tag, 'fib_lbl' ],
@@ -160,7 +166,7 @@ sub _paint_fib {
         }
     }
 
-    # Handles anclas p1 / p2 (para drag)
+    # Handles anclas p1 / p2
     for my $name (qw(p1 p2)) {
         my $pt = $geo->{$name} or next;
         my $x  = $x_of->( $pt->{index} );
@@ -177,17 +183,11 @@ sub _paint_fib {
         };
     }
 
-    # Handles bordes L/R (ampliar caja)
+    # Solo handle derecho para ampliar (sin Ext L/R fijos)
     my $ymid = @$levels
       ? $y_of->( ( $levels->[0]{price} + $levels->[-1]{price} ) / 2 )
       : 100;
     eval {
-        $canvas->createRectangle(
-            $x0 - 3, $ymid - 10, $x0 + 3, $ymid + 10,
-            -outline => '#ffffff',
-            -fill    => '#ff9800',
-            -tags    => [ $tag, 'fib_handle_left' ],
-        );
         $canvas->createRectangle(
             $x1 - 3, $ymid - 10, $x1 + 3, $ymid + 10,
             -outline => '#ffffff',
@@ -202,7 +202,6 @@ sub _fmt_price {
     my ($p) = @_;
     return '' unless defined $p;
     my $s = sprintf( '%.2f', $p );
-    # miles con coma estilo captura (opcional simple)
     $s = reverse $s;
     $s =~ s/(\d{3})(?=\d)/$1,/g;
     return reverse $s;
@@ -243,7 +242,7 @@ sub _paint_draft {
     }
 }
 
-# hit_test($x, $y, $scales, $win_start) → 'p1'|'p2'|'left'|'right'|undef
+# hit_test → 'p1'|'p2'|'right'|undef  (left handle eliminado)
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -271,12 +270,17 @@ sub hit_test {
         return 'p2';
     }
 
-    my $left  = $fib->{left_index}  // $p1->{index};
-    my $right = $fib->{right_index} // $p2->{index};
-    my @lv = @{ $draw->level_prices($fib) };
+    my $geo = $draw->geometry_for(
+        $fib,
+        data_end   => $self->{_data_end} // ( $self->{_range}[1] // 0 ),
+        view_start => $win_start,
+        view_end   => $self->{_range}[1] // 0,
+    );
+    return undef unless $geo;
+    my $x1   = $x_of->( $geo->{right_index} );
+    my @lv   = @{ $geo->{levels} || [] };
     my $ymid = @lv ? $y_of->( ( $lv[0]{price} + $lv[-1]{price} ) / 2 ) : 0;
-    if ( $near->( $x_of->($left),  $ymid, 12 ) ) { return 'left' }
-    if ( $near->( $x_of->($right), $ymid, 12 ) ) { return 'right' }
+    if ( $near->( $x1, $ymid, 14 ) ) { return 'right' }
     return undef;
 }
 

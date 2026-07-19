@@ -241,9 +241,8 @@ if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set
 my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
 # Default profe ZZMTF: Resolution 30 min, Period 2, Show ZigZag only
 my $zigzag_resolution = 30;
-# Fib Retracement (drawing tool TV)
-my $fib_extend_left  = 0;
-my $fib_extend_right = 0;
+# Fib Retracement (drawing tool TV): proyectar hasta última vela
+my $fib_extend_to_last = 0;
 
 # Callbacks (factorías testeadas headless). F1: SIEMPRE pasamos el valor de la
 # -variable explícito al callback (Tk no lo pasa solo en -command).
@@ -558,7 +557,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left', -padx => 2 );
     $pchan_hint->pack( -side => 'left', -padx => 4 );
 
-    # Fib Retracement (clone herramienta nativa TV: 2 clics, bandas, handles)
+    # Fib Retracement (clone TV: 2 clics / pick pierna ZZ / hasta última vela)
     my $fib_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 6 );
     $fib_box->Label( -text => 'Fib:' )->pack( -side => 'left', -padx => 2 );
     my $fib_hint = $fib_box->Label(
@@ -568,7 +567,22 @@ if ($ENV{MARKET_RELOAD}) {
     );
     $chart_engine->{fib_mode_callback} = sub {
         my ( $active, $n ) = @_;
-        if ($active) {
+        if ( defined $active && $active == 2 ) {
+            # Modo elegir pierna azul del ZZ externo
+            if ( defined $n && $n == -1 ) {
+                $fib_hint->configure(
+                    -text => 'Clic más cerca de una línea azul…',
+                    -fg   => '#c62828',
+                );
+            }
+            else {
+                $fib_hint->configure(
+                    -text => 'Clic en la pierna azul del ZZ… (Esc cancela)',
+                    -fg   => '#0D47A1',
+                );
+            }
+        }
+        elsif ($active) {
             my $step = ( $n // 0 ) + 1;
             $step = 2 if $step > 2;
             $fib_hint->configure(
@@ -586,26 +600,19 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left', -padx => 2 );
     $fib_box->Button(
         -text    => 'Desde ZZ ext',
-        -command => sub { $chart_engine->fib_anchor_from_external_zz(); },
+        -command => sub { $chart_engine->start_fib_pick_zz(); },
     )->pack( -side => 'left', -padx => 2 );
     $fib_box->Button(
         -text    => 'Borrar Fib',
         -command => sub { $chart_engine->clear_fib_retracement(); },
     )->pack( -side => 'left', -padx => 2 );
     $fib_box->Checkbutton(
-        -text     => 'Ext←',
-        -variable => \$fib_extend_left,
+        -text     => 'Hasta última vela',
+        -variable => \$fib_extend_to_last,
         -command  => sub {
-            $chart_engine->set_fib_extend_left( $fib_extend_left ? 1 : 0 );
+            $chart_engine->set_fib_extend_to_last( $fib_extend_to_last ? 1 : 0 );
         },
-    )->pack( -side => 'left' );
-    $fib_box->Checkbutton(
-        -text     => 'Ext→',
-        -variable => \$fib_extend_right,
-        -command  => sub {
-            $chart_engine->set_fib_extend_right( $fib_extend_right ? 1 : 0 );
-        },
-    )->pack( -side => 'left' );
+    )->pack( -side => 'left', -padx => 2 );
     $fib_hint->pack( -side => 'left', -padx => 4 );
 
     $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
