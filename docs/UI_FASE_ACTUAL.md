@@ -11,7 +11,7 @@
 | **HLD (4h/D)** | S/R de vela HTF (algoritmo profe, sin Pine); solo TF **4h** y **D** |
 | **ZigZag externo** | ChartPrime captura profe: **Length 150**, solo línea azul; VP/Channel/PoC **OFF** |
 | **ZigZag interno** | ZZMTF: **Resolution 30** (UI 15/30/60), **Period 2**, Show ZigZag ON, fib OFF |
-| **Fib Retracement** | Herramienta nativa TV (2 clics): bandas de color, niveles **0…1**, anclas p1/p2 arrastrables, Ext←/Ext→, atajo **Desde ZZ ext** |
+| **Fib Retracement** | Herramienta nativa TV: 2 clics / Desde ZZ ext, bandas, anclas p1/p2, hasta última vela |
 
 ## Desactivado (código conservado)
 
@@ -21,6 +21,7 @@
 - Strategy Builder
 - Anchored VWAP / Volume Profile
 - Mxwll (fuera de producto)
+- Placeholder “HTF sobre LTF” (eliminado de la UI; no implementado)
 
 **Reactivar:** comentarios `FASE ACTUAL` / `PASO A PASO` en `market.pl` y `ChartEngine.pm`.
 

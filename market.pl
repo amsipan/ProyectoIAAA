@@ -174,13 +174,12 @@ my $atr_canvas = $atr_frame->Canvas(
 my $scale_mode = 'auto';
 my $atr_scale_mode = 'auto';
 my $active_tf = $base_tf;  # UI resalta el TF base (15m con export TV)
-my $htf_enabled = 0;
 my $replay_on   = 0;
 my $replay_select_mode = 0;
 my $replay_watermark_on = 1;
 my $replay_panel;
 my %ui_vars = (
-    active_tf => \$active_tf, htf_enabled => \$htf_enabled, replay_on => \$replay_on,
+    active_tf => \$active_tf, replay_on => \$replay_on,
     replay_select_mode => \$replay_select_mode,
     replay_watermark_on => \$replay_watermark_on,
     replay_panel       => \$replay_panel,
@@ -343,7 +342,6 @@ $chart_engine->{zz_external_ui_sync} = sub {
     $vis_zzelem{EXTERNAL} = $on;
     $vis_zigzag = ( $vis_zz_int || $vis_zz_ext ) ? 1 : 0;
 };
-my $cb_htf = Market::UI::Callbacks->make_htf_toggle($chart_engine, \%ui_vars);
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();
 
@@ -356,7 +354,7 @@ my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, 
 # que NO crean ventanas: Radiobutton, Checkbutton, Button. La barra se organiza
 # en dos filas para no saturar.
 # DISEÑO DE PESTAÑAS (task 0032): antes había 2 filas saturadas que se salían de
-# la pantalla (TF + 6 capas + 7 liq + 6 mxwll + HTF no cabían). Ahora:
+# la pantalla (TF + capas + liq + mxwll no cabían). Ahora:
 #   - FILA SUPERIOR (siempre visible): selector TF + botones de PESTAÑA.
 #   - FILA INFERIOR (área de panel): muestra SOLO el panel de la pestaña activa.
 # Se emula un "notebook" con Frames + pack/packForget (NO se usa menubar nativo,
@@ -622,9 +620,6 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
     $fib_hint->pack( -side => 'left', -padx => 4 );
-
-    $p->Checkbutton(-text => 'HTF sobre LTF', -variable => \$htf_enabled,
-        -command => sub { $cb_htf->($htf_enabled ? 1 : 0); })->pack(-side => 'left', -padx => 6);
 }
 
 # ---- Panel "SMC": solo las 2 capas TV (Neon + Structures/FVG), config capturas ----

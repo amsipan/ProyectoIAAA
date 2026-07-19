@@ -74,7 +74,7 @@ de densidad, Replay UX TradingView.
 
 ## Features candidatas / exploratorias
 
-- Toggle de niveles HTF sobre gráficos LTF (contexto multi-temporal).
+- Proyección real de niveles HTF sobre LTF (si el profe la pide; el placeholder UI se eliminó).
 - Heatmap de correlación de features (Chart::Plotly) offline.
 - App Android / VPS (fuera del alcance académico actual).
 - Tijeras vectoriales Select Bar (0047) y cursor SO invisible (0053, limitado por WSLg).

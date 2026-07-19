@@ -34,7 +34,6 @@ use Market::ReplayController;
 #   5. Cada toggle de overlay invoca overlay_manager->set_visible($name,$on)
 #      sin afectar a los demás.
 #   6. Cada toggle de elemento de liquidez invoca liq_overlay->set_element_visible.
-#   7. El toggle HTF alterna su estado ($htf_enabled) y pide re-render.
 # =============================================================================
 
 # Canvas stub: request_render programa after(20) — sin servidor grafico, no-op.
@@ -482,23 +481,6 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     is($mx->{elem}{AOE}, 0, 'Mxwll: AOE desactivado de forma aislada');
     is($mx->{elem}{STRUCTURE}, 1, 'Mxwll: STRUCTURE no afectado');
     ok($chart->render_count() >= 1, 'Mxwll: toggle de elemento dispara re-render');
-}
-
-# =============================================================================
-# Test 12: toggle HTF alterna $htf_enabled y pide re-render (cableado preparado).
-# =============================================================================
-{
-    my $chart = MockChart->new(market_data => MockMarketData->new(50));
-    my $htf_enabled = 0;
-    my %vars = ( htf_enabled => \$htf_enabled );
-    my $cb = Market::UI::Callbacks->make_htf_toggle($chart, \%vars);
-
-    $cb->(1);
-    is($htf_enabled, 1, 'HTF on => htf_enabled=1');
-    ok($chart->render_count() >= 1, 'HTF on dispara re-render');
-
-    $cb->(0);
-    is($htf_enabled, 0, 'HTF off => htf_enabled=0');
 }
 
 # =============================================================================
