@@ -918,10 +918,11 @@ sub make_zigzag_element_toggle {
     die "make_zigzag_element_toggle: requiere \$element" unless defined $element;
     return sub {
         my ($on) = @_;
-        # INTERNAL/EXTERNAL: set_zigzag_layer (compute on-demand + re-feed).
-        # CHANNEL u otros: solo visibilidad de elemento (sin recálculo).
+        # INTERNAL / EXTERNAL / FIBS: set_zigzag_layer (compute on-demand + re-feed).
+        # CHANNEL u otros: solo visibilidad de elemento.
+        my $el = uc($element);
         if ( $chart->can('set_zigzag_layer')
-            && ( uc($element) eq 'INTERNAL' || uc($element) eq 'EXTERNAL' ) )
+            && ( $el eq 'INTERNAL' || $el eq 'EXTERNAL' || $el eq 'FIBS' ) )
         {
             $chart->set_zigzag_layer( $element, $on ? 1 : 0 );
             return;

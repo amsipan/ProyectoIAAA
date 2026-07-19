@@ -3,25 +3,25 @@ use strict;
 use warnings;
 
 # =============================================================================
-# Market::Overlays::ZigZag — render ZZ
-# Fase 3.2 profe:
-#   INTERNAL = ZZMTF (verde/rojo, Resolution 30, Period 2, fib OFF)
-#   EXTERNAL = ChartPrime (azul, Length 150, VP/Channel/PoC OFF)
-#   CHANNEL  = OFF (Swing Channel ChartPrime Display OFF; no canal clásico)
-# Defaults de elementos los fija ChartEngine/UI; aquí EXTERNAL=1, INTERNAL=0.
+# Market::Overlays::ZigZag — render ZZ + Fib (fase 4)
+#   INTERNAL = ZZMTF (verde/rojo)
+#   EXTERNAL = ChartPrime (azul)
+#   CHANNEL  = OFF
+#   FIBS     = niveles sobre última pierna externa consolidada
 # =============================================================================
 
-my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
+my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL FIBS);
 
 sub new {
     my ($class, %args) = @_;
     die "Overlays::ZigZag->new: requiere 'indicator'"
         unless defined $args{indicator};
-    # Defaults: externo listo; interno se enciende por UI (ZigZag interno)
+    # Defaults: externo listo en Overlay->new; ChartEngine arranca todo OFF
     my $elems = $args{elements} // {
         INTERNAL => 0,
         EXTERNAL => 1,
-        CHANNEL  => 0,    # Swing Channel Display OFF
+        CHANNEL  => 0,
+        FIBS     => 0,
     };
     my $self = {
         indicator => $args{indicator},
@@ -274,6 +274,48 @@ sub draw {
                     -fill  => $ch_col,
                     -width => 2,
                     -tags  => $tag,
+                );
+            }
+        }
+    }
+
+    # Fase 4: Fib sobre última pierna externa consolidada (extend.right estilo TV)
+    if ( $self->is_element_visible('FIBS') ) {
+        my $fibs = $vals->{fib_levels} || [];
+        my $w    = $scales->{width} // 0;
+        my $key_col  = $self->{theme}{zz_fib_key} // '#d32f2f';    # 0.618
+        my $mid_col  = $self->{theme}{zz_fib_mid} // '#f9a825';    # 0.5
+        my $fib_col  = $self->{theme}{zz_fib}     // '#9e9e9e';
+        for my $fib (@$fibs) {
+            next unless defined $fib->{price};
+            my $y = $scales->value_to_y( $fib->{price} );
+            my $r = $fib->{ratio} // 0;
+            my $is_key = abs( $r - 0.618 ) < 1e-9;
+            my $is_mid = abs( $r - 0.5 ) < 1e-9;
+            my $col = $is_key ? $key_col : ( $is_mid ? $mid_col : $fib_col );
+            my $x0  = 0;
+            if ( defined $fib->{to_index} ) {
+                $x0 = $scales->index_to_center_x( $self->_local_index( $fib->{to_index} ) );
+                $x0 = 0 if $x0 < 0;
+            }
+            $canvas->createLine(
+                $x0, $y, $w, $y,
+                -fill  => $col,
+                -width => $is_key ? 2 : 1,
+                -dash  => $is_key ? [] : [ 2, 3 ],
+                -tags  => $tag,
+            );
+            if ( $canvas->can('createText') ) {
+                my $label = sprintf( '%.3f', $r );
+                $label =~ s/0+$//;
+                $label =~ s/\.$//;
+                $canvas->createText(
+                    $w - 4, $y,
+                    -text   => $label,
+                    -anchor => 'e',
+                    -fill   => $col,
+                    -font   => [ 'Helvetica', 8 ],
+                    -tags   => $tag,
                 );
             }
         }

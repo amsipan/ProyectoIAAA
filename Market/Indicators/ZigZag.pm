@@ -19,6 +19,9 @@ use warnings;
 # compute_internal / compute_external: on-demand (producto 3.2).
 # external_only=1 ⇒ no calcular interno (compat fase 3.1 / atajos).
 #
+# Fibonacci (fase 4): anclado a la ÚLTIMA pierna EXTERNA consolidada
+# (no al tramo vivo; no a HH/HL del SMC). Ratios task 0060 por TF.
+#
 # Contrato: new / update_last($md,$i) / get_values / reset
 # =============================================================================
 
@@ -27,6 +30,17 @@ use Time::Moment;
 my $MAX_VERTICES = 50;
 # ChartPrime: Amount of ZigZag Volume Profiles = 15 (captura profe)
 my $DEFAULT_MAX_EXT_SEGS = 15;
+
+# Task 0060 / profe QA: TF bajas → 3 niveles; resto → 5.
+sub fib_ratios_for_timeframe {
+    my ($tf) = @_;
+    $tf = defined $tf ? lc($tf) : '1m';
+    $tf =~ s/\s+//g;
+    if ( $tf eq '1m' || $tf eq '5m' || $tf eq '15m' || $tf eq '1' || $tf eq '5' || $tf eq '15' ) {
+        return [ 0.382, 0.5, 0.618 ];
+    }
+    return [ 0.236, 0.382, 0.5, 0.618, 0.786 ];
+}
 
 sub new {
     my ($class, %args) = @_;
@@ -52,12 +66,16 @@ sub new {
         compute_internal    => $compute_internal,
         compute_external    => $compute_external,
         max_external_segments => $args{max_external_segments} // $DEFAULT_MAX_EXT_SEGS,
+        fib_ratios            => $args{fib_ratios}
+          // fib_ratios_for_timeframe( $args{timeframe} // '1m' ),
+        timeframe           => $args{timeframe} // '1m',
     };
     # No %args al final: evita que keys sueltas pisen flags ya resueltos.
     for my $k ( keys %args ) {
         next if $k =~ /^(?:external_only|compute_internal|compute_external|
             internal_resolution|internal_period|swing_length|atr_period|
-            channel_width|channel_max_span|max_external_segments)$/x;
+            channel_width|channel_max_span|max_external_segments|fib_ratios|
+            timeframe)$/x;
         $self->{$k} = $args{$k};
     }
     bless $self, $class;
@@ -124,6 +142,13 @@ sub set_compute_external {
 sub wants_internal { $_[0]->{compute_internal} ? 1 : 0 }
 sub wants_external { $_[0]->{compute_external} ? 1 : 0 }
 
+sub set_fibonacci_timeframe {
+    my ( $self, $tf ) = @_;
+    $self->{timeframe} = $tf if defined $tf;
+    $self->{fib_ratios} = fib_ratios_for_timeframe( $self->{timeframe} );
+    return $self;
+}
+
 sub update_last {
     my ($self, $market_data, $index) = @_;
     return unless $market_data && defined $index;
@@ -166,7 +191,45 @@ sub get_values {
         trend_channels      => [ @{ $self->_trend_channels_list() } ],
         internal_direction  => [ @{ $self->{internal_direction} } ],
         external_direction  => [ @{ $self->{external_direction} } ],
+        # Fase 4: Fib sobre última pierna externa consolidada (no tip vivo)
+        fib_levels          => $self->get_external_fib_levels(),
     };
+}
+
+# get_external_fib_levels — profe/QA:
+#   ancla = última pierna EXTERNAL con consolidated=1 (no el tramo en ajuste).
+# Convención TV Fib Retracement dibujada de from→to de esa pierna:
+#   price(r) = to - r * (to - from)   # r=0 en el fin del impulso, r=1 en el inicio
+sub get_external_fib_levels {
+    my ($self) = @_;
+    my @segs = @{ $self->{_ext_segments} // [] };
+    my @cons = grep { $_->{consolidated} } @segs;
+    return [] unless @cons;
+
+    my $leg  = $cons[-1];
+    my $from = $leg->{from_price};
+    my $to   = $leg->{to_price};
+    return [] unless defined $from && defined $to;
+
+    my $delta = $to - $from;
+    return [] if abs($delta) < 1e-12;
+
+    my $ratios = $self->{fib_ratios} // fib_ratios_for_timeframe( $self->{timeframe} // '1m' );
+    my @out;
+    for my $r (@$ratios) {
+        push @out, {
+            ratio      => $r + 0,
+            price      => $to - $r * $delta,
+            from_index => $leg->{from_index},
+            to_index   => $leg->{to_index},
+            from_price => $from,
+            to_price   => $to,
+            dir        => $leg->{dir} // ( $delta >= 0 ? 'up' : 'down' ),
+            type       => "fib_$r",
+            consolidated_leg => 1,
+        };
+    }
+    return \@out;
 }
 
 # external_channel — deprecado (task 0061); vacío; tests antiguos solo exigen la clave.

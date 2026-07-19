@@ -194,21 +194,23 @@ sub new {
     );
     $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
 
-    # ZigZag — externo ChartPrime + interno ZZMTF (capturas profe).
-    # Defaults: res 30 / period 2 / sin fib; elementos OFF hasta toggle UI.
+    # ZigZag — externo ChartPrime + interno ZZMTF + Fib consolidado (fase 4).
+    # Defaults: res 30 / period 2; elementos OFF hasta toggle UI.
     # compute_* arranca en 0: se activa al encender cada capa (on-demand).
+    # Fib ON fuerza compute_external aunque EXTERNAL esté oculto.
     $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
         swing_length        => 150,
         internal_resolution => 30,
         internal_period     => 2,
         compute_internal    => 0,
         compute_external    => 0,
+        timeframe           => '1m',
     );
     $self->{zigzag_overlay} = Market::Overlays::ZigZag->new(
         indicator => $self->{zigzag_indicator},
         theme     => $self->{theme},
         visible   => 0,
-        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 },
+        elements  => { INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0, FIBS => 0 },
     );
     $self->{overlay_manager}->register( 'zigzag', $self->{zigzag_overlay} );
     $self->{_zigzag_fed_up_to} = -1;
@@ -409,32 +411,35 @@ sub set_zigzag_internal_resolution {
     $self->request_render();
 }
 
-# set_zigzag_layer($elem, $on) — enciende/apaga INTERNAL o EXTERNAL.
-# Sincroniza element visibility, compute_* on-demand y visible del overlay
-# (visible si al menos un elemento ZZ está ON). Re-feed completo al cambiar.
+# set_zigzag_layer($elem, $on) — INTERNAL | EXTERNAL | FIBS.
+# Sincroniza visibility, compute_* on-demand y visible del overlay.
+# FIBS (fase 4) no dibuja la línea azul, pero fuerza compute_external.
 sub set_zigzag_layer {
     my ( $self, $elem, $on ) = @_;
     return unless $self->{zigzag_indicator} && $self->{zigzag_overlay};
     $elem = uc( $elem // '' );
-    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL';
+    return unless $elem eq 'INTERNAL' || $elem eq 'EXTERNAL' || $elem eq 'FIBS';
     $on = $on ? 1 : 0;
 
     my $ov  = $self->{zigzag_overlay};
     my $ind = $self->{zigzag_indicator};
     $ov->set_element_visible( $elem, $on );
-    if ( $elem eq 'INTERNAL' ) {
-        $ind->set_compute_internal($on);
-    }
-    else {
-        $ind->set_compute_external($on);
-    }
+
+    my $want_int = $ov->is_element_visible('INTERNAL') ? 1 : 0;
+    # FIBS necesita pivotes externos aunque la línea azul esté oculta
+    my $want_ext =
+         ( $ov->is_element_visible('EXTERNAL') ? 1 : 0 )
+      || ( $ov->is_element_visible('FIBS')     ? 1 : 0 );
+    $ind->set_compute_internal($want_int);
+    $ind->set_compute_external($want_ext);
 
     my $any =
-         ( $ov->is_element_visible('INTERNAL') ? 1 : 0 )
-      || ( $ov->is_element_visible('EXTERNAL') ? 1 : 0 );
-    $ov->set_visible($any);
+         $ov->is_element_visible('INTERNAL')
+      || $ov->is_element_visible('EXTERNAL')
+      || $ov->is_element_visible('FIBS')
+      || $ov->is_element_visible('CHANNEL');
+    $ov->set_visible( $any ? 1 : 0 );
 
-    # Flags de cómputo cambiaron → hay que recalcular desde cero.
     $ind->reset();
     $self->{_zigzag_fed_up_to} = -1;
     if ($any) {
@@ -4565,9 +4570,14 @@ sub get_all_timestamps {
 
 }
 
-# Fib de estructura ya no vive en SMC Pro (captura FVG/fibs en fase posterior / Structures OFF).
+# Fib de producto (fase 4): ratios del ZigZag según TF activo (task 0060).
+# No usa SMC/Mxwll como ancla.
 sub _sync_fibonacci_levels_for_timeframe {
-    my ($self, $tf) = @_;
+    my ( $self, $tf ) = @_;
+    $tf //= eval { $self->{market_data}->{active_tf} } || '1m';
+    if ( $self->{zigzag_indicator} && $self->{zigzag_indicator}->can('set_fibonacci_timeframe') ) {
+        $self->{zigzag_indicator}->set_fibonacci_timeframe($tf);
+    }
     return $self;
 }
 
