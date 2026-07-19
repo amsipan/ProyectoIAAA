@@ -219,6 +219,7 @@ $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 # spec 0013: SMC Pro + FVG(Structures); Mxwll eliminado de la UI de producto.
 my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
+my $vis_hld     = 0;
 my $vis_liq = 0;
 my $vis_strategy = 0;
 my $vis_vp = 0;
@@ -241,6 +242,7 @@ my $zigzag_resolution = 30;
 # -variable explícito al callback (Tk no lo pasa solo en -command).
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
+my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
 my $cb_liq = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_strategy = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'strategy');
 my $cb_vwap = Market::UI::Callbacks->make_vwap_toggle($chart_engine);
@@ -274,12 +276,12 @@ my %cb_strategy_elem = map {
     }
 } qw(SUPERTREND HALFTREND RANGEFILTER SUPPLY_DEMAND);
 my %overlay_state_ref = (
-    smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg,
+    smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
     liq => \$vis_liq, strategy => \$vis_strategy,
     vp => \$vis_vp, vwap => \$vis_vwap, zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
-    smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg,
+    smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
     liq => $cb_liq, strategy => $cb_strategy,
     vp => $cb_vp, vwap => $cb_vwap, zigzag => $cb_zigzag,
 );
@@ -465,6 +467,8 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'SMC Structures+FVG', -variable => \$vis_smc_fvg,
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
+    $p->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
+        -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
 
     # Parallel Channel (herramienta TV del video del profe)
     my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
@@ -521,9 +525,14 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $toggle_overlay_visible->('smc_fvg'); },
     )->pack(-side => 'left', -padx => 2);
     $main_box->Label(-text => 'SMC Structures+FVG')->pack(-side => 'left');
+    $overlay_button{hld} = $main_box->Button(
+        -text => $overlay_button_text->($vis_hld),
+        -command => sub { $toggle_overlay_visible->('hld'); },
+    )->pack(-side => 'left', -padx => 2);
+    $main_box->Label(-text => 'HLD')->pack(-side => 'left');
     my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $info_box->Label(
-        -text => 'Config = capturas profe (Neon + LudoGH). Sin Mxwll. Sin density filter.',
+        -text => 'HLD solo en TF 4h o D. R/S de vela HTF más cercana al precio (video ~40min).',
         -font => ['Helvetica', 8],
     )->pack(-side => 'left', -padx => 3);
 }

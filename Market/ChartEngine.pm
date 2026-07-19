@@ -13,6 +13,8 @@ use Market::Indicators::SMC_Pro;
 use Market::Overlays::SMC_Pro;
 use Market::Indicators::SMC_Structures_FVG;
 use Market::Overlays::SMC_Structures_FVG;
+use Market::Indicators::HLD;
+use Market::Overlays::HLD;
 use Market::Indicators::Liquidity;
 use Market::Overlays::Liquidity;
 use Market::Indicators::Strategy_Builder;
@@ -163,16 +165,21 @@ sub new {
     $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
     $self->{_smc_fvg_fed_up_to} = -1;
 
-    # --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel ---
+    # --- FASE ACTUAL: SMC Pro + Structures/FVG + Parallel Channel + HLD ---
     # PASO A PASO: capas futuras DESACTIVADAS (código de módulos se conserva).
-    # No se registran → no feed, no dibujo, no interferencia con canal/SMC.
+    # No se registran → no feed, no dibujo, no interferencia.
     # Reactivar cuando ORDEN_PROYECTO_DEFINITIVO llegue a esa fase:
     #   Liquidity, Strategy_Builder, VolumeProfile, AnchoredVWAP, ZigZag.
     # (Mxwll ya fuera de producto — spec 0013.)
-    #
-    # if (0) {
-    #   use Market::Indicators::Liquidity; ... register liq/strategy/vp/vwap/zigzag
-    # }
+
+    # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
+    $self->{hld_indicator} = Market::Indicators::HLD->new();
+    $self->{hld_overlay}   = Market::Overlays::HLD->new(
+        indicator => $self->{hld_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'hld', $self->{hld_overlay} );
 
     # Parallel Channel (herramienta nativa TV del video del profe)
     require Market::Drawing::ParallelChannel;
@@ -963,6 +970,10 @@ sub render {
         }
         if ( my $pov = $self->{overlay_manager}->get('pchan') ) {
             $pov->{_data_end} = $feed_end;
+        }
+        if ( my $hov = $self->{overlay_manager}->get('hld') ) {
+            # Replay / feed: precio y fin de proyección = tope efectivo
+            $hov->{_feed_end} = $feed_end;
         }
 
         $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
