@@ -243,25 +243,22 @@ sub render {
 
 # Precio de cierre de la última vela visible.
 #
-# Producto (paridad TradingView): SOLO la cajita en el eje de precios
-# (ChartEngine::_render_price_axis → tag axis_last_price). NO se dibuja
-# la línea horizontal entrecortada a lo ancho del plot (no existe en TV).
+# Dibuja:
+#   1. Línea horizontal entrecortada a todo el ancho del plot, a la altura del
+#      close de la última vela visible, con el color del precio actual
+#      (verde alcista / rojo bajista). Recorre todo el gráfico.
+#   2. La cajita de precio en el margen derecho del plot, SOLO si no hay
+#      price_axis_canvas separado (draw_last_label=1). Con eje separado, la
+#      cajita vive en ChartEngine::_render_price_axis (tag axis_last_price).
 #
-# La lógica antigua de la línea full-width quedó archivada en:
-#   ProyectoIAAA_LEGACY_ARCHIVE/legacy/Market/Panels/last_price_hline_legacy.pm
-# (fuera de git; no usar en runtime).
-#
-# Si no hay price_axis_canvas separado (draw_last_label=1), se pinta la
-# cajita en el margen derecho del plot — sin línea horizontal.
+# En Replay, $self->{_last_candle} es la última vela causal (replay_idx), así
+# que la línea sigue al precio del replay sin fuga de futuro.
 sub render_last_visible_price {
     my ($self, $canvas) = @_;
 
     $canvas->delete('price_label');
     my $scale = $self->{scale};
     return unless defined $scale && defined $self->{_last_candle};
-
-    # Eje de precios separado: la cajita vive ahí; el plot no lleva hline.
-    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
 
     my ($open, $close) = @{$self->{_last_candle}}[1, 4];
     return unless defined $close;
@@ -274,6 +271,18 @@ sub render_last_visible_price {
         : ($self->{theme}{bear} // '#ef5350');
     my $label_bg   = $line_color;
     my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
+
+    # 1. Línea horizontal entrecortada full-width al nivel del precio actual.
+    $canvas->createLine(
+        0, $y, $w, $y,
+        -fill  => $line_color,
+        -dash  => $self->{theme}{last_price_dash} // [ 2, 3 ],
+        -width => 1,
+        -tags  => 'price_label',
+    );
+
+    # 2. Eje de precios separado: la cajita vive ahí; el plot solo lleva la hline.
+    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
 
     $canvas->createRectangle(
         $w - 68, $y - 7, $w, $y + 7,

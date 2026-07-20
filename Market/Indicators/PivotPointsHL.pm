@@ -245,10 +245,16 @@ sub _on_pivot_low {
     $self->{_max} = $pl; $self->{_min} = $pl;
 }
 
-# Fantasma provisional: pivote en formación desde el último punto del zigzag
-# hasta el índice causal actual. os==1 → busca el low mínimo (👻 abajo→arriba);
-# os==0 → busca el high máximo. Se mueve en cada vela hasta que un pivote real lo
-# confirma ("se queda quieto"). Escaneo acotado por la distancia al último pivote.
+# Fantasma provisional (barstate.islast del Pine, líneas 121-152).
+# os==1 → busca el low mínimo desde px1 (👻 abajo, style_label_up);
+# os==0 → busca el high máximo (👻 arriba, style_label_down).
+# Se mueve en cada vela hasta que un pivote real lo confirma ("se queda quieto").
+#
+# Colores (fiel al source):
+#   ghost (etiqueta 👻): os==1 → miss_pl (verde) ; os==0 → miss_ph (rojo)
+#   líneas diagonal (l.150) y horizontal (l.152): color OPUESTO al ghost →
+#     os==1 → miss_ph (rojo) ; os==0 → miss_pl (verde)
+#   La horizontal va desde (x,y) hasta n, semitransparente (color.new(...,50)).
 sub _provisional {
     my ($self) = @_;
     my $n = $self->{_last};
@@ -258,15 +264,14 @@ sub _provisional {
     return undef if $from > $n;
 
     my ($best_x, $best_y);
+    my ($dir, $ghost_key, $line_key);
     if ($self->{_os} == 1) {
         for my $i ($from .. $n) {
             my $v = $self->{_lows}[$i];
             next unless defined $v;
             if (!defined $best_y || $v < $best_y) { $best_y = $v; $best_x = $i; }
         }
-        return undef unless defined $best_x;
-        return { from_index => $self->{_px1}, from_price => $self->{_py1},
-                 index => $best_x, price => $best_y, dir => 'up', color_key => 'miss_pl' };
+        ($dir, $ghost_key, $line_key) = ('up', 'miss_pl', 'miss_ph');
     }
     else {
         for my $i ($from .. $n) {
@@ -274,10 +279,36 @@ sub _provisional {
             next unless defined $v;
             if (!defined $best_y || $v > $best_y) { $best_y = $v; $best_x = $i; }
         }
-        return undef unless defined $best_x;
-        return { from_index => $self->{_px1}, from_price => $self->{_py1},
-                 index => $best_x, price => $best_y, dir => 'down', color_key => 'miss_ph' };
+        ($dir, $ghost_key, $line_key) = ('down', 'miss_ph', 'miss_pl');
     }
+    return undef unless defined $best_x;
+    return {
+        from_index => $self->{_px1}, from_price => $self->{_py1},
+        index      => $best_x,       price      => $best_y,
+        dir        => $dir,
+        ghost_key  => $ghost_key,    # color del fantasma 👻
+        line_key   => $line_key,     # color de la diagonal + horizontal
+        last_index => $n,            # extensión horizontal hasta la vela actual
+    };
+}
+
+# Ghost levels con to_index encadenado (Pine: cada nivel se congela donde nace
+# el siguiente vía set_x2; el último se extiende a n). Sin esto, todas las líneas
+# llegarían hasta el final del gráfico, cuando en TV se cortan en el próximo pivote.
+sub _ghost_levels_chained {
+    my ($self) = @_;
+    my @lv = @{ $self->{_ghost_levels} };
+    my @out;
+    for my $k (0 .. $#lv) {
+        my $to = ($k < $#lv) ? $lv[$k + 1]{index} : $self->{_last};
+        push @out, {
+            index     => $lv[$k]{index},
+            price     => $lv[$k]{price},
+            color_key => $lv[$k]{color_key},
+            to_index  => $to,
+        };
+    }
+    return \@out;
 }
 
 sub get_values {
@@ -285,7 +316,7 @@ sub get_values {
     return {
         labels        => $self->{_labels},
         zigzag        => $self->{_zigzag},
-        ghost_levels  => $self->{_ghost_levels},
+        ghost_levels  => $self->_ghost_levels_chained(),
         provisional   => $self->_provisional(),
         last_index    => $self->{_last},
     };

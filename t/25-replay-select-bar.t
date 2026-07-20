@@ -738,13 +738,15 @@ sub r44_chart {
 
     $panel->render($canvas, \@data, $scale);
 
-    # Producto (TV): sin hline full-width del último precio en el plot.
-    # La cajita de precio vive en el eje (ChartEngine); aquí solo fallback label
-    # si draw_last_label está activo (este test no desactiva la label en plot).
+    # La hline full-width del último precio SÍ se dibuja (restaurada a pedido):
+    # línea horizontal punteada a la altura del close, con el color del precio
+    # actual (verde alcista en replay_idx). Recorre todo el ancho del plot.
     my ($hline_op) = grep {
         $_->[0] eq 'createLine' && ( $_->[1]{tags} // '' ) eq 'price_label'
     } @{ $canvas->{ops} };
-    ok( !$hline_op, 'replay: NO dibuja linea horizontal last-price (paridad TV)' );
+    ok( $hline_op, 'replay: dibuja linea horizontal last-price full-width' );
+    is( $hline_op->[1]{fill}, '#26a69a', 'replay: color hline = vela replay_idx (verde)' )
+      if $hline_op;
 
     my ($box_op) = grep {
         $_->[0] eq 'createRectangle' && ( $_->[1]{tags} // '' ) eq 'price_label'

@@ -151,4 +151,62 @@ sub build_md {
     is(scalar(@ghosts), 0, 'show_miss=0 → no genera labels fantasma (missed)');
 }
 
+# ---------------------------------------------------------------------------
+# 7. Ghost levels encadenados: cada nivel se corta en el siguiente pivote
+#    (to_index), NO llega al infinito. Solo el último se extiende a last_index.
+#    (paridad TradingView: las líneas viejas tienen corte)
+# ---------------------------------------------------------------------------
+{
+    my $md  = build_md();
+    my $ind = Market::Indicators::PivotPointsHL->new(length => 3);
+    for my $i (0 .. $md->size - 1) { $ind->update_last($md, $i); }
+
+    my $v = $ind->get_values();
+    my $gl = $v->{ghost_levels};
+    if (@$gl >= 2) {
+        # cada nivel (salvo el último) termina donde empieza el siguiente
+        my $chained_ok = 1;
+        for my $k (0 .. $#$gl - 1) {
+            $chained_ok = 0 if $gl->[$k]{to_index} != $gl->[$k + 1]{index};
+        }
+        ok($chained_ok, 'ghost levels se cortan en el siguiente pivote (to_index encadenado)');
+        is($gl->[-1]{to_index}, $v->{last_index}, 'último ghost level se extiende hasta last_index');
+        ok($gl->[0]{to_index} < $v->{last_index}, 'ghost level viejo NO llega al final del gráfico');
+    } else {
+        pass('dataset sintético con <2 ghost levels; encadenado trivial');
+        pass('(skip) último a last_index');
+        pass('(skip) viejo no llega al final');
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 8. Fantasma provisional: colores diagonal/horizontal OPUESTOS al del ghost,
+#    y expone last_index para la horizontal final (source l.150-152).
+# ---------------------------------------------------------------------------
+{
+    my $md  = build_md();
+    my $ind = Market::Indicators::PivotPointsHL->new(length => 3);
+    for my $i (0 .. $md->size - 1) { $ind->update_last($md, $i); }
+
+    my $p = $ind->get_values->{provisional};
+    if ($p) {
+        ok(defined $p->{ghost_key} && defined $p->{line_key},
+            'provisional expone ghost_key y line_key por separado');
+        isnt($p->{ghost_key}, $p->{line_key},
+            'color de las líneas es opuesto al color del fantasma (paridad TV)');
+        is($p->{last_index}, $ind->get_values->{last_index},
+            'provisional expone last_index para la horizontal final');
+        # os==1 (fantasma abajo, verde) → líneas rojas ; os==0 al revés
+        if ($p->{dir} eq 'up') {
+            is($p->{ghost_key}, 'miss_pl', 'os=1: fantasma verde (miss_pl)');
+            is($p->{line_key},  'miss_ph', 'os=1: líneas rojas (miss_ph)');
+        } else {
+            is($p->{ghost_key}, 'miss_ph', 'os=0: fantasma rojo (miss_ph)');
+            is($p->{line_key},  'miss_pl', 'os=0: líneas verdes (miss_pl)');
+        }
+    } else {
+        pass('(skip) sin provisional') for 1 .. 5;
+    }
+}
+
 done_testing();
