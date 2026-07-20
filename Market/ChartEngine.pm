@@ -21,6 +21,12 @@ use Market::Indicators::Liquidity;
 use Market::Overlays::Liquidity;
 use Market::Indicators::DIY;
 use Market::Overlays::DIY;
+use Market::Indicators::VolumeProfile2;
+use Market::Overlays::VolumeProfile;
+use Market::Indicators::AnchoredVWAP;
+use Market::Overlays::AnchoredVWAP;
+use Market::Indicators::PivotPointsHL;
+use Market::Overlays::PivotPointsHL;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -249,6 +255,46 @@ sub new {
         $self->{indicator_manager}->register('DIY', $self->{diy_indicator});
     }
 
+    # Anchored Volume Profile (AVP) — v2: algoritmo calibrado a TradingView
+    # (rejilla por tick, volumen 1m real vía ltf_dir, VA 70% por pares de filas).
+    $self->{vp_indicator} = Market::Indicators::VolumeProfile2->new(ltf_dir => 'Data');
+    $self->{vp_overlay}   = Market::Overlays::VolumeProfile->new(
+        indicator => $self->{vp_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'volumeprofile', $self->{vp_overlay} );
+    $self->{_vp_fed_up_to} = -1;
+    if ($self->{indicator_manager}) {
+        $self->{indicator_manager}->register('VolumeProfile', $self->{vp_indicator});
+    }
+
+    # Anchored VWAP (AVWAP)
+    $self->{avwap_indicator} = Market::Indicators::AnchoredVWAP->new();
+    $self->{avwap_overlay}   = Market::Overlays::AnchoredVWAP->new(
+        indicator => $self->{avwap_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'anchoredvwap', $self->{avwap_overlay} );
+    $self->{_avwap_fed_up_to} = -1;
+    if ($self->{indicator_manager}) {
+        $self->{indicator_manager}->register('AnchoredVWAP', $self->{avwap_indicator});
+    }
+
+    # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
+    $self->{pph_indicator} = Market::Indicators::PivotPointsHL->new();
+    $self->{pph_overlay}   = Market::Overlays::PivotPointsHL->new(
+        indicator => $self->{pph_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'pivotpointshl', $self->{pph_overlay} );
+    $self->{_pph_fed_up_to} = -1;
+    if ($self->{indicator_manager}) {
+        $self->{indicator_manager}->register('PivotPointsHL', $self->{pph_indicator});
+    }
+
     $self->bind_events();
 
     return $self;
@@ -381,6 +427,21 @@ sub sync_overlay_indicators {
     # DIY Custom Strategy Builder (Supply/Demand Zones)
     if ( $self->_overlay_wants_feed('diy') && $self->{diy_indicator} ) {
         $self->_feed_indicator_to($self->{diy_indicator}, '_diy_fed_up_to', $feed_to);
+    }
+
+    # Anchored Volume Profile (AVP)
+    if ( $self->_overlay_wants_feed('volumeprofile') && $self->{vp_indicator} ) {
+        $self->_feed_indicator_to($self->{vp_indicator}, '_vp_fed_up_to', $feed_to);
+    }
+
+    # Anchored VWAP (AVWAP)
+    if ( $self->_overlay_wants_feed('anchoredvwap') && $self->{avwap_indicator} ) {
+        $self->_feed_indicator_to($self->{avwap_indicator}, '_avwap_fed_up_to', $feed_to);
+    }
+
+    # Pivot Points High Low & Missed (fantasmas)
+    if ( $self->_overlay_wants_feed('pivotpointshl') && $self->{pph_indicator} ) {
+        $self->_feed_indicator_to($self->{pph_indicator}, '_pph_fed_up_to', $feed_to);
     }
 
     return $feed_to;
@@ -1690,28 +1751,313 @@ sub selected_bar {
 # ---------------------------------------------------------------------------
 
 # VWAP/VP placement = legacy (docs/LEGACY.md). Stubs (no dibujo / no estado).
-sub is_vwap_select_mode { 0 }
-sub set_vwap_select_mode { $_[0] }
-sub begin_vwap_placement { $_[0] }
-sub end_vwap_overlay { $_[0] }
-sub confirm_vwap_anchor { $_[0] }
-sub reanchor_vwap { $_[0] }
-sub cancel_vwap_select_mode { $_[0] }
-sub _clear_vwap_select_hover { $_[0] }
-sub _clear_vwap_select_banner { $_[0] }
-sub _draw_vwap_select_banner { $_[0] }
-sub _draw_vwap_select_hover { $_[0] }
-sub is_vp_select_mode { 0 }
-sub set_vp_select_mode { $_[0] }
-sub begin_vp_placement { $_[0] }
-sub end_vp_overlay { $_[0] }
-sub confirm_vp_anchor { $_[0] }
-sub reanchor_vp { $_[0] }
-sub cancel_vp_select_mode { $_[0] }
-sub _clear_vp_select_hover { $_[0] }
-sub _clear_vp_select_banner { $_[0] }
-sub _draw_vp_select_banner { $_[0] }
-sub _draw_vp_select_hover { $_[0] }
+sub is_vwap_select_mode {
+    my ($self) = @_;
+    return $self->{_vwap_select_mode} ? 1 : 0;
+}
+
+sub set_vwap_select_mode {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    if (!$on && $self->{_vwap_select_mode}) {
+        $self->_clear_vwap_select_hover();
+        $self->_clear_vwap_select_banner();
+    }
+    $self->{_vwap_select_mode} = $on;
+    if ($on) {
+        delete $self->{last_mouse_x};
+        delete $self->{last_mouse_y};
+        $self->_clear_vwap_select_hover();
+        $self->_clear_chart_crosshair();
+    }
+    $self->_apply_select_mode_cursor();
+    $self->request_render();
+    return $self;
+}
+
+sub begin_vwap_placement {
+    my ($self) = @_;
+    if ($self->{avwap_overlay}) {
+        $self->{avwap_overlay}->set_visible(1);
+    }
+    if ($self->{avwap_indicator} && !$self->{avwap_indicator}->has_anchor()) {
+        $self->set_vwap_select_mode(1);
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub confirm_vwap_anchor {
+    my ($self, $idx) = @_;
+    return unless defined $idx;
+    if ($self->{avwap_indicator}) {
+        $self->{avwap_indicator}->set_anchor($idx);
+    }
+    $self->set_vwap_select_mode(0);
+    $self->request_render();
+    return $self;
+}
+
+sub reanchor_vwap {
+    my ($self) = @_;
+    $self->set_vwap_select_mode(1);
+    return $self;
+}
+
+sub end_vwap_overlay {
+    my ($self) = @_;
+    $self->set_vwap_select_mode(0);
+    if ($self->{avwap_overlay}) {
+        $self->{avwap_overlay}->set_visible(0);
+    }
+    $self->request_render();
+    return $self;
+}
+
+# Eliminar por completo el AVWAP: oculta overlay, borra el ancla y sale del
+# modo selección. Reactivar la capa vuelve a pedir una vela nueva.
+sub remove_vwap_overlay {
+    my ($self) = @_;
+    $self->set_vwap_select_mode(0);
+    $self->{_avwap_drag_active} = undef;
+    if ($self->{avwap_indicator} && $self->{avwap_indicator}->can('clear_anchor')) {
+        $self->{avwap_indicator}->clear_anchor();
+    }
+    if ($self->{avwap_overlay}) {
+        $self->{avwap_overlay}->clear($self->{price_canvas}) if $self->{price_canvas};
+        $self->{avwap_overlay}->set_visible(0);
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub cancel_vwap_select_mode {
+    my ($self) = @_;
+    $self->set_vwap_select_mode(0);
+}
+
+sub _clear_vwap_select_hover {
+    my ($self) = @_;
+    for my $c ($self->{price_canvas}, $self->{atr_canvas}, $self->{time_canvas}, $self->{time_axis_canvas}) {
+        next unless $c;
+        $c->delete('vwap_select_hover');
+        $c->delete('time_axis_crosshair');
+    }
+}
+
+sub _clear_vwap_select_banner {
+    my ($self) = @_;
+    my $canvas = $self->{price_canvas};
+    $canvas->delete('vwap_select_banner') if $canvas;
+}
+
+sub _draw_vwap_select_banner {
+    my ($self) = @_;
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $canvas->delete('vwap_select_banner');
+    my $w = $self->_canvas_width($canvas) || 400;
+    eval {
+        $canvas->createText(
+            int($w / 2), 20,
+            -text => 'Haz clic en una vela para anclar el Anchored VWAP (AVWAP)',
+            -fill => '#2962FF',
+            -font => 'Helvetica 11 bold',
+            -tags => 'vwap_select_banner',
+        );
+        1;
+    };
+}
+
+sub _draw_vwap_select_hover {
+    my ($self, $widget, $x, $y) = @_;
+    return unless $self->{_vwap_select_mode};
+    $self->_clear_vwap_select_hover();
+    return unless defined $x;
+
+    # Usar el formateador oficial del crosshair de la app (formato fecha/hora TradingView)
+    local $self->{last_mouse_x} = $x;
+    my $ts_text = $self->_crosshair_time_label();
+
+    my $color = '#2962FF';
+
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        my (undef, $h) = $self->_canvas_size($canvas);
+        next unless defined $h && $h > 0;
+        eval {
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill  => $color,
+                -width => 2,
+                -dash  => '-',
+                -tags  => 'vwap_select_hover',
+            );
+            1;
+        };
+    }
+
+    if ($self->{price_panel} && $self->{time_axis_canvas} && length $ts_text) {
+        eval {
+            $self->{price_panel}->draw_time_crosshair_label($self->{time_axis_canvas}, $x, $ts_text);
+            1;
+        };
+    }
+}
+sub is_vp_select_mode {
+    my ($self) = @_;
+    return $self->{_vp_select_mode} ? 1 : 0;
+}
+
+sub set_vp_select_mode {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    if (!$on && $self->{_vp_select_mode}) {
+        $self->_clear_vp_select_hover();
+        $self->_clear_vp_select_banner();
+    }
+    $self->{_vp_select_mode} = $on;
+    if ($on) {
+        delete $self->{last_mouse_x};
+        delete $self->{last_mouse_y};
+        $self->_clear_vp_select_hover();
+        $self->_clear_chart_crosshair();
+    }
+    $self->_apply_select_mode_cursor();
+    $self->request_render();
+    return $self;
+}
+
+sub begin_vp_placement {
+    my ($self) = @_;
+    if ($self->{vp_overlay}) {
+        $self->{vp_overlay}->set_visible(1);
+    }
+    if ($self->{vp_indicator} && !$self->{vp_indicator}->has_anchor()) {
+        $self->set_vp_select_mode(1);
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub confirm_vp_anchor {
+    my ($self, $idx) = @_;
+    return unless defined $idx;
+    if ($self->{vp_indicator}) {
+        $self->{vp_indicator}->set_anchor($idx);
+    }
+    $self->set_vp_select_mode(0);
+    $self->request_render();
+    return $self;
+}
+
+sub reanchor_vp {
+    my ($self) = @_;
+    $self->set_vp_select_mode(1);
+    return $self;
+}
+
+sub end_vp_overlay {
+    my ($self) = @_;
+    $self->set_vp_select_mode(0);
+    if ($self->{vp_overlay}) {
+        $self->{vp_overlay}->set_visible(0);
+    }
+    $self->request_render();
+    return $self;
+}
+
+# Eliminar por completo el AVP: oculta overlay, borra el ancla y sale del
+# modo selección. Reactivar la capa vuelve a pedir una vela nueva.
+sub remove_vp_overlay {
+    my ($self) = @_;
+    $self->set_vp_select_mode(0);
+    $self->{_vp_drag_active} = undef;
+    if ($self->{vp_indicator} && $self->{vp_indicator}->can('clear_anchor')) {
+        $self->{vp_indicator}->clear_anchor();
+    }
+    if ($self->{vp_overlay}) {
+        $self->{vp_overlay}->clear($self->{price_canvas}) if $self->{price_canvas};
+        $self->{vp_overlay}->set_visible(0);
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub cancel_vp_select_mode {
+    my ($self) = @_;
+    return $self->set_vp_select_mode(0);
+}
+
+sub _clear_vp_select_hover {
+    my ($self) = @_;
+    for my $c ($self->{price_canvas}, $self->{atr_canvas}, $self->{time_canvas}, $self->{time_axis_canvas}) {
+        next unless $c;
+        $c->delete('vp_select_hover');
+        $c->delete('time_axis_crosshair');
+    }
+}
+
+sub _clear_vp_select_banner {
+    my ($self) = @_;
+    my $canvas = $self->{price_canvas};
+    $canvas->delete('vp_select_banner') if $canvas;
+}
+
+sub _draw_vp_select_banner {
+    my ($self) = @_;
+    my $canvas = $self->{price_canvas};
+    return unless $canvas;
+    $canvas->delete('vp_select_banner');
+    my $w = $self->_canvas_width($canvas) || 400;
+    eval {
+        $canvas->createText(
+            int($w / 2), 20,
+            -text => 'Haz clic en una vela para anclar el Perfil de Volumen (AVP)',
+            -fill => '#29B6F6',
+            -font => 'Helvetica 11 bold',
+            -tags => 'vp_select_banner',
+        );
+        1;
+    };
+}
+
+sub _draw_vp_select_hover {
+    my ($self, $widget, $x, $y) = @_;
+    return unless $self->{_vp_select_mode};
+    $self->_clear_vp_select_hover();
+    return unless defined $x;
+
+    local $self->{last_mouse_x} = $x;
+    my $ts_text = $self->_crosshair_time_label();
+
+    my $color = '#29B6F6';
+
+    # 1) Línea vertical entrecortada en price y atr canvas
+    for my $canvas ($self->{price_canvas}, $self->{atr_canvas}) {
+        next unless $canvas;
+        my (undef, $h) = $self->_canvas_size($canvas);
+        next unless defined $h && $h > 0;
+        eval {
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill  => $color,
+                -width => 2,
+                -dash  => '-',
+                -tags  => 'vp_select_hover',
+            );
+            1;
+        };
+    }
+
+    # 2) Etiqueta negra oficial de fecha/hora en el eje temporal (misma del crosshair libre)
+    if ($self->{price_panel} && $self->{time_axis_canvas} && length $ts_text) {
+        eval {
+            $self->{price_panel}->draw_time_crosshair_label($self->{time_axis_canvas}, $x, $ts_text);
+            1;
+        };
+    }
+}
 
 sub set_selected_bar {
     my ($self, $idx) = @_;
@@ -2634,6 +2980,40 @@ sub _start_horizontal_drag {
         return;
     }
 
+    # Drag del ancla del Perfil de Volumen (AVP)
+    if ($self->{vp_overlay} && $self->{vp_overlay}->is_visible() && $self->{vp_indicator} && $self->{vp_indicator}->has_anchor()) {
+        my $anchor_idx = $self->{vp_indicator}->anchor_index();
+        my ($view_start, $view_end) = eval { $self->compute_window() };
+        if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
+            my $local = $anchor_idx - $view_start;
+            my $bars  = $view_end - $view_start + 1;
+            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => RIGHT_MARGIN);
+            $scale->{width} = $self->_canvas_width($self->{price_canvas});
+            my $x_anchor = $scale->index_to_center_x($local);
+            if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
+                $self->{_vp_drag_active} = 1;
+                return;
+            }
+        }
+    }
+
+    # Drag del ancla del Anchored VWAP (AVWAP)
+    if ($self->{avwap_overlay} && $self->{avwap_overlay}->is_visible() && $self->{avwap_indicator} && $self->{avwap_indicator}->has_anchor()) {
+        my $anchor_idx = $self->{avwap_indicator}->anchor_index();
+        my ($view_start, $view_end) = eval { $self->compute_window() };
+        if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
+            my $local = $anchor_idx - $view_start;
+            my $bars  = $view_end - $view_start + 1;
+            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => RIGHT_MARGIN);
+            $scale->{width} = $self->_canvas_width($self->{price_canvas});
+            my $x_anchor = $scale->index_to_center_x($local);
+            if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
+                $self->{_avwap_drag_active} = 1;
+                return;
+            }
+        }
+    }
+
     # spec 0000c: preservar x_shift para paneo fraccional suave. NO limpiar
     # ctrl_zoom_state aquí; reset_view/set_timeframe sí lo resetean cuando corresponde.
     my $root_x = eval { $widget->pointerx() };
@@ -2668,6 +3048,26 @@ sub _on_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
 
     $self->_on_mouse_move($widget, $x, $y);
+
+    # Drag de ancla del Perfil de Volumen (AVP)
+    if ($self->{_vp_drag_active}) {
+        my $idx = $self->_global_index_from_x($x);
+        if (defined $idx) {
+            $self->{vp_indicator}->set_anchor($idx);
+            $self->request_render();
+        }
+        return;
+    }
+
+    # Drag de ancla del Anchored VWAP (AVWAP)
+    if ($self->{_avwap_drag_active}) {
+        my $idx = $self->_global_index_from_x($x);
+        if (defined $idx) {
+            $self->{avwap_indicator}->set_anchor($idx);
+            $self->request_render();
+        }
+        return;
+    }
 
     # Drag de handles Fib (p1/p2/bordes) — no paneo
     if ( $self->{_fib_drag} && $self->{fib_drawing} && $self->{fib_drawing}->get_fib() ) {
@@ -3125,6 +3525,8 @@ sub _end_drag {
     $self->{drag_start_x_shift} = undef;
     $self->{drag_cursor_canvas} = undef;
     $self->{_fib_drag} = undef;
+    $self->{_vp_drag_active} = undef;
+    $self->{_avwap_drag_active} = undef;
 }
 
 sub _vertical_drag {

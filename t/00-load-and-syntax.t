@@ -61,16 +61,18 @@ ok( -f 'Market/Indicators/Liquidity.pm', 'Liquidity v2 indicator presente' );
 ok( -f 'Market/Overlays/Liquidity.pm',   'Liquidity v2 overlay presente' );
 ok( -f 'docs/LIQUIDITY_V2.md',           'spec LIQUIDITY_V2.md' );
 
+# Fase 2 §7/§8: Volume Profile (AVP) y Anchored VWAP (AVWAP) ya son oficiales.
+ok( -f 'Market/Indicators/VolumeProfile.pm', 'AVP indicator presente' );
+ok( -f 'Market/Overlays/VolumeProfile.pm',   'AVP overlay presente' );
+ok( -f 'Market/Indicators/AnchoredVWAP.pm',  'AVWAP indicator presente' );
+ok( -f 'Market/Overlays/AnchoredVWAP.pm',    'AVWAP overlay presente' );
+
 for my $f (qw(
     Market/Indicators/Mxwll_Suite.pm
     Market/Indicators/Strategy_Builder.pm
-    Market/Indicators/VolumeProfile.pm
-    Market/Indicators/AnchoredVWAP.pm
     Market/Indicators/SMC_Structures.pm
     Market/Overlays/Mxwll_Suite.pm
     Market/Overlays/Strategy_Builder.pm
-    Market/Overlays/VolumeProfile.pm
-    Market/Overlays/AnchoredVWAP.pm
     Market/Overlays/SMC_Structures.pm
 )) {
     ok( !-f $f, "ausente en producto: $f" );

@@ -218,6 +218,7 @@ my $vis_smc_fvg = 0;
 my $vis_hld     = 0;
 my $vis_liq     = 0;
 my $vis_diy     = 0;
+my $vis_vp      = 0;
 my $vis_zz_ext = 0;
 my $vis_zz_int = 0;
 my $vis_zigzag = 0;    # true si alguna capa ZZ está ON
@@ -235,6 +236,7 @@ my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_
 my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
 my $cb_liq     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_diy     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'diy');
+my $cb_vp      = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'volumeprofile');
 my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
@@ -243,11 +245,11 @@ my %cb_liq_el = map {
 } qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY);
 my %overlay_state_ref = (
     smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
-    liq => \$vis_liq, diy => \$vis_diy, zigzag => \$vis_zigzag,
+    liq => \$vis_liq, diy => \$vis_diy, volumeprofile => \$vis_vp, zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
     smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
-    liq => $cb_liq, diy => $cb_diy, zigzag => $cb_zigzag,
+    liq => $cb_liq, diy => $cb_diy, volumeprofile => $cb_vp, zigzag => $cb_zigzag,
 );
 my %overlay_button;
 my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
@@ -488,6 +490,105 @@ if ($ENV{MARKET_RELOAD}) {
             $set_overlay_visible->( 'diy', $vis_diy ? 1 : 0 );
         },
     )->pack( -side => 'left' );
+    # Anchored Volume Profile (AVP)
+    $p->Checkbutton(
+        -text     => 'Volume Profile (AVP)',
+        -variable => \$vis_vp,
+        -command  => sub {
+            if ($vis_vp) {
+                $chart_engine->begin_vp_placement();
+            } else {
+                $chart_engine->end_vp_overlay();
+            }
+        },
+    )->pack( -side => 'left' );
+    # Eliminar AVP: borra ancla y apaga la capa (sin reiniciar la app)
+    $p->Button(
+        -text    => 'Eliminar AVP',
+        -padx    => 3,
+        -command => sub {
+            $vis_vp = 0;
+            $chart_engine->remove_vp_overlay();
+        },
+    )->pack( -side => 'left', -padx => 2 );
+    # Anchored VWAP (AVWAP)
+    my $vis_avwap = 0;
+    my %vis_avwap_sub = (
+        band1 => 1,
+        band2 => 1,
+        band3 => 0,
+        fill  => 1,
+    );
+    $p->Checkbutton(
+        -text     => 'Anchored VWAP (AVWAP)',
+        -variable => \$vis_avwap,
+        -command  => sub {
+            if ($vis_avwap) {
+                $chart_engine->begin_vwap_placement();
+            } else {
+                $chart_engine->end_vwap_overlay();
+            }
+        },
+    )->pack( -side => 'left' );
+    my $avwap_sub_frame = $p->Frame()->pack( -side => 'left', -padx => 2 );
+    $avwap_sub_frame->Checkbutton(
+        -text     => 'Banda 1 (±1σ)',
+        -variable => \$vis_avwap_sub{band1},
+        -command  => sub {
+            if ($chart_engine->{avwap_indicator}) {
+                $chart_engine->{avwap_indicator}->set_band(1, on => $vis_avwap_sub{band1});
+            }
+            if ($chart_engine->{avwap_overlay}) {
+                $chart_engine->{avwap_overlay}->set_element_visible('BAND_1', $vis_avwap_sub{band1});
+            }
+            $chart_engine->request_render();
+        },
+    )->pack( -side => 'left' );
+    $avwap_sub_frame->Checkbutton(
+        -text     => 'Banda 2 (±2σ)',
+        -variable => \$vis_avwap_sub{band2},
+        -command  => sub {
+            if ($chart_engine->{avwap_indicator}) {
+                $chart_engine->{avwap_indicator}->set_band(2, on => $vis_avwap_sub{band2});
+            }
+            if ($chart_engine->{avwap_overlay}) {
+                $chart_engine->{avwap_overlay}->set_element_visible('BAND_2', $vis_avwap_sub{band2});
+            }
+            $chart_engine->request_render();
+        },
+    )->pack( -side => 'left' );
+    $avwap_sub_frame->Checkbutton(
+        -text     => 'Banda 3 (±3σ)',
+        -variable => \$vis_avwap_sub{band3},
+        -command  => sub {
+            if ($chart_engine->{avwap_indicator}) {
+                $chart_engine->{avwap_indicator}->set_band(3, on => $vis_avwap_sub{band3});
+            }
+            if ($chart_engine->{avwap_overlay}) {
+                $chart_engine->{avwap_overlay}->set_element_visible('BAND_3', $vis_avwap_sub{band3});
+            }
+            $chart_engine->request_render();
+        },
+    )->pack( -side => 'left' );
+    $avwap_sub_frame->Checkbutton(
+        -text     => 'Relleno',
+        -variable => \$vis_avwap_sub{fill},
+        -command  => sub {
+            if ($chart_engine->{avwap_overlay}) {
+                $chart_engine->{avwap_overlay}->set_element_visible('BAND_FILL', $vis_avwap_sub{fill});
+            }
+            $chart_engine->request_render();
+        },
+    )->pack( -side => 'left' );
+    # Eliminar AVWAP: borra ancla y apaga la capa (sin reiniciar la app)
+    $p->Button(
+        -text    => 'Eliminar AVWAP',
+        -padx    => 3,
+        -command => sub {
+            $vis_avwap = 0;
+            $chart_engine->remove_vwap_overlay();
+        },
+    )->pack( -side => 'left', -padx => 2 );
     # ZigZag externo ChartPrime (Length 150; VP/Channel/PoC OFF → solo azul)
     $p->Checkbutton(
         -text     => 'ZigZag externo',
