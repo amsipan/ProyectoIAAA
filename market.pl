@@ -23,23 +23,24 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-# Dataset canónico: export TradingView NQ1! 15m (ISO UTC-5, ETH).
-# Base nativa = 15m; 1h/2h/4h/D/W se agregan desde 15m. 1m/5m quedan vacíos
-# (botones UI se mantienen; no hay data más fina que la base).
+# Dataset por defecto: export TradingView NQ1! 1m (ISO UTC-5, ETH) — lo más
+# reciente. Base nativa = 1m; 5m/15m/1h/2h/4h/D/W se agregan desde 1m.
+# El export 15m y los CSV antiguos quedan como opción/fallback dentro de Data/.
 # Copia portable en Data/; fallback a Downloads si falta la copia.
-my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 15.csv';
-my $tv_dst = 'Data/tv_nq1_15m.csv';
+my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 1.csv';
+my $tv_dst = 'Data/tv_nq1_1m.csv';
 if (-f $tv_src && !-f $tv_dst) {
     require File::Copy;
     File::Copy::copy($tv_src, $tv_dst)
         or warn "[!] No se pudo copiar $tv_src → $tv_dst: $!\n";
-    print "[*] CSV TV 15m copiado a $tv_dst\n" if -f $tv_dst;
+    print "[*] CSV TV 1m copiado a $tv_dst\n" if -f $tv_dst;
 }
 
 my @csv_candidates = (
-    $tv_dst,
+    $tv_dst,                    # default: export TV 1m (más reciente)
     $tv_src,
-    # Fallbacks legacy 1m (solo si no hay export 15m)
+    'Data/tv_nq1_15m.csv',      # opción: export TV 15m
+    # Fallbacks legacy (solo si no hay export TV)
     'Data/2026_06.csv',
     'C:/Users/bryan/Downloads/Proyecto/2026_06.csv',
 );
@@ -47,12 +48,12 @@ my $archivo_csv;
 for my $cand (@csv_candidates) {
     if (-f $cand) { $archivo_csv = $cand; last; }
 }
-die "CRÍTICO: no se encontró dataset (tv_nq1_15m.csv ni export TV ni 2026_06.csv)\n"
+die "CRÍTICO: no se encontró dataset (tv_nq1_1m.csv ni tv_nq1_15m.csv ni export TV ni 2026_06.csv)\n"
     unless defined $archivo_csv;
 
-# Detectar base: export 15m de TV o nombre *15m* → base 15m; si no, 1m.
+# Detectar base por nombre: *15m* → base 15m; si no (1m u otros) → 1m.
 my $base_tf = '1m';
-if ($archivo_csv =~ /15m|15\.csv|_15\.csv|, 15\.csv/i) {
+if ($archivo_csv =~ /15m|_15\.csv|, 15\.csv/i) {
     $base_tf = '15m';
 }
 $market_data->set_base_timeframe($base_tf);
