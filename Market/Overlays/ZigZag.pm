@@ -3,8 +3,11 @@ use strict;
 use warnings;
 
 # =============================================================================
-# Market::Overlays::ZigZag — render dirección interna (verde/rojo) + externa (azul)
-# Task 0033: capa separada; toggles interno/externo; tag ov_zigzag.
+# Market::Overlays::ZigZag — render ZZ
+#   INTERNAL = ZZMTF (verde/rojo)
+#   EXTERNAL = ChartPrime (azul)
+#   CHANNEL  = OFF
+# Fib = herramienta Drawing::FibRetracement (no este overlay).
 # =============================================================================
 
 my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
@@ -13,11 +16,16 @@ sub new {
     my ($class, %args) = @_;
     die "Overlays::ZigZag->new: requiere 'indicator'"
         unless defined $args{indicator};
+    my $elems = $args{elements} // {
+        INTERNAL => 0,
+        EXTERNAL => 1,
+        CHANNEL  => 0,
+    };
     my $self = {
         indicator => $args{indicator},
         theme     => $args{theme} || {},
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
-        _elements => { INTERNAL => 1, EXTERNAL => 1, CHANNEL => 0 },
+        _elements => { %$elems },
         _start    => 0,
         _end      => 0,
         _density_pct => exists $args{density_pct} ? _clamp_density_pct($args{density_pct}) : 100,

@@ -17,6 +17,7 @@ my $D = 'Market::Debug::IndicatorSnapshot';
     sub new { bless { ops => [] }, shift }
     sub delete { my ($s,@a)=@_; push @{$s->{ops}},[delete=>@a]; return }
     sub createLine { my ($s,@a)=@_; push @{$s->{ops}},[createLine=>@a]; return scalar @{$s->{ops}} }
+    sub createText { my ($s,@a)=@_; push @{$s->{ops}},[createText=>@a]; return scalar @{$s->{ops}} }
 }
 
 sub build_ohlc {
@@ -154,27 +155,86 @@ sub feed_all {
 }
 
 # 7. Overlay: tag, toggles, draw headless
+# Defaults overlay: EXTERNAL ON, INTERNAL/CHANNEL OFF (ChartEngine arranca todo OFF)
 {
-    my $ind = Market::Indicators::ZigZag->new(internal_resolution => 5, swing_length => 8);
-    my @rows = map { [10+$_, 12+$_, 9+$_, 11+$_] } 0 .. 15;
-    feed_all($ind, build_ohlc(\@rows));
-    my $ov = Market::Overlays::ZigZag->new(indicator => $ind);
-    ok(Market::Overlays::Base->validate($ov), 'overlay ZigZag valida contrato');
-    is($ov->tag(), 'ov_zigzag', 'tag ov_zigzag');
-    ok($ov->is_element_visible('INTERNAL'), 'toggle interno ON por defecto');
-    ok($ov->is_element_visible('EXTERNAL'), 'toggle externo ON por defecto');
+    my $ind = Market::Indicators::ZigZag->new(
+        internal_resolution => 5,
+        swing_length        => 8,
+        external_only       => 0,
+    );
+    my @rows = _triangle_wave_rows();
+    feed_all( $ind, build_ohlc( \@rows ) );
+    my $ov = Market::Overlays::ZigZag->new( indicator => $ind );
+    ok( Market::Overlays::Base->validate($ov), 'overlay ZigZag valida contrato' );
+    is( $ov->tag(), 'ov_zigzag', 'tag ov_zigzag' );
+    ok( !$ov->is_element_visible('INTERNAL'),
+        'toggle interno OFF por defecto (se enciende por UI)' );
+    ok( $ov->is_element_visible('EXTERNAL'), 'toggle externo ON por defecto en Overlay->new' );
+    ok( !$ov->is_element_visible('CHANNEL'),
+        'toggle canal OFF (Swing Channel Display OFF captura profe)' );
     $ov->set_visible(1);
-    $ov->compute_visible(undef, $ind, 0, 15);
+    my $last = $#rows;
+    $ov->compute_visible( undef, $ind, 0, $last );
     my $canvas = ZZTestCanvas->new();
-    my $scales = Market::Panels::Scales->new(min_y => 5, max_y => 30, bars => 16);
-    $scales->{width} = 400; $scales->{height} = 300;
-    $ov->draw($canvas, $scales);
+    my $scales = Market::Panels::Scales->new( min_y => 50, max_y => 140, bars => $last + 1 );
+    $scales->{width}  = 400;
+    $scales->{height} = 300;
+    $ov->draw( $canvas, $scales );
     my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    ok(@lines >= 1, 'draw: al menos una línea (externo azul)');
+    ok( @lines >= 1, 'draw: al menos una línea (externo azul)' );
     $ov->set_visible(0);
     $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-    is(scalar(grep { $_->[0] ne 'delete' } @{ $canvas->{ops} }), 0, 'visible=0: sin ops');
+    $ov->draw( $canvas, $scales );
+    is( scalar( grep { $_->[0] ne 'delete' } @{ $canvas->{ops} } ), 0, 'visible=0: sin ops' );
+}
+
+# 7b. Defaults captura profe ZZMTF (res 30, period 2) + compute on-demand
+{
+    my $ind = Market::Indicators::ZigZag->new();
+    is( $ind->{internal_resolution}, 30, 'defaults profe: resolution 30' );
+    is( $ind->{internal_period},     2,  'defaults profe: period 2' );
+    is( $ind->{swing_length},      150,  'defaults profe: swing_length 150' );
+    ok( $ind->wants_internal,  'defaults tests: compute_internal ON' );
+    ok( $ind->wants_external,  'defaults tests: compute_external ON' );
+
+    my $ext_only = Market::Indicators::ZigZag->new( external_only => 1 );
+    ok( !$ext_only->wants_internal, 'external_only: no calcula interno' );
+    ok( $ext_only->wants_external,  'external_only: sí calcula externo' );
+
+    my $int_only = Market::Indicators::ZigZag->new(
+        compute_internal => 1,
+        compute_external => 0,
+        internal_resolution => 5,
+        swing_length => 8,
+    );
+    my @rows = _triangle_wave_rows();
+    feed_all( $int_only, build_ohlc( \@rows ) );
+    my $v = $int_only->get_values();
+    ok( @{ $v->{internal_segments} } >= 1 || @{ $v->{internal_vertices} } >= 2,
+        'int-only: produce vértices/segmentos internos' );
+    is( scalar @{ $v->{external_segments} }, 0, 'int-only: sin segmentos externos' );
+
+    # Draw solo INTERNAL (verde/rojo)
+    my $ind2 = Market::Indicators::ZigZag->new(
+        compute_internal => 1,
+        compute_external => 0,
+        internal_resolution => 5,
+    );
+    feed_all( $ind2, build_ohlc( \@rows ) );
+    my $ov = Market::Overlays::ZigZag->new(
+        indicator => $ind2,
+        elements  => { INTERNAL => 1, EXTERNAL => 0, CHANNEL => 0 },
+    );
+    $ov->set_visible(1);
+    my $last = $#rows;
+    $ov->compute_visible( undef, $ind2, 0, $last );
+    my $canvas = ZZTestCanvas->new();
+    my $scales = Market::Panels::Scales->new( min_y => 50, max_y => 140, bars => $last + 1 );
+    $scales->{width}  = 400;
+    $scales->{height} = 300;
+    $ov->draw( $canvas, $scales );
+    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    ok( @lines >= 1, 'draw interno: al menos una línea verde/rojo' );
 }
 
 # Fixture compartida: onda triangular con varios swings externos (task 0061).

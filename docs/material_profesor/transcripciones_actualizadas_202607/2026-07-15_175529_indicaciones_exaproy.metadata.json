@@ -1,0 +1,27 @@
+{
+  "input": "/home/openclaw/.openclaw/media/inbox/IA_IndicacionesExaProy.m4a",
+  "created_at": "20260719-051032",
+  "model": "whisper-large-v3-turbo",
+  "language": "es",
+  "chunk_count": 2,
+  "chunks": [
+    {
+      "index": 1,
+      "file": "chunk_0000.mp3",
+      "bytes": 7200580,
+      "key_index": 2,
+      "account_id": "bryanlearninge@gmail.com",
+      "text_chars": 12700,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/IA_IndicacionesExaProy-20260719-051032/raw/chunk_0000.json"
+    },
+    {
+      "index": 2,
+      "file": "chunk_0001.mp3",
+      "bytes": 2440156,
+      "key_index": 3,
+      "account_id": "bryan.phva2@gmail.com",
+      "text_chars": 3130,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/IA_IndicacionesExaProy-20260719-051032/raw/chunk_0001.json"
+    }
+  ]
+}

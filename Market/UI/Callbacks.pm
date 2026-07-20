@@ -22,8 +22,7 @@ use warnings;
 #   - cada botón de Replay invoca el método correcto del ReplayController
 #     (start/play/pause/step_forward/step_backward/fast_forward/exit) y
 #     dispara re-render;
-#   - cada toggle de overlay invoca overlay_manager->set_visible / liq->set_element_visible;
-#   - el toggle HTF alterna su estado.
+#   - cada toggle de overlay invoca overlay_manager->set_visible / liq->set_element_visible.
 #
 # REGLA (task 0004 / CONSTITUTION): aquí NO se reimplementa la lógica de
 # Replay (el truncado por replay_idx ya lo hace ChartEngine.sync_overlay_indicators
@@ -39,7 +38,6 @@ use warnings;
 #             `after($ms,$cb)` ejecuta $cb inmediatamente (o lo registra).
 #   $vars   : hashref con referencias a variables de estado compartidas:
 #               active_tf   => \$active_tf,
-#               htf_enabled => \$htf_enabled,
 #               replay_on   => \$replay_on   (bool pintado en la UI).
 # =============================================================================
 
@@ -415,7 +413,9 @@ sub chart_tf_minutes {
     if ($chart->can('_timeframe_minutes')) {
         return $chart->_timeframe_minutes();
     }
-    my $tf = eval { $chart->{market_data}{active_tf} } || '1m';
+    my $tf = eval { $chart->{market_data}{active_tf} }
+          // eval { $chart->{market_data}->base_timeframe() }
+          || '15m';
     return 5 if $tf eq '5m';
     return 15 if $tf eq '15m';
     return 60 if $tf eq '1h';
@@ -916,9 +916,17 @@ sub make_zigzag_element_toggle {
     die "make_zigzag_element_toggle: requiere \$element" unless defined $element;
     return sub {
         my ($on) = @_;
+        # INTERNAL / EXTERNAL: set_zigzag_layer (compute on-demand + re-feed).
+        my $el = uc($element);
+        if ( $chart->can('set_zigzag_layer')
+            && ( $el eq 'INTERNAL' || $el eq 'EXTERNAL' ) )
+        {
+            $chart->set_zigzag_layer( $element, $on ? 1 : 0 );
+            return;
+        }
         my $ov = $chart->{zigzag_overlay};
         return unless $ov && $ov->can('set_element_visible');
-        $ov->set_element_visible($element, $on ? 1 : 0);
+        $ov->set_element_visible( $element, $on ? 1 : 0 );
         $chart->request_render();
     };
 }
@@ -929,27 +937,6 @@ sub make_zigzag_resolution_callback {
     die "make_zigzag_resolution_callback: requiere \$minutes" unless defined $minutes;
     return sub {
         $chart->set_zigzag_internal_resolution($minutes);
-    };
-}
-
-# ----------------------------------------------------------------------------
-# HTF sobre LTF (spec 0010 §4). Toggle preparado: alterna una bandera de estado
-# ($vars->{htf_enabled}). La proyección de niveles de mayor temporalidad aún no
-# está implementada (tarea futura); aquí dejamos el cableado de UI listo para
-# que cuando exista solo haya que leer ese estado.
-# ----------------------------------------------------------------------------
-
-sub make_htf_toggle {
-    my ($class, $chart, $vars) = @_;
-    die "make_htf_toggle: requiere \$chart" unless $chart;
-    my $ref = ref($vars) eq 'HASH' ? $vars->{htf_enabled} : undef;
-    return sub {
-        my ($on) = @_;
-        ${$ref} = $on ? 1 : 0 if $ref;
-        # No hay proyección HTF todavía; cuando exista, aquí se pedirá
-        # recálculo. Por ahora solo re-render para reflejar el cambio de
-        # estado en cualquier overlay futuro que lo consuma.
-        $chart->request_render();
     };
 }
 

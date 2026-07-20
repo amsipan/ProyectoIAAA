@@ -1,8 +1,14 @@
 # Roadmap
 
-Última actualización: 2026-07-08. Separa estado actual de objetivos. Fechas del PDF oficial
-de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`). Estado de tasks:
-`tasks/README.md`.
+Última actualización: 2026-07-19.
+
+> **Plan de dirección vigente (meta modelos + orden de trabajo):**  
+> **`docs/PLAN_DEFINITIVO.md`**.  
+> Este `ROADMAP.md` conserva el histórico de entregas PDF y notas antiguas; si hay
+> conflicto de prioridades, manda `PLAN_DEFINITIVO.md`.
+
+Fechas del PDF oficial de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`).
+Estado de tasks: `tasks/README.md`.
 
 ## Estado actual
 
@@ -74,7 +80,7 @@ de densidad, Replay UX TradingView.
 
 ## Features candidatas / exploratorias
 
-- Toggle de niveles HTF sobre gráficos LTF (contexto multi-temporal).
+- Proyección real de niveles HTF sobre LTF (si el profe la pide; el placeholder UI se eliminó).
 - Heatmap de correlación de features (Chart::Plotly) offline.
 - App Android / VPS (fuera del alcance académico actual).
 - Tijeras vectoriales Select Bar (0047) y cursor SO invisible (0053, limitado por WSLg).

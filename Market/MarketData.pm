@@ -3,14 +3,60 @@ use strict;
 use warnings;
 use Time::Moment;
 
+# Resolución relativa de TFs (más bajo = más fino).
+my %TF_RANK = (
+    '1m'  => 1,
+    '5m'  => 5,
+    '15m' => 15,
+    '1h'  => 60,
+    '2h'  => 120,
+    '4h'  => 240,
+    'D'   => 1440,
+    'W'   => 10080,
+);
+
 sub new {
     my ($class) = @_;
     my $self = {
         data      => { '1m' => [], '5m' => [], '15m' => [], '1h' => [], '2h' => [], '4h' => [], 'D' => [], 'W' => [] },
         active_tf => '1m',
+        # Serie nativa cargada desde CSV (1m por defecto; 15m si export TV 15m).
+        base_tf   => '1m',
+        # TFs ya agregados (lazy). La base siempre está "lista".
+        _tf_built => { '1m' => 1 },
+        # Cache Time::Moment por string de timestamp (evita re-parse en agregación).
+        _tm_cache => {},
     };
     bless $self, $class;
     return $self;
+}
+
+sub base_timeframe {
+    my ($self) = @_;
+    return $self->{base_tf} // '1m';
+}
+
+# set_base_timeframe($tf) — define la serie nativa (p.ej. '1m' o '15m').
+# Limpia todas las series y marca solo la base como construida.
+# Llamar ANTES de add_candle cuando se carga un CSV no-1m.
+sub set_base_timeframe {
+    my ($self, $tf) = @_;
+    return unless defined $tf && exists $self->{data}{$tf};
+    $self->{base_tf}   = $tf;
+    $self->{active_tf} = $tf;
+    for my $k (keys %{ $self->{data} }) {
+        $self->{data}{$k} = [];
+    }
+    $self->{_tf_built} = { $tf => 1 };
+    $self->{_tm_cache} = {};
+    return $self;
+}
+
+sub _tf_rank {
+    my ($self, $tf) = @_;
+    return $TF_RANK{$tf} if defined $tf && exists $TF_RANK{$tf};
+    return int($tf) if defined $tf && $tf =~ /^\d+$/;
+    return 0;
 }
 
 sub get_data {
@@ -20,13 +66,40 @@ sub get_data {
 
 sub add_candle {
     my ($self, $candle) = @_;
-    push @{ $self->{data}->{'1m'} }, $candle;
+    my $base = $self->base_timeframe();
+    push @{ $self->{data}->{$base} }, $candle;
+    # Invalidar agregados (no la base) al crecer la serie nativa.
+    if ($self->{_tf_built}) {
+        for my $tf (keys %{ $self->{_tf_built} }) {
+            next if $tf eq $base;
+            delete $self->{_tf_built}{$tf};
+            $self->{data}{$tf} = [] if exists $self->{data}{$tf};
+        }
+    }
+    $self->{_tm_cache} = {} if $self->{_tm_cache} && keys %{ $self->{_tm_cache} } > 200_000;
 }
 
 sub build_tf_candles {
     my ($self, $tf) = @_;
-    my $base_data = $self->{data}->{'1m'};
-    return unless @$base_data;
+    return unless defined $tf;
+    my $base = $self->base_timeframe();
+    return if $tf eq $base;
+
+    # No se puede construir un TF más fino que la base (p.ej. 1m/5m con base 15m).
+    my $rank_tf   = $self->_tf_rank($tf);
+    my $rank_base = $self->_tf_rank($base);
+    if ($rank_tf > 0 && $rank_base > 0 && $rank_tf < $rank_base) {
+        $self->{data}{$tf} = [] if exists $self->{data}{$tf};
+        $self->{_tf_built}{$tf} = 1;
+        return;
+    }
+
+    # Idempotente: no reconstruir si ya está (lazy multi-llamada OK).
+    if ($self->{_tf_built}{$tf} && @{ $self->{data}{$tf} || [] }) {
+        return;
+    }
+    my $base_data = $self->{data}->{$base};
+    return unless $base_data && @$base_data;
 
     my @aggregated;
     my ($current_key, $current);
@@ -38,18 +111,19 @@ sub build_tf_candles {
         if (!defined $current_key || $bucket_ts ne $current_key) {
             push @aggregated, $current if defined $current;
             $current_key = $bucket_ts;
-            $current = [$bucket_ts, $c->[1], $c->[2], $c->[3], $c->[4], $c->[5]];
+            $current = [$bucket_ts, $c->[1], $c->[2], $c->[3], $c->[4], $c->[5] // 0];
             next;
         }
 
         $current->[2] = $c->[2] if $c->[2] > $current->[2];
         $current->[3] = $c->[3] if $c->[3] < $current->[3];
         $current->[4] = $c->[4];
-        $current->[5] += $c->[5];
+        $current->[5] = ($current->[5] // 0) + ($c->[5] // 0);
     }
 
     push @aggregated, $current if defined $current;
     $self->{data}->{$tf} = \@aggregated;
+    $self->{_tf_built}{$tf} = 1;
 }
 
 # _bucket_timestamp($ts, $tf) — frontera de reloj/sesión para el TF dado.
@@ -62,38 +136,29 @@ sub build_tf_candles {
 #   pero se conserva timestamp YYYY-MM-DDT00:00:00 para etiquetas diarias limpias.
 # - 'W': semana ISO del día de trading (lunes). Time::Moment->day_of_week es
 #   ISO 8601 (1=Lun .. 7=Dom).
+sub _parse_tm_cached {
+    my ($self, $ts) = @_;
+    return undef unless defined $ts;
+    my $cache = $self->{_tm_cache} ||= {};
+    return $cache->{$ts} if exists $cache->{$ts};
+    my $tm = eval { Time::Moment->from_string($ts) };
+    $cache->{$ts} = $tm;  # puede ser undef si falla
+    return $tm;
+}
+
 sub _bucket_timestamp {
     my ($self, $ts, $tf) = @_;
     return undef unless defined $ts;
 
-    if (!defined $tf) {
+    if (!defined $tf || $tf eq '1m') {
         return $ts;
     }
 
-    my $tm = eval { Time::Moment->from_string($ts) };
     my $suffix = $self->_timestamp_suffix($ts);
 
-    # --- Casos especiales: D y W usan fecha de trading CME ---
-    if ($tf eq 'D') {
-        return $ts unless $tm && defined $suffix;
-        my $trading_day = $self->_trading_day_tm($tm);
-        return $self->_format_bucket_timestamp($trading_day, 0, 0, $suffix);
-    }
-    elsif ($tf eq 'W') {
-        return $ts unless $tm && defined $suffix;
-        my $trading_day = $self->_trading_day_tm($tm);
-        my $dow = $trading_day->day_of_week;  # 1=Lun .. 7=Dom
-        my $monday = $trading_day->minus_days($dow - 1);
-        return $self->_format_bucket_timestamp($monday, 0, 0, $suffix);
-    }
-
-    # --- Minutos: resolver $minutes desde $tf o entero ---
+    # 5m/15m: solo regex, sin Time::Moment (antes se parseaba y se descartaba).
     my $minutes;
-    if ($tf =~ /^(\d+)$/) {
-        $minutes = int($1);
-    } elsif ($tf eq '1m') {
-        return $ts;  # sin agregación
-    } elsif ($tf eq '5m') {
+    if ($tf eq '5m') {
         $minutes = 5;
     } elsif ($tf eq '15m') {
         $minutes = 15;
@@ -103,19 +168,45 @@ sub _bucket_timestamp {
         $minutes = 120;
     } elsif ($tf eq '4h') {
         $minutes = 240;
+    } elsif ($tf =~ /^(\d+)$/) {
+        $minutes = int($1);
+    } elsif ($tf eq 'D' || $tf eq 'W') {
+        $minutes = undef;
     } else {
         return $ts;
     }
 
-    return $ts if !$minutes || $minutes <= 1;
+    if (defined $minutes && $minutes > 1 && $minutes < 60) {
+        if ($ts =~ /^(\d{4}-\d{2}-\d{2}T\d{2}):(\d{2}):(\d{2})(.*)$/) {
+            my ($prefix, $minute, $second, $sfx) = ($1, $2, $3, $4);
+            my $bucket_minute = int($minute / $minutes) * $minutes;
+            return sprintf('%s:%02d:00%s', $prefix, $bucket_minute, $sfx);
+        }
+        return $ts;
+    }
 
-    # Para >= 60 min, anclar al inicio de sesión CME (17:00 local) en vez de
-    # truncar desde medianoche. Para 1h no cambia la hora visible; para 2h/4h
-    # corrige la fase observada en TradingView.
+    # D/W y >=1h necesitan Time::Moment (cacheado).
+    my $tm = $self->_parse_tm_cached($ts);
+
+    if ($tf eq 'D') {
+        return $ts unless $tm && defined $suffix;
+        my $trading_day = $self->_trading_day_tm($tm);
+        return $self->_format_bucket_timestamp($trading_day, 0, 0, $suffix);
+    }
+    if ($tf eq 'W') {
+        return $ts unless $tm && defined $suffix;
+        my $trading_day = $self->_trading_day_tm($tm);
+        my $dow = $trading_day->day_of_week;  # 1=Lun .. 7=Dom
+        my $monday = $trading_day->minus_days($dow - 1);
+        return $self->_format_bucket_timestamp($monday, 0, 0, $suffix);
+    }
+
+    return $ts if !defined $minutes || $minutes <= 1;
+
+    # Para >= 60 min, anclar al inicio de sesión CME (17:00 local).
     if ($minutes >= 60) {
         return $self->_session_bucket_timestamp($tm, $minutes, $suffix) if $tm && defined $suffix;
 
-        # Fallback defensivo si Time::Moment no pudo parsear.
         if ($ts =~ /^(\d{4}-\d{2}-\d{2}T)(\d{2}):(\d{2}):(\d{2})(.*)$/) {
             my ($date_prefix, $hour, $min, $sec, $sfx) = ($1, $2, $3, $4, $5);
             my $total_minutes = int($hour) * 60 + int($min);
@@ -125,13 +216,6 @@ sub _bucket_timestamp {
             return sprintf('%s%02d:%02d:00%s', $date_prefix, $bucket_hour, $bucket_min, $sfx);
         }
         return $ts;
-    }
-
-    # Para < 60 min (5m, 15m), truncar solo minutos.
-    if ($ts =~ /^(\d{4}-\d{2}-\d{2}T\d{2}):(\d{2}):(\d{2})(.*)$/) {
-        my ($prefix, $minute, $second, $suffix) = ($1, $2, $3, $4);
-        my $bucket_minute = int($minute / $minutes) * $minutes;
-        return sprintf('%s:%02d:00%s', $prefix, $bucket_minute, $suffix);
     }
 
     return $ts;
@@ -189,16 +273,39 @@ sub _session_bucket_timestamp {
     return $self->_format_bucket_timestamp($bucket_date, $bucket_hour, $bucket_min, $suffix);
 }
 
+# build_timeframes — por defecto LAZY: no agrega todos los TF al boot.
+# Pasa eager => 1 para forzar construcción de todos (tests / herramientas).
 sub build_timeframes {
-    my ($self) = @_;
-    for my $tf ('5m', '15m', '1h', '2h', '4h', 'D', 'W') {
-        $self->build_tf_candles($tf);
+    my ($self, %opts) = @_;
+    if ($opts{eager}) {
+        my $base = $self->base_timeframe();
+        for my $tf ('1m', '5m', '15m', '1h', '2h', '4h', 'D', 'W') {
+            next if $tf eq $base;
+            $self->build_tf_candles($tf);
+        }
     }
+    # Lazy: no-op; set_timeframe / ensure_timeframe construyen bajo demanda.
+    return $self;
+}
+
+# ensure_timeframe($tf) — garantiza que el TF está agregado antes de usarlo.
+sub ensure_timeframe {
+    my ($self, $tf) = @_;
+    return unless defined $tf;
+    my $base = $self->base_timeframe();
+    return if $tf eq $base;
+    $self->build_tf_candles($tf) if exists $self->{data}{$tf} || $tf =~ /^(?:5m|15m|1h|2h|4h|D|W|\d+)$/;
+    return $self;
 }
 
 sub set_timeframe {
     my ($self, $tf) = @_;
-    $self->{active_tf} = $tf if exists $self->{data}->{$tf};
+    return unless defined $tf;
+    # Aceptar TFs conocidos aunque el array aún esté vacío (lazy).
+    if (exists $self->{data}->{$tf}) {
+        $self->ensure_timeframe($tf);
+        $self->{active_tf} = $tf;
+    }
 }
 
 sub _active_array {
@@ -247,14 +354,15 @@ sub get_timestamp {
 
 sub merge_delta_row {
     my ($self, $row) = @_;
-    my $arr = $self->{data}->{'1m'};
-    
+    my $base = $self->base_timeframe();
+    my $arr  = $self->{data}->{$base};
+
     if (@$arr && $arr->[-1]->[0] eq $row->[0]) {
         my $last = $arr->[-1];
         $last->[2] = $row->[2] if $row->[2] > $last->[2];
         $last->[3] = $row->[3] if $row->[3] < $last->[3];
         $last->[4] = $row->[4];
-        $last->[5] += $row->[5];
+        $last->[5] = ($last->[5] // 0) + ($row->[5] // 0);
     } else {
         $self->add_candle($row);
     }

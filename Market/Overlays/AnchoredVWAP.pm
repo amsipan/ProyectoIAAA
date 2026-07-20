@@ -6,11 +6,11 @@ use warnings;
 # Market::Overlays::AnchoredVWAP
 #
 # Render visual (no cambia la fórmula del indicador):
-#   - Polilínea única por serie (mismos puntos centro-de-vela; menos “sierra”
-#     de muchos createLine sueltos; sin -smooth para no desviar el trazo).
+#   - Polilínea única por serie (mismos puntos centro-de-vela).
 #   - Grosor uniforme (estilo TV).
 #   - Centro azul; banda ±1σ verde; bandas ±2/±3σ verde oliva/amarillento.
 #   - Relleno semitransparente entre upper1 y lower1 (stipple Tk).
+#   - Círculo handle deslicable en la vela ancla.
 # =============================================================================
 
 sub new {
@@ -27,18 +27,16 @@ sub new {
             BAND_1    => 1,
             BAND_2    => 1,
             BAND_3    => 1,
-            BAND_FILL => 1,  # relleno entre bandas ±1σ
+            BAND_FILL => 1,
         },
-        # Colores estilo Anchored VWAP de TradingView
-        color_vwap   => $theme->{vwap_line}   // '#2962FF',  # azul central
-        color_band1  => $theme->{vwap_band1}  // '#26A69A',  # verde (banda 1)
-        color_band2  => $theme->{vwap_band2}  // '#9E9D24',  # verde-amarillo oscuro
-        color_band3  => $theme->{vwap_band3}  // '#827717',  # oliva más oscuro
-        # Relleno: verde muy claro + stipple ralo (Tk no tiene alpha real;
-        # color fuerte + gray12 se veía demasiado denso/opaco).
+        color_vwap   => $theme->{vwap_line}   // '#2962FF',
+        color_band1  => $theme->{vwap_band1}  // '#26A69A',
+        color_band2  => $theme->{vwap_band2}  // '#9E9D24',
+        color_band3  => $theme->{vwap_band3}  // '#827717',
         color_fill   => $theme->{vwap_fill}   // '#B2DFDB',
         line_width   => $theme->{vwap_width}  // 1,
         fill_stipple => $theme->{vwap_fill_stipple} // 'gray12',
+        color_handle => '#2962FF',
         _start       => 0,
         _end         => 0,
     };
@@ -57,7 +55,7 @@ sub is_visible {
 }
 
 sub tag {
-    return 'ov_vwap';
+    return 'ov_avwap';
 }
 
 sub clear {
@@ -90,8 +88,6 @@ sub compute_visible {
     return $self;
 }
 
-# _collect_xy — mismos puntos que antes (centro de vela + value_to_y del campo).
-# No interpola ni suaviza; solo empaqueta para un createLine multi-punto.
 sub _collect_xy {
     my ($self, $scales, $series, $start, $end, $field) = @_;
     my @xy;
@@ -106,12 +102,10 @@ sub _collect_xy {
     return @xy;
 }
 
-# Una polilínea: mismos vértices, un solo item de Canvas (mejor que N segmentos).
-# Sin -smooth: el trazo pasa exactamente por los mismos puntos de cálculo.
 sub _draw_polyline {
     my ($self, $canvas, $scales, $series, $start, $end, $field, $color, $width) = @_;
     my @xy = $self->_collect_xy($scales, $series, $start, $end, $field);
-    return if @xy < 4;  # hace falta al menos 2 puntos (x,y,x,y)
+    return if @xy < 4;
 
     $canvas->createLine(
         @xy,
@@ -124,18 +118,14 @@ sub _draw_polyline {
     return;
 }
 
-# Relleno entre upper$n y lower$n: polígono upper→…→end luego lower reverse.
-# Stipple simula transparencia en Tk (igual patrón que FVG/Liquidity).
 sub _draw_band_fill {
     my ($self, $canvas, $scales, $series, $start, $end, $n, $color) = @_;
     my @upper = $self->_collect_xy($scales, $series, $start, $end, "upper$n");
     my @lower = $self->_collect_xy($scales, $series, $start, $end, "lower$n");
     return if @upper < 4 || @lower < 4;
-    # Misma cantidad de vértices (pares x,y); si no, no rellenar para no distorsionar.
     return if @upper != @lower;
 
     my @poly = @upper;
-    # lower en sentido inverso (de derecha a izquierda)
     for (my $i = $#lower - 1; $i >= 0; $i -= 2) {
         push @poly, $lower[$i], $lower[$i + 1];
     }
@@ -174,7 +164,7 @@ sub draw {
     my $start  = $self->{_start} // 0;
     my $end    = $self->{_end}   // 0;
     my $anchor = $ind->anchor_index();
-    # Solo dibujar desde la ancla (líneas nacen en la vela seleccionada).
+
     $start = $anchor if defined $anchor && $anchor > $start;
     return $self if $start > $end;
 
@@ -198,39 +188,41 @@ sub draw {
         }
     }
 
-    # 2) Bandas (exteriores → interiores: 3,2,1) para que la 1 quede legible
-    for my $n (3, 2, 1) {
-        my $elem = "BAND_$n";
-        next unless $self->is_element_visible($elem);
-        my $probe;
-        for my $i ($start .. $end) {
-            $probe = $series->[$i];
-            last if $probe && defined $probe->{"upper$n"};
-        }
-        next unless $probe && defined $probe->{"upper$n"};
-
-        my $col = $self->_band_color($n);
-        $self->_draw_polyline(
-            $canvas, $scales, $series, $start, $end,
-            "upper$n", $col, $w,
-        );
-        $self->_draw_polyline(
-            $canvas, $scales, $series, $start, $end,
-            "lower$n", $col, $w,
-        );
+    # 2) Líneas de bandas
+    for my $n (1 .. 3) {
+        next unless $self->is_element_visible("BAND_$n");
+        my $bcol = $self->_band_color($n);
+        $self->_draw_polyline($canvas, $scales, $series, $start, $end, "upper$n", $bcol, $w);
+        $self->_draw_polyline($canvas, $scales, $series, $start, $end, "lower$n", $bcol, $w);
     }
 
-    # 3) Línea central (azul)
+    # 3) Línea central VWAP
     if ($self->is_element_visible('VWAP_LINE')) {
         $self->_draw_polyline(
-            $canvas, $scales, $series, $start, $end,
-            'value', $self->{color_vwap}, $w,
+            $canvas, $scales, $series, $start, $end, 'value',
+            $self->{color_vwap}, $w + 1,
         );
     }
 
-    # 4) VWAP detrás de las velas (tag 'candle' de PricePanel): el trazo no
-    # tapa el cuerpo de la vela ancla ni el resto. Otros overlays quedan encima.
-    eval { $canvas->lower($self->tag(), 'candle') };
+    # 4) Handle deslicable de ancla sobre la vela ancla
+    if (defined $anchor && $anchor >= ($self->{_start} // 0) && $anchor <= ($self->{_end} // 0)) {
+        my $local_idx = $self->_local_index($anchor);
+        my $x = $scales->index_to_center_x($local_idx);
+        my $pt = $series->[$anchor];
+        if (defined $x && $pt && defined $pt->{value}) {
+            my $y = $scales->value_to_y($pt->{value});
+            eval {
+                $canvas->createOval(
+                    $x - 5, $y - 5, $x + 5, $y + 5,
+                    -fill    => $self->{color_handle},
+                    -outline => '#FFFFFF',
+                    -width   => 1.5,
+                    -tags    => [$self->tag(), 'avwap_anchor_handle'],
+                );
+                1;
+            };
+        }
+    }
 
     return $self;
 }

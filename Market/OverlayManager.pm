@@ -61,12 +61,12 @@ sub set_visible {
     return $self;
 }
 
-# compute_all($market_data, $indicator, $start, $end) — prepara datos para
-# todos los overlays activos. respeta replay_idx: $end ya viene truncado
-# por ChartEngine.compute_window cuando Replay está activo.
+# compute_all($market_data, $start, $end) — prepara datos SOLO de overlays
+# visibles (capas apagadas no cuestan CPU en cada render).
+# $end ya viene truncado por ChartEngine.compute_window si Replay está activo.
 sub compute_all {
     my ($self, $market_data, $start, $end) = @_;
-    for my $ov ($self->all()) {
+    for my $ov ($self->each_active()) {
         $ov->compute_visible($market_data, undef, $start, $end);
     }
     return $self;

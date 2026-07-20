@@ -74,6 +74,19 @@ sub x_to_index_float {
     return ($x - $x_shift) / $bar_w;
 }
 
+# Rango de slots locales cubierto por el pixel [x, x+1). Usa exactamente la
+# misma transformacion (incluido el pan fraccional) que velas, grid y overlays.
+sub local_range_for_pixel {
+    my ($self, $x) = @_;
+    my $bars  = $self->{bars} || 1;
+    my $bar_w = $self->plot_width / $bars;
+    return (0, -1) if $bar_w <= 0;
+    my $from = _floor($self->x_to_index_float($x));
+    my $to   = _floor($self->x_to_index_float($x + 1) - 1e-9);
+    $to = $from if $to < $from;
+    return ($from, $to);
+}
+
 # Devuelve la coordenada X del centro horizontal de una barra.
 # Usado para dibujar mechas de velas y puntos de la línea ATR.
 # bar_w se deriva de plot_width (no de width) para respetar el margen derecho.
@@ -117,6 +130,8 @@ sub y_to_value {
 #   - Color de grid y de texto parametrizables vía atributos de instancia
 #     grid_color (default '#e6e6e6') y axis_text_color (default '#363a45').
 #   - Exactamente 1 línea de grid horizontal a ancho completo por etiqueta.
+#   - Paridad TradingView: grid punteado fino (casi puntos), width=1, más sutil
+#     que el crosshair (que usa dash [4,4] y gris más oscuro en PricePanel).
 sub _draw_y_scale {
     my ($self, $canvas) = @_;
     return unless defined $canvas;
@@ -137,8 +152,11 @@ sub _draw_y_scale {
     $canvas->delete('y_scale');
 
     # Colores del tema claro inyectados por el panel; defaults claros si no llegan.
-    my $grid_color = $self->{grid_color}      // '#e6e6e6';
+    my $grid_color = $self->{grid_color}      // '#d4d8de';
     my $text_color = $self->{axis_text_color} // '#363a45';
+    # Puntos de grid: dash [2,3] + width 2 (más notorio; crosshair es [6,5] / width 1).
+    my $grid_dash  = $self->{grid_dash}  // [ 2, 3 ];
+    my $grid_width = $self->{grid_width} // 2;
 
     # Paso "limpio": se elige el mejor candidato que produzca marcas densas
     # estilo TradingView, manteniendo separación vertical legible.
@@ -157,8 +175,10 @@ sub _draw_y_scale {
         if ($draw_grid) {
             $canvas->createLine(
                 0, $y, $width, $y,
-                -fill => $grid_color,
-                -tags => ['y_scale', 'y_grid'],
+                -fill  => $grid_color,
+                -width => $grid_width,
+                -dash  => $grid_dash,
+                -tags  => [ 'y_scale', 'y_grid' ],
             );
         }
 

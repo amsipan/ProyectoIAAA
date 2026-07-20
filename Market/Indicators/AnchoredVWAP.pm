@@ -8,42 +8,37 @@ use warnings;
 # Anchored VWAP estilo TradingView (drawing tool):
 #   - El usuario fija una vela de ancla (anchor_idx).
 #   - Desde esa vela en adelante: VWAP acumulado ponderado por volumen.
-#   - Source por defecto: HLC3 = (H+L+C)/3  (como TV y DIY).
+#   - Source por defecto: HLC3 = (H+L+C)/3 (como la imagen Anchored_VWAP.jpg de TV).
 #   - Bandas de desviación estándar (modo Standard):
-#       variance = E[p²] - VWAP²  (ponderado por vol)
+#       variance = E[p²] - VWAP² (ponderado por vol)
 #       upper/lower = VWAP ± mult * stdev
-#   - Multiplicadores #1/#2/#3 (TV defaults: 1 on, 2/3 off).
-#
-# Sin ancla: no hay valores (nada que dibujar). Respeta Replay vía feed_to.
-# Feed incremental O(1) por vela; set_anchor recalcula el tramo anchor..last.
+#   - Multiplicadores #1/#2/#3 (TV defaults según imagen: 1 y 2 activadas, 3 desactivada).
 # =============================================================================
 
 sub new {
     my ($class, %opts) = @_;
     my $self = {
-        source => $opts{source} // 'hlc3',  # hlc3 | hl2 | close | ohlc4
+        source     => $opts{source} // 'hlc3',  # hlc3 | hl2 | close | ohlc4
         band1_on   => exists $opts{band1_on} ? ($opts{band1_on} ? 1 : 0) : 1,
         band1_mult => $opts{band1_mult} // 1.0,
-        band2_on   => exists $opts{band2_on} ? ($opts{band2_on} ? 1 : 0) : 0,
+        band2_on   => exists $opts{band2_on} ? ($opts{band2_on} ? 1 : 0) : 1,  # Imagen Anchored_VWAP.jpg: checked
         band2_mult => $opts{band2_mult} // 2.0,
-        band3_on   => exists $opts{band3_on} ? ($opts{band3_on} ? 1 : 0) : 0,
+        band3_on   => exists $opts{band3_on} ? ($opts{band3_on} ? 1 : 0) : 0,  # Imagen Anchored_VWAP.jpg: unchecked
         band3_mult => $opts{band3_mult} // 3.0,
 
-        anchor_idx => undef,
-        _highs     => [],
-        _lows      => [],
-        _opens     => [],
-        _closes    => [],
-        _volumes   => [],
-        # Por índice global: { value, stdev, upper1..3, lower1..3, anchor_idx }
-        _series    => [],
+        anchor_idx     => undef,
+        _highs         => [],
+        _lows          => [],
+        _opens         => [],
+        _closes        => [],
+        _volumes       => [],
+        _series        => [],
         _last_data_idx => -1,
-        # Acumuladores desde la ancla (solo válidos si anchor definido)
-        _sum_vol => 0,
-        _sum_pv  => 0,
-        _sum_p2v => 0,
-        _acc_to  => -1,  # último índice incluido en los acumuladores
-        _market_data => undef,
+        _sum_vol       => 0,
+        _sum_pv        => 0,
+        _sum_p2v       => 0,
+        _acc_to        => -1,
+        _market_data   => undef,
     };
     bless $self, $class;
     return $self;
@@ -51,19 +46,16 @@ sub new {
 
 sub reset {
     my ($self) = @_;
-    # Preservar ancla: el feed de Replay/TF hace reset()+realimentación.
-    # La vela de anclaje elegida por el usuario debe sobrevivir; solo se
-    # invalidan datos/serie (se recalcularán al re-alimentar).
     my $keep_anchor = $self->{anchor_idx};
-    $self->{_highs}        = [];
-    $self->{_lows}         = [];
-    $self->{_opens}        = [];
-    $self->{_closes}       = [];
-    $self->{_volumes}      = [];
-    $self->{_series}       = [];
-    $self->{_last_data_idx} = -1;
+    $self->{_highs}         = [];
+    $self->{_lows}          = [];
+    $self->{_opens}         = [];
+    $self->{_closes}        = [];
+    $self->{_volumes}       = [];
+    $self->{_series}        = [];
+    $self->{_last_data_idx}  = -1;
     $self->_reset_accumulators();
-    $self->{anchor_idx} = $keep_anchor;
+    $self->{anchor_idx}     = $keep_anchor;
     return;
 }
 
@@ -98,6 +90,25 @@ sub set_anchor {
     return $self unless defined $idx;
     $idx = int($idx);
     $idx = 0 if $idx < 0;
+
+    if ($self->{_market_data}) {
+        my $total = (ref($self->{_market_data}) && $self->{_market_data}->can('size'))
+            ? $self->{_market_data}->size()
+            : scalar(@{$self->{_highs} // []});
+        if ($total > 0) {
+            $self->{_last_data_idx} = $total - 1;
+            for my $i (0 .. $total - 1) {
+                my $c = $self->{_market_data}->get_candle($i);
+                next unless $c;
+                $self->{_opens}->[$i]   = $c->[1];
+                $self->{_highs}->[$i]   = $c->[2];
+                $self->{_lows}->[$i]    = $c->[3];
+                $self->{_closes}->[$i]  = $c->[4];
+                $self->{_volumes}->[$i] = defined $c->[5] ? $c->[5] : 0;
+            }
+        }
+    }
+
     my $last = $self->{_last_data_idx};
     $idx = $last if $last >= 0 && $idx > $last;
     $self->{anchor_idx} = $idx;
@@ -149,20 +160,15 @@ sub update_last {
         return;
     }
 
-    # Si el feed avanza de forma secuencial tras _acc_to, extender O(1).
-    # Si hay hueco, retroceso o re-ancla parcial → recalcular tramo.
     my $acc_to = $self->{_acc_to} // -1;
     if ($acc_to < $anchor - 1 || $index < $acc_to) {
         $self->_recompute_from_anchor();
         return;
     }
     if ($index == $acc_to) {
-        # Misma vela re-alimentada: rehacer solo ese punto desde cero del tramo
-        # (caso raro). Más simple: recompute.
         $self->_recompute_from_anchor();
         return;
     }
-    # Extender de acc_to+1 .. index
     for my $i (($acc_to + 1) .. $index) {
         $self->_accumulate_index($i);
     }
@@ -224,11 +230,8 @@ sub _accumulate_index {
     }
 
     my $v = $self->{_volumes}->[$i];
-    $v = 0 unless defined $v;
-    my $wv = ($v > 0) ? $v : 0;
-    if (($self->{_sum_vol} // 0) <= 0 && $wv <= 0) {
-        $wv = 1;
-    }
+    $v = 1.0 if !defined $v || $v <= 0;
+    my $wv = $v;
 
     $self->{_sum_vol} += $wv;
     $self->{_sum_pv}  += $p * $wv;

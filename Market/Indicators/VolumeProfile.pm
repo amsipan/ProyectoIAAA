@@ -3,41 +3,39 @@ use strict;
 use warnings;
 
 # =============================================================================
-# Market::Indicators::VolumeProfile  — Anchored Volume Profile (AVP)
+# Market::Indicators::VolumeProfile — Anchored Volume Profile (AVP)
 #
-# Estilo TradingView drawing tool "Anchored Volume Profile":
-#   - Ancla manual (índice de vela) → perfil desde ancla hasta fin efectivo
-#     (feed/Replay). Sin ancla: sin perfil.
-#   - Rows Layout = Number of Rows (por defecto): Row Size = nº de filas del
-#     histograma (TV Inputs; profe: "número de barras/filas").
-#   - Value Area Volume % (default 70).
-#   - Volume mode: 'total' (profe: todo azul, sin up/down por fila).
-#   - POC = fila de mayor volumen; VAH/VAL = área de valor expandiendo desde POC.
+# Estilo TradingView drawing tool "Anchored Volume Profile" (AVP):
+#   - Ancla manual (índice de vela) -> perfil desde ancla hasta fin efectivo.
+#     Si no hay ancla manual especificada, ancla por defecto a 0.
+#   - Rows Layout = Number of Rows. Row Size configurable (default 100, max 1000).
+#   - Value Area Volume % = 70.
+#   - Volume mode: 'up_down' (desglose comprador/vendedor por bin) o 'total'.
+#   - POC = bin de mayor volumen; VAH/VAL = área de valor al 70% expandiendo desde POC.
 #
-# Distribución de volumen: cada vela reparte su volumen equitativamente entre
-# las filas de precio que intersecta [low, high] (estándar VP, no solo close).
+# Optimización de rendimiento: evaluación diferida (lazy evaluation con _dirty).
+# Las llamadas a update_last() durante la carga/feed masivo son O(1).
+# El recálculo del perfil (_recalculate_profile) ocurre SOLO 1 vez al consultar get_values().
 # =============================================================================
 
 sub new {
     my ($class, %opts) = @_;
     my $self = {
-        # TV: Rows Layout = Number of Rows → Row Size = total rows
         rows_layout    => $opts{rows_layout} // 'number_of_rows',
-        # TV default "Number of Rows" en Volume Profile es 24 (no 1000).
-        row_size       => $opts{row_size} // 24,
+        row_size       => $opts{row_size} // 300,
         value_area_pct => $opts{value_area_pct} // 70,
-        volume_mode    => $opts{volume_mode} // 'total',  # total | up_down
+        volume_mode    => $opts{volume_mode} // 'up_down',  # 'up_down' | 'total'
         tick_size      => $opts{tick_size} // 0.25,
 
-        anchor_idx => undef,
-        _highs     => [],
-        _lows      => [],
-        _opens     => [],
-        _closes    => [],
-        _volumes   => [],
+        anchor_idx     => $opts{anchor_idx}, # default undef (ancla por defecto a 0 al renderizar)
+        _highs         => [],
+        _lows          => [],
+        _opens         => [],
+        _closes        => [],
+        _volumes       => [],
         _last_data_idx => -1,
-        # { poc, vah, val, bins => [{lo,hi,mid,vol}], min_p, max_p, anchor_idx, end_idx, total_vol }
-        _profile   => undef,
+        _profile       => undef,
+        _dirty         => 1,
     };
     bless $self, $class;
     return $self;
@@ -53,8 +51,9 @@ sub reset {
     $self->{_volumes}      = [];
     $self->{_last_data_idx} = -1;
     $self->{_profile}      = undef;
+    $self->{_dirty}        = 1;
     $self->{anchor_idx}    = $keep;
-    return;
+    return $self;
 }
 
 sub anchor_index {
@@ -75,7 +74,7 @@ sub set_anchor {
     my $last = $self->{_last_data_idx};
     $idx = $last if $last >= 0 && $idx > $last;
     $self->{anchor_idx} = $idx;
-    $self->_recalculate_profile();
+    $self->{_dirty}     = 1;
     return $self;
 }
 
@@ -83,16 +82,17 @@ sub clear_anchor {
     my ($self) = @_;
     $self->{anchor_idx} = undef;
     $self->{_profile}   = undef;
+    $self->{_dirty}     = 0;
     return $self;
 }
 
 sub set_row_size {
     my ($self, $n) = @_;
-    $n = int($n // 0);
-    $n = 1 if $n < 1;
-    $n = 5000 if $n > 5000;  # techo defensivo
+    $n = int($n // 100);
+    $n = 10 if $n < 10;
+    $n = 1000 if $n > 1000;
     $self->{row_size} = $n;
-    $self->_recalculate_profile() if $self->has_anchor();
+    $self->{_dirty}   = 1;
     return $self;
 }
 
@@ -102,16 +102,15 @@ sub set_value_area_pct {
     $pct = 1 if $pct < 1;
     $pct = 100 if $pct > 100;
     $self->{value_area_pct} = $pct;
-    $self->_recalculate_profile() if $self->has_anchor();
+    $self->{_dirty}         = 1;
     return $self;
 }
 
 sub set_volume_mode {
     my ($self, $mode) = @_;
-    $mode = 'total' unless defined $mode && ($mode eq 'total' || $mode eq 'up_down');
+    $mode = 'up_down' unless defined $mode && ($mode eq 'total' || $mode eq 'up_down');
     $self->{volume_mode} = $mode;
-    # Profe: dibujo siempre total azul; el modo se guarda por API.
-    $self->_recalculate_profile() if $self->has_anchor();
+    $self->{_dirty}         = 1;
     return $self;
 }
 
@@ -132,16 +131,26 @@ sub update_last {
     $self->{_volumes}->[$index] = defined $candle->[5] ? $candle->[5] : 0;
 
     $self->{_last_data_idx} = $index if $index > ($self->{_last_data_idx} // -1);
-
-    return unless $self->has_anchor();
-    # Recalcular solo cuando el feed llega a/por encima de la ancla.
-    return if $index < $self->{anchor_idx};
-    $self->_recalculate_profile();
+    $self->{_dirty}         = 1;
     return;
+}
+
+sub compute {
+    my ($self, $market_data, %opts) = @_;
+    my $size = $market_data->size();
+    $self->reset();
+    for (my $i = 0; $i < $size; $i++) {
+        $self->update_last($market_data, $i);
+    }
+    return $self->get_values();
 }
 
 sub get_values {
     my ($self) = @_;
+    if ($self->{_dirty} && $self->has_anchor()) {
+        $self->_recalculate_profile();
+        $self->{_dirty} = 0;
+    }
     return $self->{_profile};
 }
 
@@ -169,13 +178,13 @@ sub _recalculate_profile {
     }
 
     return if $max_p <= $min_p;
-    # Si no hay volumen, usar 1 por vela para no dejar perfil vacío.
     if ($total_vol <= 0) {
         $total_vol = ($end - $anchor + 1);
     }
 
-    my $n_rows = int($self->{row_size} // 24);
-    $n_rows = 1 if $n_rows < 1;
+    my $n_rows = int($self->{row_size} // 1000);
+    $n_rows = 10 if $n_rows < 10;
+    $n_rows = 2000 if $n_rows > 2000;
     my $step = ($max_p - $min_p) / $n_rows;
     $step = ($self->{tick_size} // 0.25) if $step <= 0;
 
@@ -184,19 +193,25 @@ sub _recalculate_profile {
         my $lo = $min_p + $b * $step;
         my $hi = $min_p + ($b + 1) * $step;
         push @bins, {
-            lo  => $lo,
-            hi  => $hi,
-            mid => ($lo + $hi) / 2,
-            vol => 0,
+            lo       => $lo,
+            hi       => $hi,
+            mid      => ($lo + $hi) / 2,
+            vol      => 0,
+            vol_up   => 0,
+            vol_down => 0,
         };
     }
 
     for my $i ($anchor .. $end) {
         my $h = $self->{_highs}->[$i];
         my $l = $self->{_lows}->[$i];
+        my $o = $self->{_opens}->[$i] // $l;
+        my $c = $self->{_closes}->[$i] // $h;
         my $v = $self->{_volumes}->[$i];
         next unless defined $h && defined $l;
         $v = 1 if !defined $v || $v <= 0;
+
+        my $is_up = ($c >= $o) ? 1 : 0;
 
         my $i0 = int(($l - $min_p) / $step);
         my $i1 = int(($h - $min_p) / $step);
@@ -210,73 +225,136 @@ sub _recalculate_profile {
         my $share = $v / $n_touch;
         for my $b ($i0 .. $i1) {
             $bins[$b]->{vol} += $share;
+            if ($is_up) {
+                $bins[$b]->{vol_up} += $share;
+            } else {
+                $bins[$b]->{vol_down} += $share;
+            }
         }
     }
 
-    # POC = fila de mayor volumen (en empate, la del medio del rango)
-    my $max_b_vol = -1;
-    my $poc_idx   = 0;
+
+    # POC = bin central del nodo/pico de mayor volumen
+    my $max_b_vol = 0;
     for my $b (0 .. $#bins) {
-        if ($bins[$b]->{vol} > $max_b_vol) {
-            $max_b_vol = $bins[$b]->{vol};
-            $poc_idx   = $b;
+        $max_b_vol = $bins[$b]->{vol} if $bins[$b]->{vol} > $max_b_vol;
+    }
+
+    my @peak_bins;
+    if ($max_b_vol > 0) {
+        my $threshold = $max_b_vol * 0.999;
+        for my $b (0 .. $#bins) {
+            push @peak_bins, $b if $bins[$b]->{vol} >= $threshold;
         }
     }
 
-    # Value Area: expandir desde POC (método TV: comparar fila arriba/abajo)
+    my $poc_idx = 0;
+    if (@peak_bins) {
+        $poc_idx = $peak_bins[ int(@peak_bins / 2) ];
+    }
+
+    # Value Area: expandir desde POC comparando bin superior vs inferior (fórmula canónica legacy)
     my $va_frac = ($self->{value_area_pct} // 70) / 100;
     $va_frac = 0.7 if $va_frac <= 0 || $va_frac > 1;
-    my $target = $va_frac * $total_vol;
-    # Usar suma de volúmenes de bins (puede diferir levemente por reparto)
+
     my $bins_total = 0;
     $bins_total += $_->{vol} for @bins;
-    $target = $va_frac * $bins_total if $bins_total > 0;
+    my $target = $va_frac * $bins_total;
 
-    my $accum = $bins[$poc_idx]->{vol};
+    my $accum  = $bins[$poc_idx]->{vol};
     my $low_b  = $poc_idx;
     my $high_b = $poc_idx;
 
     while ($accum < $target && ($low_b > 0 || $high_b < $n_rows - 1)) {
-        my $v_down = ($low_b > 0) ? $bins[$low_b - 1]->{vol} : -1;
-        my $v_up   = ($high_b < $n_rows - 1) ? $bins[$high_b + 1]->{vol} : -1;
+        # Evaluar hasta 2 bins arriba
+        my $v_up = 0;
+        my $up_count = 0;
+        if ($high_b < $n_rows - 1) {
+            $v_up += $bins[$high_b + 1]->{vol};
+            $up_count++;
+        }
+        if ($high_b < $n_rows - 2) {
+            $v_up += $bins[$high_b + 2]->{vol};
+            $up_count++;
+        }
 
-        if ($v_up < 0 && $v_down < 0) {
+        # Evaluar hasta 2 bins abajo
+        my $v_down = 0;
+        my $dn_count = 0;
+        if ($low_b > 0) {
+            $v_down += $bins[$low_b - 1]->{vol};
+            $dn_count++;
+        }
+        if ($low_b > 1) {
+            $v_down += $bins[$low_b - 2]->{vol};
+            $dn_count++;
+        }
+
+        if ($up_count == 0 && $dn_count == 0) {
             last;
         }
-        if ($v_up >= $v_down && $high_b < $n_rows - 1) {
+
+        if ($v_up >= $v_down && $up_count > 0) {
             $high_b++;
             $accum += $bins[$high_b]->{vol};
+            last if $accum >= $target;
+            if ($up_count > 1) {
+                $high_b++;
+                $accum += $bins[$high_b]->{vol};
+            }
         }
-        elsif ($low_b > 0) {
+        elsif ($dn_count > 0) {
             $low_b--;
             $accum += $bins[$low_b]->{vol};
+            last if $accum >= $target;
+            if ($dn_count > 1) {
+                $low_b--;
+                $accum += $bins[$low_b]->{vol};
+            }
         }
-        elsif ($high_b < $n_rows - 1) {
+        elsif ($up_count > 0) {
             $high_b++;
             $accum += $bins[$high_b]->{vol};
+            last if $accum >= $target;
+            if ($up_count > 1) {
+                $high_b++;
+                $accum += $bins[$high_b]->{vol};
+            }
         }
         else {
             last;
         }
     }
 
+    my $ts = $self->{tick_size} // 0.25;
+    my $round_tick = sub {
+        my ($val) = @_;
+        return unless defined $val;
+        return int($val / $ts + ($val >= 0 ? 0.5 : -0.5)) * $ts;
+    };
+
+    my $poc_price = $round_tick->($bins[$poc_idx]->{mid});
+    my $vah_price = $round_tick->($bins[$high_b]->{hi});
+    my $val_price = $round_tick->($bins[$low_b]->{lo});
+
     $self->{_profile} = {
-        poc        => $bins[$poc_idx]->{mid},
-        vah        => $bins[$high_b]->{hi},
-        val        => $bins[$low_b]->{lo},
-        bins       => \@bins,
-        min_p      => $min_p,
-        max_p      => $max_p,
-        anchor_idx => $anchor,
-        end_idx    => $end,
-        total_vol  => $bins_total,
-        poc_idx    => $poc_idx,
-        va_low_idx => $low_b,
-        va_high_idx=> $high_b,
-        row_size   => $n_rows,
+        poc            => $poc_price,
+        vah            => $vah_price,
+        val            => $val_price,
+        bins           => \@bins,
+        min_p          => $min_p,
+        max_p          => $max_p,
+        anchor_idx     => $anchor,
+        end_idx        => $end,
+        total_vol      => $bins_total,
+        poc_idx        => $poc_idx,
+        va_low_idx     => $low_b,
+        va_high_idx    => $high_b,
+        row_size       => $n_rows,
         value_area_pct => $self->{value_area_pct},
     };
     return $self;
 }
 
 1;
+

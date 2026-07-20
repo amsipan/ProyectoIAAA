@@ -1,0 +1,388 @@
+# Transcripción Lumina
+- id: 47bfe676f0e6
+- materia: Inteligencia Artificial y Machine Learninge
+- fecha: 2026-06-23T16:20:36
+
+Los indicadores. ¿Sí? En donde está el etiquetado de estructura interna y estructura externa. ¿Ya? ¿De estructura interna y estructura interna? Eso que vimos en la parte teórica, pero el indicador no tenía, el original no tenía esa diferenciación. Entonces tenemos que completar la parte del indicador para que puedan Gracias.
+
+Para que podamos observar esta estructura. Bueno, aclarado esto, aquí tengo. Esta es la parte de abajo. Indicador es el MC que distingue la estructura interna de la estructura externa. Aquí se ve aquí. A ver.
+
+¿Está bajando demasiado? Voy a ver un audífono. Justo aquí. Entonces, son dos indicadores. Yo pongo dos porque ninguno de ellos en realidad no hace un buen trabajo. Entonces, para tener una referencia de código inicial. Ese es el objetivo.
+
+No es que hace bien la separación, la identificación. Porque ya vamos revisar esto en las gráficas y observar qué mal está. Pero lo importante aquí es que sepamos el código base y que tengamos el concepto bien estructurado mentalmente para saber qué es lo que esperamos. Identificar en estos lo que está mal para poder corregir.
+
+El primer indicador es este de aquí. Smart Money Concepts Lux Album. El autor de este indicador. Aquí está un videito que lo explica. Y el otro es el Maxwell Price Action Suite. Autor. Otro videito que lo explica. Entonces yo les voy a abrir estos indicadores para mostrarles.
+
+Entonces cojo el indicador, el nombre del indicador. Y lo abro en el aireamiento. A ver, aquí está. Voy a pisar los interiores que están por aquí. Gracias.
+
+Debería verlo. Si, esa es de aquí. Ok, aquí está el código fuente. Aquí está el código fuente. Aquí está. E-mini, Nats de Acción Future. Si hubiera sería genial. Aquí observamos el siguiente. ¿Dónde están las líneas firmes? Corresponde a...
+
+Corresponde al cambio de estructura indicada por ese indicador. Por ejemplo, aquí en color verde, detecta un cambio de estructura externa. Y busco el nombre ese. Las líneas porteadas, aquí ustedes están observando, son las
+
+estructuras internas. Entonces si la línea es firme para el primer indicador es la estructura externa. Aquí es una estructura interna, eso que es la línea fondeada. Aquí ya es, parte de aquí ya es cambio de estructura. Entonces aquí está una zona donde había una liquidez acumulada. Cogió la licencia.
+
+Cogió la liquidez por aquí y decidió ingresar por la zona. Cuando ocurre eso, hubo una toma de liquidez pero enseguida subió hacia el otro lado, sobrepasó la frontera. Esto se llama liquidity run. Es decir, la liquidez fue tomada y luego siguió hacia adelante, o sea no rebotó hacia abajo.
+
+Entonces tuvimos aquí un cambio de estructura, realmente este es un valor correcto que nos está indicando el cambio de la estructura. Y aquí está la nueva parte de la estructura. La tendencia que estaba en baquista por aquí, es más lateralizada en esta zona de abajo, pero aquí...
+
+podemos observar lo que ocurrió después que comprueba que ese cambio de estructura ocurrió efectivamente. Aquí estamos viendo una gráfica real. En cambio lo que vimos en la parte teórica eran las líneas que dibujaba el autor del video. Aquí en cámara estamos viendo un indicador real puesto en una gráfica real.
+
+La gráfica real. Aquí tenemos estructuras internas. Cambio de carácter. Interno. BOS interno. Con las líneas ponteadas. Esta parte de aquí está diciendo cambio de estructura. Porque es una línea fija. No puede haber.
+
+Entonces llegó aquí, cambió la estructura pero lo que sucedió aquí fue puramente lateralizarse en esa zona por debajo del change of character que está aquí. Y luego tomó la liquidez y decidió irse al otro lado. Pero aquí tuvimos un cambio, porque el precio
+
+¿Cierto? Porque el precio efectivamente bajó más que eso enseguida por aquí, al menos por aquí. Luego volvió a topar con esta zona de soporte de resistencia que se habilitó aquí. ¿Si? Entonces esta línea de cambio de carácter es correcta. Uno puede observar de pronto por la distancia entre las perlas que estamos aquí en una temporalidad de un minuto. Y abajo.
+
+se lateralizó. No siguió cayendo sino que se lateralizó por debajo de ese umbral aquí. Pero llegó por aquí otra vez y volvió y pasó a subir. Entonces, ¿qué sucede aquí? Sucede que tenemos que identificar dónde están las estructuras principales. Aquelas que tienen mayor longitud, que están más densas,
+
+Las diferencias son las principales. Por ejemplo, aquí esta zona efectivamente es una zona que se cambia. Pero hay que tener estas zonas como referencia. Fijos. En el caso de la gente, el
+
+mayor, mayor high y el mayor low. Ustedes deben recordar del video que asistimos, no? Aquí es un mayor, mayor low y este es un mayor high. Todos estos lows que ustedes están observando dentro son internos. Ya? Interno, sí? Ponteado, interno. Aquí, esta parte hasta aquí, todo está bien etiquetado. Ya? Está bien etiquetado. Ya, yo voy aquí con un raya...
+
+Con higher, major high. Y que sucedió? El precio regresó hacia abajo. Por que? Porque era un major high. Efectivamente. Entonces lo pudimos detectar por la acción posterior del precio. Para poder saber que eso sucedió. Ok? Solo vamos a saber que eso sucedió después de ver lo que pasó después. Antes no lo sabemos. No sabemos si.
+
+la marca que han puesto aquí, si son realmente incorrectas o incorrectas. El punto es que tenemos que buscar, corregir donde el algoritmo actual, este que tiene código fuente, ingresa marcas equivocadas. Dentro del major low, este está bien puesto y este major high también está bien puesto.
+
+Pero va a suceder algo aquí adelante que ustedes tienen aquí un media low, ¿cierto? Y el precio, ¿qué sucede con el precio después? Pues se queda fluctuando cercano a ese nivel, ¿cierto? El que golpeó esa... antes era soporte. Veníamos por aquí, era un soporte. Golpeó el soporte.
+
+y logró atravesar el soporte. Entonces que sucede? El soporte después de ser roto, pasa a ser una resistencia. Esto es lo natural. Entonces esto que era soporte, debería pasar a ser una resistencia. Entonces observen ese mismo nivel aquí. Las velas golpean hacia arriba, como que están luchando.
+
+Lo que sucedió fue que los vendedores se metieron aquí en este nivel. Aquí había los compradores, no? Cuando volvía hacia abajo y revolvía, estaban los compradores. Y los vendedores estaban aquí. Entonces, ¿qué sucedió en este momento aquí? Se acumularon más vendedores que compradores. Entonces se metió el preso hacia abajo o se hizo una manipulación.
+
+Entonces el precio pasó hacia abajo. ¿Y qué sucede cuando el soporte anterior? Pues naturalmente debe pasar a ser resistencia. O sea, los vendedores que estaban arriba se metieron abajo. Y eso debería estar sucediendo así. El precio debería golpear y quedarse. Bueno, se quedó fluctuando. Pero...
+
+No fue hacia abajo. Dos cosas pueden suceder. O quedarse fluctuando o irse hacia abajo. O romper otra vez hacia arriba. De hecho otras cosas pueden suceder. Aquí se quedó en un rango lateral. En ese caso se eligió quedarse en un rango lateral. Pero vino aquí, recorrer liquidez hacia la parte inferior de esta nueva zona y acumuló lo que necesitaba.
+
+de liquidez para poder romper esa resistencia. Y que, cual es mi punto aquí? Mi punto es que estos niveles importantes ustedes tienen que tenerlo presente para poder etiquetar los subsecuentes. Si? Es a partir de romper ese nivel que usted va a recién poder poner Quiero decir.
+
+Que atravesó el media high. Se ha vuelto un media high. Pasado esta parte. Se ha vuelto un media high. Hasta donde? Hasta poder romperlo otra vez hacia arriba. Rompio hacia arriba, volvió nuevamente, acumuló la liquidez y pasó a subir. Entonces este punto importante uno no lo puede olvidar en ningún momento.
+
+Porque si usted olvida, pues va a perder la referencia de lo que es un media high y lo que es un media low. Si? Entonces aquí lo que era media low, pasó a ser media high. Es decir, lo que era soporte abajo antes, certo? En el caso de la parte de acá es resistencia porque golpea y regresa hacia abajo. Sigue intentando golpear hasta que el
+
+Hasta que no tiene la fuerza suficiente se mete hacia abajo para recoger liquidez para después de la toma de liquidez pudiera avanzar hacia arriba. Entonces no debe olvidarse ese nivel porque si uno se olvida ya estará etiquetando mal el momento posterior. Veamos el momento posterior. Entonces el momento posterior, fijense, ese nivel que se
+
+El nivel que sigue. Entonces al haber roto por aquí, aquí lo rompió con fuerza porque las velas son velas con puerto. Con referencia a este punto. Puedo marcar aquí para poner una zona por ahí. A ver dónde marco. Poner una banda, yo quiero poner una banda.
+
+Si ahorita le pregunté yo. Tengo mi chat. Yo voy a poner una banda para identificar que aquí en esa región yo voy a tener una zona de liquidez importante. Porque fíjense que el precio, el
+
+precio golpea esa banda y va hacia abajo. Hasta que va a buscar la liquidez hacia mucho más abajo para romper la banda. Hace eso una vez, hace eso una segunda vuelta, luego atraviesa la banda, vuelve a testearla y después de testearla es cuando recién sube. Entonces el hecho de haber marcado bien eso,
+
+Si usted toma esa semilla, el precio se va a hacer. Medio, lo, aquí.
+
+Major low aquí. Como relevante no vamos a tener problemas de identificar que aquí se arma la nueva zona de relevante a seguir a continuación. La zona, digo, el major load nuevamente se arma justo en ese mismo punto ahí. Entonces tenemos el major load nuevamente, después que paso al lado de acá, el major load se arma.
+
+El mejor se ubica acá abajo. ¿Por qué lo sé? Porque tengo ese nivel como mejor en un momento previo. Entonces, si usted se basa a través de estas zonas importantes, no va a estar todo el tiempo equivocándose. Porque fíjense aquí, aquí ha puesto un change of character.
+
+Este es un change of character interno. Este es un change of character interno alcista. Pero adonde se fue el precio? El precio subió aquí. Y donde puso el siguiente change of character? Pues lo ha puesto justamente aquí en donde había sido el anterior. Gracias.
+
+Pero el hecho de haber roto aquí ya con fuerza ya es indicativo de que debería haber puesto un change of character real, o sea externo desde aquí, desde aquí donde se ha roto con fuerza hacia el otro lado. Porque aquí tenemos... tenemos...
+
+que la vela fue consolidada con fuerza hacia el otro lado. Entonces de haber observado esa vela de aquí uno ya sabe que ya no regresa al otro lado porque esa vela tiene bastante fuerza. Aquí está el volumen. Fíjense como se portó el volumen al momento de tomar la liquidez aquí abajo. Justo esta...
+
+vela que vino hacia abajo representa la toma de liquidez y fíjense como el volumen subió ahí en ese rato. Tomó la liquidez. Aquí la vela bajó, bajó, bajó hasta aquí. Después subió, terminó aquí, abrió aquí. Después siguió bajando hasta aquí. Pero había bien para que...
+
+Luego subió, subió, subió hasta tomar con el nivel. Entonces estar observando estos niveles importantes atentamente porque esos son los que les va a permitir evitar la identificación incorrecta de las etiquetas. ¿Ok? Este es el punto. ¿A través de qué voy a confirmar? Pues, a través
+
+¿Cuál es la graficación? De la longitud de la vela que escapa de esa zona. Aquí la fuerza de escape le da ese indicativo de que estamos avanzando hacia una zona distinta. Entonces, ¿qué sucede aquí? El puso aquí arriba una nueva zona. El señor Caracol no puso directo, no está mal.
+
+de haberlo puesto aquí. Está bien. Pero habrá momentos en donde puso equivocado. Ya les muestro. Lo importante aquí es que estamos delimitando bien las zonas. Estas internas y externas. Porque esto no es lo que te digo con esta parte. Luego ingresó a la zona de la zona.
+
+Pasen una zona alcista por aquí. Y están punteadas las niñas. ¿Dónde vamos a obtener el siguiente? Subió hasta aquí. Y luego no usó esta zona para decir que aquí habría un cambio de carácter. Con el signo de carácter.
+
+Puso el change of character aquí abajo como el terno. Puso varios ternos aquí. Si por las líneas ponteadas, me lo indica. Vamos ver más que sucedió. En el tronco un poco más de cara para ver cómo estamos.
+
+Y buscamos, aquí identificó este, este anterior, aquí logró identificar este de aquí. Ve que se basó en un punto importante. Y aparte de esto tenemos que también observar las temporadas mayores. Aquí estamos observando un minuto.
+
+Dentro de un minuto ocurre mucha oscilación en el precio. Entonces en principio ya tenemos estos puntos relevantes. Lo que es importante observar es que estos puntos relevantes no suelen estar pegaditos unos cerca al otro. Están normalmente un poco distantes porque el precio trabaja dentro de la
+
+En el caso de la vaga, se trabaja dentro de la región interna. Aquí encontramos el hipohai. Aquí tenemos también el hipohai que hemos definido en la zona de liquidez. ¿Cierto? Donde se armona zona de liquidez. Aquí también consta este tipo de etiqueta. Yo creo que el anterior no constaba este tipo de etiqueta. En cambio aquí sí lo tenemos. Los incorporos en cocaes.
+
+El psicólogo Highs que les había indicado en la parte teórica. Y que en el indicador anterior no constaba. Pero aquí sí, está Highs, el VOS, el Change of Character, están todos aquí. ¿Si? Y que mas observamos aquí. Observamos algo también importante que son los order blocks.
+
+Estas zonas que ustedes observan aquí marcadas me parece que son los otros bloques que estábamos indicando la parte de liquidez. En el video de liquidez, les comentaba del orden block que es una zona donde se acumula la liquidez. Y ahí está, está marcando. Esto no es un fair value gap o FBG, sino que es una zona de liquidez. Yo lo sé porque
+
+no está ahí las tres velitas para el gap del FPG, sino que está justamente por debajo de la... del low low que tenemos aquí, ¿no? Entonces aquí tenemos una zona de liquidez. Aquí tenemos otra. Ahora, ¿cuál de ellas el precio va a respetar? Esto es otra, otra historia. No lo sabemos. Puede que el precio...
+
+rompa la primera y la segunda y se vaya hacia la tercera. O puede que rompa solo la primera y siga subiendo. O puede que rompa la primera y después rompa la segunda. Esas dos son más fáciles de romper. Esas que están más gorditas aquí tienen más peso. Entonces por esa altura aquí uno puede observar que es más difícil el precio.
+
+rompa. Pero para romper una zona de order block como esta, tiene que haber ocurrido una cosa antes. ¿Alguien sabe que es? Tiene que haber un barrido de liquidez. Exacto. Sin barrido de liquidez, el order block no es fiable. O sea tiene que barrer la liquidez primero.
+
+Aquí tenemos que observar el valor de la liquidez y después el valor de la liquidez. Aquí por ejemplo, fíjense.
+
+Aquí tenemos una vela mínima. Voy a poner más grande para que ustedes puedan observar. Está muy chico. Entonces, ¿qué está pasando por aquí? Yo tenía aquí un nivel mínimo, ¿no? Luego, luego por aquí. ¿Sí? Y aquí, ¿qué está pasando? Está...
+
+avanzando más abajo de lo que era el punto mínimo de acá. ¿Cierto? Y que sucedió aquí? Aquí tomó esta liquidez. ¿Cierto? Todas estas velas. El conjunto de velas. No solo una liquidez, sino una, dos, tres. Tomó la liquidez aquí. Aquí, él pasó a subir.
+
+Se respetó posteriormente aquí. Los otros broques que se respetan son aquellos que antes se toma la liquidez. Y los que después de que no se respetan son los que no se toma la liquidez antes. Entonces fíjense en eso porque esto es lo que les permitirá identificar las zonas más probadas. Si ocurre un barato de liquidez antes, es más probable que
+
+se respete este order block. Ok. ¿Qué está pensando? ¿Qué está usando ahorita? No, acá ahorita es mi página del grupo, ¿no? Ya. Y eso. Esa es un indicador, ¿sí? Un indicador. En teoría es que estamos seleccionando el 5.5. Y ahí hay que tomar cuidado. Debería
+
+Tener cuidado con estos movimientos de la parte externa. Este es el punto. Esta es la petición que hicimos desde hoy. Y esto es las notas que va a crear. Por eso hay un montón. Tenemos el otro aquí. Ustedes podrán asistir los videitos respectivos de casa indicada. Es lo que le llega el modelo. Así le llega el estudio. En lugar de por ahí está tu pregunta. Ay que loco.
+
+Si le llegan, no sé qué. Pues por ahí. Habla también. Pero deja que me lo he intentado. Ya no sé si ya respondió. Ya debe estar el banco de responder. Ya respondió. Ah, apareció de una. Qué loco. No sé, aquí está un poco malo en verdad, activo del stream. Ustedes podrán pedir a la inteligencia artificial que lo analice, a ver si está usando la misma técnica. Para identificar las zonas de la tierra.
+
+Para identificar las zonas externas y zonas internas. Ponemos el indicador. Y aquí también va a armar las etiquetas internas y las etiquetas externas. Yo voy a pasar aquí para configurar el indicador. Entonces uno tiene la configuración.
+
+Los orden blocks aquí, show orden blocks, show HHLH, la estructura de mercado, show FBG, los colores, Fibonacci. Es similar al que ustedes están trabajando pero con algunas nuances diferentes. El objetivo es completar la información que está acá.
+
+Para que ustedes traten de identificar de forma más eficiente posible todas estas estructuras internas y externas. Porque de no hacerlo, las etiquetas estarán equivocadas. Si no lo hace bien. ¿Qué es esto?
+
+El modelo que devuelve es asterisco asterisco. Esa parte de la parte de la parte inferior de aquí con esa de aquí. Y lo que suelen hacer los bajistas es ver que cuando, aquí en este caso los alcistas, que cuando rompe el trendline por arriba con fuerza, ya es un indicador. Gracias.
+
+Nuestro es el que ya no va hacia la parte de abajo. Entonces aquí también identifica dónde están los trend lines. Eso que vimos en la parte teórica. Mira esto por ejemplo. Ya. Aquí un detalle. En lugar de poner la línea... Aquí tenemos line apuntadas para todos. Y usted pregunta cómo se distingue entre el interno y el externo.
+
+Es por causa de la letrita I que se pone antes. Hay una letrita I para indicar interno. Si no tiene la letrita I, él infiere que es externo. Entonces, dentro del código fuente ustedes encontrarán eso. Donde ponen con la etiqueta I y donde no ponen con la etiqueta I. Iguion, no ponen a ser. Todo esto está con intercambio.
+
+Todo esto está con el guión. Aquí no tiene la letra I antes de esto de aquí. Por lo tanto este es un externo para este indicador. Y lo importante es que los indicadores, la parte externa no está muy pegada. Si por ejemplo está un externo aquí y otro externo aquí y otro externo aquí, está de aquí para acá. Hay una distancia considerable. Aquí tenemos por ejemplo que más de una
+
+hora de distancia mínima. Lo que habilita el trabajo que se realiza dentro de la zona para después de haber trabajado en la zona es cuando se activa a otro lugar. Entonces eso también de la duración es importante porque el precio necesita hacer su trabajo dentro de la
+
+Para poder cambiar la estructura, hacia la estructura externa. Aquí tenemos un order block, fíjense. Cuanto más gordo el order block, más eficiente lo será. Para poder ser respetado. Los delgaditos son más internos, o sea, más pequeños. Es peligroso que ser urbano con facilidad.
+
+El precio es más fuerte y hay la tendencia que el precio llegue hasta ahí y rebote. Como sucedió aquí, no? Aquí fíjense, abrió un FPG o un order block. Aquí me parece que es un FPG, no? Pero aquí fíjense que sucedió. Empezó como FPG aquí, intentó romperlo, no logró, rebotó.
+
+Revolta. ¿Qué sucedió después? Pues no llegó hasta el orden block. Tuvo miedo y avanzó hacia arriba. Eso coincide con la parte teórica que hemos visto previamente. El orden block se distingue de esa forma. Por ser una zona importante donde se acostumbra a respetar. Estos son datos.
+
+Los datos reales de hoy. Este es un indicador importante. Lo que queremos es el conjunto de etiquetas bien marcadas para poder entrenar nuestros modelos. Sin estas etiquetas bien cuestas el modelo no va a funcionar. Por eso es súper importante tener bastante bien colocadas este conjunto de etiquetas.
+
+Ok, entonces ahí les doy esa... Esos dos indicadores para completar lo que faltaba. Si ustedes asistieron a los videitos porque ahí también les da información adicional para tener un aspecto más amplio. Esta es información complementaria. Mañana no tenemos clase.
+
+porque hay las jornadas pero el trabajo del proyecto ya servirá como relleno para esta sesión que se brinda como así, asíncrono. Porque ustedes estarán ocupados con el trabajo que presentarán en día lunes. Gracias.
+
+Ahora vamos a empezar con el tema de la clase. El tema de la revisión para el día de hoy. El día de hoy vamos a ver el tema del algoritmo Caminos. Tema. Algoritmo Caminos. Vamos aquí al material práctico. No, minis significados.
+
+En el caso de los códigos fuentes de los scripts. El PCA.
+
+lo puse ya actualizado con lo que hemos trabajado en día ayer. El de Pearson también lo puse aquí. Y el Camins. El de Camins. También lo puse aquí para que anden probando el script. Entonces voy a abrir aquí camines.
+
+Ok, y les voy a explicar. Primero les voy a explicar la lógica de funcionamiento del algoritmo y luego vamos al código tensorial de los camines. El camines es un algoritmo no supervisado. No cuenta con etiquetas. En vez de hacer las 6. Tenemos un poco de fotos.
+
+A ver. Un mando de 20 puntos, si. O si se hace. Hasta las 6, o sea no va a ser. O sea, esto es un mando de video, chequea. Jajaja. Si ustedes tienen todo ese universo de votos. ¿Qué es?
+
+Esos puntos no tienen etiqueta. Pero internamente ustedes tienen en otro lado las etiquetas. Quieren comparar las etiquetas que ustedes tienen con el caminos. Entonces, ¿qué va a suceder? Necesitamos primero tener las etiquetas del cabez, las agrupaciones. Es un algoritmo de clasificación.
+
+Plasterización significa agrupación. ¿Y qué va a hacer el algoritmo? Pues va elegir tres puntos, por ejemplo, K puntos aleatórios.
+
+Puntos aleatorios. Aquí tenemos x0, x1, por ejemplo. Para entender el gráfico en bidimensional. Entonces yo elijo k puntos aleatorios, este k yo digo cuántos son. Para el Iris Data Set yo elijo k igual a 3. Por qué?
+
+¿Por qué? Porque yo sé que tiene tres etiquetas y yo quiero ver que tanta coincidencia tiene el algoritmo con las etiquetas que tengo. Entonces yo elijo tres puntos aleatorios. Por ejemplo elijo esto, elijo este y elijo esto. Son puntos distintos de la data. Bueno.
+
+El paso siguiente es calcular la distancia euclidiana de cada punto. K-11, K-12, K-13. Calcular la distancia. ¿Puedes ser la distancia euclidiana?
+
+Entre el conjunto de puntos y cada K. Entre K y el universo de puntos. Entre los K. K1, K2, K3.
+
+y el universo de puntos. ¿Cómo calculo la distancia mediana? A través de la norma del vector de la data. Yo tengo mi data con cuatro columnas. Entonces cada K va a tener cuatro componentes.
+
+Si mi dato tiene cuatro columnas, yo voy a tener cada K con cuatro componentes. El índice de Tosset tiene, no es cierto, X0, X1, X2, X3. Cada K tiene sus respectivos componentes, es un vector. ¿De acuerdo? Calculo la distancia pliriana entre K y K.
+
+Entre cada K y el conjunto completo de los puntos. Por ejemplo, este K1 tiene una distancia con respecto a este que se calcula a través de qué? A través de la norma. La distancia cuadrada sería x0 del punto.
+
+Consideramos un punto. Aquí, x0 cuadrado más x1 cuadrado. Como tenemos cuatro puntos, yo solo voy a poner dos, ¿sí? Porque si pongo más, yo sumaría aquí x2 cuadrado más x3 cuadrado. Esto para los cuatro volúmenes de la grata. ¿Cómo quiero bloquear solo con dos aquí porque mi gráfica es solo de dos?
+
+Si la gráfica es solo de dos, voy a mostrar solo así y suponer que solo hay dos. Si me voy a tres tengo que brotear una gráfica tridimensional. Si me voy a cuatro no puedo observar la gráfica. Por eso. No. No. Entonces tengo la distancia entre este punto, K1 y...
+
+S por aquí. Tengo la distancia entre K2 y S. Entre K3 y S mismo. Ahora la pregunta es ¿Cuál de los K es más cercano a este punto que estoy considerando? C2 ya lo descubriría a través de la distancia plenaria. A través de t, no? La raíz cuadrada de t le va a dar ese valor. Entonces,
+
+yo busco donde esta el de etiqueta mas cercano. Seria el K2 en este caso. Pero si voy mas hacia arriba, el K3. Visualmente yo puedo observar donde estan los mas cercanos. Entonces yo tengo mi data set, aqui con 150 filas. Cada uno de ellos va a tener una etiqueta de un K asociado. ¿Sí? ¿Puede que el primero?
+
+Puede que el primer punto esté vinculado al K2, el segundo está vinculado al K1, el tercero también al K1. Aquí es mi data center. ¿Cómo asociarse ese concepto?
+
+Si ese punto está más cerca del K2, pongo K2 ahí. Si esa segunda fila está más cerca del K1, pongo K1. Ahora observen, todo el dataset va a tener un K vinculado. ¿Qué es la discapacidad?
+
+Que es la distancia más corta. Si tengo 150 filas habrá 150 Ks. Hay distribuido, no? Son tres tipos de Ks distintos. Cada K en su lugar. Listo. Ahora lo que hacemos es agrupar los cas que tiene índice igual. Por ejemplo, todos los cas que tiene K1, los voy a agrupar. Hay unos por ahí.
+
+Hay unos por aquí, hay otros por aquí. Todos los K-1. ¿De acuerdo? ¿Y qué hago con esa agrupación? Pues saco el promedio. Saco el promedio de todos los que cuentan con la misma etiqueta. Habrá el otro grupo para los K2, no?
+
+Por ejemplo, ese de aquí se arma con ese de aquí y con más otros que están por allá para agrupar el bando del K2. Y así también habrá el bando del K3. ¿De acuerdo? Listo. Sacamos el promedio de cada característica. Aquí tenemos nuestro data set con dos. Entonces saca el promedio para esta columna.
+
+¿Cuál es el promedio para todos los K1 agrupados? Para la primera característica. Entonces yo tengo un promedio. ¿Cierto? Tengo un promedio para la segunda coluna de todos los K1. Ese valor de promedio me va a dar donde está centrado la mayor parte de los caballeros.
+
+Nuestro es el que tiene la etiqueta K1. Y justo ahí donde está el epicentro de los K1, yo voy a meter mi K1. Lo que era la etiqueta aleatoria al principio era solo para iniciar. Ahora en cambio yo voy a meter mi nuevo K1 en donde está la agrupación de los K1. Y con este
+
+Y con eso armo mi grupo de K1. ¿Se entienden? Ok. Hago lo mismo con respecto al K2. Reúno todos los K2. La data en total tiene 150 requisitos. Por ejemplo unos 40 serían vinculados al K1, unos 60 vinculados al K2, unos 50 vinculados al K3 y así tenemos el
+
+Y así tenemos toda la data ya previamente etiquetada con CAS. Pero en la primera vuelta del algoritmo ya recalculo, reagrupo y saco los promedios. De estos promedios yo voy a reubicar a partir del promedio ya calculado, yo voy a reubicar donde está mi nuevo K1, mi nuevo K2 y mi nuevo K3. Gracias.
+
+¿Cuál es la idea? La idea es ubicar los Ks lo más alejado posible los unos de los otros. ¿Para qué? Para que cada K tenga características comunes. Todos los que son del bando del K1 comparten características comunes. Todos los que son del bando del K2 también tienen características comunes porque son del K2. ¿Si?
+
+Y también en orden K3 comparte características comunes. Pero bueno, entre los K debe haber separación, o sea, las características deben ser distintas. Pero el K con el mismo índice tiene que tener por lo tanto características semejantes, no? Igual por ejemplo los estudiantes de quinto semestre de la carrera de solta se supone que
+
+Norte se supone que debe tener características semejantes por lo tanto los voy a agrupar. En cambio los de sexto semestre de la carrera ya tiene otras características entonces armó otro grupito para los estudiantes de sexto nivel. Cada grupo va a tener sus características individuales, por ejemplo, edad, años de universidad,
+
+Entonces yo agrupo los que tienen características comunes en sus respectivos grupos. Edad, una corona, años de universidad, experiencia laboral, no se cuanto. Entonces un montón de características comunes. Esa es la idea, agrupar la gente con característica común en un mismo grupo y los que tienen características
+
+diversas en otro grupo. Eso es el K. Por lo tanto vamos moviendo esos K. Cada K de eso es llamado centroide. Un centroid tiene todas las columnas de la data original. Es decir, los componentes, las características propias de la data original.
+
+Y esa característica propia viene de la data ya normalizada. Necesito que esté normalizado o estandarizada para poder aplicar el algoritmo. Ok? Entonces la idea no es descabellada, no? Es una idea sencilla. Lo que es más descabellado es las operaciones que se han hecho.
+
+Las operaciones compensores que veremos a continuación. Los datos bonitos, elegimos los centróides. Yo tengo mi tablita con numeritos y etc. La cantidad de cálidos, esa la tenemos que escoger nosotros mismos. El Ico caiga entre 3 y quiero armar 3 grupos. El Ico caiga entre 4 y quiero armar 4 grupos. Pero cuantos componentes va a tener
+
+cada K depende del número que tenemos que añadir. Aquí hago el centroid. Ustedes recuerdan la semilla. Porque para escoger los centroid iniciales yo tengo que establecer la semilla. Establezco la semilla para reproducir mi experimento. Yo pudiera observar que este experimento tiene reproducimiento.
+
+Tiene reproducibilidad. Entonces yo quiero la semilla antes de encontrar eso de aquí. Porque aquí tengo un charco. Y la semilla controla el charco para que produzca los mismos ordenamientos de los valores aleatorios. Yo genero los índices que van desde cero hasta el número de filas de n-1. Es el número de filas de la data.
+
+Mis índices. Una dimensión. Luego yo voy a tomar estos índices ya randomizados. Y después de eso yo tomo los K primeros. O sea los estoy tomando randomizados. Todo bien, hasta ahí.
+
+Esta es la parte más fácil. La inicialización. Borra esto de aquí y va viendo cuál está cerca. La parte siguiente es asignando las etiquetas. Recuerden que es la etiqueta. La etiqueta K2 para el primero, K1 para el segundo, K1 para el tercero. Esta es la asignación. Poner la etiqueta. Vamos a hacer aquí el...
+
+Aparece mensualidad de eso. Así que nada, la etiqueta. Ya. Entonces, yo recibo mi data set de aquí. All Vals. Viene las columnas X. ¿De acuerdo? N filas. Nuestro ID status set, 4 columnas, 150 filas. Los centroides ya los elegí previamente, aleatoriamente, los casques que puse allí.
+
+Ahora tengo que calcular la distancia desde la norma de la data. Vamos a tomar los cuadrados y sumarlos en el eje 1. Sumarnos en elección 1 significa que puede tener 150 valores diferentes.
+
+Porque en el eje 1 es donde yo sumo. El eje 1 tiene 4 columnas. Entonces ese 4 se vuelve un solo escalar. Y los 150 permanece ahí. Por lo tanto yo voy a tener el cuadrado de cada valor. ¿Sí? Sumado que las componentes.
+
+Aquí voy a sumar las componentes. Si estoy sumando las componentes. Las cuatro componentes de nuestro Iris Dataset y la SOM para cada fila de la data. ¿De acuerdo? Esto es lo que me da esa norma cuadrática. Hago lo mismo con respecto al centroid.
+
+¿Cuál es el check de la base? Que va a truco las colos de ustedes.
+
+3x4 por las columnas. Por eso, entonces ahí si lo está haciendo un gráfico de 150p. Pongo aquí, para no olvidar. 3x4 es el shape de mi centroide. ¿Cuál es la operación que hago aquí? Esa operación de suma en eje 1 va a cambiar ese tensor. Aquí donde el legiono, eso va a desaparecer, ese cuadro, que va a quedar así.
+
+Y va a quedarse solo 3. Va a quedar un vector con 3. Cada uno representando un centro de la distinta. Y aquí voy a expandir la dimensión en eje 0. Aquí el menos uno representa el valor tres. Menos uno es un combo. Para acomodar todos los datos que estén.
+
+El 1 aquí significa que voy a obtener un tensor de este tipo. Un tensor columna. Cada columna aquí representa un centroide. De acuerdo? Tiene que observar el shape super bien porque si usted opera mal, le va a dar error justo ahí con el shape del tensor. El paso siguiente es algo.
+
+El paso siguiente es calcular eso, el producto punto matricial ND, producto con D por K y como resultado el D se cancelará por la operación producto punto, dándonos como resultado el número de filas por K. Ya. Entonces vamos, vamos, vamos por ello. Tenemos aquí el producto punto, las 150.
+
+filas por 4, D vale 4, si? Para la división de D es igual a 4. Entonces yo tengo 150 por 4. Esto para los dados y esto para los centroides transpuestos. Entonces yo tengo los trates centroides aquí, 3 por 4, esto se vuelve transpuesto 4 por 3.
+
+Entonces, el traspuesto se cambia a 4 por 3. Y mi dato original es 150 por 4. S se cancela con S y tenemos por lo tanto 150 por 3. Ok. Es el producto punto de la data contra los centroides. El paso siguiente es calcular las distancias porque yo necesito las distancias de cada centro
+
+De cada centroide para todo el universo de puntos de los datos. La distancia es dada por una fórmula que dice la primera, la norma cuadrática aquí, menos dos veces ese producto punto matricial que tuvimos recién, sumado con la norma de los datos. Cetroides.
+
+Centroides. Eso tiene que ver con la distancia euclidiana. Y se hace esa operación justamente para que se cancele ese componente de aquí y usted no necesite agrandar la dimensionalidad de la data. Si no tendría que irse a tres dimensiones.
+
+Pero aplicándolo en cálculo de álgebra lineal vamos a tener esta forma de obtener la distancia. A través de la norma. Listo, ya tenemos las distancias y para cada fila vamos a tener cuántos candidatos de distancia. Para cada filita de mi data set, ¿cuántos candidatos?
+
+Cuantos candidatos? K. Uno de ellos es el menor. Vamos a elegir el menor entre los K candidatos. Porque hay K grupos. Entonces o puede meterse en K1 o K2 o K3. No hay nada más. Por lo tanto tres candidatos. Aquí voy a usar Alguimim para buscar el que tiene menor distancia. Si, recordamos, el que tiene menor distancia con respecto a cada uno.
+
+Vamos a sacar el índice. Los índices pueden ser para K igual a 3, índice 0, 1 y 2. Entonces cada fila de mi dato va a tener un valor asociado entre 0, 1 o 2, nada más. Que es el centroico que está más cercano a ese punto. Puedo poner solo tres. ¿Cierto? Aquí un plan que tenemos otra vez de alguien.
+
+Las distancias y por el eje 1. ¿Cuánto vale ese tensor? ¿Cuál es el tensor? ¿Cuál es el tensor? ¿Cuál es el tensor? No, no.
+
+El mismo del Nato 6. El D que era el número de columnas con el producto. El Nato 150 por 3 o por caja. Tiene puertas. Es el objetivo. Tiene puertas. Entonces, yo busco reducir en donde está el K, en donde está el 3. Y se quedó como resultado final 150.
+
+¿Me acompaña? Tenemos aquí, K, pero N por K, es el tensor BISTS. Cuando aplico el ARG-DIN sobre ese eje de aquí, esa parte de aquí se cancela y voy a tener como resultado solo eso. Porque el argumento disminuye la
+
+El argumento es disminuir la dimensionalidad. La que estoy aplicando sobre el eje 1. Fijé 0, eje 1. Es sobre ese. Es como hacer la suma por un eje. En ese eje donde estoy sumando. Lo que sobra es el shape del tensor. Entonces voy a tener 150 valores. Es decir, para cada feeling yo voy a tener a qué cap pertenencia. Si es el 0, si es el 1.
+
+si es el 2. Esta parte es la más difícil. La otra ya es más fácil. Actualización del centroide. Bueno, ya tenemos las distancias calculadas. El siguiente paso es sacar el promedio de los grupos
+
+Y reubicar el nuevo centroide en ese promedio. Entonces para sacar el promedio yo necesito hacer un conteo. Un conteo de cuantos elementos yo tengo en el K1, cuantos estudiantes tengo en quinto nivel, cuantos en sexto, cuantos en sexto. Para poder sacar el problema de las características de cada grupo.
+
+Entonces para contar uso OneHot, los que tienen índice 0 y la función 0 pongo 1. Todos los demás alimentos con 0. Si el índice tiene 3 es 1, pues la matriz, por ejemplo OneHot es 0 para k igual a 3, sería 1, 0, 0. Solo extrapóle rápidamente.
+
+Si fuera el 1, sería reubicar el 1 al centro. 0, 1, 0. Si fuera 2, lo reubico acá. Porque el índice es lo que corresponde aquí, índice 0, 1 y 2. ¿Pueden meter uno? Todo el tema va a hacerlo. Por lo tanto, para armar una matriz,
+
+Por lo tanto va a armar una matriz. Una matriz con tres columnas y 150 filas. Voy a sumar por columnas ahora. Para saber cuántos tengo en el quinto nivel de software, cuántos tengo en sexto nivel, cuántos tengo en septo. Esta es la clase que participa.
+
+El eje 1 es donde tengo el K, son los tres grupos. Para cada grupo yo tengo una suma de, por ejemplo aquí, tres estudiantes. Y en sexto universos, cuarenta estudiantes. Y ha venido el K por uno, extiendo la dimensión en el eje 1 para poder operar el cultivo con la continuación. El producto
+
+punto, yo voy a multiplicar el número de estudiantes en cada grupo por el one hot, no el counts, sino que el one hot, o sea la matriz one hot, producto punto con la data. Y a partir de ahí voy a sacar el promedio.
+
+Saca el promedio. Aquí es solo la suma. El producto punto aquí me da las sumas. Porque recuerden que un producto punto es una suma de productos. Es decir, donde es uno, yo si lo considero. Donde es cero, pues descarto. Por eso. Porque aquí ya está binarizado. Entonces al estar binarizado y multiplicar contra la data, yo voy directamente solo donde hay uno. para poder...
+
+Compre el valor distinto de cero. Y luego dividido para el costeo. Entonces eso nos da el promedio. Ese es el promedio. Total dividido para. Perdón, las sumas dividido para el total. Ahí será la ubicación de los nuevos centroides. Ok.
+
+Ahora el paso siguiente es saber cuánto de error hay. El error lo voy a medir a partir del centroide actual. Yo tengo aquí el centroide actual. Tengo la toma de estos centroides. El assignment, es decir, la etiqueta que corresponde a cada uno de las 150 filas. Entonces yo voy a hacer, hacer justo eso que yo quería.
+
+Hacer justo eso que les comentaba aquí en la pizarra. Yo voy a meter una etiqueta a cada una de las 150 filas. El primero va con el K2, el segundo va con el K1, el tercero va con el K1. Eso lo hago aquí. El centroide. Sería asociar los centroides con las etiquetas. Meter la etiqueta para cada fila. Gracias.
+
+En los assignments yo tengo las etiquetas, K1, K2, K3. Empieza desde cero, entonces sería K0, K1, K2. Y esto lo voy a almacenar como una tabla de centroides. No serán los centroides sino la agrupación por centroides. Eso es lo que sucede con esta fila. El acopasio por centro de la acopasio.
+
+Acrupación por centroid. Acrupación de quien? De toda la data asignándole un centroid respectivo. El que está más cerquita. Y luego la distancia, cual será la distancia? La distancia es la data menos el centroid. La distancia es una diferencia entre el centroid actual menos la etiqueta, el valor que le corresponde. Y de ahí yo
+
+Y yo saco la distancia entre estos dos. La norma me da la distancia euclidiana. Es como el que puse ahí D igual a X cuadrado más X1. Es la norma. Entonces me da la distancia. Esta distancia la tomo al cuadrado y sumo toda ella. Eso es el SCE. TCC.
+
+Ssum of square errors. Suma de error cuadrático. Ahora viene el bucle de aprendizaje. El bucle de aprendizaje, las etiquetas todas idénticas. El El El
+
+Y voy poniendo una etiqueta del que está más cercano. Después voy trasladando esos centroides hacia otras posiciones. Hasta que los centroides, después de algunas iteraciones, estarán lo más agrupados con sus compañeros.
+
+Aquí está el grupo de software, 5º nivel, grupo A, grupo B y grupo C. Ok, vamos al algoritmo. Para cada iteración yo necesito calcular la distancia para poder asociar al nuevo centroide. Entonces ya necesito un poco.
+
+Entonces yo necesito un bucle. Aquí estamos con una versión tensorial y no hay como quitar ese bucle. Ese no se quita, porque en cada vuelta yo estoy asignando un nuevo centroide. Yo dependo del centroide anterior para poder calcular el promedio y reubicar el centroide. Yo no sé cuánto será el siguiente centroide para avanzar, por eso necesito el bucle. Es como la cadena de marco que uno de
+
+Porque uno depende del cálculo que llega en las esquinas, en los nodos, para saber cómo avanzar al siguiente. Ok, entonces aquí invoco las funciones que he definido. La asignación de las etiquetas. El update del centroid, ¿no es cierto?, la actualización. Y el cálculo del error.
+
+El error lo voy a acumular de una lista. Yo necesito esa acumulación para poder flotear una gráfica. Ok. Aquí yo elegí una semilla. Más en ella. Estamos ya en la versión 118. Osea 118 cambios ha tenido estos. Ahora se los agrega. Quiero que lo vaya reescribiendo para no repetir todas las cosas.
+
+Elige 576. La semilla que suele elegir es uno de los valores pequeños, como 42 que suelen utilizar bastante. Pero elegí 576. ¿Alguien sabe por qué? ¿Por qué elegido una serie?
+
+¿Por qué elegir una semilla distinta a lo que suelo elegir? A ver, ideas, por qué. ¿Para qué sirve la semilla en primer lugar? Dependiendo de la semilla yo elijo aleatoriamente los casos en distintas posiciones. Entonces,
+
+si yo edico los casos que tienen características muy semejantes, no voy a ubicar los grupos diversos. Porque al tomar el promedio todos se van a la misma dirección. Si o no? Porque comparten características semejantes. Yo tengo que elegir los más diversos posibles aleatoriamente. ¿Y cómo hago eso?
+
+¿Y cómo hago eso? Probando distintas semillas. Probé aquí 60 semillas para encontrar este. Al final de ese código hay la prueba de semillas. Final final. ¿No viste eso? Entonces, yo no puedo elegir cualquiera se mire. Si yo elijo cualquiera.
+
+Las distancias serán prácticamente las mismas y las agrupaciones serán prácticamente iguales. O sea, todos se van a mover juntos como las ovejitas. Y de ahí no encuentro los puntos que son diversos. Entonces tu profesor escogió 500. Entonces yo solo le puse por qué. Gracias por eso.
+
+A depender de la semilla que usted elija, el algoritmo no va a funcionar. Entonces ese es un punto. El punto de la convergencia es natural, porque si sigue cambiando los centroides, Yo voy a estar actualizando y por lo tanto tratando de mejorar.
+
+Mientras se vayan actualizando no es convergido todavía. La convergencia es cuando los centros ya no se cambian. Por lo tanto lo que voy a tener es una gráfica como una exponencial negativa. Pero a depender de la semilla esa gráfica no se destaca tanto. No entiendo nada.
+
+¿Qué significa eso? Cuando la gráfica de entrenamiento es así. Tiene poca calor. Es underfeeding. ¿Ah? Underfeeding. A depender de la semilla, usted va a tener underfeeding. ¿Ya? Queremos una elección de semilla que sea más o menos. Este Amazonero.
+
+El error, medimos el sce, sum square error. Queremos una que se destaca, que vaya bastante bien. Si tenemos una así, va a depender del testigo. Gracias.
+
+Y luego buscaste y era otra cosa completamente diferente. Aquí no sabemos si es overfitting pero que el fitting ocurrió, ocurrió. Aquí aseguramos que el fitting ocurrió. No sabemos si es overfitting porque necesitamos la data de testeo. Cuando la data de testeo sigue coincidiendo, estamos bien, pero si la data de testeo hace eso,
+
+Cuando hace eso estamos mal. Aquí es cuando hay over fitting. Esta es la data de test y esta es la data de train. Entonces cuidadete con eso. Aquí no he puesto datos del testeo. Les toca a ustedes de poner. Entonces el cambio que tiene que hacer es que el sistema de datos de la tecnología se puede hacer.
+
+Entonces el cambio que tiene que hacer en este cuaderno es testear con la que introducir la data de testear. Yo les voy a mostrar la curva de entrenamiento. Aquí está mi curva de entrenamiento. El error inicial con la semilla de 576 empezó en 40 y terminó con alrededor de 6 puntuados. Es decir, valió bastante, ¿no?
+
+Tendio bastante. No se si es overfit. Eso uno tiene que saberlo poniendo la data de testigo. Aquí solo tengo entrenamiento. ¿De acuerdo? Y como ustedes van a evitar que ocurra el overfit? Pues buscando la semilla mas adecuada. Para eso hay una función.
+
+Pero no esta testeando contra una data de testeo. Esta solo buscando desde la perspectiva de training nada mas. Tiene que poner ahí el testeo. Train test y validación pulsada. Para que usted encuentre la semilla mas adecuada. Yo no sé si la 576 es la mejor. Porque puede que esté con la familia.
+
+Aquí tengo mis etiquetas, tengo mis centróides del modelo ya entrenado. Ahora tengo el siguiente detalle, aquí hay centróides para la data iris data set normalizados, estos son los centróides. Ahora vamos a evaluar los centroides. Yo tengo una función de evaluación.
+
+Es decir, la parte de test. Dado este centroide, donde se ubica, como se clasifica, en que grupo cabe ese grupo. Es la parte de evaluación. Aquí básicamente asigno el cluster a la data de testeo y pasando el conjunto de central.
+
+Pasando el conjunto de centroides. Calcula el error. No hago eso. Ahí tenemos la data evaluada. Es decir, yo usé la misma data de entrenamiento para hacer esta evaluación. Este es el resultado que obtuve.
+
+¿O no? No, esta es la evaluación. Las etiquetas en cero son las verditas, los puntitos verditos que eran fáciles de separar. ¿Recuerdan la gráfica de Pearson? Los puntitos verdes eran separables, pues son los cero de aquí. Y lo que era morado con tomate se solapaba, no?
+
+Ahí esta el solapamiento. Los 1 mezclados con 2. Ahora comparo estas etiquetas con las etiquetas reales. Usted tiene las etiquetas reales que son estas. Ahora me preguntas como
+
+La pregunta es ¿Cómo ordené para que esté ubicada la CER, primero la 1, la siguiente, la 2, después? Porque al momento quiere ir para la sala de los endroids, no sé qué etiqueta va a dar, cuál corresponde a CER, cuál corresponde a 1, cuál a la 2. Con respecto al dataset, con respecto al dataset original. Eso no sé. No hay esa vinculación. Que es la vinculación de un centroide aleatorio.
+
+Entonces, ¿cómo hago? Después de entrenar el modelo es cuando descubro. ¿Si? Yo tengo que reubicar los centroides de acuerdo a las etiquetas que obtengo. Yo obtengo estas etiquetas aquí. Primero los dos, después los unos, después los ceros. Entonces los dos yo tengo que trasladar al final. Y los ceros tengo que dar la tramos.
+
+Tengo que trasladar los centros de posición. Aquí hago el traslado de los centros. Lo que está abajo va al inicio y lo que está al final va a ser al final. Estoy poniendo lo que está arriba abajo y lo que está abajo arriba. Lo que está en el medio ya tiene etiquetas azules.
+
+Es que este etiquetado es aleatorio al principio, yo no sé dónde van a parar mis etiquetas. Ya, pero reordeno los centroides para poder comparar con mi dataset. Comparo y obtengo esa matriz de confusión. Fíjense. ¿Qué les parece esa madre de confusión?
+
+Todos completitos. Eran los verditos que decía en el Pearson, en el PCA. Eso ya esperábamos, ya era esperado. Porque no estaba solapando. En cambio los morados y tomados se solapaban. Los resultados aquí están bien.
+
+Los resultados aquí están buenos porque todo lo que está en diagonal principal sobrepasa lo que está fuera. ¿Cuáles son? ¿Cuáles son? ¿Cuáles son? Sí, entonces es mejor que el azar. Predicito. Real. Etiqueta cero. Predicito y etiqueta cero real. Aquí tenemos matriz de construcción con tres columnas. Eso debemos finalizarse.
+
+Poner una clase relevante y no relevante para que saquemos precision, recall, accuracy. Accrucy no tanto pero precision, recall si. ¿Ustedes se recuerdan la función 5 metros del capítulo 4? Ahora tenemos una para una matriz grande. Aquí está. Uno puede tener varias clases. Aquí tenemos la versión tensorial en la parte de arriba.
+
+Estén. Ahí está la toma de los valores. Yo voy a decir y a la parte de abajo a la función escalar. Aquí Precision, Recall F1, Preparación del informe, y abajo la función del informe, Print. Ok? Y vamos a obtener como resultado ese informe. Una factura.
+
+Este es el informe esperado. Podrían agregar incluso el error medio en cuadrado por aquí también. Promedio de 88%. Es un buen resultado. Sí, un excelente resultado. Ahora necesito la curva rock. Ustedes recuerdan la curva rock comparo con
+
+un umbral, ¿no es cierto? El umbral voy variando desde cero hasta uno para poder plotear mi curva rock. Y para plotear eso yo necesito las probabilidades. El algoritmo no me da probabilidades. Es decir, convertir las distancias en probabilidades. Y como lo hago? A través de función softmax.
+
+La función softmax es esta de acá. ¿Cuál es la probabilidad de una cierta etiqueta ck dada la distancia xy? Es e elevado a la norma de xy-ck cuadrado sobre la suma para todas las etiquetas. Eso me da la probabilidad. Con esa probabilidad yo calculo mi curva roja.
+
+En el caso de la clasificación usa softmax en redes neuronales. Es una forma importantísima.
+
+Ahora, para calcular la curva roca, yo necesito saber cuál es mi clase positiva y cuál es la negativa. Para poder finalizar eso. Por ejemplo, yo elijo la cero como la relevante. Si elijo la cero como la relevante, entonces yo calculo la cero es la relevante y todo lo demás es no relevante.
+
+Con eso yo puedo calcular mi curva rock. Ahí está el cálculo. Cuando las etiquetas actual coinciden con las posibilidades, tengo una match. De ahí, te gusta las probabilidades previamente calculadas, con la etiqueta que le estoy dando, porque es por volumen.
+
+Porque es por columna. Entonces saco las propiedades. La parte escalar aquí abajo. Ok, quiero que armo los valores. Y calculo el trapecio. Cierto. Listo. Entonces aquí armamos nuestra curva roca. Aquí voy a elegir la clase 0 como relevante.
+
+Cero como relevante y uno no relevante. Relevante y no relevante. Aquí tengo mi curva roca. Iniciata 7, área bajo la curva, 88. Predicción aleatórea, ya está binarizada. Por eso pasa en el medio, porque se binarizó entre relevante y no relevante. Ya, y el configuración para la
+
+Aquí la configuración va a encontrar la semilla, buscar la semilla y lo puse que abajo. Aquí usted va variando el rango de búsqueda de la semilla. Pero la parte que faltó aquí es el ejercicio para ustedes. Es la parte del testeo, de la data del testeo para poder obtener la curva, flotear la curva de testeo y buscar la semilla más adecuada. Ok? El código fue en
+
+El código fuente de eso ya lo subí a la unidad 5 para que ustedes anden practicando eso. Entendidos? Todos entendidos? Ya tenemos la visualización de los clusters que es la última parte. Al final donde pararon los classmates? Aquí, aquí, grupo verde.
+
+pastelito, grupo morado y grupo naranja. Estos son los clústeres, resultado final de los clústeres. Bien ubicadito que los verdes. Y que tenemos que hacer con eso? Pues comparar con las etiquetas reales. A ver, ubicar los clústeres donde las etiquetas reales. Es la siguiente graf. Estas son las etiquetas reales.
+
+En el caso de la gente, la gente tiene unas etiquetas reales. Observe el solapamiento. ¿Si? ¿En donde esta solapamiento? Error. En donde el otro no puso solapamiento porque había discretizado la cosa no en función de los centroides. Pero aquí en la tata real si tiene solapamientos y es donde absoluta la derrota. Listo chicos. Esto es todo por hoy.
+
+Si, si, si. Tiene sentido, tiene sentido. Ya vamos a comprar una copa, entonces una ropa. Es con el que es porfacia. Esa es de miedo, bro. ¿Qué? Fusión. Gracias.
+
+Ricardo, pon un archivo ahí que en verdad sea un key recorder para robar con diseñas pero que en el nombre sea ya gpt.exe. Yo te digo que eso si lo ejecutan. Hasta luego. Que esta clase sea acapado.

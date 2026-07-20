@@ -5,25 +5,14 @@ use Test::More;
 use lib '.';
 use Market::OverlayManager;
 use Market::Overlays::Base;
-use Market::Overlays::SMC_Structures;
+use Market::Overlays::SMC_Pro;
+use Market::Overlays::SMC_Structures_FVG;
 use Market::Panels::Scales;
-use Market::Debug::IndicatorSnapshot;
 
 # =============================================================================
-# Task 0008: Overlay SMC_Structures — render verificable por ops de Canvas.
-#
-# El cálculo (Indicators::SMC_Structures) ya se valida en t/09. Aquí probamos
-# SOLO la capa de render (Overlays::SMC_Structures) con un TestIndicator que
-# devuelve items prefijados del contrato (docs/PHASE2_DEBUG_CONTRACT.md), de
-# forma determinista y sin Tk.
-#
-# TestCanvas registra TODAS las ops: delete / createLine / createRectangle /
-# createText. Cada op lleva los -tags que el overlay pasó (siempre `ov_smc`).
+# Spec 0013: overlays SMC Pro + Structures/FVG (reemplaza ov_smc híbrido).
 # =============================================================================
 
-my $D = 'Market::Debug::IndicatorSnapshot';
-
-# --- TestCanvas que registra operaciones (incluye createRectangle) ---
 {
     package TestCanvas;
     sub new { bless { w => 900, h => 600, ops => [] }, shift }
@@ -49,32 +38,33 @@ my $D = 'Market::Debug::IndicatorSnapshot';
     }
 }
 
-# --- TestIndicator: devuelve items prefijados del contrato (mock del cálculo) ---
-# Implementa solo los getters que el overlay consume. Es un stub puro.
 {
-    package TestIndicator;
+    package TestSMCProInd;
     sub new {
         my ($class, %items) = @_;
         return bless { %items }, $class;
     }
-    sub get_pivots    { shift->{pivots}    || [] }
-    sub get_events    { shift->{events}    || [] }
-    sub get_fvg       { shift->{fvgs}      || [] }
-    sub get_fibonacci { shift->{fibs}      || [] }
-    sub get_major     { shift->{major}     || [] }
+    sub get_pivots       { shift->{pivots} || [] }
+    sub get_events       { shift->{events} || [] }
+    sub get_eqhl         { shift->{eqhl} || [] }
+    sub get_order_blocks { shift->{obs} || [] }
+    sub get_strong_weak  { shift->{sw} || [] }
+    sub get_mtf_levels   { shift->{mtf} || [] }
+    sub get_fvg          { [] }
+    sub get_fibonacci    { [] }
+    sub get_major        { [] }
 }
 
-# --- helper: extraer el tag de una op (último -tags => ...) ---
-sub op_tag {
-    my ($op) = @_;
-    my @a = @$op;
-    for my $i (0 .. $#a - 1) {
-        return $a[$i + 1] if defined $a[$i] && $a[$i] eq '-tags';
+{
+    package TestFVGInd;
+    sub new {
+        my ($class, %items) = @_;
+        return bless { %items }, $class;
     }
-    return undef;
+    sub get_events { shift->{events} || [] }
+    sub get_fvg    { shift->{fvgs} || [] }
 }
 
-# --- helper: construir un Scales con rango de precio conocido ---
 sub make_scales {
     my ($min_p, $max_p, $bars) = @_;
     $min_p //= 5;
@@ -88,451 +78,249 @@ sub make_scales {
     return $s;
 }
 
-# =============================================================================
-# Test 1: Contrato + registro en OverlayManager + tag `ov_smc`.
-# =============================================================================
+# --- SMC Pro ---
 {
-    my $ind = TestIndicator->new();
-    my $ov  = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    ok(Market::Overlays::Base->validate($ov), 'overlay SMC pasa validacion de contrato');
-    is($ov->tag(), 'ov_smc', 'tag del overlay SMC = ov_smc');
-    ok($ov->is_visible(), 'overlay visible por defecto');
-
-    my $mgr = Market::OverlayManager->new();
-    $mgr->register('smc', $ov);
-    my @active = $mgr->each_active();
-    is(scalar(@active), 1, 'OverlayManager lista el overlay SMC registrado');
-    is($active[0]->tag(), 'ov_smc', 'overlay registrado con tag ov_smc');
-}
-
-# =============================================================================
-# Test 2: cada item visible produce >=1 op con tag ov_smc.
-# Fixture de items del contrato: BOS, CHoCH_true, CHoCH_false, FVG_up, fib_0.618,
-# major_high, major_low, y un pivot HH.
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
+    my $ind = TestSMCProInd->new(
         pivots => [ { index => 1, type => 'HH', price => 20 } ],
         events => [
-            { index => 3, type => 'BOS',         dir => 'up',   price => 18 },
-            { index => 4, type => 'CHoCH_true',  dir => 'down', price => 10 },
-            { index => 5, type => 'CHoCH_false', dir => 'down', price => 12 },
+            { index => 3, type => 'BOS', dir => 'up', price => 18, start_index => 1, scope => 'swing' },
         ],
-        fvgs => [ { index => 6, type => 'FVG_up', hi => 16, lo => 14, mitig => 0 } ],
-        fibs => [ { index => 7, type => 'fib_0.618', price => 13 } ],
-        major => [
-            { index => 7, type => 'major_high', price => 20 },
-            { index => 7, type => 'major_low',  price => 10 },
+        obs => [
+            { index => 2, hi => 19, lo => 17, bias => 'bull', active => 1, scope => 'swing' },
+        ],
+        # prev_price != price → línea diagonal (paridad Pine EQ)
+        eqhl => [
+            {
+                index => 4, type => 'EQL', price => 10,
+                prev_index => 1, prev_price => 12,
+            },
+        ],
+        sw => [
+            { index => 1, price => 20, type => 'Strong High', side => 'high' },
+        ],
+        mtf => [
+            { index => 0, price => 15, label => 'PDH', tf => 'D', side => 'H' },
         ],
     );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 12);
+    my $ov = Market::Overlays::SMC_Pro->new(indicator => $ind, theme => {}, visible => 1);
+    ok(Market::Overlays::Base->validate($ov), 'SMC_Pro pasa contrato overlay');
+    is($ov->tag(), 'ov_smc_pro', 'tag ov_smc_pro');
 
-    # ventana [0, 10] incluye todos los items
+    my $mgr = Market::OverlayManager->new();
+    $mgr->register('smc_pro', $ov);
+    my @active = $mgr->each_active();
+    ok(scalar(@active) >= 1, 'registrado smc_pro');
+
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 12);  # width=900 → bar_w=75
     $ov->compute_visible(undef, $ind, 0, 10);
-    $canvas->{ops} = [];
+    $ov->draw($canvas, $scales);
+    ok(scalar(@{ $canvas->{ops} }) > 0, 'SMC_Pro draw produce ops');
+
+    # BOS: X en centro de vela (index 1 y 3), no en borde izquierdo
+    my $bar_w = 900 / 12;
+    my $center_1 = 1 * $bar_w + $bar_w / 2;
+    my $center_3 = 3 * $bar_w + $bar_w / 2;
+    my $left_1   = 1 * $bar_w;
+    my ($bos_line) = grep {
+        $_->[0] eq 'createLine'
+        && defined $_->[1] && defined $_->[3]
+        && abs(($_->[1] // 0) - $center_1) < 0.5
+        && abs(($_->[3] // 0) - $center_3) < 0.5
+    } @{ $canvas->{ops} };
+    ok($bos_line, 'BOS anclado a centro de vela (no borde izquierdo)');
+    ok(!$bos_line || abs(($bos_line->[1] // 0) - $left_1) > 1,
+       'BOS no usa index_to_x (borde izquierdo)');
+
+    # EQL diagonal: dos Y distintos (prev_price=12, price=10)
+    my ($eq_line) = grep {
+        $_->[0] eq 'createLine'
+        && defined $_->[2] && defined $_->[4]
+        && abs(($_->[2] // 0) - ($_->[4] // 0)) > 1
+    } @{ $canvas->{ops} };
+    ok($eq_line, 'EQL/EQH dibuja segmento diagonal (Y distinto en extremos)');
+
+    # BOS no se estira hasta el fin de ventana: x2 = centro del break (index=3),
+    # no del end=10.
+    my $center_10 = 10 * $bar_w + $bar_w / 2;
+    ok($bos_line && abs(($bos_line->[3] // 0) - $center_3) < 0.5,
+       'BOS termina en vela de rotura, no en fin de ventana');
+    ok(!$bos_line || abs(($bos_line->[3] // 0) - $center_10) > 1,
+       'BOS no usa end de ventana como extremo derecho');
+
+    # OB: borde izquierdo de la caja = centro de vela del bloque (paridad TV),
+    # no borde izquierdo de la barra (media vela antes).
+    my $center_2 = 2 * $bar_w + $bar_w / 2;
+    my $left_2   = 2 * $bar_w;
+    my ($ob_rect) = grep {
+        $_->[0] eq 'createRectangle'
+        && defined $_->[1]
+        && abs(($_->[1] // 0) - $center_2) < 0.5
+    } @{ $canvas->{ops} };
+    ok($ob_rect, 'OB anclado al centro de vela (x1 = index_to_center_x)');
+    ok(!$ob_rect || abs(($ob_rect->[1] // 0) - $left_2) > 1,
+       'OB no usa borde izquierdo de barra (index_to_x)');
+
+    $ov->clear($canvas);
+    my $has_del = grep { $_->[0] eq 'delete' } @{ $canvas->{ops} };
+    ok($has_del, 'clear emite delete');
+}
+
+# Strong/Weak y MTF no cruzan más allá de la última vela de datos
+{
+    package MockMD;
+    sub new { bless { li => $_[1] }, $_[0] }
+    sub last_index { $_[0]{li} }
+    sub size { $_[0]{li} + 1 }
+}
+
+{
+    my $ind = TestSMCProInd->new(
+        events => [],
+        sw => [
+            { index => 1, price => 20, type => 'Weak High', side => 'high' },
+        ],
+        mtf => [
+            { index => 0, price => 15, label => 'PDH', tf => 'D', side => 'H' },
+        ],
+    );
+    my $ov = Market::Overlays::SMC_Pro->new(indicator => $ind, theme => {}, visible => 1);
+    my $md = MockMD->new(5);          # datos solo hasta índice 5
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 12);  # ventana local 0..11
+    $ov->compute_visible($md, $ind, 0, 11);
     $ov->draw($canvas, $scales);
 
-    my @draw_ops = grep { $_->[0] ne 'delete' } @{ $canvas->{ops} };
-    # 1 pivot + 3 events + 1 fvg + 1 fib + 2 major = 8 items esperados
-    ok(scalar(@draw_ops) >= 8, 'draw produce >= 8 ops (una por item)');
+    my $bar_w = 900 / 12;
+    # borde derecho de vela 5 = index_to_x(6) = 6*bar_w
+    my $max_x = 6 * $bar_w + 1;  # tolerancia
+    my @ext_lines = grep {
+        $_->[0] eq 'createLine'
+        && defined $_->[3]
+        && ($_->[3] // 0) > $max_x
+    } @{ $canvas->{ops} };
+    ok(scalar(@ext_lines) == 0,
+       'Strong/Weak y MTF no se extienden más allá de last_index de datos');
+}
 
-    # TODAS las ops de draw llevan el tag ov_smc
-    my $all_tagged = 1;
-    for my $op (@draw_ops) {
-        my $t = op_tag($op);
-        unless (defined $t && (!ref($t) ? $t eq 'ov_smc' : grep { $_ eq 'ov_smc' } @$t)) {
-            $all_tagged = 0;
-            last;
+# Zoom independiente: BOS largo con extremos fuera del viewport SÍ se dibuja
+{
+    package MockMD2;
+    sub new { bless { li => $_[1] }, $_[0] }
+    sub last_index { $_[0]{li} }
+    sub size { $_[0]{li} + 1 }
+}
+
+{
+    my $ind = TestSMCProInd->new(
+        events => [
+            {
+                # pivote y rotura FUERA del zoom [40,60]; el tramo lo cruza
+                index => 100, start_index => 0, type => 'BOS', dir => 'up',
+                price => 18, scope => 'swing',
+            },
+            {
+                # totalmente a la izquierda del zoom → no
+                index => 10, start_index => 0, type => 'BOS', dir => 'up',
+                price => 12, scope => 'swing',
+            },
+            {
+                # totalmente a la derecha → no
+                index => 200, start_index => 150, type => 'CHoCH', dir => 'down',
+                price => 22, scope => 'internal',
+            },
+        ],
+    );
+    my $ov = Market::Overlays::SMC_Pro->new(indicator => $ind, theme => {}, visible => 1);
+    my $md = MockMD2->new(200);
+    $ov->compute_visible($md, $ind, 40, 60);
+    my $kept = $ov->{_events} || [];
+    is(scalar(@$kept), 1, 'viewport: solo el BOS que cruza el zoom (extremos fuera OK)');
+    is($kept->[0]{start_index}, 0, 'conserva start_index real (no recorta al zoom)');
+    is($kept->[0]{index}, 100, 'conserva end de rotura real');
+
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 21);  # 21 bars = 40..60
+    $ov->draw($canvas, $scales);
+    my $n_lines = scalar grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
+    ok($n_lines >= 1, 'draw emite línea aunque velas ancla no estén en pantalla');
+}
+
+# PDH al mismo precio que BOS no alarga el trazo de estructura:
+# BOS (tag smc_evt) termina en break; MTF puede llegar a data_end con dash.
+{
+    my $ind = TestSMCProInd->new(
+        events => [
+            {
+                index => 3, start_index => 1, type => 'BOS', dir => 'up',
+                price => 18, scope => 'swing',
+            },
+        ],
+        mtf => [
+            { index => 1, price => 18, label => 'PDH', tf => 'D', side => 'H' },
+        ],
+    );
+    my $ov = Market::Overlays::SMC_Pro->new(indicator => $ind, theme => {}, visible => 1);
+    my $md = MockMD->new(10);
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales(5, 25, 12);
+    $ov->compute_visible($md, $ind, 0, 10);
+    $ov->draw($canvas, $scales);
+
+    my $bar_w = 900 / 12;
+    my $center_3 = 3 * $bar_w + $bar_w / 2;
+
+    # Líneas de estructura (width 2, tag smc_evt) — fin en break bar 3
+    my @evt_lines = grep {
+        $_->[0] eq 'createLine'
+        && ref($_->[-1]) eq 'ARRAY'
+        && grep { $_ eq 'smc_evt' } @{ $_->[-1] }
+    } @{ $canvas->{ops} };
+
+    # Fallback: createLine args may pack -tags as hash-style
+    if (!@evt_lines) {
+        @evt_lines = grep {
+            $_->[0] eq 'createLine'
+            && join(',', @$_) =~ /smc_evt/
+        } @{ $canvas->{ops} };
+    }
+
+    my $bos_ok = 0;
+    for my $op (@evt_lines) {
+        # coords: createLine x1,y1,x2,y2, -fill, ..., -tags
+        my $x2 = $op->[3];
+        $bos_ok = 1 if defined $x2 && abs($x2 - $center_3) < 1;
+    }
+    # Also accept any createLine whose x2 is center_3 (BOS) even if tag parse fails
+    if (!$bos_ok) {
+        for my $op (@{ $canvas->{ops} }) {
+            next unless $op->[0] eq 'createLine';
+            $bos_ok = 1 if abs(($op->[3] // -1) - $center_3) < 1
+                        && abs(($op->[1] // -1) - (1 * $bar_w + $bar_w / 2)) < 1;
         }
     }
-    ok($all_tagged, 'todas las ops de draw llevan el tag ov_smc');
-
-    # Cada familia produce su tipo de op:
-    # - createText para pivotes y eventos (etiquetas)
-    # - createLine para major y fibonacci
-    # - createRectangle para FVG
-    my %by_kind;
-    for my $op (@draw_ops) { $by_kind{ $op->[0] }++; }
-    ok($by_kind{createRectangle} >= 1, 'el FVG produce un createRectangle (caja)');
-    ok($by_kind{createText} >= 4, 'pivot + 3 eventos producen createText');
-    ok($by_kind{createLine} >= 3, 'major x2 + fib producen createLine');
-
-    # BOS y CHoCH_true vs CHoCH_false tienen etiqueta/distincion: los textos
-    # estan presentes. createText($x,$y,-text=>$v,...): el valor va en [4].
-    my @texts = map { $_->[0] eq 'createText' ? $_->[4] : () } @draw_ops;
-    my %text_seen = map { $_ => 1 } @texts;
-    ok($text_seen{'BOS'}, 'etiqueta BOS presente');
-    ok($text_seen{'CHoCH'}, 'etiqueta CHoCH (true/false) presente');
+    ok($bos_ok, 'BOS (mismo precio que PDH) termina en vela de rotura, no en data_end');
 }
 
-# =============================================================================
-# Test 3: FVG con mayor mitig produce una caja (rectangulo) MAS PEQUENA.
-# Comparamos dos casos: mitig=0 (gap intacto, hi-lo grande) vs mitig alto
-# (hi-lo recortado). El rectangulo dibujado refleja (hi - lo) escalado, asi que
-# la altura del rectangulo es menor cuando hay mas mitigacion.
-# =============================================================================
+# --- Structures FVG ---
 {
-    my $scales = make_scales(5, 25, 12);
-
-    # Caso 1: FVG sin mitigar. hi=16, lo=14 -> altura en precio = 2.
-    my $ind1 = TestIndicator->new(
-        fvgs => [ { index => 6, type => 'FVG_up', hi => 16, lo => 14, mitig => 0 } ],
-    );
-    my $ov1 = Market::Overlays::SMC_Structures->new(indicator => $ind1, theme => {});
-    my $c1  = TestCanvas->new();
-    $ov1->compute_visible(undef, $ind1, 0, 10);
-    $c1->{ops} = [];
-    $ov1->draw($c1, $scales);
-    my @rects1 = grep { $_->[0] eq 'createRectangle' } @{ $c1->{ops} };
-    is(scalar(@rects1), 1, 'FVG sin mitig: una caja');
-    my ($x0a, $y0a, $x1a, $y1a) = @{ $rects1[0] }[1..4];
-    my $h1 = abs($y1a - $y0a);
-
-    # Caso 2: FVG muy mitigado. hi=15, lo=14.6 -> altura en precio = 0.4 (menor).
-    my $ind2 = TestIndicator->new(
-        fvgs => [ { index => 6, type => 'FVG_up', hi => 15, lo => 14.6, mitig => 0.8 } ],
-    );
-    my $ov2 = Market::Overlays::SMC_Structures->new(indicator => $ind2, theme => {});
-    my $c2  = TestCanvas->new();
-    $ov2->compute_visible(undef, $ind2, 0, 10);
-    $c2->{ops} = [];
-    $ov2->draw($c2, $scales);
-    my @rects2 = grep { $_->[0] eq 'createRectangle' } @{ $c2->{ops} };
-    is(scalar(@rects2), 1, 'FVG mitigado: una caja');
-    my ($x0b, $y0b, $x1b, $y1b) = @{ $rects2[0] }[1..4];
-    my $h2 = abs($y1b - $y0b);
-
-    diag("FVG alto caja_h=$h1 px; FVG mitigado caja_h=$h2 px");
-    ok($h2 < $h1, 'FVG con mayor mitig produce caja mas pequena (h2 < h1)');
-}
-
-# =============================================================================
-# Test 4: Replay guard. Con replay_idx = end, el overlay no debe recibir ni
-# dibujar items con index > end. Se verifica de dos formas:
-#   (a) IndicatorSnapshot->replay_violations(visible_items, end) == 0
-#   (b) ninguna op de draw se genera para items de index > end
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        pivots => [
-            { index => 3,  type => 'HH', price => 20 },   # <= end (visible)
-            { index => 12, type => 'LL', price => 6  },   # > end (futuro, fuera)
+    my $ind = TestFVGInd->new(
+        fvgs => [
+            { index => 5, left => 3, right => 5, hi => 12, lo => 10, type => 'bull', mitig => 0, active => 1 },
         ],
-        events => [],
-        fvgs   => [],
-        fibs   => [],
-        major  => [],
+        events => [
+            { index => 6, type => 'CHoCH', dir => 'up', price => 12, start_index => 2, color_role => 'choch_bull' },
+        ],
     );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 20);
-    my $replay_idx = 5;
+    my $ov = Market::Overlays::SMC_Structures_FVG->new(indicator => $ind, theme => {}, visible => 1);
+    ok(Market::Overlays::Base->validate($ov), 'SMC_Structures_FVG pasa contrato');
+    is($ov->tag(), 'ov_smc_fvg', 'tag ov_smc_fvg');
 
-    # compute_visible con end = replay_idx (como hace ChartEngine.compute_window
-    # cuando Replay esta activo). El filtro interno index <= end descarta idx=12.
-    $ov->compute_visible(undef, $ind, 0, $replay_idx);
-
-    # (a) replay guard sobre los items que el overlay dibujara
-    my $vis = $ov->visible_items();
-    is(scalar($D->replay_violations($vis, $replay_idx)), 0,
-       'replay guard: ningun item visible tiene index > replay_idx');
-    # solo el pivot idx=3 (<=5) sobrevive; el idx=12 fue filtrado
-    my @pivots_vis = grep { $_->{type} eq 'HH' || $_->{type} eq 'LL' } @$vis;
-    is(scalar(@pivots_vis), 1, 'replay guard: solo el pivot idx=3 (<=replay_idx) es visible');
-    is($pivots_vis[0]->{index}, 3, 'replay guard: el pivot visible es el idx=3, no el idx=12');
-
-    # (b) draw no genera ops para el item futuro (idx=12)
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-    my @texts = map { $_->[0] eq 'createText' ? $_ : () } @{ $canvas->{ops} };
-    # createText($x,$y,-text=>$v,...): valor de texto en [4].
-    my @ll_texts = grep { defined $_->[4] && $_->[4] eq 'LL' } @texts;
-    is(scalar(@ll_texts), 0, 'replay guard: draw NO dibuja la etiqueta LL del idx=12 (futuro)');
-}
-
-# =============================================================================
-# Test 5: set_visible(0) -> draw no produce ops; clear borra solo su tag.
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        major => [ { index => 0, type => 'major_high', price => 20 } ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
     my $canvas = TestCanvas->new();
     my $scales = make_scales();
-
-    $ov->compute_visible(undef, $ind, 0, 5);
-    $ov->set_visible(0);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-    my @draw_ops_hidden = grep { $_->[0] ne 'delete' } @{ $canvas->{ops} };
-    is(scalar(@draw_ops_hidden), 0, 'set_visible(0): draw no produce ops');
-
-    # clear solo borra el tag ov_smc
-    $ov->set_visible(1);
-    $canvas->{ops} = [];
-    $ov->clear($canvas);
-    my @del = grep { $_->[0] eq 'delete' } @{ $canvas->{ops} };
-    ok(scalar(@del) >= 1, 'clear produce al menos un delete');
-    my $del_tag = $del[0][1];
-    is($del_tag, 'ov_smc', 'clear borra el tag ov_smc (no otros)');
-}
-
-# =============================================================================
-# Test 6: fib_0.618 destacado (estilo distinto del resto de niveles fib).
-# El overlay dibuja 0.618 con width=2 y color de acento; los demas con width=1.
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        fibs => [
-            { index => 7, type => 'fib_0.236', price => 9  },
-            { index => 7, type => 'fib_0.618', price => 13 },
-            { index => 7, type => 'fib_0.786', price => 15 },
-        ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 12);
     $ov->compute_visible(undef, $ind, 0, 10);
-    $canvas->{ops} = [];
     $ov->draw($canvas, $scales);
-
-    # 3 createLine (uno por nivel fib)
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 3, 'fibonacci: 3 niveles -> 3 lineas');
-
-    # Extraer el -width de cada linea
-    my %width_by_y;
-    for my $ln (@lines) {
-        my @a = @$ln;
-        my ($y) = ($a[2]);  # segundo Y (y2 = y1 = y)
-        my $w = 1;
-        for my $i (0 .. $#a - 1) {
-            if (defined $a[$i] && $a[$i] eq '-width') { $w = $a[$i + 1]; last; }
-        }
-        $width_by_y{$y} = $w;
-    }
-    # el y de fib_0.618 (price=13) en rango [5,25], height=600:
-    #   y = (25-13)/(25-5) * 600 = 12/20*600 = 360
-    my $y618 = $scales->value_to_y(13);
-    is($width_by_y{$y618}, 2, 'fib_0.618 dibujada con width=2 (destacada)');
-    # los demas niveles usan width=1
-    my $y236 = $scales->value_to_y(9);
-    is($width_by_y{$y236}, 1, 'fib_0.236 dibujada con width=1 (no destacada)');
-}
-
-# =============================================================================
-# Test 7: compute_range refleja la ventana recibida (no recorre todo el historial).
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        pivots => [ { index => 50, type => 'HH', price => 20 } ],
-    );
-    my $ov = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    $ov->compute_visible(undef, $ind, 40, 60);
-    is_deeply($ov->compute_range(), [40, 60], 'compute_visible registra la ventana [40,60]');
-    # el pivot idx=50 esta dentro -> visible; si pidieramos ventana [0,10], fuera
-    $ov->compute_visible(undef, $ind, 0, 10);
-    my $vis = $ov->visible_items();
-    is(scalar(@$vis), 0, 'ventana [0,10]: pivot idx=50 queda fuera (no se dibuja)');
-}
-
-# =============================================================================
-# Test 8: los overlays reciben indices GLOBALES, pero Scales dibuja indices
-# LOCALES de la ventana visible. Un item idx=50 en ventana [40,60] debe caer
-# en la barra local 10, no en X de barra global 50 (bug visual 0019).
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        pivots => [ { index => 50, type => 'HH', price => 20 } ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 21); # ventana inclusiva [40,60] => 21 barras
-
-    $ov->compute_visible(undef, $ind, 40, 60);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-
-    my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'HH' } @{ $canvas->{ops} };
-    is(scalar(@texts), 1, 'SMC local-index: dibuja una etiqueta HH visible');
-    my $expected_x = $scales->index_to_center_x(10); # 50 - 40
-    is($texts[0]->[1], $expected_x, 'SMC local-index: idx global 50 se dibuja como local 10');
-}
-
-# =============================================================================
-# Test 9: dibujo de lineas entrecortadas (BOS/CHoCH) si viene start_index
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        events => [
-            { index => 5, type => 'BOS', dir => 'up', price => 15, start_index => 2 }
-        ]
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 10); # ventana [0, 9]
-
-    $ov->compute_visible(undef, $ind, 0, 9);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 1, 'BOS con start_index: crea una linea para representar el breakout');
-
-    my $x_left  = $scales->index_to_x(2);
-    my $x_right = $scales->index_to_x(6);
-    is($lines[0]->[1], $x_left,  'BOS: linea inicia en borde izquierdo del pivote');
-    is($lines[0]->[3], $x_right, 'BOS: linea termina en borde derecho de la vela de quiebre');
-
-    my @texts = grep { $_->[0] eq 'createText' && defined $_->[4] && $_->[4] eq 'BOS' } @{ $canvas->{ops} };
-    is(scalar(@texts), 1, 'BOS con start_index: crea un texto BOS');
-    my $expected_mid_x = ($x_left + $x_right) / 2;
-    ok(abs($texts[0]->[1] - $expected_mid_x) < 0.001, 'BOS con start_index: texto centrado en el medio de la linea');
-    is($texts[0]->[6], 's', 'BOS alcista: etiqueta anclada arriba (anchor s)');
-}
-
-# =============================================================================
-# Test 10 (task 0034): pivote off-screen, downsample y anchor por direccion.
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        events => [
-            { index => 50, type => 'CHoCH_true', dir => 'down', price => 12, start_index => 30 },
-            { index => 8,  type => 'BOS',        dir => 'down', price => 14, start_index => 6 },
-        ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 21);
-
-    $ov->compute_visible(undef, $ind, 40, 60);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 1, 'CHoCH bajista: una linea de evento');
-    is($lines[0]->[1], 0, 'CHoCH: pivote off-screen recorta x_start al borde izquierdo');
-    my $fill = undef;
-    for my $i (0 .. $#{$lines[0]} - 1) {
-        $fill = $lines[0]->[$i + 1] if defined $lines[0]->[$i] && $lines[0]->[$i] eq '-fill';
-    }
-    is($fill, '#ef5350', 'CHoCH bajista: color rojo por direccion');
-
-    $ov->compute_visible(undef, $ind, 0, 9);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-    my @bos_texts = grep { $_->[0] eq 'createText' && $_->[4] eq 'BOS' } @{ $canvas->{ops} };
-    is(scalar(@bos_texts), 1, 'BOS bajista: etiqueta presente');
-    is($bos_texts[0]->[6], 'n', 'BOS bajista: etiqueta anclada abajo (anchor n)');
-}
-
-# =============================================================================
-# Test 11 (task 0034): downsample (bar_w < 2) alinea extremos de linea.
-# =============================================================================
-{
-    my $ind = TestIndicator->new(
-        events => [
-            { index => 5, type => 'BOS', dir => 'up', price => 15, start_index => 2 },
-        ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 100);
-    $scales->{width} = 200;
-
-    $ov->compute_visible(undef, $ind, 0, 99);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-
-    my @lines = grep { $_->[0] eq 'createLine' } @{ $canvas->{ops} };
-    is(scalar(@lines), 1, 'downsample: una linea BOS');
-    my $plot_w = 200;
-    my $x_left  = 2 * $plot_w / 100;
-    my $x_right = 6 * $plot_w / 100;
-    ok(abs($lines[0]->[1] - $x_left)  < 0.01, 'downsample: x_start alineado por pixel');
-    ok(abs($lines[0]->[3] - $x_right) < 0.01, 'downsample: x_end alineado por pixel');
-}
-
-{
-    package WhitespaceMD;
-    sub new { bless {}, shift }
-    sub last_index { 9 }
-    sub size { 10 }
-}
-
-# =============================================================================
-# Test 12 (task 0039-B): FVG corta en última vela real, no en whitespace derecho.
-# =============================================================================
-{
-    package main;
-    my $ind = TestIndicator->new(
-        fvgs => [ { index => 2, type => 'FVG_up', hi => 16, lo => 14 } ],
-    );
-    my $ov     = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-    my $canvas = TestCanvas->new();
-    my $scales = make_scales(5, 25, 15);
-    my $md     = WhitespaceMD->new();
-
-    $ov->compute_visible($md, $ind, 0, 14);
-    $canvas->{ops} = [];
-    $ov->draw($canvas, $scales);
-
-    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
-    is(scalar(@rects), 1, 'FVG whitespace: una caja');
-    my $x_right_cap = $scales->index_to_center_x(9);
-    my $x_end_whitespace = $scales->index_to_center_x(14);
-    ok($rects[0]->[3] <= $x_right_cap + 1,
-       'FVG whitespace: borde derecho <= última vela real');
-    ok($rects[0]->[3] < $x_end_whitespace,
-       'FVG whitespace: no se extiende al whitespace');
-}
-
-# =============================================================================
-# QA-fix: anti-solapamiento de etiquetas de pivotes (imagen del QA: cientos de
-# HH/HL/LL/LH encimadas en 1m con zoom bajo). La capa de colision debe:
-#   (a) mostrar SIEMPRE la etiqueta mas relevante (mayor score),
-#   (b) descartar las que colisionan con una mas relevante,
-#   (c) ser MONOTONA con el zoom: al acercar (mas px por vela) aparecen MAS
-#       etiquetas, nunca menos; una visible no desaparece al acercar.
-# =============================================================================
-{
-    package main;
-    # 8 pivotes contiguos (indices 0..7): en una vista comprimida sus X caen casi
-    # encima; en una vista amplia se separan.
-    my @pivots = map { { index => $_, type => (($_ % 2) ? 'HL' : 'HH'), price => 15 } } 0 .. 7;
-    my $ind = TestIndicator->new(pivots => [ @pivots ]);
-
-    my $count_labels = sub {
-        my ($bars) = @_;
-        my $ov = Market::Overlays::SMC_Structures->new(indicator => $ind, theme => {});
-        $ov->set_density_pct(100);   # sin recorte de densidad: aislar la capa de colision
-        my $canvas = TestCanvas->new();
-        my $scales = make_scales(5, 25, $bars);
-        $ov->compute_visible(undef, $ind, 0, 7);
-        $canvas->{ops} = [];
-        $ov->draw($canvas, $scales);
-        return scalar grep {
-            $_->[0] eq 'createText' && defined $_->[4] && $_->[4] =~ /^(?:HH|HL|LL|LH)$/
-        } @{ $canvas->{ops} };
-    };
-
-    # NOTA: mas 'bars' => cada vela mas angosta => vista MAS COMPRIMIDA (los
-    # indices 0..7 caen mas juntos en px). Menos 'bars' => mas espacio por vela.
-
-    # Vista MUY comprimida (bars=200: 8 pivotes en ~31px): se dibujan menos
-    # etiquetas que items, pero al menos 1 (la mas relevante siempre).
-    my $tight = $count_labels->(200);
-    ok($tight >= 1, "colision: vista comprimida dibuja al menos la etiqueta mas relevante ($tight)");
-    ok($tight < 8, "colision: vista comprimida evita el amontonamiento ($tight < 8)");
-
-    # Vista AMPLIA (bars=8: cada vela ~112px, pivotes bien separados): deben verse
-    # MAS (o iguales) etiquetas. Monotonia: al tener mas espacio NUNCA desaparecen.
-    my $wide = $count_labels->(8);
-    ok($wide >= $tight, "colision: al acercar (mas espacio) NO desaparecen etiquetas ($wide >= $tight)");
-    is($wide, 8, 'colision: con espacio suficiente se dibujan todas las relevantes');
+    ok(scalar(@{ $canvas->{ops} }) > 0, 'FVG overlay draw produce ops');
 }
 
 done_testing();

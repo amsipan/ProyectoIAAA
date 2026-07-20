@@ -252,7 +252,8 @@ use Market::ReplayController;
     is($e, 79, 'frame+start: end alineado con replay_idx');
 }
 
-# UX TradingView: Select Bar ancla ultima vela ~80% (hueco derecho para Play).
+# UX TradingView: Select Bar deja la ultima vela ~80% mediante slots vacios,
+# nunca trasladando el dominio completo con un x_shift fijo.
 {
     my $md = R40MarketData->new(100);
     my $chart = bless {
@@ -264,24 +265,23 @@ use Market::ReplayController;
     }, 'Market::ChartEngine';
 
     $chart->frame_replay_view_at(49);
-    ok(!exists $chart->{replay_view_anchor}, 'sin anchor: flag ausente');
+    ok(!$chart->{follow_replay_head}, 'sin anchor: follow Replay apagado');
 
     $chart->frame_replay_view_at(49, { anchor => 1 });
-    is($chart->{replay_view_anchor}, 0.80, 'anchor: replay_view_anchor=0.80');
+    ok($chart->{follow_replay_head}, 'anchor: follow Replay encendido');
     $chart->{replay_controller}->start(49);
 
     my ($s, $e) = $chart->compute_window();
     my $x_bars = $e - $s + 1;
-    my $shift = $chart->_replay_anchor_x_shift($x_bars, 1000);
-    is($shift, -200, 'anchor: shift fijo -20% plot (1000px)');
-
-    my $shift_zoom = $chart->_replay_anchor_x_shift(15, 1000);
-    is($shift_zoom, -200, 'anchor: mismo shift con distinto zoom (15 barras)');
+    is($x_bars, 60, 'anchor: viewport conserva 60 slots');
+    is($e, 61, 'anchor: 12 slots vacios posteriores al replay_idx');
+    is($chart->{ctrl_zoom_x_shift}, 0, 'anchor: no usa x_shift permanente');
 
     my $scale = Market::Panels::Scales->new(min_y => 0, max_y => 1, bars => $x_bars);
     $scale->{width} = 1000;
-    $scale->{x_shift} = $shift;
-    my $cx = $scale->index_to_center_x($x_bars - 1);
+    $scale->{x_shift} = 0;
+    my $head_local = 49 - $s;
+    my $cx = $scale->index_to_center_x($head_local);
     my $bar_w = $scale->plot_width() / $x_bars;
     my $right_edge = $cx + $bar_w / 2;
     ok(abs($right_edge - 800) < 2, "anchor: borde derecho ultima vela ~80% plot ($right_edge)");
@@ -600,8 +600,10 @@ sub r42_build_chart {
     ok(!$chart->is_replay_select_mode(), 'UX: click apaga modo tijeras');
 
     my ($s, $e) = $chart->compute_window();
-    is($e, 49, 'UX: ultima vela visible es la anterior a la seleccionada');
-    ok($s <= $e, 'UX: ventana valida tras truncar');
+    is($chart->_causal_end(), 49, 'UX: ultima vela causal es la anterior a la seleccionada');
+    is($e, 61, 'UX: viewport conserva 12 slots vacios tras la ultima vela');
+    ok($s <= $chart->_causal_end() && $chart->_causal_end() < $e,
+       'UX: head causal queda dentro de la ventana logica');
 }
 
 # =============================================================================
@@ -736,11 +738,22 @@ sub r44_chart {
 
     $panel->render($canvas, \@data, $scale);
 
-    my ($line_op) = grep {
-        $_->[0] eq 'createLine' && ($_->[1]{tags} // '') eq 'price_label'
+    # La hline full-width del último precio SÍ se dibuja (restaurada a pedido):
+    # línea horizontal punteada a la altura del close, con el color del precio
+    # actual (verde alcista en replay_idx). Recorre todo el ancho del plot.
+    my ($hline_op) = grep {
+        $_->[0] eq 'createLine' && ( $_->[1]{tags} // '' ) eq 'price_label'
     } @{ $canvas->{ops} };
-    ok($line_op, 'replay: dibuja linea horizontal de precio');
-    is($line_op->[1]{fill}, '#26a69a', 'replay: color de linea = vela replay_idx (verde)');
+    ok( $hline_op, 'replay: dibuja linea horizontal last-price full-width' );
+    is( $hline_op->[1]{fill}, '#26a69a', 'replay: color hline = vela replay_idx (verde)' )
+      if $hline_op;
+
+    my ($box_op) = grep {
+        $_->[0] eq 'createRectangle' && ( $_->[1]{tags} // '' ) eq 'price_label'
+    } @{ $canvas->{ops} };
+    ok( $box_op, 'replay: cajita de precio (fallback plot) si no hay eje separado' );
+    is( $box_op->[1]{fill}, '#26a69a', 'replay: color cajita = vela replay_idx (verde)' )
+      if $box_op;
 
     my @candle_ops = grep {
         ($_->[0] eq 'createLine' || $_->[0] eq 'createRectangle')
