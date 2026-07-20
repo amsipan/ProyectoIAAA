@@ -14,11 +14,18 @@ Código viejo aislado: **`docs/LEGACY.md`** + carpeta `legacy/`.
 | **HLD (4h/D)** | Video profe |
 | **ZigZag externo / interno** | ChartPrime + ZZMTF |
 | **Fib Retracement** | Herramienta TV |
+| **Liquidity v2** | BSL/SSL/EQH/EQL + Sweep/Grab/Run (PDF FSM) |
+
+## Liquidity — uso
+
+1. Checkbox **Liquidity** en Capas (OFF por defecto; on-demand).
+2. Sub-toggles: **BSL SSL EQH EQL SWEEP GRAB RUN**.
+3. Spec: `docs/LIQUIDITY_V2.md`. Export de eventos para fase modelos.
 
 ## No reactivar sin rediseño
 
-- Liquidity (en `legacy/`) — no es paridad TV 1:1; rehacer desde PDF
-- Mxwll, Strategy, VP, VWAP, SMC_Structures unificado — `legacy/`
+- Liquidity v1 del archive externo — no copiar; ya hay v2 oficial
+- Mxwll, Strategy, VP, VWAP, SMC_Structures unificado — archive externo
 - Placeholder HTF sobre LTF — eliminado
 
 ## Dataset

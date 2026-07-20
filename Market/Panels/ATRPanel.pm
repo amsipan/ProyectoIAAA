@@ -84,7 +84,9 @@ sub render {
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
     # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
     # los colores claros (con defaults seguros si el tema no está disponible).
-    $scale->{grid_color}      = $self->{theme}{grid}      // '#e6e6e6';
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#d4d8de';
+    $scale->{grid_dash}       = $self->{theme}{grid_dash}  // [ 2, 3 ];
+    $scale->{grid_width}      = $self->{theme}{grid_width} // 2;
     $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
 
     $scale->_draw_y_scale($canvas);
@@ -112,9 +114,7 @@ sub render {
         my $plot_w = int($scale->plot_width());
         $plot_w = 1 if $plot_w < 1;
         for my $px (0 .. $plot_w - 1) {
-            my $from_local = int($px * $x_bars / $plot_w);
-            my $to_local = int((($px + 1) * $x_bars / $plot_w) - 1);
-            $to_local = $from_local if $to_local < $from_local;
+            my ($from_local, $to_local) = $scale->local_range_for_pixel($px);
             my $from = $from_local - $draw_offset;
             my $to = $to_local - $draw_offset;
             $to = $from if $to < $from;
@@ -224,20 +224,25 @@ sub draw_crosshair {
     my ($width, $height) = $self->_canvas_size($canvas);
 
     # Color del crosshair tomado del tema (con default seguro para tema claro).
-    my $crosshair_color = $self->{theme}{crosshair_line} // '#9598a1';
+    my $crosshair_color = $self->{theme}{crosshair_line} // '#8b9099';
+    # Mismo dash/largo que PricePanel; width 1 (grid usa width 2).
+    my $ch_dash  = $self->{theme}{crosshair_dash}  // [ 6, 5 ];
+    my $ch_width = $self->{theme}{crosshair_width} // 1;
 
     $canvas->createLine(
         $x, 0, $x, $height,
-        -fill => $crosshair_color,
-        -dash => '.',
-        -tags => 'atr_crosshair',
+        -fill  => $crosshair_color,
+        -dash  => $ch_dash,
+        -width => $ch_width,
+        -tags  => 'atr_crosshair',
     ) if defined $x;
 
     $canvas->createLine(
         0, $y, $width, $y,
-        -fill => $crosshair_color,
-        -dash => '.',
-        -tags => 'atr_crosshair',
+        -fill  => $crosshair_color,
+        -dash  => $ch_dash,
+        -width => $ch_width,
+        -tags  => 'atr_crosshair',
     ) if defined $y;
 }
 

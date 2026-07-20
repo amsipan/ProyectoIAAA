@@ -1,8 +1,14 @@
 # Roadmap
 
-Última actualización: 2026-07-08. Separa estado actual de objetivos. Fechas del PDF oficial
-de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`). Estado de tasks:
-`tasks/README.md`.
+Última actualización: 2026-07-19.
+
+> **Plan de dirección vigente (meta modelos + orden de trabajo):**  
+> **`docs/PLAN_DEFINITIVO.md`**.  
+> Este `ROADMAP.md` conserva el histórico de entregas PDF y notas antiguas; si hay
+> conflicto de prioridades, manda `PLAN_DEFINITIVO.md`.
+
+Fechas del PDF oficial de Fase 2 (`docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf`).
+Estado de tasks: `tasks/README.md`.
 
 ## Estado actual
 

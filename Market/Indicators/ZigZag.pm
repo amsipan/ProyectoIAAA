@@ -80,6 +80,9 @@ sub reset {
     $self->{_ext_bullish}          = undef;
     $self->{_ext_vertices}         = [];
     $self->{_ext_segments}         = [];
+    # Historial de pivotes externos NUNCA recortado (para Liquidity / dataset).
+    # El dibujo sigue usando _ext_vertices (máx. 15 segs).
+    $self->{_ext_pivot_log}        = [];
     $self->{_ext_pivot_high_idx}   = undef;
     $self->{_ext_pivot_high_price} = undef;
     $self->{_ext_pivot_low_idx}    = undef;
@@ -161,6 +164,8 @@ sub get_values {
     return {
         internal_vertices   => [ @{ $self->{_int_vertices} } ],
         external_vertices   => [ @{ $self->{_ext_vertices} } ],
+        # Pivotes consolidados a lo largo de toda la serie (sin techo de 15 segs).
+        external_pivot_log  => [ @{ $self->{_ext_pivot_log} || [] } ],
         internal_segments   => [ @{ $self->{_int_segments} } ],
         external_segments   => [ @{ $self->{_ext_segments} } ],
         external_channel    => [ @{ $self->_external_channel_list() } ],
@@ -521,6 +526,24 @@ sub _ext_start_segment {
     return unless defined $i0 && defined $p0 && defined $i1 && defined $p1;
     push @{ $self->{_ext_vertices} }, { index => $i0, price => $p0 };
     push @{ $self->{_ext_vertices} }, { index => $i1, price => $p1 };
+    # Log de pivotes para Liquidity: from es extremo cerrado del tramo previo;
+    # to del tramo nuevo se actualizará hasta que empiece el siguiente.
+    my $log = $self->{_ext_pivot_log} ||= [];
+    my ( $side0, $side1 ) =
+      ( ( $dir // '' ) eq 'up' )
+      ? ( 'low',  'high' )
+      : ( 'high', 'low' );
+    # Si el log ya tiene el from (to del tramo anterior), no duplicar.
+    my $last = @$log ? $log->[-1] : undef;
+    if ( !$last || ( $last->{index} // -1 ) != $i0 || ( $last->{side} // '' ) ne $side0 ) {
+        push @$log, { index => $i0, price => $p0, side => $side0, open => 0 };
+    }
+    else {
+        $last->{open}  = 0;
+        $last->{price} = $p0;
+        $last->{index} = $i0;
+    }
+    push @$log, { index => $i1, price => $p1, side => $side1, open => 1 };
     $self->_trim_external_history();
     $self->_rebuild_external_segments();
 }
@@ -529,6 +552,11 @@ sub _ext_update_last {
     my ($self, $index, $price) = @_;
     return unless @{ $self->{_ext_vertices} };
     $self->{_ext_vertices}[-1] = { index => $index, price => $price };
+    my $log = $self->{_ext_pivot_log} || [];
+    if ( @$log && ( $log->[-1]{open} // 0 ) ) {
+        $log->[-1]{index} = $index;
+        $log->[-1]{price} = $price;
+    }
     $self->_rebuild_external_segments();
 }
 

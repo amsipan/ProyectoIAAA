@@ -17,8 +17,8 @@ print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
 # ==========================================
 # 1. DATOS E INDICADORES BASE (solo lo de Fase 1 para arranque instantáneo)
 # ==========================================
-# Producto oficial: ATR al arranque; capas SMC/ZZ/HLD bajo demanda
-# (docs/PRODUCTO_OFICIAL.md). Legacy Liquidity/Mxwll/VP/VWAP no se cargan.
+# Producto oficial: ATR al arranque; capas SMC/ZZ/HLD/Liquidity v2 bajo demanda
+# (docs/PRODUCTO_OFICIAL.md). Legacy Mxwll/VP/VWAP no se cargan.
 my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
@@ -216,6 +216,7 @@ $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
 my $vis_hld     = 0;
+my $vis_liq     = 0;
 my $vis_zz_ext = 0;
 my $vis_zz_int = 0;
 my $vis_zigzag = 0;    # true si alguna capa ZZ está ON
@@ -223,22 +224,28 @@ if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set
     $chart_engine->{zigzag_overlay}->set_density_pct(100);
 }
 my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
+my %vis_liq_el = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+$vis_liq_el{HISTORY} = 0;    # niveles archivados (resolved) — demo profe
 my $zigzag_resolution = 30;
 my $fib_extend_to_last = 0;
 
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
 my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
+my $cb_liq     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
+my %cb_liq_el = map {
+    $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_)
+} qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY);
 my %overlay_state_ref = (
     smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
-    zigzag => \$vis_zigzag,
+    liq => \$vis_liq, zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
     smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
-    zigzag => $cb_zigzag,
+    liq => $cb_liq, zigzag => $cb_zigzag,
 );
 my %overlay_button;
 my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
@@ -440,7 +447,7 @@ if ($ENV{MARKET_RELOAD}) {
     print "[*] RELOAD: fresh process started (MARKET_RELOAD=1)\n";
 }
 
-# ---- Panel "Capas": fase actual (sin Liq/VWAP/VP/Strategy) ----
+# ---- Panel "Capas": producto oficial (+ Liquidity v2) ----
 {
     my $p = $panel{Capas};
     $p->Label(-text => 'Capas:')->pack(-side => 'left', -padx => 3);
@@ -450,6 +457,26 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
     $p->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
         -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
+    $p->Checkbutton(
+        -text     => 'Liquidity',
+        -variable => \$vis_liq,
+        -command  => sub {
+            $set_overlay_visible->( 'liq', $vis_liq ? 1 : 0 );
+        },
+    )->pack( -side => 'left' );
+    # Subelementos Liquidity (PDF tabla 2)
+    my $liq_sub = $p->Frame()->pack( -side => 'left', -padx => 2 );
+    for my $el (qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY)) {
+        my $txt = $el eq 'HISTORY' ? 'Historial' : $el;
+        $liq_sub->Checkbutton(
+            -text     => $txt,
+            -variable => \$vis_liq_el{$el},
+            -command  => sub {
+                $cb_liq_el{$el}->( $vis_liq_el{$el} ? 1 : 0 ) if $cb_liq_el{$el};
+                $chart_engine->request_render();
+            },
+        )->pack( -side => 'left' );
+    }
     # ZigZag externo ChartPrime (Length 150; VP/Channel/PoC OFF → solo azul)
     $p->Checkbutton(
         -text     => 'ZigZag externo',

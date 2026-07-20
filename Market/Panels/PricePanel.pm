@@ -154,10 +154,8 @@ sub render {
         my $plot_w = int($scale->plot_width());
         $plot_w = 1 if $plot_w < 1;
         for my $px (0 .. $plot_w - 1) {
-            # spec 0000i: mapear píxel a índice local visible, luego a índice del slice.
-            my $from_local = int($px * $x_bars / $plot_w);
-            my $to_local = int((($px + 1) * $x_bars / $plot_w) - 1);
-            $to_local = $from_local if $to_local < $from_local;
+            # Invertir la MISMA escala usada por grid/overlays; respeta x_shift.
+            my ($from_local, $to_local) = $scale->local_range_for_pixel($px);
             my $from = $from_local - $draw_offset;
             my $to = $to_local - $draw_offset;
             $to = $from if $to < $from;
@@ -232,8 +230,10 @@ sub render {
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
     # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
     # los colores claros (con defaults seguros si el tema no está disponible).
-    $scale->{grid_color}      = $self->{theme}{grid}      // '#e6e6e6';
+    $scale->{grid_color}      = $self->{theme}{grid}      // '#d4d8de';
     $scale->{axis_text_color} = $self->{theme}{axis_text} // '#363a45';
+    $scale->{grid_dash}       = $self->{theme}{grid_dash}  // [ 2, 3 ];
+    $scale->{grid_width}      = $self->{theme}{grid_width} // 2;
 
     $scale->_draw_y_scale($canvas);
     $canvas->lower('y_grid');
@@ -241,14 +241,27 @@ sub render {
     $self->render_last_visible_price($canvas);
 }
 
-# Dibuja la etiqueta con el precio de cierre de la última vela visible
-# en el margen derecho del canvas a la altura del precio.
+# Precio de cierre de la última vela visible.
+#
+# Producto (paridad TradingView): SOLO la cajita en el eje de precios
+# (ChartEngine::_render_price_axis → tag axis_last_price). NO se dibuja
+# la línea horizontal entrecortada a lo ancho del plot (no existe en TV).
+#
+# La lógica antigua de la línea full-width quedó archivada en:
+#   ProyectoIAAA_LEGACY_ARCHIVE/legacy/Market/Panels/last_price_hline_legacy.pm
+# (fuera de git; no usar en runtime).
+#
+# Si no hay price_axis_canvas separado (draw_last_label=1), se pinta la
+# cajita en el margen derecho del plot — sin línea horizontal.
 sub render_last_visible_price {
     my ($self, $canvas) = @_;
 
     $canvas->delete('price_label');
     my $scale = $self->{scale};
     return unless defined $scale && defined $self->{_last_candle};
+
+    # Eje de precios separado: la cajita vive ahí; el plot no lleva hline.
+    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
 
     my ($open, $close) = @{$self->{_last_candle}}[1, 4];
     return unless defined $close;
@@ -261,16 +274,6 @@ sub render_last_visible_price {
         : ($self->{theme}{bear} // '#ef5350');
     my $label_bg   = $line_color;
     my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
-
-    $canvas->createLine(
-        0, $y, $w, $y,
-        -fill  => $line_color,
-        -dash  => [2, 3],
-        -width => 1,
-        -tags  => 'price_label',
-    );
-
-    return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
 
     $canvas->createRectangle(
         $w - 68, $y - 7, $w, $y + 7,
@@ -329,12 +332,16 @@ sub draw_crosshair {
     my $label_bg    = $self->{theme}{label_bg}        // '#363a45';
     my $label_fg    = $self->{theme}{label_fg}        // '#ffffff';
 
+    # Crosshair: largo de trazo [6,5] y color del tema; width fino (grid es width 2).
+    my $ch_dash  = $self->{theme}{crosshair_dash}  // [ 6, 5 ];
+    my $ch_width = $self->{theme}{crosshair_width} // 1;
+
     # Línea vertical (sincronizada con ATRPanel)
     $canvas->createLine(
         $x, 0, $x, $h,
         -fill  => $line_color,
-        -dash  => [4, 4],
-        -width => 1,
+        -dash  => $ch_dash,
+        -width => $ch_width,
         -tags  => 'price_crosshair',
     );
 
@@ -343,8 +350,8 @@ sub draw_crosshair {
         $canvas->createLine(
             0, $y, $w, $y,
             -fill  => $line_color,
-            -dash  => [4, 4],
-            -width => 1,
+            -dash  => $ch_dash,
+            -width => $ch_width,
             -tags  => 'price_crosshair',
         );
 
@@ -462,10 +469,12 @@ sub draw_time_crosshair_label {
 #   * El texto ya viene resuelto desde ChartEngine; aquí solo se dibuja $item->{text}
 #     (no se reformatea). El texto de fecha "DD Mon" es más ancho y se centra con el
 #     anchor 's' para que quede legible sobre su barra.
-#   * Etiquetas de hora (is_date=0): estilo TENUE — línea de referencia con color `grid`
-#     (trazo fino) y texto en fuente normal con color `axis_text`.
-#   * Etiquetas de fecha (is_date=1): énfasis suave — línea de referencia más visible
-#     que el grid normal, pero sin tapar velas cercanas al cambio de día.
+#   * Grid vertical (hora o fecha): mismo estilo TradingView que el horizontal —
+#     punteado fino (casi puntos), width=1, color `grid`. Día/mes NO se engrosan
+#     ni se oscurecen (a diferencia del antiguo date_grid sólido).
+#   * Etiquetas de fecha (is_date=1): solo el TEXTO en negrita; la línea es idéntica.
+#   * Crosshair (PricePanel::draw_crosshair) usa dash [4,4] y gris más oscuro
+#     para no confundirse con el grid.
 #
 # Colores tomados del tema claro almacenado en $self->{theme}, con defaults seguros
 # vía // por si el tema no define la clave (no se hardcodean colores del tema oscuro).
@@ -485,35 +494,38 @@ sub draw_time_axis {
     my ($w, $h) = $self->_canvas_size($canvas);
     my $label_y = int($h / 2 + 0.5);
 
-    # Paleta clara: líneas tenues con `grid`; texto y énfasis de fecha con `axis_text`.
-    my $grid_color      = $self->{theme}{grid}      // '#e6e6e6';
-    my $date_grid_color = $self->{theme}{date_grid} // '#d0d4da';
-    my $text_color      = $self->{theme}{axis_text} // '#363a45';
+    # Mismo gris tenue para TODAS las verticales (día = hora).
+    my $grid_color = $self->{theme}{grid}      // '#d4d8de';
+    my $text_color = $self->{theme}{axis_text} // '#363a45';
+    my $grid_dash  = $self->{theme}{grid_dash}  // [ 2, 3 ];
+    my $grid_width = $self->{theme}{grid_width} // 2;
 
     for my $item (@$labels) {
-        my $idx     = $item->{index};
-        my $text    = $item->{text};
-        my $is_date = $item->{is_date} ? 1 : 0;
-        my $item_grid = exists $item->{grid} ? $item->{grid} : 1;
+        my $idx        = $item->{index};
+        my $text       = $item->{text};
+        my $is_date    = $item->{is_date} ? 1 : 0;
+        my $item_grid  = exists $item->{grid}  ? $item->{grid}  : 1;
         my $item_label = exists $item->{label} ? $item->{label} : 1;
         next unless defined $idx && defined $text;
 
         # Centro de la barra anclada: única fuente de coordenadas (Scales).
         my $x = $scale->index_to_center_x($idx);
 
+        # Grid vertical unificado (TV): punteado fino, sin énfasis por día/mes.
+        # spec 0000d: no dibujar grid si el label quedó oculto por thinning.
+        if ( $draw_grid && $item_grid && $item_label ) {
+            $canvas->createLine(
+                $x, 0, $x, $h,
+                -fill  => $grid_color,
+                -width => $grid_width,
+                -dash  => $grid_dash,
+                -tags  => [ 'time_axis', 'time_grid' ],
+            );
+        }
+
+        next unless $draw_labels && $item_label;
+
         if ($is_date) {
-            # Cambio de fecha: visible, pero suficientemente suave para no tapar velas.
-            # spec 0000d: no dibujar grid si el label quedó oculto por thinning.
-            if ($draw_grid && $item_grid && $item_label) {
-                $canvas->createLine(
-                    $x, 0, $x, $h,
-                    -fill  => $date_grid_color,
-                    -width => 1,
-                    -tags  => ['time_axis', 'time_grid'],
-                );
-            }
-            next unless $draw_labels && $item_label;
-            # Texto de fecha "DD Mon" en negrita y centrado verticalmente.
             $canvas->createText(
                 $x, $label_y,
                 -text   => $text,
@@ -524,18 +536,6 @@ sub draw_time_axis {
             );
         }
         else {
-            # Etiqueta horaria normal: línea de referencia vertical tenue.
-            # spec 0000d: no dibujar grid si el label quedó oculto por thinning.
-            if ($draw_grid && $item_grid && $item_label) {
-                $canvas->createLine(
-                    $x, 0, $x, $h,
-                    -fill  => $grid_color,
-                    -width => 1,
-                    -tags  => ['time_axis', 'time_grid'],
-                );
-            }
-            next unless $draw_labels && $item_label;
-            # Texto HH:MM centrado verticalmente.
             $canvas->createText(
                 $x, $label_y,
                 -text   => $text,

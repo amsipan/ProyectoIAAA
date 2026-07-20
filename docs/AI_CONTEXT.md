@@ -1,15 +1,23 @@
 # AI Context
 
+> **Advertencia de continuidad (2026-07-19):** este archivo conserva contexto histórico y varias descripciones de módulos legacy. No usarlo como inventario vivo ni como cola de trabajo. Leer primero `docs/BRUJULA_CONTINUIDAD.md`, después `docs/PRODUCTO_OFICIAL.md`; usar `docs/MEMORIA_RECUPERADA_019f6e8d.md` para recuperar la historia. La prioridad vigente es indicadores antes de modelos.
+
 Resumen reutilizable del proyecto para que cualquier sesión de IA recupere contexto rápido.
-Última actualización: 2026-07-08 (sync docs con código post-tasks 0054–0062 y fixes SMC/Mxwll/ZigZag).
+Última actualización: 2026-07-19.
+
+> **Meta posterior:** `docs/PLAN_DEFINITIVO.md` (app → dataset → t-SNE → GMM → HMM).
+> **Prioridad actual:** `docs/BRUJULA_CONTINUIDAD.md`.
+> **Capas reales en runtime:** `docs/PRODUCTO_OFICIAL.md`.
 
 ## Producto
 
 Plataforma de trading/charting financiero tipo TradingView, construida en Perl 5 + Tk.
 Renderiza velas OHLCV con indicadores técnicos, paneles sincronizados e interacciones de
-usuario (zoom, drag, crosshair, timeframes, Replay). Es la base de visualización sobre la que
-se montan, en el segundo bimestre y a fin de semestre, los modelos de Machine Learning
-(HMM/Viterbi tensorial) para predecir cambios de estructura de mercado (no precio vela a vela).
+usuario (zoom, drag, crosshair, timeframes, Replay).
+
+**No es el fin en sí misma:** es la **fábrica de observaciones** (estructura, liquidez,
+features) para entrenar modelos del curso: tabla de eventos → **t-SNE → GMM (P≥85%) →
+HMM interno/externo**. Detalle: `docs/PLAN_DEFINITIVO.md`.
 
 Contexto académico: asignatura de IA y Aprendizaje Automático, EPN 2026A, GR1SW.
 Integrantes: Bryan Ayala, Juan Chugá, Sebastián Jibaja, Oscar Tamayo.

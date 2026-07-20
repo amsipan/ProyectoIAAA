@@ -17,6 +17,8 @@ use Market::Indicators::HLD;
 use Market::Overlays::HLD;
 use Market::Indicators::ZigZag;
 use Market::Overlays::ZigZag;
+use Market::Indicators::Liquidity;
+use Market::Overlays::Liquidity;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -48,13 +50,19 @@ use constant {
 sub _default_theme {
     return {
         bg             => '#ffffff',
-        grid           => '#e6e6e6',
-        date_grid      => '#c4c9d1',
+        # Grid TV: puntos un poco más gruesos (width 2 + dash [2,3]) para notarse.
+        grid           => '#d4d8de',
+        date_grid      => '#d4d8de',
+        grid_dash      => [ 2, 3 ],
+        grid_width     => 2,
         axis_text      => '#363a45',
         bull           => '#26a69a',
         bear           => '#ef5350',
         atr_line       => '#2962ff',
-        crosshair_line => '#9598a1',
+        # Crosshair: mismo largo de trazo [6,5] y color; width 1 (más fino que grid).
+        crosshair_line  => '#8b9099',
+        crosshair_dash  => [ 6, 5 ],
+        crosshair_width => 1,
         label_bg       => '#363a45',
         label_fg       => '#ffffff',
         last_price_bg  => '#363a45',
@@ -158,8 +166,8 @@ sub new {
     $self->{_smc_fvg_fed_up_to} = -1;
 
     # --- PRODUCTO OFICIAL (docs/PRODUCTO_OFICIAL.md) ---
-    # smc_pro, smc_fvg, hld, pchan, zigzag, fib.
-    # Legacy (Liquidity/Mxwll/Strategy/VP/VWAP/SMC_Structures viejo):
+    # smc_pro, smc_fvg, hld, pchan, zigzag, fib, liq (Liquidity v2).
+    # Legacy (Mxwll/Strategy/VP/VWAP/SMC_Structures viejo + Liquidity v1):
     #   FUERA del repo — docs/LEGACY.md
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
@@ -216,63 +224,102 @@ sub new {
     );
     $self->{overlay_manager}->register( 'fib', $self->{fib_overlay} );
 
+    # Liquidity v2 — BSL/SSL/EQH/EQL + FSM Sweep/Grab/Run (desde cero)
+    $self->{liq_indicator} = Market::Indicators::Liquidity->new();
+    $self->{liq_overlay}   = Market::Overlays::Liquidity->new(
+        indicator => $self->{liq_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'liq', $self->{liq_overlay} );
+    $self->{_liq_fed_up_to} = -1;
+
     $self->bind_events();
 
     return $self;
 }
 
 
+# Devuelve el tope causal del frame. En Replay es replay_idx; fuera de Replay,
+# el ultimo indice real. Ningun slice, indicador u overlay debe leer mas alla.
+sub _causal_end {
+    my ($self) = @_;
+    my $last = ($self->{market_data}->size() || 0) - 1;
+    return -1 if $last < 0;
+    my $replay = $self->{replay_controller};
+    return ($replay && $replay->is_active())
+        ? $replay->effective_end($last)
+        : $last;
+}
+
+sub _replay_blank_slots {
+    my ($self, $visible) = @_;
+    $visible ||= $self->{visible_bars} || MIN_VISIBLE_BARS;
+    my $n = int($visible * REPLAY_RIGHT_GAP_FRAC + 0.5);
+    $n = 1 if $visible > 1 && $n < 1;
+    $n = $visible - 1 if $n >= $visible;
+    return $n > 0 ? $n : 0;
+}
+
+# Ventana LOGICA del viewport. Puede incluir indices negativos a la izquierda o
+# slots vacios posteriores al replay_idx. Los consumidores de datos usan
+# _causal_slice(), de modo que esos slots nunca revelan velas futuras.
 sub compute_window {
     my ($self) = @_;
 
     my $total_candles = $self->{market_data}->size();
     return (0, -1) if !$total_candles || $total_candles <= 0;
 
-    # spec 0002: si Replay está activo, el límite superior efectivo es replay_idx.
+    my $visible = $self->{visible_bars} || 60;
+    $visible = MIN_VISIBLE_BARS if $visible < MIN_VISIBLE_BARS;
+    $visible = MAX_VISIBLE_BARS if $visible > MAX_VISIBLE_BARS;
+    $visible = $total_candles if $visible > $total_candles;
+    $visible = 1 if $visible < 1;
+    $self->{visible_bars} = $visible;
+
     my $replay = $self->{replay_controller};
-    my $effective_total = $total_candles;
     if ($replay && $replay->is_active()) {
-        my $eff_end = $replay->effective_end($total_candles - 1);
-        $effective_total = $eff_end + 1;
-    }
-    my $window_total = ($replay && $replay->is_active()) ? $effective_total : $total_candles;
+        my $causal_end = $self->_causal_end();
+        my $effective_total = $causal_end + 1;
 
-    if ($window_total >= MIN_VISIBLE_BARS) {
-        $self->{visible_bars} = MIN_VISIBLE_BARS if $self->{visible_bars} < MIN_VISIBLE_BARS;
-    } else {
-        $self->{visible_bars} = $window_total;
-    }
-
-    $self->{visible_bars} = $window_total if $self->{visible_bars} > $window_total;
-    $self->{visible_bars} = MAX_VISIBLE_BARS if $self->{visible_bars} > MAX_VISIBLE_BARS;
-
-    $self->{offset} = $self->_clamp_offset($self->{offset}, $window_total);
-
-    my $end_idx = $effective_total - 1 - $self->{offset};
-    my $start_idx = $end_idx - $self->{visible_bars} + 1;
-
-    # spec 0018d: en modo NORMAL, start_idx puede ser NEGATIVO: eso crea el
-    # espacio vacío a la izquierda de la primera vela (igual que el espacio a la
-    # derecha de la última), comportamiento de Fase 1. NO se clampa a 0 aquí
-    # porque eso encogería x_bars (= end-start+1) y haría "zoom" de las velas.
-    # Solo bajo Replay se clampa para no pintar índices fuera del tope.
-    if ($replay && $replay->is_active()) {
-        $start_idx = 0 if $start_idx < 0;
-    }
-
-    # task 0037: ventana inválida (p.ej. offset heredado + replay_idx bajo) → forzar
-    # índices coherentes para que get_slice nunca devuelva solo undef por start > end.
-    if ($start_idx > $end_idx) {
-        $end_idx = $effective_total - 1;
-        $start_idx = $end_idx - $self->{visible_bars} + 1;
-        if ($replay && $replay->is_active()) {
-            $start_idx = 0 if $start_idx < 0;
+        if ($self->{follow_replay_head}) {
+            # El hueco derecho son slots logicos, no un x_shift de cientos de px.
+            my $blank = $self->_replay_blank_slots($visible);
+            my $view_end = $causal_end + $blank;
+            return ($view_end - $visible + 1, $view_end);
         }
-        $self->{offset} = $effective_total - 1 - $end_idx;
-        $self->{offset} = $self->_clamp_offset($self->{offset}, $window_total);
+
+        # Vista manual: offset puede ser negativo para mostrar espacio vacio a la
+        # derecha, pero _causal_slice impide leer el dataset real tras causal_end.
+        $self->{offset} = $self->_clamp_offset($self->{offset}, $effective_total);
+        my $view_end = $causal_end - $self->{offset};
+        return ($view_end - $visible + 1, $view_end);
     }
 
-    return ($start_idx, $end_idx);
+    $self->{offset} = $self->_clamp_offset($self->{offset}, $total_candles);
+    my $end_idx = $total_candles - 1 - $self->{offset};
+    return ($end_idx - $visible + 1, $end_idx);
+}
+
+# Extrae solo datos causalmente permitidos y rellena el resto del viewport con
+# undef. Evita que autoescala, ATR y render lean informacion futura indirecta.
+sub _causal_slice {
+    my ($self, $kind, $start, $end) = @_;
+    return [] if !defined $start || !defined $end || $start > $end;
+
+    my $causal_end = $self->_causal_end();
+    my $read_end = $end < $causal_end ? $end : $causal_end;
+    my $slice;
+    if ($read_end >= $start) {
+        $slice = $kind eq 'ATR'
+            ? $self->{indicator_manager}->slice_array('ATR', $start, $read_end)
+            : $self->{market_data}->get_slice($start, $read_end);
+    }
+    else {
+        $slice = [];
+    }
+    $self->_pad_visible_slice($slice, $start, $end);
+    return $slice;
 }
 
 # sync_overlay_indicators — task 0015 (producto oficial).
@@ -310,16 +357,210 @@ sub sync_overlay_indicators {
     }
     $self->_feed_indicator_to($self->{zigzag_indicator}, '_zigzag_fed_up_to', $feed_to)
         if $self->_overlay_wants_feed('zigzag');
+
+    # Liquidity v2: pivotes limpios (ZZ externo y/o SMC) + feed on-demand
+    if ( $self->_overlay_wants_feed('liq') && $self->{liq_indicator} ) {
+        $self->_sync_liquidity_feed($feed_to);
+    }
     return $feed_to;
+}
+
+# _sync_liquidity_feed — pivotes ZZ/SMC absorbidos en historial (no se pierden al
+# recortar ZZ a 15 segs). k-swing solo si aún no hay pivotes absorbidos.
+sub _sync_liquidity_feed {
+    my ( $self, $feed_to ) = @_;
+    return unless $self->{liq_indicator} && defined $feed_to && $feed_to >= 0;
+
+    my $fed = $self->{_liq_fed_up_to};
+    $fed = -1 unless defined $fed;
+    my $rewinding = ( $feed_to < $fed ) ? 1 : 0;
+
+    # Un rewind invalida también el historial de pivotes: algunos pivotes con
+    # index <= replay_idx pudieron confirmarse usando barras posteriores. Se
+    # reconstruyen desde el ZZ/SMC causal, no se conservan con reset_soft.
+    if ($rewinding) {
+        if ( $self->{liq_indicator}->can('reset_full') ) {
+            $self->{liq_indicator}->reset_full();
+        }
+        else {
+            $self->{liq_indicator}->reset();
+        }
+        $self->{_liq_fed_up_to} = -1;
+        $fed = -1;
+    }
+
+    # Si ZZ no está visible, igual alimentamos externo solo para pivotes de liquidez.
+    if ( $self->{zigzag_indicator} ) {
+        my $zz = $self->{zigzag_indicator};
+        my $need_ext = 1;
+        if ( $zz->can('wants_external') && $zz->wants_external ) {
+            $need_ext = 0;
+        }
+        if ( $need_ext && $zz->can('set_compute_external') ) {
+            $zz->set_compute_external(1);
+            $self->_feed_indicator_to( $zz, '_zigzag_fed_up_to', $feed_to );
+        }
+        elsif ( $self->_overlay_wants_feed('zigzag') ) {
+            # ya alimentado arriba
+        }
+        else {
+            $self->_feed_indicator_to( $zz, '_zigzag_fed_up_to', $feed_to )
+              if $zz->can('update_last');
+        }
+    }
+
+    my $pivots = $self->_collect_liquidity_pivots($feed_to);
+    my $added  = 0;
+    if ( $pivots && @$pivots && $self->{liq_indicator}->can('absorb_pivots') ) {
+        $added = $self->{liq_indicator}->absorb_pivots($pivots) || 0;
+    }
+
+    # Pivotes nuevos durante avance normal requieren re-simular niveles/eventos,
+    # pero sí conservan el historial causal ya acumulado.
+    if ( !$rewinding && $added > 0 && $fed >= 0 ) {
+        if ( $self->{liq_indicator}->can('reset_soft') ) {
+            $self->{liq_indicator}->reset_soft();
+        }
+        else {
+            $self->{liq_indicator}->reset();
+        }
+        $self->{_liq_fed_up_to} = -1;
+    }
+
+    $self->_feed_indicator_to( $self->{liq_indicator}, '_liq_fed_up_to', $feed_to );
+    return;
+}
+
+sub _liquidity_pivots_signature {
+    my ( $self, $pivots ) = @_;
+    return '' unless $pivots && @$pivots;
+    my @parts =
+      map { sprintf( '%d:%s:%.6g', $_->{index} // -1, $_->{side} // '', $_->{price} // 0 ) }
+      sort { ( $a->{index} // 0 ) <=> ( $b->{index} // 0 ) } @$pivots;
+    return join( '|', @parts );
+}
+
+# ZZ externo (siempre que haya segs) + SMC swing si está feedado. Ambos se
+# absorben en el historial de Liquidity (no se pierden al trim de 15 segs ZZ).
+sub _collect_liquidity_pivots {
+    my ( $self, $feed_to ) = @_;
+    my @out;
+    my %seen;
+
+    if ( $self->{zigzag_indicator} && $self->{zigzag_indicator}->can('get_values') ) {
+        my $vals = $self->{zigzag_indicator}->get_values() || {};
+        my $md   = $self->{market_data};
+        # Preferir log completo (no recortado a 15 segs). Fallback a segs visibles.
+        my $log = $vals->{external_pivot_log};
+        if ( $log && @$log ) {
+            for my $pv (@$log) {
+                next if ( $pv->{open} // 0 );    # extremo aún en formación
+                my $ix   = $pv->{index};
+                my $side = $pv->{side};
+                next unless defined $ix && $ix <= $feed_to && $side;
+                my $c = $md ? $md->get_candle($ix) : undef;
+                next unless $c;
+                # Precio real OHLC (no low-of-bar ChartPrime)
+                my $price = ( $side eq 'high' ) ? $c->[2] : $c->[3];
+                next if $seen{"$ix:$side"}++;
+                push @out, { index => $ix, price => $price, side => $side };
+            }
+        }
+        else {
+            my $segs = $vals->{external_segments} || [];
+            my $nseg = scalar @$segs;
+            for my $si ( 0 .. $nseg - 1 ) {
+                my $s       = $segs->[$si];
+                my $dir     = $s->{dir} // '';
+                my $is_last = ( $si == $nseg - 1 ) ? 1 : 0;
+                for my $e (
+                    { i => $s->{from_index}, role => 'from' },
+                    { i => $s->{to_index},   role => 'to' },
+                  )
+                {
+                    next if $is_last && ( $e->{role} // '' ) eq 'to';
+                    my $ix = $e->{i};
+                    next unless defined $ix && $ix <= $feed_to;
+                    my $c = $md ? $md->get_candle($ix) : undef;
+                    next unless $c;
+                    my ( $side, $price );
+                    if ( $dir eq 'up' ) {
+                        ( $side, $price ) =
+                          $e->{role} eq 'from'
+                          ? ( 'low', $c->[3] )
+                          : ( 'high', $c->[2] );
+                    }
+                    else {
+                        ( $side, $price ) =
+                          $e->{role} eq 'from'
+                          ? ( 'high', $c->[2] )
+                          : ( 'low', $c->[3] );
+                    }
+                    next if $seen{"$ix:$side"}++;
+                    push @out, { index => $ix, price => $price, side => $side };
+                }
+            }
+        }
+    }
+
+    # SMC solo es fuente si su cursor corresponde a un prefijo causal no posterior
+    # al feed solicitado. Si la capa está oculta y conserva estado del futuro, se
+    # ignora hasta que sea recalculada.
+    my $smc_fed = $self->{_smc_fed_up_to};
+    $smc_fed = $self->{_smc_pro_fed_up_to} if !defined $smc_fed;
+    if ( $self->{smc_pro_indicator}
+        && defined $smc_fed && $smc_fed >= 0 && $smc_fed <= $feed_to
+        && $self->{smc_pro_indicator}->can('get_pivots') ) {
+        my $pivs = $self->{smc_pro_indicator}->get_pivots() || [];
+        for my $p (@$pivs) {
+            my $ix = $p->{index};
+            next unless defined $ix && $ix <= $feed_to;
+            my $scope = $p->{scope} // 'swing';
+            next if $scope eq 'internal';
+            my $type = uc( $p->{type} // '' );
+            my $side;
+            $side = 'high' if $type eq 'HH' || $type eq 'LH' || $type =~ /H$/;
+            $side = 'low'  if $type eq 'LL' || $type eq 'HL' || ( $type =~ /L$/ && !$side );
+            next unless $side;
+            next if $seen{"$ix:$side"}++;
+            push @out,
+              {
+                index => $ix,
+                price => $p->{price},
+                side  => $side,
+              };
+        }
+    }
+
+    return @out ? \@out : undef;
 }
 
 # compute_run_candle_map — task 0058: índices globales de velas RUN relevantes
 # para recoloreo en PricePanel. Respeta toggle RUN del overlay y replay_idx.
 # Público para tests headless (mismo patrón que sync_overlay_indicators).
+sub _prepare_run_candle_map_for_frame {
+    my ($self) = @_;
+    # El mapa RUN es parte del render de velas, no solo del overlay. Debe salir
+    # del mismo estado causal reconstruido para este frame.
+    $self->sync_overlay_indicators() if $self->{overlay_manager};
+    return $self->compute_run_candle_map();
+}
+
 sub compute_run_candle_map {
     my ($self) = @_;
-    # Liquidity RUN recolor es legacy; producto oficial no lo usa.
-    return {};
+    # Opcional: índices de velas con RUN resuelto (recolor futuro).
+    return {} unless $self->{liq_indicator} && $self->{liq_overlay};
+    return {} unless $self->{liq_overlay}->is_visible();
+    return {} unless $self->{liq_overlay}->is_element_visible('RUN');
+
+    my $events = $self->{liq_indicator}->get_events() || [];
+    my %map;
+    for my $ev (@$events) {
+        next unless ( $ev->{resolution} // '' ) eq 'run';
+        my $i = $ev->{resolve_index} // $ev->{sweep_index};
+        $map{$i} = 1 if defined $i;
+    }
+    return \%map;
 }
 
 sub set_zigzag_internal_resolution {
@@ -432,13 +673,14 @@ sub _feed_indicator_chunk {
     $chunk ||= 1200;
     my $fed = $self->{$cursor_key};
     $fed = -1 unless defined $fed;
-    return 1 if $fed >= $feed_to;
     if ($feed_to < $fed) {
-        # Retroceso (replay): reset + un chunk desde 0
+        # Retroceso (Replay): reset ANTES de comprobar si el cursor ya cubría
+        # el objetivo. El estado previo puede contener estructuras del futuro.
         $indicator->reset() if $indicator->can('reset');
         $self->{$cursor_key} = -1;
         $fed = -1;
     }
+    return 1 if $fed >= $feed_to;
     my $to = $fed + $chunk;
     $to = $feed_to if $to > $feed_to;
     $self->_feed_indicator_to($indicator, $cursor_key, $to);
@@ -570,6 +812,25 @@ sub _pad_visible_slice {
     push @$slice, (undef) x ($target - @$slice) if $target > @$slice;
 }
 
+# Ventana de dibujo con una barra de overscan para el paneo fraccional. En
+# Replay la barra derecha adicional solo existe si ya pertenece al prefijo
+# causal; nunca se consulta ni se pinta una vela posterior al replay head.
+sub _compute_draw_window {
+    my ($self, $start, $end) = @_;
+    return ($start, $end) if !defined $start || !defined $end;
+
+    my $total = $self->{market_data}->size();
+    my $draw_start = $start > 0 ? $start - 1 : $start;
+    my $draw_end   = ($end < $total - 1) ? $end + 1 : $end;
+
+    my $replay = $self->{replay_controller};
+    if ($replay && $replay->is_active()) {
+        my $ridx = $replay->current_index();
+        $draw_end = $ridx if defined $ridx && $draw_end > $ridx;
+    }
+    return ($draw_start, $draw_end);
+}
+
 sub _canvas_width {
     my ($self, $canvas) = @_;
     return 1 unless $canvas;
@@ -640,11 +901,10 @@ sub render {
     # 1. Obtener la porción temporal de la ventana visible
     my ($start, $end) = $self->compute_window();
 
-    # 2. Extraer subconjuntos de datos reales
-    my $visible_candles = $self->{market_data}->get_slice($start, $end);
-    my $visible_atr     = $self->{indicator_manager}->slice_array('ATR', $start, $end);
-    $self->_pad_visible_slice($visible_candles, $start, $end);
-    $self->_pad_visible_slice($visible_atr, $start, $end);
+    # 2. Extraer solo datos causalmente permitidos. Los slots logicos vacios
+    # (incluido el hueco derecho de Replay) se rellenan con undef.
+    my $visible_candles = $self->_causal_slice('OHLC', $start, $end);
+    my $visible_atr     = $self->_causal_slice('ATR',  $start, $end);
 
     # spec 0000i: overscan de render horizontal. El slice de dibujo incluye
     # una vela extra a cada lado (start-1, end+1) para que las velas parcialmente
@@ -652,10 +912,8 @@ sub render {
     # La escala X sigue usando x_bars de la ventana visible; draw_start_offset
     # permite al panel calcular el índice local correcto (incluyendo -1 y
     # visible_bars) para posicionar las velas overscan.
-    my $total = $self->{market_data}->size();
     my $replay = $self->{replay_controller};
-    my $draw_start = $start > 0 ? $start - 1 : $start;
-    my $draw_end   = ($end < $total - 1) ? $end + 1 : $end;
+    my ($draw_start, $draw_end) = $self->_compute_draw_window($start, $end);
     my $replay_head_candle;
     my $replay_head_atr;
     if ($replay && $replay->is_active()) {
@@ -664,14 +922,10 @@ sub render {
             $replay_head_candle = $self->{market_data}->get_candle($ridx);
             my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $ridx, $ridx);
             $replay_head_atr = $atr_slice->[0] if $atr_slice && @$atr_slice;
-            # Replay: sin overscan hacia el futuro (la barra seleccionada no debe asomar).
-            $draw_end = $end if $draw_end > $end;
         }
     }
-    my $draw_candles = $self->{market_data}->get_slice($draw_start, $draw_end);
-    my $draw_atr     = $self->{indicator_manager}->slice_array('ATR', $draw_start, $draw_end);
-    $self->_pad_visible_slice($draw_candles, $draw_start, $draw_end);
-    $self->_pad_visible_slice($draw_atr, $draw_start, $draw_end);
+    my $draw_candles = $self->_causal_slice('OHLC', $draw_start, $draw_end);
+    my $draw_atr     = $self->_causal_slice('ATR',  $draw_start, $draw_end);
     my $draw_start_offset = $draw_start - $start;
     my $visible_count = $end - $start + 1;
 
@@ -735,13 +989,8 @@ sub render {
     $x_bars = scalar(@$visible_candles) if $x_bars < 1;
     $x_bars = 1 if $x_bars < 1;
 
-    if ($replay && $replay->is_active() && defined $self->{replay_view_anchor}) {
-        my $plot_w = $shared_w - RIGHT_MARGIN;
-        $plot_w = 1 if $plot_w < 1;
-        $self->{ctrl_zoom_x_shift} = $self->_replay_anchor_x_shift(
-            $x_bars, $plot_w, $self->{replay_view_anchor}
-        );
-    }
+    # Replay ya reserva slots vacios a la derecha en compute_window(). Nunca
+    # mutar x_shift desde render: queda reservado al pan fraccional.
 
     my $price_scale = Market::Panels::Scales->new(min_y => $min_p, max_y => $max_p, bars => $x_bars, right_margin => RIGHT_MARGIN);
     my $atr_scale   = Market::Panels::Scales->new(min_y => $min_a, max_y => $max_a, bars => $x_bars, right_margin => RIGHT_MARGIN);
@@ -774,8 +1023,13 @@ sub render {
         $atr_scale->{replay_max_index}  = $replay->current_index();
     }
 
+    # Los paneles también consumen estado semántico de indicadores (p. ej. color
+    # de velas RUN). Prepararlo como sync → mapa evita que el primer frame tras
+    # un rewind pinte etiquetas obtenidas con barras futuras.
     $self->{price_panel}->set_scale($price_scale);
-    $self->{price_panel}->set_run_candles($self->compute_run_candle_map());
+    $self->{price_panel}->set_run_candles(
+        $self->_prepare_run_candle_map_for_frame()
+    );
     # Reutilizar en crosshair/snap (evita new Scales en cada Motion).
     $self->{_last_price_scale} = $price_scale;
     $self->{_last_atr_scale}   = $atr_scale;
@@ -795,28 +1049,16 @@ sub render {
     $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr);
     $self->_render_time_axis($price_scale, $time_labels);
 
-    # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx
-    # (start/end ya vienen truncados por compute_window si Replay está activo).
+    # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx.
+    # Los indicadores ya se sincronizaron antes de pintar los paneles para que
+    # velas semánticas (RUN) y overlays compartan el mismo estado causal.
     if ($self->{overlay_manager}) {
-        # task 0015: alimentación de indicadores oficiales (sync_overlay_indicators)
-        # se sincroniza con el tope de Replay (ver sync_overlay_indicators).
-        $self->sync_overlay_indicators();
-
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
         # feed_to en sync_overlay_indicators.
-        # Tope de feed para que overlays NO usen el fin del ZOOM como data_end
-        # (BOS largos deben dibujarse aunque pivote/rotura estén fuera de pantalla).
-        # Preferencia: cursor de feed SMC → last_index de la serie → viewport (fallback).
-        my $feed_end;
-        if (defined $self->{_smc_fed_up_to} && $self->{_smc_fed_up_to} >= 0) {
-            $feed_end = $self->{_smc_fed_up_to};
-        }
-        elsif ($self->{market_data} && $self->{market_data}->can('last_index')) {
-            my $li = $self->{market_data}->last_index();
-            $feed_end = $li if defined $li;
-        }
-        $feed_end //= $end;
+        # Unico tope causal para todas las capas. En Replay nunca se deriva del
+        # cursor SMC ni del final completo del dataset.
+        my $feed_end = $self->_causal_end();
         for my $name (qw(smc_pro smc_fvg smc)) {
             my $ov = $self->{overlay_manager}->get($name);
             $ov->{_feed_end} = $feed_end if $ov;
@@ -831,8 +1073,11 @@ sub render {
             # Replay / feed: precio y fin de proyección = tope efectivo
             $hov->{_feed_end} = $feed_end;
         }
+        if ( my $lov = $self->{overlay_manager}->get('liq') ) {
+            $lov->{_feed_end} = $feed_end;
+        }
 
-        $self->{overlay_manager}->compute_all($self->{market_data}, $start, $end);
+        $self->{overlay_manager}->compute_all($self->{market_data}, $start, $feed_end);
         $self->{overlay_manager}->draw_all($self->{price_canvas}, $price_scale);
         # Velas por encima de líneas de indicadores (BOS/CHoCH/EQ/OB/HLD lines…).
         eval { $self->{price_canvas}->raise('candle'); 1 };
@@ -1129,7 +1374,8 @@ sub clear_replay_select_state {
 # restore_after_replay_exit — vuelta a chart vivo: sin truncado ni shift de replay.
 sub restore_after_replay_exit {
     my ($self) = @_;
-    delete $self->{replay_view_anchor};
+    delete $self->{replay_view_anchor}; # compat con sesiones antiguas
+    delete $self->{follow_replay_head};
     $self->{ctrl_zoom_x_shift} = 0;
     $self->{offset} = 0;
     # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render):
@@ -1381,18 +1627,6 @@ sub replay_window_shortcut_sequences {
     return $h ? [ sort keys %$h ] : [];
 }
 
-# _replay_anchor_x_shift($x_bars, $plot_width, $frac) — desplazamiento px para dejar
-# un hueco derecho fijo (REPLAY_RIGHT_GAP_FRAC del plot), igual en todo zoom.
-sub _replay_anchor_x_shift {
-    my ($self, $x_bars, $plot_width, $frac) = @_;
-    $plot_width = 1 if !defined $plot_width || $plot_width < 1;
-    my $gap_frac = REPLAY_RIGHT_GAP_FRAC;
-    if (defined $frac && $frac >= 0 && $frac < 1) {
-        $gap_frac = 1 - $frac;
-    }
-    return -$gap_frac * $plot_width;
-}
-
 # task 0040-B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
 # $opts->{anchor} => 1 deja hueco ~20% a la derecha (ultima vela ~80% del plot).
 sub frame_replay_view_at {
@@ -1414,12 +1648,9 @@ sub frame_replay_view_at {
     }
     $self->{visible_bars} = $vis;
     $self->{offset} = 0;
-    if ($opts->{anchor}) {
-        $self->{replay_view_anchor} = REPLAY_BAR_ANCHOR_FRAC;
-    } else {
-        delete $self->{replay_view_anchor};
-        $self->{ctrl_zoom_x_shift} = 0;
-    }
+    delete $self->{replay_view_anchor}; # reemplazado por estado semantico
+    $self->{follow_replay_head} = $opts->{anchor} ? 1 : 0;
+    $self->{ctrl_zoom_x_shift} = 0;
     return $self;
 }
 
@@ -1570,7 +1801,10 @@ sub _global_index_from_x {
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     my $local = $scale->x_to_index($x);
-    return $start + $local;
+    my $global = $start + $local;
+    my $causal_end = $self->_causal_end();
+    return undef if $global < 0 || $global > $causal_end;
+    return $global;
 }
 
 # _replay_watermark_visible — task 0046: marca "Replay" solo si activo Y flag ON.
@@ -2019,17 +2253,20 @@ sub _anchor_index_and_x {
         right_margin => RIGHT_MARGIN,
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
 
     if (defined $anchor_x) {
         # Cursor sobre una barra: índice LOCAL -> GLOBAL; la X se conserva tal cual.
         my $local  = $scale->x_to_index($anchor_x);
         my $global = $start + $local;
+        my $last_real = $self->_causal_end();
+        $global = 0 if $global < 0;
+        $global = $last_real if $global > $last_real;
         return ($global, $anchor_x);
     }
 
-    # Sin cursor: ancla = última vela real visible. Si la ventana incluye espacio
-    # vacío a cualquier lado, el ancla se acota al rango real de datos.
-    my $last_real = ($self->{market_data}->size() || 1) - 1;
+    # Sin cursor: ancla = última vela causal visible, no el final futuro del CSV.
+    my $last_real = $self->_causal_end();
     my $anchor_index = $end > $last_real ? $last_real : $end;
     $anchor_index = 0 if $anchor_index < 0;
     my $local_of_anchor = $anchor_index - $start;
@@ -2075,7 +2312,8 @@ sub _zoom_anchor_x {
 sub _clear_ctrl_zoom_state {
     my ($self) = @_;
 
-    $self->{ctrl_zoom_x_shift} = 0 unless defined $self->{replay_view_anchor};
+    # x_shift es exclusivamente residuo subvela; nunca representa el hueco Replay.
+    $self->{ctrl_zoom_x_shift} = 0;
     $self->{ctrl_zoom_y_lock_min} = undef;
     $self->{ctrl_zoom_y_lock_max} = undef;
 }
@@ -2152,10 +2390,25 @@ sub _ctrl_horizontal_zoom {
     my $canvas_w = $self->_canvas_width($self->{price_canvas});
     return if !$canvas_w || $canvas_w <= 0;
 
+    # En seguimiento Replay, cualquier zoom conserva el head en ~80%; el hueco
+    # se recalcula en slots y no se genera x_shift.
+    my $rc = $self->{replay_controller};
+    if ($rc && $rc->is_active() && $self->{follow_replay_head}) {
+        $self->{visible_bars} = $new_visible;
+        $self->{ctrl_zoom_x_shift} = 0;
+        $self->request_render();
+        return;
+    }
+
     my $old_scale = Market::Panels::Scales->new(bars => $old_visible, right_margin => RIGHT_MARGIN);
     $old_scale->{width} = $canvas_w;
     $old_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     my $anchor_global = $start + $old_scale->x_to_index_float($anchor_x) - 0.5;
+    # El cursor puede caer en slots vacios de Replay. El ancla de datos nunca
+    # puede superar el tope causal ni ser anterior al primer índice real.
+    my $anchor_limit = $self->_causal_end();
+    $anchor_global = 0 if $anchor_global < 0;
+    $anchor_global = $anchor_limit if $anchor_global > $anchor_limit;
 
     my $new_scale = Market::Panels::Scales->new(bars => $new_visible, right_margin => RIGHT_MARGIN);
     $new_scale->{width} = $canvas_w;
@@ -2165,13 +2418,21 @@ sub _ctrl_horizontal_zoom {
     my $target_start = $anchor_global - (($anchor_x - ($new_bar_w / 2)) / $new_bar_w);
     my $new_start = $self->round($target_start);
     my $new_end = $new_start + $new_visible - 1;
-    my $new_offset = ($total - 1) - $new_end;
+    my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
+    my $base_total = $base_end + 1;
+    my $new_offset = $base_end - $new_end;
 
     $self->{visible_bars} = $new_visible;
-    $self->{offset} = $self->_clamp_offset($new_offset);
+    $self->{offset} = $self->_clamp_offset($new_offset, $base_total);
     ($new_start, $new_end) = $self->compute_window();
 
-    $self->{ctrl_zoom_x_shift} = $anchor_x - (($anchor_global - $new_start + 0.5) * $new_bar_w);
+    my $new_shift = $anchor_x - (($anchor_global - $new_start + 0.5) * $new_bar_w);
+    # En los límites del historial no siempre es posible conservar exactamente
+    # el ancla. Nunca convertir esa diferencia en un desplazamiento de muchas
+    # barras: x_shift sigue siendo exclusivamente residuo subvela.
+    while ($new_shift >= $new_bar_w) { $new_shift -= $new_bar_w; }
+    while ($new_shift <= -$new_bar_w) { $new_shift += $new_bar_w; }
+    $self->{ctrl_zoom_x_shift} = $new_shift;
     $self->{last_mouse_x} = $self->round($anchor_x);
 
     if ($self->{is_auto_scale}) {
@@ -2256,14 +2517,17 @@ sub _horizontal_zoom {
     #    X/bar_w lo da Scales->x_to_index_float (la división vive en Scales).
     my $local_target = $scale->x_to_index_float($anchor_screen_x) - 0.5;
     my $end_idx      = $anchor_index + ($new_visible - 1 - $local_target);
-    my $offset       = ($total - 1) - $end_idx;
+    my $rc = $self->{replay_controller};
+    my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
+    my $base_total = $base_end + 1;
+    my $offset = $base_end - $end_idx;
 
     # 6. Offset entero y acotado. compute_window define:
     #      end = total - 1 - offset ; start = end - visible_bars + 1.
     #    El clamp conserva como mínimo MIN_VISIBLE_BARS velas reales en ambos extremos.
 
     $offset = $self->round($offset);
-    $self->{offset} = $self->_clamp_offset($offset);
+    $self->{offset} = $self->_clamp_offset($offset, $base_total);
 
     if ($use_cursor_anchor) {
         my ($new_start, undef) = $self->compute_window();
@@ -2310,8 +2574,8 @@ sub _start_horizontal_drag {
         # al usuario "atrapado" en modo tijeras, resolvemos a la vela válida más
         # cercana (última vela de la ventana visible). Así un clic siempre confirma.
         if (!defined $idx) {
-            my ($ws, $we) = eval { $self->compute_window() };
-            $idx = $we if defined $we;
+            my $last_valid = $self->_causal_end();
+            $idx = $last_valid if defined $last_valid && $last_valid >= 0;
         }
         if (defined $idx) {
             $self->set_selected_bar($idx);
@@ -2327,8 +2591,8 @@ sub _start_horizontal_drag {
     if ($self->{_vwap_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
         if (!defined $idx) {
-            my ($ws, $we) = eval { $self->compute_window() };
-            $idx = $we if defined $we;
+            my $last_valid = $self->_causal_end();
+            $idx = $last_valid if defined $last_valid && $last_valid >= 0;
         }
         if (defined $idx) {
             $self->confirm_vwap_anchor($idx);
@@ -2340,8 +2604,8 @@ sub _start_horizontal_drag {
     if ($self->{_vp_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
         if (!defined $idx) {
-            my ($ws, $we) = eval { $self->compute_window() };
-            $idx = $we if defined $we;
+            my $last_valid = $self->_causal_end();
+            $idx = $last_valid if defined $last_valid && $last_valid >= 0;
         }
         if (defined $idx) {
             $self->confirm_vp_anchor($idx);
@@ -2356,7 +2620,13 @@ sub _start_horizontal_drag {
     $self->{drag_start_x} = defined $root_x ? $root_x : $x;
     $self->{drag_start_y} = defined $root_y ? $root_y : $y;
     $self->{drag_start_panel} = defined $widget && defined $self->{atr_canvas} && $widget == $self->{atr_canvas} ? 'atr' : 'price';
-    $self->{drag_start_offset} = $self->{offset};
+    my $drag_offset = $self->{offset};
+    my $rc = $self->{replay_controller};
+    if ($rc && $rc->is_active() && $self->{follow_replay_head}) {
+        # Equivalente en offset de la vista follow; permite empezar el drag sin salto.
+        $drag_offset = -$self->_replay_blank_slots($self->{visible_bars});
+    }
+    $self->{drag_start_offset} = $drag_offset;
     $self->{drag_start_x_shift} = $self->{ctrl_zoom_x_shift} || 0;
 
     if (defined $widget) {
@@ -2412,6 +2682,10 @@ sub _on_horizontal_drag {
     my $new_offset = $self->{drag_start_offset} + $delta_whole;
     my $new_shift  = ($self->{drag_start_x_shift} || 0) + $remainder_px;
 
+    # El primer pan manual toma control del viewport; render ya no reencuadra.
+    my $rc = $self->{replay_controller};
+    delete $self->{follow_replay_head} if $rc && $rc->is_active();
+
     # Normalizar: mantener x_shift en [-bar_w, bar_w] ajustando offset.
     while ($new_shift >= $bar_w) {
         $new_shift -= $bar_w;
@@ -2422,7 +2696,8 @@ sub _on_horizontal_drag {
         $new_offset -= 1;
     }
 
-    $self->{offset} = $self->_clamp_offset($new_offset);
+    my $offset_total = ($rc && $rc->is_active()) ? ($self->_causal_end() + 1) : undef;
+    $self->{offset} = $self->_clamp_offset($new_offset, $offset_total);
     # spec 0018c: si el offset tocó su límite (2 velas en el borde), NO permitir
     # desplazamiento sub-vela adicional: x_shift se anula para que las velas no
     # tiemblen ni se asomen más allá del límite al seguir arrastrando.
@@ -2664,7 +2939,7 @@ sub _compute_visible_price_y_range {
 
     return (undef, undef) unless $self->{market_data} && $self->{price_panel};
     my ($start, $end) = $self->compute_window();
-    my $visible = $self->{market_data}->get_slice($start, $end);
+    my $visible = $self->_causal_slice('OHLC', $start, $end);
     return $self->{price_panel}->get_y_range($visible);
 }
 
@@ -2673,12 +2948,18 @@ sub _compute_visible_atr_y_range {
 
     return (undef, undef) unless $self->{market_data} && $self->{atr_panel} && $self->{indicator_manager};
     my ($start, $end) = $self->compute_window();
-    my $visible = $self->{indicator_manager}->slice_array('ATR', $start, $end);
+    my $visible = $self->_causal_slice('ATR', $start, $end);
     return $self->{atr_panel}->get_y_range($visible);
 }
 
 sub _capture_price_y_range {
     my ($self) = @_;
+
+    # Los caches pueden pertenecer al chart live anterior. En Replay se captura
+    # siempre el viewport causal actual, incluso antes de su primer render.
+    my $replay = $self->{replay_controller};
+    return $self->_compute_visible_price_y_range()
+        if $replay && $replay->is_active();
 
     if (defined $self->{last_auto_min_y} && defined $self->{last_auto_max_y}
         && !$self->_is_price_y_fallback($self->{last_auto_min_y}, $self->{last_auto_max_y})) {
@@ -2697,6 +2978,11 @@ sub _capture_price_y_range {
 
 sub _capture_atr_y_range {
     my ($self) = @_;
+
+    # Igual que precio: nunca heredar un rango live al entrar en Replay.
+    my $replay = $self->{replay_controller};
+    return $self->_compute_visible_atr_y_range()
+        if $replay && $replay->is_active();
 
     if (defined $self->{last_auto_atr_min_y} && defined $self->{last_auto_atr_max_y}) {
         return ($self->{last_auto_atr_min_y}, $self->{last_auto_atr_max_y});
@@ -3019,9 +3305,9 @@ sub _crosshair_time_label {
     my $local  = $scale->x_to_index($last_x);
     my $global = $start + $local;
 
-    # Defensa adicional: el índice global debe caer en el rango real de datos.
-    my $size = $self->{market_data}->size();
-    return undef if $global < 0 || $global >= $size;
+    # En el hueco derecho de Replay no existe vela ni timestamp interactivo.
+    my $causal_end = $self->_causal_end();
+    return undef if $global < 0 || $global > $causal_end;
 
     # Timestamp de MarketData -> Time::Moment -> 'Dow DD Mon 'YY HH:MM' (spec 0000c).
     my $ts = $self->{market_data}->get_timestamp($global);
@@ -3160,6 +3446,16 @@ sub set_timeframe {
         $self->{zigzag_indicator}->reset();
         $self->{_zigzag_fed_up_to} = -1;
     }
+    if ( $self->{liq_indicator} ) {
+        if ( $self->{liq_indicator}->can('reset_full') ) {
+            $self->{liq_indicator}->reset_full();
+        }
+        else {
+            $self->{liq_indicator}->reset();
+        }
+        $self->{_liq_fed_up_to}  = -1;
+        $self->{_liq_pivot_sig} = undef;
+    }
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
     $self->{manual_max_y} = undef;
@@ -3250,6 +3546,7 @@ sub compute_intraday_labels {
         right_margin => RIGHT_MARGIN,
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
+    $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
 
     # Mapa índice LOCAL => Time::Moment de cada vela visible con timestamp parseable.
     my %tm_by_local;
@@ -3271,7 +3568,7 @@ sub compute_intraday_labels {
 
     # Peek al timestamp pre-ventana para detectar cambio de día en el primer visible.
     my $prev_tm;
-    if ($start > 0) {
+    if ($start > 0 && ($start - 1) <= $self->_causal_end()) {
         my $pre_ts = $self->{market_data}->get_timestamp($start - 1);
         $prev_tm = eval { Time::Moment->from_string($pre_ts) } if defined $pre_ts;
     }
@@ -3934,25 +4231,38 @@ sub get_all_timestamps {
 
     my ($start, $end) = $self->compute_window();
     my @timestamps;
+    my $causal_end = $self->_causal_end();
     my $last_index = eval { $self->{market_data}->last_index() };
     $last_index = ($self->{market_data}->size() || 0) - 1 if !defined $last_index;
-    my $last_ts = $last_index >= 0 ? $self->{market_data}->get_timestamp($last_index) : undef;
-    my $last_tm = defined $last_ts ? eval { Time::Moment->from_string($last_ts) } : undef;
-    my $tf_minutes = $self->_timeframe_minutes();
+    $last_index = $causal_end if $causal_end < $last_index;
 
     my $md = $self->{market_data};
     my $can_cache = $md && $md->can('_parse_tm_cached');
-    for (my $i = $start; $i <= $end; $i++) {
-        my $ts = ($i >= 0 && $i <= $last_index) ? $md->get_timestamp($i) : undef;
-        if (defined $ts) {
-            my $parsed = $can_cache
-                ? $md->_parse_tm_cached($ts)
-                : eval { Time::Moment->from_string($ts) };
-            push @timestamps, { index => $i, ts => $parsed } if $parsed;
-        }
-        elsif (defined $last_tm && $i > $last_index) {
-            my $future = eval { $last_tm->plus_minutes(($i - $last_index) * $tf_minutes) };
-            push @timestamps, { index => $i, ts => $future } if $future;
+    my $read_end = $end < $last_index ? $end : $last_index;
+    for (my $i = $start; $i <= $read_end; $i++) {
+        next if $i < 0;
+        my $ts = $md->get_timestamp($i);
+        next unless defined $ts;
+        my $parsed = $can_cache
+            ? $md->_parse_tm_cached($ts)
+            : eval { Time::Moment->from_string($ts) };
+        push @timestamps, { index => $i, ts => $parsed } if $parsed;
+    }
+
+    # El espacio derecho conserva el calendario/grid como TradingView, pero se
+    # deriva unicamente del timestamp causal y del TF: nunca consulta velas futuras.
+    if ($end > $last_index && $last_index >= 0) {
+        my $base_ts = $md->get_timestamp($last_index);
+        my $base_tm = defined $base_ts
+            ? ($can_cache ? $md->_parse_tm_cached($base_ts)
+                          : eval { Time::Moment->from_string($base_ts) })
+            : undef;
+        my $tf_minutes = $self->_timeframe_minutes();
+        if ($base_tm) {
+            for my $i (($last_index + 1) .. $end) {
+                my $future = eval { $base_tm->plus_minutes(($i - $last_index) * $tf_minutes) };
+                push @timestamps, { index => $i, ts => $future, synthetic => 1 } if $future;
+            }
         }
     }
 
@@ -4024,8 +4334,8 @@ sub _pchan_click {
 
     my $idx = $self->_global_index_from_x($x);
     if ( !defined $idx ) {
-        my ( $ws, $we ) = eval { $self->compute_window() };
-        $idx = $we if defined $we;
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
     }
     return unless defined $idx;
 
@@ -4125,8 +4435,8 @@ sub _fib_click {
 
     my $idx = $self->_global_index_from_x($x);
     if ( !defined $idx ) {
-        my ( $ws, $we ) = eval { $self->compute_window() };
-        $idx = $we if defined $we;
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
     }
     return unless defined $idx;
 
@@ -4155,8 +4465,8 @@ sub _fib_pick_zz_click {
 
     my $idx = $self->_global_index_from_x($x);
     if ( !defined $idx ) {
-        my ( $ws, $we ) = eval { $self->compute_window() };
-        $idx = $we if defined $we;
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
     }
     return unless defined $idx;
 
@@ -4205,8 +4515,8 @@ sub _fib_drag_to {
 
     my $idx = $self->_global_index_from_x($x);
     if ( !defined $idx ) {
-        my ( $ws, $we ) = eval { $self->compute_window() };
-        $idx = $we if defined $we;
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
     }
     my $scale = $self->{_last_price_scale}
       // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );

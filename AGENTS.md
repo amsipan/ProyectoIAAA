@@ -1,18 +1,23 @@
 # AGENTS.md — Proyecto Motor de Charting Financiero (Tk/Perl)
 
-> **ESTAMOS EN FASE 2 (segundo bimestre), con 1ª y gran parte de 2ª entrega implementadas.**
+> **ESTAMOS EN FASE 2 (indicadores); los modelos se conservan como meta posterior.**
 > Antes de escribir código, lee en este orden:
-> 1. `docs/AI_CONTEXT.md` — resumen del proyecto y estado por fases.
-> 2. `docs/ARCHITECTURE.md` — capas, estado actual vs planificado, problemas.
-> 3. `docs/CONSTITUTION.md` — principios no negociables (separación cálculo/render, etc.).
-> 4. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos OFICIALES de Fase 2.
-> 5. La spec concreta en `specs/` y su task en `tasks/` (ver **`tasks/README.md`** para estado).
+> 1. **`docs/BRUJULA_CONTINUIDAD.md`** — prioridad operativa, checkpoint vivo y prompt de rescate.
+> 2. **`docs/MEMORIA_RECUPERADA_019f6e8d.md`** — historia reconstruida de la sesión principal; consultar cuando falte contexto.
+> 3. **`docs/PLAN_DEFINITIVO.md`** — meta de dataset/modelos y restricciones causales para la fase posterior.
+> 4. `docs/PRODUCTO_OFICIAL.md` — capas que cargan en runtime **hoy**.
+> 5. `docs/CONSTITUTION.md` — principios no negociables (cálculo ≠ render, Replay, etc.).
+> 6. `docs/AI_CONTEXT.md` / `docs/ARCHITECTURE.md` — contexto y capas técnicas; pueden contener historia desactualizada.
+> 7. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos contractuales de Fase 2.
+> 8. Spec/task en `specs/` / `tasks/` si aplica (`tasks/README.md`).
 >
-> **Estado actual (2026-07-18):** Fase 1 cerrada. Producto oficial paso a paso en
+> **Estado actual (2026-07-19):** Fase 1 cerrada. Producto oficial en
 > **`docs/PRODUCTO_OFICIAL.md`**: SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag
-> ext/int, Fib Retracement. **Legacy fuera del repo** (`docs/LEGACY.md`). No reactivar
-> Liquidity/Mxwll/VP/VWAP/Strategy antiguos. Pendientes: Liquidity v2 (PDF+FSM), VWAP, etc.;
-> Fase 3 ML. Si docs y código divergen, mandan **código + PRODUCTO_OFICIAL + git log**.
+> ext/int, Fib Retracement y **Liquidity v2 MVP**. Legacy fuera del repo (`docs/LEGACY.md`).
+> **Prioridad confirmada por Bryan:** terminar indicadores antes de modelos. Orden actual:
+> cerrar Liquidity §4 → concurrencia §5 → DIY §6 → Volume Profile §7 → Anchored VWAP §8 → modelos.
+> Si documentación y código divergen, inspecciona Git/código, consulta la brújula, señala la
+> contradicción y pregunta; no la resuelvas silenciosamente.
 >
 > **Flujo de trabajo (SDD):** toma una task de `tasks/` → implementa solo eso → verifica con
 > `perl -I. -c` de los archivos tocados + `prove -l t` → no toques nada fuera de "Archivos relevantes"/"Qué no tocar" de la task.
@@ -38,12 +43,17 @@ de mercado, construida con Perl/Tk para la asignatura IA y Aprendizaje Automáti
 GR1SW). El profesor evaluó Fase 1 con una rúbrica (ver `Rubrica_Proyecto_GUI.xlsx`, hoja
 `AA-GR1`, columna `Grupo 2`). Puntaje base: 89/100 (Fase 1).
 
+**Meta del curso (no olvidar):** la app es la **fábrica de observaciones** (estructura +
+liquidez + features) para entrenar **t-SNE → GMM → HMM**. Detalle y orden de trabajo:
+**`docs/PLAN_DEFINITIVO.md`**.
+
 ## Fase 2 — producto oficial (resumen)
 
 - Temporalidades 1m…W; **Replay** sin futuro.
-- **Oficial ahora:** SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag, Fib Retracement.
+- **Oficial ahora:** SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag, Fib Retracement,
+  **Liquidity v2**.
 - Separación Indicators (cálculo) vs Overlays/Drawing (render).
-- Lista canónica: `docs/PRODUCTO_OFICIAL.md`. Historial de specs en `specs/` / `tasks/`.
+- Lista runtime: `docs/PRODUCTO_OFICIAL.md`. Dirección del proyecto: `docs/PLAN_DEFINITIVO.md`.
 
 Regla de rendimiento clave (PDF §2): los indicadores de alta complejidad calculan **solo sobre
 las velas visibles + una ventana de contexto indexada**, nunca todo el historial por frame.
@@ -70,10 +80,10 @@ ProyectoIAAA/
     ReplayController.pm      # Índice-tope Replay, velocidades, intervalos
     OverlayManager.pm        # Registro de overlays
     Indicators/              # CÁLCULO (sin Tk) — solo producto oficial
-      ATR.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm
+      ATR.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm  Liquidity.pm
     Overlays/                # RENDER
       Base.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm
-      ParallelChannel.pm  FibRetracement.pm
+      ParallelChannel.pm  FibRetracement.pm  Liquidity.pm
     Drawing/
       ParallelChannel.pm  FibRetracement.pm
     Panels/

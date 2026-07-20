@@ -14,6 +14,8 @@ use_ok('Market::Indicators::SMC_Pro');
 use_ok('Market::Indicators::SMC_Structures_FVG');
 use_ok('Market::Indicators::HLD');
 use_ok('Market::Indicators::ZigZag');
+use_ok('Market::Indicators::Liquidity');
+use_ok('Market::Overlays::Liquidity');
 use_ok('Market::Drawing::ParallelChannel');
 use_ok('Market::Drawing::FibRetracement');
 use_ok('Market::Panels::Scales');
@@ -31,10 +33,12 @@ my @syntax_files = qw(
     Market/Indicators/SMC_Structures_FVG.pm
     Market/Indicators/HLD.pm
     Market/Indicators/ZigZag.pm
+    Market/Indicators/Liquidity.pm
     Market/Overlays/SMC_Pro.pm
     Market/Overlays/SMC_Structures_FVG.pm
     Market/Overlays/HLD.pm
     Market/Overlays/ZigZag.pm
+    Market/Overlays/Liquidity.pm
     Market/Overlays/ParallelChannel.pm
     Market/Overlays/FibRetracement.pm
     Market/Drawing/ParallelChannel.pm
@@ -52,15 +56,17 @@ for my $file (@syntax_files) {
     like($output, qr/syntax OK/, "$file reporta syntax OK");
 }
 
-# Aislamiento fuerte: ningún módulo legacy en el árbol de producto
+# Liquidity v2 es oficial; el resto del legacy sigue fuera del árbol.
+ok( -f 'Market/Indicators/Liquidity.pm', 'Liquidity v2 indicator presente' );
+ok( -f 'Market/Overlays/Liquidity.pm',   'Liquidity v2 overlay presente' );
+ok( -f 'docs/LIQUIDITY_V2.md',           'spec LIQUIDITY_V2.md' );
+
 for my $f (qw(
-    Market/Indicators/Liquidity.pm
     Market/Indicators/Mxwll_Suite.pm
     Market/Indicators/Strategy_Builder.pm
     Market/Indicators/VolumeProfile.pm
     Market/Indicators/AnchoredVWAP.pm
     Market/Indicators/SMC_Structures.pm
-    Market/Overlays/Liquidity.pm
     Market/Overlays/Mxwll_Suite.pm
     Market/Overlays/Strategy_Builder.pm
     Market/Overlays/VolumeProfile.pm
