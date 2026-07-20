@@ -1,0 +1,27 @@
+{
+  "input": "/home/openclaw/.openclaw/media/inbox/iaaa_202607/ptt_20260707_180349.ogg",
+  "created_at": "20260719-224602",
+  "model": "whisper-large-v3-turbo",
+  "language": "es",
+  "chunk_count": 2,
+  "chunks": [
+    {
+      "index": 1,
+      "file": "chunk_0000.mp3",
+      "bytes": 7200405,
+      "key_index": 4,
+      "account_id": "lawliettimeless@gmail.com",
+      "text_chars": 10386,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260707_180349-20260719-224602/raw/chunk_0000.json"
+    },
+    {
+      "index": 2,
+      "file": "chunk_0001.mp3",
+      "bytes": 3081933,
+      "key_index": 5,
+      "account_id": "bryanayala.nk@gmail.com",
+      "text_chars": 4054,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260707_180349-20260719-224602/raw/chunk_0001.json"
+    }
+  ]
+}

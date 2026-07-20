@@ -1,0 +1,36 @@
+{
+  "input": "/home/openclaw/.openclaw/media/inbox/iaaa_202607/ptt_20260714_173524.ogg",
+  "created_at": "20260719-224635",
+  "model": "whisper-large-v3-turbo",
+  "language": "es",
+  "chunk_count": 3,
+  "chunks": [
+    {
+      "index": 1,
+      "file": "chunk_0000.mp3",
+      "bytes": 7200405,
+      "key_index": 7,
+      "account_id": "bryanayala.yp@gmail.com",
+      "text_chars": 10464,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260714_173524-20260719-224635/raw/chunk_0000.json"
+    },
+    {
+      "index": 2,
+      "file": "chunk_0001.mp3",
+      "bytes": 7200189,
+      "key_index": 8,
+      "account_id": "bryanayala.usfq@gmail.com",
+      "text_chars": 10982,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260714_173524-20260719-224635/raw/chunk_0001.json"
+    },
+    {
+      "index": 3,
+      "file": "chunk_0002.mp3",
+      "bytes": 2594205,
+      "key_index": 9,
+      "account_id": "sm1688178@gmail.com",
+      "text_chars": 3568,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260714_173524-20260719-224635/raw/chunk_0002.json"
+    }
+  ]
+}

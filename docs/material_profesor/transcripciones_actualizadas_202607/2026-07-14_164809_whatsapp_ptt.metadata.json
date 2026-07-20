@@ -1,0 +1,18 @@
+{
+  "input": "/home/openclaw/.openclaw/media/inbox/iaaa_202607/ptt_20260714_164809.ogg",
+  "created_at": "20260719-224628",
+  "model": "whisper-large-v3-turbo",
+  "language": "es",
+  "chunk_count": 1,
+  "chunks": [
+    {
+      "index": 1,
+      "file": "chunk_0000.mp3",
+      "bytes": 3419757,
+      "key_index": 6,
+      "account_id": "lucigutir355@gmail.com",
+      "text_chars": 4705,
+      "raw": "/home/openclaw/.openclaw/media/transcripts/ptt_20260714_164809-20260719-224628/raw/chunk_0000.json"
+    }
+  ]
+}

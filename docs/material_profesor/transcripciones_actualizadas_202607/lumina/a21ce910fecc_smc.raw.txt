@@ -1,0 +1,542 @@
+# Transcripción Lumina
+- id: a21ce910fecc
+- materia: Inteligencia Artificial
+- fecha: 2026-06-19T22:59:15
+
+Voy a desarrollar dos partes. Fase 2 Tenemos dos C divididos. Indicador de estructura de mercado. Estas son las dos indicadores de estrategia. Esta parte vale 20% de la nota. Y vendrá posterior a eso
+
+el resto. La parte 3 que será algoritmos... Algorithmus... Strategy. Algorithmus... DIY Strategy Sé que el hijo es de la cara. ¿Por qué? Es un libro. Es un libro. ¿Otra en la cara? ¿Qué? ¿Qué? Aqu
+
+tenemos la distribuci de los puntos Proyecto 35 Ustedes necesitamos dos clases de indicadores. El que les voy a enseñar el día de hoy. Voy a alcanzar hasta aquí. El indicador de estrategia es más
+
+volume profile y más anchor. Volume walk-walk. Para la parte de 2.20% de la nota total del trimestre. Y aquí tiene sobre C los algoritmos recurrentes. Tenemos la data con columnas open, high, low,
+
+close y horro. Eso no es suficiente. Agregamos el indicador ATR pero no es suficiente para poder predecirlo. Porque hay mucho ruido en la data. Y al tener mucho ruido, el comportamiento es no
+
+gaussiano. Significa que no podemos encontrar patrones para nos permitir distinguir si una etiqueta o asociar otra etiqueta. Entonces tenemos que identificar las regiones donde está el ruido para
+
+poder eliminar esta región y centrarnos solo en la parte gaussiana. Así tenemos que pensar, gaussiano o no gaussiano. Identifico el no gaussiano y lo desconsidero. Salto únicamente para la parte
+
+gaussiana que es la parte previsiva. Así vamos a tener que observar el comportamiento de la data. Aquí los algoritmos de IA que ustedes van a utilizar, de term y con contexto, de dos o más ordenes.
+
+Orden 2 o superior LSTM Long Short Term Memory que es un algoritmo recursivo que trata de recordar cosas del pasado Y Transformers de pronto tambi usar Transformers porque tiene un mecanismo de atenci
+
+para poner atenci donde se merece Entonces vamos a usar esas clases de aprendizaje, es lo que nos permitirá sacar predicciones. Sin eso no podemos sacar ningún provecho. Hoy día les voy a hablar de
+
+esta primera parte. SMC significa Smart Money Concepts. Es una teoría, SMC, que es la que nos permite identificar la estructura, Necesitamos una estructura para que? Para identificar donde esta el
+
+ruido. Porque la mayor parte del tiempo esta provocando ruido para que la gente no use algoritmos que predigan algo. Entonces estamos en una máquina de estados. Que ustedes deben recordar de la
+
+asignatura que tomaron al principio de la carrera. Tenemos aquí una tendencia real, tendencia alcista, tendencia bajista o rango lateral. Esta es una tendencia real. Y vamos al otro lado, en donde
+
+tenemos el ruido. O sea, un ruido aquí. Aquí tenemos la información confusa. Y esta información confusa pasa mucho tiempo aquí. Entonces se da vueltas y vueltas y vueltas hasta que regresa hacia aquí.
+
+Entonces tenemos que identificar qué parte es esta en el tiempo que se desglose en el tiempo y qué parte es esta que se desglose en el tiempo. La mayor parte del tiempo estará aquí. Un porcentaje
+
+pequeño de tiempo estará aquí. Así se comporta. Entonces, identificando de esa forma como una máquina de estado donde mayoritariamente la probabilidad de estar aquí es lo que gana, Entonces tenemos
+
+que utilizar una teor para poder formular nuestra limpieza El trabajo aqu como programador ser limpiar la data para poder procesarla de forma adecuada Entonces eso es nuestro trabajo. Ustedes van a
+
+aplicar los algoritmos una vez que la data esté limpia, sin los ruidos que se observan. Les voy a hablar sobre esta teoría SMC. ¿Pueden pasar? ¿Ok? Ya. Entonces, aquí vamos entender la estructura del
+
+mercado. Ustedes ya saben mas o menos como es este comportamiento de las velas que suben y que bajan. Pero la mayor parte de eso corresponde a ruido. Están ahí justamente tratando de sacar dinero de
+
+la gente mas pobre para enriquecer a los que ya tienen mucho plata. Eso es la verdad y es el objetivo de gas. Entonces, eso que ustedes encuentran ahí de que el precio sigue una tendencia así es algo
+
+que en la práctica no existe. Por lo tanto, eso es un escenario ideal. Eso es el escenario ideal para una tendencia alcista. Pero es un escenario ideal, no es el escenario real. En el escenario real
+
+uno tiene eso. Tiene comportamientos así, medio alocados. ¿Si? ¿Por qué? Porque introducen el ruido justamente para engañar a la gente. Justo aquí uno está observando que el precio está subiendo y se
+
+anima. Voy a posicionarme en una compra. Compra justo aquí y queda en seguida el precio se va hacia abajo. Entonces se va hacia abajo. ¿Qué sucede? Perde plata. ¿Por qué? Porque uno tiene un límite de
+
+pérdida. Puede perder por ejemplo 5 dólares. No puede perder 200. Puede perder poco pero no quiere perder mucho. Entonces al poner un límite aquí, ese límite es llamado stop loss. Entonces uno abre
+
+una posición y pone un stop loss que esté más abajo. Justamente porque está esperando que el precio siga subiendo pero ya ingresó en el peor momento posible. Y que sucede? Pues va a perder dinero
+
+porque enseguida ellos mandan hacia abajo. Si? No quiero una compra y si una compra antes, pues ahora se vuelve una venta. Si ingreso a una compra, esto se vuelve a una venta. Es como que yo compro
+
+una compra así, entonces yo la compré. Y en algún momento me deshago de ella, vendéndola. Entonces lo que hice una compra previamente se transforma automáticamente en una venta. Porque lo que hacía
+
+había sido compra se vuelve una venta. Yo vendo a quien? A los que están manipulando el precio. Están mandando el precio hacia abajo. Entonces, esfuerzan el precio hacia abajo vendiendo. Entonces
+
+ellos son los interesados en vender, en absorber mi venta. Es una venta forzada porque yo no quiero seguir perdiendo. Entonces se dispara mi stop loss para que yo no pierda todo mi dinero. En cambio
+
+ellos quitaron ese margen que yo estaba dispuesto a perder. ¿De acuerdo? Entonces así sucede. Y si me pongo en una posición, si el mercado y observo que está así, yo pongo una posición que quiero
+
+vender, supongamos que aquí yo quiero vender, aquí pongo una venta. Entonces lo que ellos hacen es justamente irse al contrario para que su stop loss se dispare como compra Entonces ellos est
+
+interesados en la compra Y desde ah usted esforzado a vender porque no quieren seguir perdiendo Entonces justo se abri una venta porque pens que el precio iba hacia abajo Yo pensé que compré caro para
+
+vender para deshacer cuando esté barato. Ahí yo tendría una ganancia. ¿Por qué? Porque mi proyección era que el precio iba a bajar. El precio se dio la vuelta. Entonces, ellos provocan que el precio
+
+se dé la vuelta para armar lo que se conoce como manipulación. Entonces, ¿qué es la manipulación? Es justamente ese efecto que va en contra la tendencia original con el propósito de quitarle el dinero
+
+de plata. Y en seguida, ¿qué hacen ellos? Regresan a la tendencia original. Banda el precio de nuevo hacia abajo. Pero ya es tarde, ya perdí mi dinero, ya no tengo más dinero para seguir ahí. Ya me
+
+quitaron todo lo que tenía. Eso es lo que hacen. Entonces, tenemos que identificar dónde el movimiento es verdadero y dónde el movimiento es una manipulación. Necesitamos estas etiquetas para poder
+
+aprender. El machine learning va a tratar de aprender con estas etiquetas. Evidentemente estas etiquetas estarán presentes en la data de entrenamiento, no estarán en la data de testeo. Tenemos el
+
+entrenamiento para aprender estas características. Una vez absorbidas estas características, Ya no contamos con las velas futuras para saber que ocurre si es una manipulación o si no lo es. Sabemos
+
+que fue una manipulación cuando miramos hacia adelante y observamos que el precio sigue la tendencia original. Entonces una manipulación es cuando destruye el capital de la gente. En cambio, si fuera
+
+una tendencia real, significaría que el precio no se iba a manipular, sino que se iba hacia otra dirección. Habría un cambio en la tendencia. Entonces tenemos que identificar cuando hay un cambio real
+
+en la tendencia y cuando hay una manipulaci Eso es nuestro trabajo como programadores Evidentemente vamos a contar con las velas futuras para poder etiquetar si es una manipulaci lo que ocurre despu o
+
+si es un cambio real en la tendencia ¿Cómo vamos a identificar esto? Con las técnicas de SMC. Vamos a identificar la tendencia dominante, la tendencia general, para poder actuar de acuerdo a esa
+
+tendencia general. ¿En donde ustedes piensan que esta la tendencia general? ¿Está en 15 minutos, 5 minutos, 1 minuto u otro tiempo? La mas grande posible, no? La mas grande posible, pero no la de 15
+
+minutos, la de 15 minutos todavía es pequeña. Ellos hacen esa manipulación en cuestión de pocos minutos, pero luego cuando usted observa la gráfica de una hora, de cuatro horas, ahí sí es donde se
+
+proyecta el movimiento real. Por lo tanto tenemos que identificar dónde está el movimiento tendencial primero, la tendencia general, para luego poder ejecutar en una temporalidad pequeña. Así es como
+
+funciona. Primero observamos la gráfica de alta temporalidad para ver dónde va la tendencia, si hay tendencia o no. Incluso si está lateralizado en alta temporalidad, eso también se revela desde ahí.
+
+Observando las gráficas de alta temporalidad. Porque esos movimientos manipuladores son rápidos, son instantáneos. Entonces, ellos actúan rápidamente para que la gente no tenga tiempo de hacer nada en
+
+contra. Entonces son rapiditos de manipular Entonces ah es donde tenemos que tratar de identificar estos problemas Eso es lo que les indica en los libros la teor de estructura pero en la realidad
+
+ocurre eso Entonces tenemos que encontrar un artefacto que nos permita dejar de ser naives, ingenios, con eso y mirar hacia eso. Eso es lo real. Lo que ocurre en la realidad. Entonces, ¿cómo vamos a
+
+hacer? Tenemos que primero, siempre tener en cuenta la tendencia global, tendencia ilegalísima, general. Esto se observa desde donde? Una hora, cuatro horas, o dos horas, cuatro horas, diaria,
+
+semanal. Tenemos que implementar estas temporalidades. Ahora solo tenemos las partes. Tienen que implementar esto. Entonces no vamos a poner más botones ahí. Tienen que poner menú. Que menú que se
+
+despliega hacia abajo en donde usted elige la temporalidad porque ustedes ya tienen muchos botones ahí. Necesitarán los espacios para poner diferentes botones, no aquellos de temporalidad. Muy bien.
+
+Les voy a hablar del etiquetado. Vamos a borrar todo esto de aquí. Y les voy a hablar... Bueno, la Teresa General es lo que primero tenemos que saber. Tenemos que ir en esa dirección de la Teresa
+
+General. Tenemos aquí una gráfica que simula más o menos una situación que ocurre. Aquí observamos la tendencia general. El movimiento era falsista. Entonces la tendencia real con esa posición hacia
+
+arriba. Luego de aquí, justo en esta parte de aquí, cuando uno pensaba que iba a subir, el precio cae. Y cae, y cae más, y sigue cayendo. Entonces aquí es donde observamos en esa región
+
+manipulaciones. La mayor parte del tiempo estará en manipulación. Lo que tenemos que hacer primero es encontrar ese zig zag entre las velas. Este zig zag se encuentra con etiquetas como HL, HH, HL,
+
+HH. ¿Qué significa HH? Aquí, HIGH HIGH. Y aquí tenemos HIGH LOW. Y aquí tenemos LOWER LOW. La etiqueta de la LN. Y tenemos el lower heart también. El acelerador demuestra la tendencia general. Parece
+
+que hay mucho ruido aquí afuera. Mucho ruido en la data. La data acústica. Entonces, aquí este primero denota la tendencia global. Y el segundo denota lo más chico, o sea, lo que ocurre por último. Si
+
+ocurre por ultimo que la tendencia alcista se baja abajo hay al low Cuando la tendencia es bajista LL es el punto m y LH es cuando ya sube Es el hom de aqu ¿Qué tenemos que hacer? Tenemos que
+
+identificar donde hay una continuidad de la tendencia. La continuidad es denotada a través de la etiqueta BOS que se traduce a Break of Structure. Les voy a hablar del BOS. Significa que la tendencia
+
+se mantiene. La tendencia no se cambió cuando hay un POS. ¿Y dónde está el POS? Pues aquí está el POS. Alcance un valor máximo y al momento de regresar aquí, lo que tengo aquí es el retroceso. Aquí
+
+esto es llamado impulso y este es llamado retroceso. Retroceso menor que impulso. Entonces tenemos impulso, retroceso. Impulso mayor magnitud, retroceso menor magnitud. Impulso, retroceso. Impulso,
+
+retroceso. Pero aquí se manipula. ¿Dónde se manipula? Hay que identificar precisamente dónde se manipula. Aquí lo que tengo es un retroceso y en cambio la manipulación es aquí. Aquí es donde ocurre la
+
+manipulación. Pongamos aquí bien delimitada. ¿Por qué la manipulación aquí? Porque se va más abajo de lo que es el bajo que ya tenía previamente. Entonces hay que llevar m abajo Ese de aqu se fue m
+
+abajo que el anterior que ocurri aqu Ocurri la manipulaci En esa manipulaci dispar el stop loss de quienes estaban comprando se ha vuelto liquidez y con esa liquidez ellos mandaron el precio hacia
+
+arriba en otro momento Cuando ocurre eso es más adelante cuando se manifiesta realmente lo que quieren. Por eso aquí hay una sola flechita que se manda a la manipulación y la mayor parte del tiempo
+
+está manipulando. Esta es la etiqueta VOS, la que nos permite saber que el precio sigue con la tendencia general. Para diferenciar tendencia local de tendencia general. Una tendencia local es algo
+
+interno. No se afecta la tendencia general. ¿Ya? Entonces, aquí, ¿qué tenemos aquí? ¿En donde está punteado? Otro BOS. ¿Qué es el BOS? Es donde la tendencia general se mantiene. Alcista sobrepasó ese
+
+valor límite aquí. ¿No es cierto? Sobrepasó. Entonces se mantuvo la tendencia general. Entonces, el break-up stretch siempre caracteriza por mantener la tendencia general. ¿De acuerdo? Entonces, ¿y
+
+esta manipulación? ¿Cómo sé que esto no es un cambio de tendencia? Yo si que no es un cambio de tendencia porque no sobrepaso un low importante. Ustedes tienen de pronto un low importante aquí. Esto
+
+seria un major low. Major low. Es un low importante. ustedes encuentran el lobo importante De nuevo en la temporada m grande Va a encontrar lo importante en la temporada m grande Ese m de aqu no
+
+sobrepas lo importante que est ubicado aqu Solo fue para comer el stop loss de quien estaba por aquí arriba, pero lo importante está más abajo. Entonces se está manipulando, recogiendo liquidez para
+
+luego mandar a donde quiere. Así sucede, siempre sucede así. Recoge la liquidez que quiere y manda a su objetivo. No sobrepasó el logo importante, ustedes tienen que identificar dónde está el logo
+
+importante. No es cualquier LOW importante, sino que tiene que identificar por mirar hacia el temporalidad mayor. Necesito más temporalidades para poder decir dónde está este LOW importante. ¿Qué más
+
+necesito? Necesito el volumen que ocurrió aquí en este LOW importante. Porque cuando hay volumen significa que hay un interés mayor en esa zona que cuando hay menos volumen. Uno quiere preservar su
+
+capital a partir de ese punto. Si el precio va más hacia abajo pues ya no vale la pena seguir con mi posición hacia arriba. Sino que ya se desvanece, se va por la basura. La hipótesis de que el precio
+
+iba a seguir alzando. Pero si ya no vale la hipótesis, por lo tanto, esto ocurre cuando? Cuando lo importante es vencido. Hay una ruptura de ese lobo importante. Ese lobo importante también es
+
+denominado soporte. Está por debajo justamente para que cuando golpee siga hacia la dirección tendencial general. El soporte funciona como soporte. El soporte esta por la parte de abajo mientras que
+
+la resistencia esta por la parte de arriba. Entonces por arriba vamos a encontrar resistencia. ¿Y que es una resistencia? Pues es un major high. No puede ser un high cualquiera, tiene que ser un high
+
+importante, relevante. Por eso pongo major ahí para destacar que tiene que ser importante. Entonces la resistencia es por arriba, es decir, el precio va hacia ahí y rebota. Esta es la resistencia. El
+
+soporte es cuando el precio viene hacia abajo y rebota. La resistencia del precio golpea hacia arriba y rebota hacia abajo. Entonces tenemos este concepto de soporte y de resistencia. Ya identificamos
+
+donde está el POS. Ahora tenemos que identificar el Change of Character, que es otra etiqueta. Aquí tenemos el BOS y tenemos el Change of Character, CH por CH. Change of Character. El Change of
+
+Character, ¿qué significa? Significa que la tendencia realmente cambió. Pero podemos equivocarnos en esta asignación de esa etiqueta porque puede ser una manipulación. Si es una manipulación no va a
+
+valer. O sea, etiquetamos como change of character pero sería falso. Por lo tanto hay dos tipos de change of character. Uno que es verdadero y uno que es falso. El verdadero es el que si demuestra en
+
+el futuro que la tendencia cambió. Pero mientras no miramos el futuro, no hay como saber si la tendencia realmente cambió o si no. Hay esa indeterminaci y lo hacen de prop para que puedan seguir
+
+manipulando Entonces tenemos que mirar hacia el futuro para saber si fue un change of character verdadero real o si fue pura manipulaci Entonces hay dos tipos, puede ser el real o puede ser la
+
+manipulación que es el falso. Manipulacion. Cuando manipulacion la etiqueta change of caractere es falsa. Entonces, como sabemos que es falso o verdadero? Solo despues de mirar lo que sucedio despues.
+
+Sin antes mirar al futuro no hay como saberlo. Pero con la data de entrenamiento si tenemos como mirar al futuro. No tenemos como mirar al futuro con la data de testeo. Por lo tanto con la data de
+
+entrenamiento ustedes deben tratar de identificar a partir de ese Major Low o el Major High que está del otro lado. Un mayor o mayor o mayor. De ahí pueden identificar donde están estos puntos
+
+importantes. Porque lo que está en el medio es interno. Lo que es interno es pura manipulación. Puede irse a cualquier lado, arriba, hacia abajo, aleatorio, no gaussiano. Entonces tenemos que
+
+identificar los puntos importantes, los high highs importantes, low lows importantes para evitar ser golpeado por las manipulaciones. Todo eso vamos a filtrar, porque vamos a ser capaces de
+
+identificar donde están los puntos major low relevantes y major high relevantes. Eso si tenemos como programadores que identificar qu Primero porque contamos con temporalidad mayor despu porque
+
+contamos con el volumen y despu para entrenar tenemos la data con las velas futuras No tenemos en las velas del pasado en las velas futuras s lo tenemos Les voy a mostrar este video m las diapositivas
+
+que nos proporciona El video en si ustedes lo asisten en la casa tranquilos Les voy a explicar lo que hacen ah esas diapositivas Entonces, a ver. Aquí lo que les contaba, que el caso ideal es distinto
+
+del caso real. En la realidad ocurre eso. En la teoría nos enseña eso. Pero tenemos que tratar esto en lugar de aquello. Aquí observamos un RAI, un robot aquí abajo. Aquí adentro unos movimientos que
+
+están provocando un soporte. Cuando el operador del mercado observa dos niveles donde las velas alcanzaron ese nivel y lo respetaron, ahí se identifica como un punto que se está respetando. Y
+
+enseguida, ¿qué hacen? Suelen poner posiciones aquí, una vez que confirman, aquí las velas rojas significa alcista, y el blanco es bajista. Entonces, ¿qué hacen? Observan que se respetó ese nivel.
+
+Entonces, a partir de ahí empiezan a poner posiciones alcistas. Eso funciona a veces a veces no Todo para tratar de enga a la gente A veces funciona a veces no A veces lo que hacen es respetar aqu
+
+para darle una reducci de que est respetando ese nivel Pero m adelante lo que va a suceder es una manipulaci justo aqu Se viene el precio hacia aqu abajo y de ah adelante es donde pone otra vez hacia
+
+arriba Entonces tratan de engañar lo más que puedan para poder sacar lo más que puedan también. La mayor parte del tiempo aquí, manipulando, manipulando. En puntos puntuales es cuando confirma la
+
+tendencia real. Tendencia real aquí, salta porque todo eso es manipulación, aquí tiene tendencia real, desde adelante no sabemos. Porque está en una zona entre los puntos relevantes. Entonces vamos
+
+identificar los major highs y los major lows. Eso es crucial. Como lo vamos identificar? Utilizando temporalidad mayor, utilizando volumen. Y utilizando algo importante que está en el segundo
+
+indicador, el volumen profile. El volume profile es un volumen por precio y no por tiempo. El que les proporciona la data es por tiempo, en minutos cuando ocurre el volumen. En cambio el volume
+
+profile es uno que se distribuye a lo largo del precio. O sea, a un cierto precio, por ejemplo, el precio de 100. ¿Cuánto de volumen se transaccionó cuando el precio era 100? Eso nos va a dar un
+
+histograma distribuido a lo largo del precio. Por ejemplo, si tengo el precio entre 100 y 110, va a haber una gaussiana que está distribuida entre estos rangos. Entonces el volume profile, ustedes van
+
+a sacar el volume profile a partir del volumen vertical. El volume profile es un volumen horizontal que les toca programar a partir del volumen vertical. Pero eso será ya la parte 2.2 del proyecto. La
+
+parte 2.1 es pura estructura. Es una estructura. La parte de los dos es el volumen y el volumen. El volumen viene como una información complementaria a la estructura. Primero necesitamos conocer la
+
+estructura para después aplicar en tiempos puntuales el volumen. El volumen no sirve para aplicar en cualquier tiempo porque nos da ruidos también. Entonces trata de llenar de ruidos para engañar lo
+
+mas que pueda. Esa es la dinámica que funciona. Entonces aquí estamos tratando de identificar los puntos relevantes, máximo relevantes, mínimo relevantes, para a partir de ahí saber en donde actuar.
+
+En el medio de todos esos puntos relevantes no sabemos que va a suceder. Puede ser todo aleatorio porque son puntos internos. Lo que queremos saber es estas fronteras externas, hay que delimitarlas
+
+bien a través de los mecanismos que les hago. Alta temporalidad y el volume profile. Entonces necesitamos información de volumen para poder identificarlos bien. Entonces regresemos. Aquí tenemos
+
+nuestro zig zag para el caso ideal. El caso ideal funciona así. Si uno ve esta gráfica sabe dónde posicionarse, dónde comprar, dónde vender. Lo que pasa es que no sucede así. Si estamos observando el
+
+bajista, uno abre una posición de venta, abre una posición de venta, abre una posición de venta, siempre ganará. Llega aquí, se dispara al otro lado, usted cierra la posición y gana. Siempre gana.
+
+Pero ocurre justo al revés para que usted siempre perda. Entonces no se hace así. Lo que se hace es as Yo me manifiesto mi intenci como mercado una vez paso bastante tiempo manipulando luego vuelvo a
+
+manifestar mi intenci Sigo manipulando m un mont de veces despu de haber cogido la plata de la gente vuelve a mostrar mi intenci otra vez Esa es la práctica que funciona. Aquí usted tiene el boss,
+
+aquí tiene otra vez el boss. El voz real, porque hay el voz real y el voz falso. Uno podría decir que aquí es un voz, pero ese no es... El voz siempre va hacia arriba con la tendencia, o sea, cuando
+
+la tendencia es alcista, pasó del punto máximo, entonces rompió la estructura, o sea, break of structure. Rompio la estructura significa que mantuvo la tenencia. En cambio aquí abajo uno se ve con
+
+ruido. Uno puede pensar que este punto de aquí me está indicando que el precio se va hacia abajo. Pero es pura manipulación. Disparen stop loss de quienes habían comprado antes, ya salen perdiendo.
+
+Solo van a manifestar el interés real posterior a eso. Una vez que cogió todo de la liquidez. Después de haber robado cuanto quería, ahí sí manda su objetivo. Aquí están los bancos, aquí están los
+
+multimillonarios haciendo estos movimientos. No los multimillonarios personas como tal, sino los bancos encargados a que hacen esto. Entonces vemos que más tenemos aquí. Como medio manipulador. ¿Cómo
+
+identificar valor major highs y major lows? Esto como ya les dije, a través de la gráfica de mayor temporalidad y del valor. Ahora si vamos a distinguir qu es una estructura interna y qu es una
+
+estructura externa Una vez que yo identifico mi major lows y mi Major High lo que tengo adentro es ruido Ya Les tengo que identificar donde est estos ruidos Aquí es ruido, lo ruido es la parte
+
+interna. Si? Todo lo que está aquí adentro es ruido interno. Ya? La parte que corresponde a la parte externa es ese límite aquí. Esta frontera superior y esta frontera inferior. Aquí tenemos nuestros
+
+límites por arriba y nuestro límite por abajo. Si el precio rompe hacia abajo, el cambio de tendencia será verdadero. Si el precio rompe hacia arriba, la tendencia sigue vigente. ¿A partir de quienes?
+
+A partir de estos máximos relevantes y mínimos relevantes. Entonces lo crucial es poder identificar donde está el mínimo relevante y el máximo relevante. Todo lo demás que está aquí dentro es ruido.
+
+Tienen que descartar cuando se trata de aprender la máquina. O sea, aplicar un algoritmo. Para aplicar el algoritmo es interesante, como tenemos la data de entrenamiento, las reales culturas, observar
+
+con bastante atención ese punto de aquí. Porque en ese punto de aquí algo puede suceder con el volumen. Por ejemplo aquí estamos en el mismo nivel prácticamente. Aquí fue la manipulación. Entonces
+
+algo interesante ocurrió con el volumen en esa región. Hay que observar el comportamiento del volumen en esa zona. Como esta el volumen vertical y como esta el perfil de volumen horizontal. Porque de
+
+pronto puede haber un desbalance. ¿Qué es un desbalance? Es cuando hay más compradores que vendedores. Entonces de haber más compradores hay un desbalance que es favorable a que suba por haber más,
+
+quien más compre que quienes vendan. El desbalance se debe observar aqu a trav de lo que ocurre internamente con el volumen De pronto les toca observar el detalle del volumen Ustedes no tienen la data
+
+del detalle del volumen Pero si avanza bien, les puedo mostrar cómo es el detalle del volumen, cómo se desglosa internamente. Porque lo principal aquí es poder identificar dónde están los mínimos
+
+importantes y el máximo importante. Una vez que usted avanzó todo eso, y llegó a romper un máximo importante, el mínimo relevante se cambia de aquí hacia acá. Entonces, habrá que actualizar el Major
+
+Law hacia ese de que? Porque es el más recién. Entonces, al ser el más recién y el más bajo, estamos lidiando con un comportamiento estocástico. Un comportamiento estocástico es aquel que busca en un
+
+pasado recién la información para predecir lo que viene enseguida. Diferente de un pasado lejano, que voy mucho hacia atrás para saber características que nos permiten predecir. Entonces es un proceso
+
+de estocástico. Está la temporalidad, el tiempo que va avanzando discretamente, y aquí está la componente que no voy muy hacia atrás. Por lo tanto actualizaremos este punto mínimo. Pero esto sucede
+
+solo después de que se rompió esto de aquí. Antes yo no puedo decir que este es el punto mínimo por más elevado. Solo después de que rompió el máximo. No antes. Tengo que esperar que se cumplan todas
+
+estas velitas hasta observar la ruptura de esta resistencia. Aquí está la resistencia, ¿no? Resistencia, soporte. Rompió la resistencia. Y tengo una confirmación de que esta resistencia sí rompió. Si
+
+esto se confirma, ahí si actualizo. Este deja de ser el marco de media-low y pasa a ser este de aquí. Y de ahí sigo con mi movimiento. Todo esto que esta marcado es interno, es ruido. Estructura
+
+interna. Después de que se rompió hacia arriba, actualizo. En vez de luego hacer este de aquí. El siguiente más. Ahora vamos a mostrar el movimiento hacia abajo, el paquista. Observo que la tendencia
+
+general es paquista. Espero después de eso manipulaciones. Aquí hay una manipulación evidente. Y solo puedo poner esa etiqueta medio high una vez que se cumplió el traspaso hacia abajo. O sea que aquí
+
+se rompió de este lado. Rompió de este lado, ahí si puedo actualizar. Mientras tanto no puedo actualizar. Y aquí introduce otra manipulación. Miren que esta dentro del rango interno. Mientras este
+
+dentro del rango interno, pues puede esperar pura manipulación. Pero al momento que se rompe por aquí hacia arriba, supongo que eso va hacia arriba, entonces rompe eso. Al romper eso, hay un cambio de
+
+tendencia de la bajista hacia la alcista. Pero hay que romper primero eso. Sin romper eso, sigue bajista. Porque esta es una parte interna. Interna con relación a mi Major High y mi Major Low. Todo lo
+
+que est dentro de mi major high y mi major low es interno Hay que romper el soporte o la resistencia para ver un cambio efectivo en la etiqueta aqu no CH o CH El cambio de estructura el cambio de
+
+tendencia Muy bien, aquí está. Toda esta parte izquierda. La parte externa está bien marcada aquí. Major low y major high. Y eso solo se vuelve media high una vez que rompe aquí. O sea, yo tengo que
+
+conocer el futuro para poder actualizar mi etiqueta aquí. Eso es súper importante. Una vez que rompe aquí hacia abajo, esto de aquí se actualiza, pasa a ser este último punto media high. Deja de ser
+
+este y pasa a ser este. Yo voy actualizando a la medida que voy viendo que el soporte y la resistencia fueron rotos. Una vez que compruebo que fueron rotos, actualizo mis niveles superior e inferior.
+
+Yo solo voy a tener uno Major High y uno Major Low a cada momento. ¿Habo múltiples major highs? No, solo uno. Un major high y un major low. A ver que mas tenemos aquí. Ok, haber roto ese major low
+
+implica una continuación de movimientos. Es decir, la tendencia sigue bajista. Pese a que hubo manipulaciones en el medio. Actualizo el medio high, observe. Después de haber roto el soporte. Si no se
+
+rompe el soporte, no actualizo el medio high, sigue igual. Ustedes tienen que poner la etiqueta donde corresponde el medio high, medio low, poder identificar eso. Eso les toca a ustedes No s si el
+
+indicador que les voy a brindar de Trendy View se hace eso Pero Lo que quiero es que ustedes apliquen esa teor a la limpieza de la data Tienen que aplicar esa teor Les voy a dar un código fuente
+
+inicial para que a partir de ahí ustedes tengan una referencia de cómo se encuentran estos valores Si es un C o H verdadero o falso, ahí les tocará a ustedes. Aquí tenemos... Vamos identificar ahora
+
+el ojo en el BOS. El BOS que es el Brick of Structure, hay que tener un poco de cuidado en poner la etiqueta en el BOS. No solo el CH o H sino también Brick of Stroke. ¿Por qué? Porque aquí tenemos un
+
+valor HH, aquí arriba. Del otro lado la vela sobrepasó el HH y sobrepasó con cuerpo. La vela tiene un cuerpo, este es el cuerpo de la vela y estas son las mechas. En la parte superior, quien tiene
+
+fuerza, los compradores o vendedores? En la parte superior de la vela. Está equivocado. Los vendedores son los que tienen fuerza. Aquí están los vendedores que están empujando el precio hacia abajo.
+
+Por eso el high ocurre aquí por culpa de los compradores, pero los vendedores mandan el precio hacia abajo. Entonces la fuerza ganadora es la final Es como un cable que uno hace as con el cable y
+
+quien gana la batalla es quien finaliza la cosa no quien inicia Los compradores iniciaron hasta el jai pero luego los vendedores empujaron hacia abajo con fuerza ¿Quién ganó? Los vendedores. Esa parte
+
+demuestra fuerza de los vendedores. Entonces, mecha hacia arriba, fuerza vendedora. Mente hacia abajo, fuerza compradora. La fuerza esta en quien la manifesto por ultimo, porque ganó el proceso, la
+
+resistencia. Claro que puede seguir en la disputa en la siguiente vela. En la siguiente vela vamos a comprobar si quien tuvo la fuerza, Si se comprueba que los vendedores o los compradores tuvieron
+
+más fuerza. Al final esto es una batalla así. Aparte de la manipulación hay eso también. Uno tiene fuerzas y tiene manipulaciones. Aquí por ejemplo observamos un doble piso, golpeo hacia aquí rebotó,
+
+golpeo hacia aquí rebotó. Aquí buscó liquidez, recogió la liquidez. En esta liquidez no fue suficiente, es decir, encontró bastante volumen aquí en esta vela. Observen que el volumen aquí va a crecer.
+
+Más destacado que otras velas del promedio aquí. Entonces el volumen incrementa. Es cuando está recogiendo liquidez, ya que alcanza un nivel importante. Observamos si hay tomada de liquidez a partir
+
+de estos niveles que ya tenemos establecidos. Luego no fue suficiente que hago. Mando el precio otra vez hacia abajo. Recojo más liquidez porque hay todavía lo que recoger. El precio solo va a donde
+
+hay liquidez, donde el volumen tenga posibilidad de crecer. Si el volumen tiene posibilidad de bajar, no voy. Me quedo por donde puedo ganar más. Así está diseñado el algoritmo. Busca donde tiene mas
+
+posibilidad de ganar, recoge todo y de ahí se dispara a su intención. O sea el objetivo o la intención es observar al final de todo. Mientras tanto estamos aquí en manipulación, recogiendo liquidez,
+
+manipulando, tratando de hacer las suyas. Al momento final es cuando se manifiesta la intención real. Mando una visita hacia el otro lado, ya estoy en otro nivel. Alcance todo lo que quería y estoy
+
+cumpliendo con mi objetivo. ¿Por qué? Porque por ejemplo, supongo que alguien quiera poner una posición de 5 millones. Algo así. Entonces uno no va a poner todas esas posiciones de todo ese valor de
+
+un solo golpe. Porque si lo hacen, el precio dispara hacia arriba. Tiene que poner poco a poco. Pone un poco y va controlando a través de la manipulación haciendo ese juego para que alcance a ingresar
+
+todas esas posiciones. Necesita manipular bastante. Si uno pone de golpe todo eso el precio va a encarecerse rápidamente. El precio ya está caro, pues no podrá ganar. ¿Por qué? Porque al momento que
+
+trata de vender el precio estará caro. Por eso se hace poco a poco. Un release de poquito en poquito manipulando. Con ese mismo capital manipula. Manipular significa tomar de quienes no tienen para
+
+darse los que m tienen Esa es la manipulaci Hay que estar atento a eso para poder programarlo bien Manipulaci aqu y otra ac Uno ve que est respetando ese soporte Eso induce a que la gente pase a
+
+ingresar a partir de aqu Pero en otro movimiento se va a coger la liquidez de quienes pusieron ahí y se va a quedarse sin plata. Ok, ya. Entonces vamos. Aquí creemos esta zona de demanda. El mercado
+
+funciona con oferta y demanda. Ustedes ya escucharon eso. Entonces la oferta está arriba o abajo? La oferta está arriba y la demanda está abajo. Ya vimos que hay este concepto de resistencia aquí
+
+arriba. Que es sinónimo de oferta. Y tenemos abajo lo que se llama soporte, que es sinónimo de demanda. ¿Qué es la demanda? Es cuando hay interés en comprar. Tengo muchos compradores aquí abajo.
+
+Arriba, en cambio, tengo muchos vendedores. Entonces, ¿los vendedores qué quieren hacer? Quieren vender lo que tienen. Por lo tanto, ofrecen. En cambio los que están abajo, el precio está barato,
+
+quiero comprar. Los compradores se posicionan abajo, los vendedores se posicionan arriba. Esa es la estructura lógica del funcionamiento. Vendedores arriba, compradores por debajo. Porque quiero
+
+comprar más barato, a un precio más económico. Para que al momento que est en el medio del rango pueda vender por ah En cambio los que tienen inter en vender quieren vender cuando el precio es caro
+
+Porque si el precio esta caro tienen mas ganancias ellos Porque el precio real esta por mas por abajo y luego van a ganar mas Esta es la lógica de funcionamiento. Entonces se crea esta zona de demanda
+
+siempre y cuando se respetan estos niveles. Entonces se crea la zona de demanda aquí por debajo y se crea una zona de oferta hacia arriba. En esta zona de demanda habrá una cierta cantidad de
+
+compradores aquí abajo. Si, otra vez sigue respetando. Respeta una tercera vez. Respeta una cuarta vez. ¿Será que seguirá siempre así? Respetando, es decir, golpea ahí y rebota. Pero de golpear mucho,
+
+quita todos los compradores que están aquí abajo. El precio se va hacia abajo. Porque insistió bastante en esa zona. Entonces, un soporte es roto por varias veces. Primero doy un respiro, después
+
+regreso. Respiró, regreso. Doy un respiro, regreso. Hasta que ya no hay compradores ahí. Así funciona. Y lo mismo del otro lado. Yo voy, golpeo la resistencia, regreso. Porque hay muchos vendedores.
+
+Pero a medida que voy a hacer otra vez, ya va disminuyendo el número de vendedores. Yo insisto más veces. Hasta que la siguiente vez ya, Unas 5 veces es suficiente para quitar a todos los vendedores
+
+del camino, los que están por arriba y los que están abajo comprando. Unas cuantas veces que golpear un nivel relevante, un soporte o una resistencia, eso se desvanece. qu eso es importante Porque si
+
+ustedes saben de eso para incrementar la probabilidad de poder predecir mejor Esa es la idea ¿Qué más tenemos por aquí? Vamos a considerar el voz. El voz puede ser verdadero o falso. Este caso de aquí
+
+es un voz falso. ¿Por qué? Porque primero no cierro la vela con cuerpo. Entonces si cerrar esta vela de aquí, con cuerpo, etiquetaría cos de una. ¿Por qué? Porque sobrepasó el valor hh anterior.
+
+Entonces cerró con cuerpo, de una es un cos verdadero. Pero no es el caso, esta una mecha hacia arriba. Al estar una mecha no puedo poner la etiqueta POS todavía. Tengo que esperar lo que sucede
+
+después para observar. Si lo que viene después tiene menor cantidad de vendedores, entonces no rompe la estructura. Por lo tanto ese boss no lo pone. Cuando voy a poner un bus? Cuando yo tengo en la
+
+siguiente vela una cantidad de compras que sobrepase como mínimo el valor high máximo de la vela inicial. Tengo esta vela con este HI aquí. La siguiente vela si se sobrepasa el HI aquí por arriba,
+
+entonces ya puedo poner mi voz. El HI de la siguiente vela, por así decirlo, puede ser con cuerpo sobrepasando mejor. Si es con cuerpo mejor. Pero en el caso de ser sin cuerpo, este por ejemplo no es
+
+un VOS Valid. Pero en cambio S es un VOS válido porque los compradores primero alcanzaron un nivel más alto que el anterior. Aquí observan que este pico es superior al high anterior. Entonces comparo
+
+los highs. Si tengo un high superior al anterior, entonces valido mi etiqueta VOS. Si el high de la siguiente vela es menor, entonces el high es igual. Hay una regla, un iftn. Para solvente eso con
+
+base en high de las veces. Esto por un lado. Si estoy con una temporalidad de un minuto, esto de pronto no puede ser muy fiable. Pero si busco en la temporalidad de 5 minutos tengo mayor chance de
+
+acierto. Confirmo realmente mirando hacia una temporalidad mayor. Si estoy en una gráfica de 1 minuto y observo ese comportamiento y me da así un poco de duda. Si tengo duda, entonces miro mejor a la
+
+gráfica de 5 para observar la confirmación. O sea, una gráfica de temporalidad mayor. La de 15 está muy lejana, la de 5 es la más cercana a la de 1. Entonces, la de 1 tiene mucho ruido, mucho mucho.
+
+Entonces hay que tratar de filtrar, Observando siempre a alguien de mayor temporalidad. Entonces les dejo esta otra pista para que puedan solucionar casos así. Así mismo puede que ese voz aquí no sea
+
+suficiente para decir que la tendencia seguirá así. qu no Porque yo necesito confirmaci El punto es que necesito confirmaci adicional para poder poner mi etiqueta Si no tengo la debida confirmaci
+
+mejor no lo pongo Primero confirme Para luego de confirmaci poder aparecer la etiqueta Ustedes van a usar el m replay para que desglose cada vela y me muestre c van a poner la etiqueta Entonces habrá
+
+un modo replay que ustedes toca desarrollar ahorita para esta parte para que en el replay se pueda observar que momento fue el que usted activo la etiqueta. En el modo replay se observara. Solo se
+
+puede agregar la etiqueta una vez que confirma. Ok, aquí de pronto yo desconfío que eso no sea suficiente, tengo mis dudas. Mejor que ser un poco más para ver si va a seguir realmente sobrepasando ese
+
+nivel alto, porque al lidiar con una misma, En la mecha yo se que hay fuerza vendedora aquí arriba. ¿Será que esa fuerza vendedora se va a amplificar en las siguientes velas? Entonces eso es lo que me
+
+hace preguntar. Por lo tanto, yo pongo en sospecha, está en suspense hasta que se confirme. El punto importante es que primero confirme. Para eso use volumen, use temporalidad, use perfil de volumen,
+
+lo que sea necesario. En cambio hay otra cosa que es fácil de aplicar. Por qué? Porque la vela que esta aquí, esa otra, ya viene con cuerpo, un cuerpo largo, así que es fácil de etiquetar la voz aquí.
+
+El etiquetado de voz depende de primero confirmar. Aquí lo confirma de una. ¿Por qué? Porque cerró con cuerpo. Cuando cierra con mecha es cuando hay la riquidud Y siempre comparado con el nivel
+
+anterior A partir de aqu es cuando sabe comparar con aqu Tiene que obtener esa etiqueta m para poder calificar eso como un boss En este caso se confirma plenamente. Por eso dice, valid break of
+
+structure. En cambio este de aquí no se confirma. Está tímido aquí, miren. No está avanzando, está muy tímido. Incluso el posterior no cierra con más fuerza. Significa que los compradores que están
+
+con fuerza en esta parte, están actuando fuerte aquí abajo. A veces el tamaño de la vela no tiene nada que ver con el volumen que tiene la columna volumen. Hay un volumen enorme y una vela chica. Eso
+
+puede suceder. El volumen no está directamente correlacionado con el tamaño de la vela. Son dos cosas distintas. Puede haber un volumen grande y una vela chica. O puede haber un volumen chico y una
+
+vela grande. Son dos cosas totalmente desrelacionadas, son dos dominios distintos. Eso hay que prestar atención. No es porque usted ve una vela enorme de volumen, significa que va a tener una vela
+
+grande también. La cantidad de dinero que se procesa durante un cierto periodo de tiempo. De precio. Son dos cosas distintas. Incluso el color que ustedes ponen verde en la vela de volumen, eso no
+
+tiene nada que ver. No se puede poner un color verde en la vela de volumen o un color rojo. ¿Por qué? Porque el volumen es la suma de compradores más vendedores. Si el volumen es mas grande del mundo
+
+es mas grande del mundo Por eso poner una vela de volumen con color verde o rojo es equivocado Porque ah se suman Compradores compran por ejemplo 50 lotes vendedores toman 80 lotes suman 50 con 80 es
+
+130 Entonces no es que se resta uno del otro. La resta del volumen comprador menos volumen vendedor se llama delta. Y eso ustedes no tienen ahí. Ustedes tienen la suma de valores absolutos. Los
+
+compradores más absolutos de vendedores. Este es el volumen que ustedes tienen en la data. Distinguir entre el volumen comprador y el volumen vendedor, eso ustedes no entienden. Es un concepto que va
+
+más allá de lo que he explicado hasta ahora. A ver que tenemos aquí. Aquí tenemos una vela tímida que no avanza. Aquí avanzó. Ahí dice válido. Pero si se confirma realmente va a depender de lo que
+
+viene todavía después. Yo no creo que sea suficiente para poner la esqueta voz. Porque si la vela siguiente ya viene a seguir, invalida el voz. Si la vela siguiente va hacia abajo, ese voz queda. Pero
+
+si la vela siguiente va hacia abajo, ese voz queda. ¿Qué es el dinero que hay aquí? Ahora la dirección de mercado. La dirección de mercado ya les conté. Primero va a ser la temporada mayor para
+
+observar. La tendencia es alcista, observando este automático. El idioma es todo interno, lo interno tiene mucho ruido. Ahora el etiquetado de CH o CH, eso les falta todavía. Ese etiquetado indica el
+
+cambio de la tendencia. Aquí tenemos la tendencia al sistema. Pero observando desde la perspectiva De lo importante y del high importante, esto de aquí no es un cambio de tendencia. Observe, el precio
+
+sube, vaya hacia abajo donde hay un retroceso. Hasta aquí no etiquetamos nada. Es apenas un retroceso. Observamos lo que viene a continuación, sube, pero luego baja, luego sube y otra vez baja, baja
+
+bastante. Pero como esta dentro de los límites importantes, no es un COHCH importante, es un minor. ¿Por qué? Porque no sobrepasó el soporte que está aquí abajo ni la resistencia que está aquí arriba.
+
+Hay que sobrepasar esos valores para poder efectivizar. En este caso sería ese de aquí. Tendría que venir el precio por debajo de ese de aquí para poder marcar el CH verdadero. Esto por lo tanto es
+
+solo una manipulaci La tendencia principal sigue al cista Aqu no hubo nada mas que manipulaci Cuando usted pone la etiqueta CH o CH aqu justo cuando el precio sobrepasa con cuerpo hacia abajo Mientras
+
+el precio no sobrepasa con el cuerpo hacia abajo, usted no pone esa etiqueta. No va a poner aquí, no va a poner aquí, solo después que confirme que se está cambiando la estructura interna. Esto es
+
+minor porque corresponde a la estructura interna. Por eso está puesto con un color menos destacado. Cuando ingresa a una posición de venta justo ahí, se equivoca, abre la posición por aquí, pone un
+
+stop loss hacia arriba, pone un take profit hacia abajo, esperando que el precio llegue a ese 2x1 y nunca llega. El precio antes de encontrar el medio low avanza hacia la dirección principal y eso
+
+hace que el que puso su posición aquí pierda. El stop loss es como un script que lo pones ahí para que te venda automáticamente cuando el valor caiga. Si no uno se equivocan fácilmente aquí y es, ah
+
+está bajando, voy a vender. Entonces yo no quiero que si estos caen y todos venden por alguna cosa. Mantener la tendencia principal. Es como un script automático que esta escuchando el precio y si ve
+
+que el precio se baja mas allá de ahí, vende automático. Eso es el stop loss para el mercado. Esto es lo que sucede. Entonces el punto importante es el major low el soporte importante y el major high
+
+importante Lo que esta en el medio no es un cambio de tendencia real Es fake Aquí dice, espere hasta que el precio establezca un cambio de tendencia basado en la etiqueta Major, y no en la etiqueta
+
+Minor. Por eso ustedes tendrán que poner las etiquetas Major y Minor adecuadamente. Si no, van a inferir y colocar a él. Este es un válido porque esta rompiendo. Observen aquí. Este si rompe el Major
+
+Law. En cambio ese que no rompe porque no tiene cuerpo, esta con mecha. Entonces hay que diferenciar, identificar si es mecha, el cruce con el mínimo. Aquí el valor mínimo. Cruzó pero es una mecha,
+
+entonces eso no está confirmado todavía. Es muy válido el CH o CH. En cambio el lado anterior era válido porque hizo con cuerpo. Eso es válido porque fue con un cuerpo fuerte ahí. Y se mantuvo. Eso es
+
+importante que se mantiene aquí. No ha sido consumido por los compradores que están por debajo. Aquí se rompe con fuego y se mantiene. Ahora, el tiempo que ustedes tienen que esperar para observar que
+
+eso no se va a ser consumido, ustedes pueden esperar la siguiente vela. Porque si la siguiente vela, los compradores disparan hacia arriba, entonces se invalido el movimiento. Entonces atenci a eso
+
+Aqu es el invadido Y aqu terminamos esta demostraci Ahora bien vamos a Subscrebe Foto. Foto. Foto. Foto. Foto. Foto. Foto. Foto. Esta es la herramienta. Ustedes van a buscar SMC structure más FBG.
+
+Este es el nombre del indicador. Les voy a mostrar. Entonces, vayan a TradeView y busquen este indicador. Aquí voy a poner mi indicador. Voy aquí en indicadores. Ingreso ese de aquí. SLC Structure and
+
+FDG. Lo ingresé. Y aquí ya está el indicador. Ese indicador es referencial. Porque no le da la validación que les dije que necesitan. Tienen que validar con temporalidad mayor, con volumen, todo lo
+
+que les contamos. A ver, tengo que trasladar la gráfica. Voy a mostrar un poco mas grande. Ok, entonces se quede que esta pasando por aquí. Aquí tengo mi BOS, aquí tengo otro BOS, aquí otro BOS, que
+
+uno es estas. Aquí hay otro. VOS. ¿Y qué son estos niveles que se observan aquí? Son los niveles de Fibonacci. O sea, yo tengo mi frontera aquí hasta aquí, limite alto o limite bajo. Entre el límite
+
+alto y el límite bajo tengo porcentajes. Por ejemplo, la mitad es 0.5. Fibonacci es 0.68. Hay estos valores, 0.38, 0.26, 0.35, 0.6, 0.68. Hay estos niveles de Fibonacci. Esto coincide con la teoría de
+
+Fibonacci que ustedes ya aprendieron de estar sumando dos valores, obtener un siguiente. O sea, aplican eso principalmente para este nivel de aquí, el punto 61. Para temporalidades bajas, gráficos de
+
+5, 1 minuto, este de aquí es más fiable. Los demás funcionan mejor para temporalidades grandes. Una hora, dos horas, cuatro días, una semana. Estos son porcentajes que se establece a partir del major
+
+high y del major low. Entonces tengo estos porcentajes aquí. Y tengo aquí el FBG. ¿Qué es el FBG? Es otra etiqueta. Aquí pongo el FBG también. Ustedes necesitan el FBG. ¿Qué es el FBG? Yo tengo una
+
+vela pequeña, tengo una vela grande y tengo otra tercera vela. El FVG calcula el espacio que hay entre tres velas. La primera, la segunda y la tercera. En la segunda hay un espacio que se llama FVG.
+
+Fair Value Gap. Es un hueco que no fue consumido por lo tanto es una liquidez que est acumulada suele suceder El precio regresa a esa regi y pasa a consumir esa liquidez en los procesos de manipulaci
+
+Entonces regresa a hacer FBG. Aquí hablo FBG y cuando vengo con las velas posteriores hacia ahí, yo consumo el FBG. Entonces yo habilito esta opción que dice Reduce Mitigated FBG. Es decir, aquí está
+
+gordo, fue consumido por velas posteriores, entonces tengo que adelgazar este bloque gris. Cuando hago esto, observen lo que va a suceder. Disminuyó porque las velas siguientes ya habían consumido ese
+
+FVG. El FVG desaparece cuando las velas pasan por ahí. Deja de ser un gap in the way, porque es consumido a posterior. Aquí está el Fibonacci, aquí está la configuración del FBG, aquí está el BOS y el
+
+CHOCH. Estas configuraciones para el indicador. ¿Qué más tenemos aquí? Aquí está el Treaded View, ya tienen como que el Bootstrap, es el inicio, la patada inicial para obtener todas estas estructuras.
+
+¿Donde usted va a encontrar el código fuente de eso? ¿Hay el código fuente? Ustedes vienen aquí donde hay indicadores. Les indique, ¿no? Les voy a mostrar donde. Viene a indicadores. Les voy a
+
+posicionar aquí. Aqu ingresa el nombre del indicador Y aqu usted pone el mouse Pone el mouse aqu dice source code Ah donde hay estas llaves pone source code La plasta ah Y aqu al lado se abre el
+
+source code de esto Esto es para iniciar No est todo lo que les ense aqu como etiquetado Pero ya es algo Algo para alimentar una IA que les permita sacar provecho Evidentemente ustedes pueden seguir
+
+implementando todas las validaciones aquí mismo en este código guardo una copia y actualizo mi indicador para ver que estoy validando correctamente. Usando la propia IA para poder hacer ese tipo de
+
+incremento de las etiquetas. Al principio está poniendo solo los BOS, CH o CH, pero no dice si es un verdadero, si es falso, no se confirma, no tiene el major high, major low, entonces cosas están
+
+faltando aquí. Entonces ahí ustedes tienen el struct inicial para empezar todo eso. Miren el histórico de qué valor salió. Ahora vamos a la definición del proyecto. ¿Quién está? Ya lo tiene también en
+
+el lugar. Ahí está. Miren el valor más pequeño para ver exactamente qué valor salió. Trabajo de contenidos. Aquí vamos a poner arquitectura, temporalidad, sistema replay, indicador S que vimos hoy y
+
+los indicadores que están faltando para la segunda parte del trabajo. Aqu est los detalles Aqu dice en la grilla los niveles de los indicadores de mayor temporalidad que la elegida por el usuario
+
+deben ser habilitados o deshabilitados para ser visibles desde ventanas de menor temporalidad para demostrar el contexto amplio en las gr de menor temporalidad significa eso Esos niveles grandes en
+
+temporalidades grandes debo tener una opci que me los muestre en las temporalidades m chicas para que yo sepa d est estos niveles importantes O sea, un solapamiento de las gráficas. La gráfica de alta
+
+con la gráfica de baja para que sepa ubicarlos bien. La estructura, los nombres de los activos, las etiquetas que se esperan, donde está aquí ya definido. Las temporalidades que les falta implementar,
+
+de mayor temporalidad. Los que no tienen WSL, pues pongan el WSL a cambio del anterior porque es mas ligero. Algunos tuvieron problemas con el speed del procesamiento, entonces usar WSL es mucho mas
+
+rápido. Entonces leen esta documentación y traten de hacerlo como está indicado. Puede que actualice esta guía en algún momento para poner algún detalle adicional que haya faltado. Pero la fecha de
+
+entrega es en dos semanas, 29 de julio, primera presentación. Luego dos semanas después habrá una segunda parte. Hoy he concluido solo la primera parte. La segunda parte toca más. Ahorita, ahorita,
+
+ahorita conversamos. ¿Alguna pregunta? Dice, ¿cuántos números necesito para hacer todo? La tercera, ya al final del semestre. Ahora solo la parte de pre-procesamiento de la información. Una vez que
+
+ustedes generan los valores numéricos, ingresamos a los algoritmos. ¿Listo? Está todo claro. Asisten al video para ver si tiene alguna pregunta. Evidentemente necesitarán mayores aclaraciones. Este
+
+video es bastante explicativo para que entiendan bien el funcionamiento. Funciona bien.
+
+Voy a desarrollar dos partes. Fase 2 Tenemos dos C divididos. Indicador de estructura de mercado. Estas son las dos indicadores de estrategia. Esta parte vale 20% de la nota. Y vendrá posterior a eso el resto. La parte 3 que será algoritmos... Algorithmus... Strategy. Algorithmus... DIY Strategy Sé que el hijo es de la cara. ¿Por qué? Es un libro. Es un libro. ¿Otra en la cara? ¿Qué? ¿Qué? Aqu tenemos la distribuci de los puntos Proyecto 35 Ustedes necesitamos dos clases de indicadores. El que les voy a enseñar el día de hoy. Voy a alcanzar hasta aquí. El indicador de estrategia es más volume profile y más anchor. Volume walk-walk. Para la parte de 2.20% de la nota total del trimestre. Y aquí tiene sobre C los algoritmos recurrentes. Tenemos la data con columnas open, high, low, close y horro. Eso no es suficiente. Agregamos el indicador ATR pero no es suficiente para poder predecirlo. Porque hay mucho ruido en la data. Y al tener mucho ruido, el comportamiento es no gaussiano. Significa que no podemos encontrar patrones para nos permitir distinguir si una etiqueta o asociar otra etiqueta. Entonces tenemos que identificar las regiones donde está el ruido para poder eliminar esta región y centrarnos solo en la parte gaussiana. Así tenemos que pensar, gaussiano o no gaussiano. Identifico el no gaussiano y lo desconsidero. Salto únicamente para la parte gaussiana que es la parte previsiva. Así vamos a tener que observar el comportamiento de la data. Aquí los algoritmos de IA que ustedes van a utilizar, de term y con contexto, de dos o más ordenes. Orden 2 o superior LSTM Long Short Term Memory que es un algoritmo recursivo que trata de recordar cosas del pasado Y Transformers de pronto tambi usar Transformers porque tiene un mecanismo de atenci para poner atenci donde se merece Entonces vamos a usar esas clases de aprendizaje, es lo que nos permitirá sacar predicciones. Sin eso no podemos sacar ningún provecho. Hoy día les voy a hablar de esta primera parte. SMC significa Smart Money Concepts. Es una teoría, SMC, que es la que nos permite identificar la estructura, Necesitamos una estructura para que? Para identificar donde esta el ruido. Porque la mayor parte del tiempo esta provocando ruido para que la gente no use algoritmos que predigan algo. Entonces estamos en una máquina de estados. Que ustedes deben recordar de la asignatura que tomaron al principio de la carrera. Tenemos aquí una tendencia real, tendencia alcista, tendencia bajista o rango lateral. Esta es una tendencia real. Y vamos al otro lado, en donde tenemos el ruido. O sea, un ruido aquí. Aquí tenemos la información confusa. Y esta información confusa pasa mucho tiempo aquí. Entonces se da vueltas y vueltas y vueltas hasta que regresa hacia aquí. Entonces tenemos que identificar qué parte es esta en el tiempo que se desglose en el tiempo y qué parte es esta que se desglose en el tiempo. La mayor parte del tiempo estará aquí. Un porcentaje pequeño de tiempo estará aquí. Así se comporta. Entonces, identificando de esa forma como una máquina de estado donde mayoritariamente la probabilidad de estar aquí es lo que gana, Entonces tenemos que utilizar una teor para poder formular nuestra limpieza El trabajo aqu como programador ser limpiar la data para poder procesarla de forma adecuada Entonces eso es nuestro trabajo. Ustedes van a aplicar los algoritmos una vez que la data esté limpia, sin los ruidos que se observan. Les voy a hablar sobre esta teoría SMC. ¿Pueden pasar? ¿Ok? Ya. Entonces, aquí vamos entender la estructura del mercado. Ustedes ya saben mas o menos como es este comportamiento de las velas que suben y que bajan. Pero la mayor parte de eso corresponde a ruido. Están ahí justamente tratando de sacar dinero de la gente mas pobre para enriquecer a los que ya tienen mucho plata. Eso es la verdad y es el objetivo de gas. Entonces, eso que ustedes encuentran ahí de que el precio sigue una tendencia así es algo que en la práctica no existe. Por lo tanto, eso es un escenario ideal. Eso es el escenario ideal para una tendencia alcista. Pero es un escenario ideal, no es el escenario real. En el escenario real uno tiene eso. Tiene comportamientos así, medio alocados. ¿Si? ¿Por qué? Porque introducen el ruido justamente para engañar a la gente. Justo aquí uno está observando que el precio está subiendo y se anima. Voy a posicionarme en una compra. Compra justo aquí y queda en seguida el precio se va hacia abajo. Entonces se va hacia abajo. ¿Qué sucede? Perde plata. ¿Por qué? Porque uno tiene un límite de pérdida. Puede perder por ejemplo 5 dólares. No puede perder 200. Puede perder poco pero no quiere perder mucho. Entonces al poner un límite aquí, ese límite es llamado stop loss. Entonces uno abre una posición y pone un stop loss que esté más abajo. Justamente porque está esperando que el precio siga subiendo pero ya ingresó en el peor momento posible. Y que sucede? Pues va a perder dinero porque enseguida ellos mandan hacia abajo. Si? No quiero una compra y si una compra antes, pues ahora se vuelve una venta. Si ingreso a una compra, esto se vuelve a una venta. Es como que yo compro una compra así, entonces yo la compré. Y en algún momento me deshago de ella, vendéndola. Entonces lo que hice una compra previamente se transforma automáticamente en una venta. Porque lo que hacía había sido compra se vuelve una venta. Yo vendo a quien? A los que están manipulando el precio. Están mandando el precio hacia abajo. Entonces, esfuerzan el precio hacia abajo vendiendo. Entonces ellos son los interesados en vender, en absorber mi venta. Es una venta forzada porque yo no quiero seguir perdiendo. Entonces se dispara mi stop loss para que yo no pierda todo mi dinero. En cambio ellos quitaron ese margen que yo estaba dispuesto a perder. ¿De acuerdo? Entonces así sucede. Y si me pongo en una posición, si el mercado y observo que está así, yo pongo una posición que quiero vender, supongamos que aquí yo quiero vender, aquí pongo una venta. Entonces lo que ellos hacen es justamente irse al contrario para que su stop loss se dispare como compra Entonces ellos est interesados en la compra Y desde ah usted esforzado a vender porque no quieren seguir perdiendo Entonces justo se abri una venta porque pens que el precio iba hacia abajo Yo pensé que compré caro para vender para deshacer cuando esté barato. Ahí yo tendría una ganancia. ¿Por qué? Porque mi proyección era que el precio iba a bajar. El precio se dio la vuelta. Entonces, ellos provocan que el precio se dé la vuelta para armar lo que se conoce como manipulación. Entonces, ¿qué es la manipulación? Es justamente ese efecto que va en contra la tendencia original con el propósito de quitarle el dinero de plata. Y en seguida, ¿qué hacen ellos? Regresan a la tendencia original. Banda el precio de nuevo hacia abajo. Pero ya es tarde, ya perdí mi dinero, ya no tengo más dinero para seguir ahí. Ya me quitaron todo lo que tenía. Eso es lo que hacen. Entonces, tenemos que identificar dónde el movimiento es verdadero y dónde el movimiento es una manipulación. Necesitamos estas etiquetas para poder aprender. El machine learning va a tratar de aprender con estas etiquetas. Evidentemente estas etiquetas estarán presentes en la data de entrenamiento, no estarán en la data de testeo. Tenemos el entrenamiento para aprender estas características. Una vez absorbidas estas características, Ya no contamos con las velas futuras para saber que ocurre si es una manipulación o si no lo es. Sabemos que fue una manipulación cuando miramos hacia adelante y observamos que el precio sigue la tendencia original. Entonces una manipulación es cuando destruye el capital de la gente. En cambio, si fuera una tendencia real, significaría que el precio no se iba a manipular, sino que se iba hacia otra dirección. Habría un cambio en la tendencia. Entonces tenemos que identificar cuando hay un cambio real en la tendencia y cuando hay una manipulaci Eso es nuestro trabajo como programadores Evidentemente vamos a contar con las velas futuras para poder etiquetar si es una manipulaci lo que ocurre despu o si es un cambio real en la tendencia ¿Cómo vamos a identificar esto? Con las técnicas de SMC. Vamos a identificar la tendencia dominante, la tendencia general, para poder actuar de acuerdo a esa tendencia general. ¿En donde ustedes piensan que esta la tendencia general? ¿Está en 15 minutos, 5 minutos, 1 minuto u otro tiempo? La mas grande posible, no? La mas grande posible, pero no la de 15 minutos, la de 15 minutos todavía es pequeña. Ellos hacen esa manipulación en cuestión de pocos minutos, pero luego cuando usted observa la gráfica de una hora, de cuatro horas, ahí sí es donde se proyecta el movimiento real. Por lo tanto tenemos que identificar dónde está el movimiento tendencial primero, la tendencia general, para luego poder ejecutar en una temporalidad pequeña. Así es como funciona. Primero observamos la gráfica de alta temporalidad para ver dónde va la tendencia, si hay tendencia o no. Incluso si está lateralizado en alta temporalidad, eso también se revela desde ahí. Observando las gráficas de alta temporalidad. Porque esos movimientos manipuladores son rápidos, son instantáneos. Entonces, ellos actúan rápidamente para que la gente no tenga tiempo de hacer nada en contra. Entonces son rapiditos de manipular Entonces ah es donde tenemos que tratar de identificar estos problemas Eso es lo que les indica en los libros la teor de estructura pero en la realidad ocurre eso Entonces tenemos que encontrar un artefacto que nos permita dejar de ser naives, ingenios, con eso y mirar hacia eso. Eso es lo real. Lo que ocurre en la realidad. Entonces, ¿cómo vamos a hacer? Tenemos que primero, siempre tener en cuenta la tendencia global, tendencia ilegalísima, general. Esto se observa desde donde? Una hora, cuatro horas, o dos horas, cuatro horas, diaria, semanal. Tenemos que implementar estas temporalidades. Ahora solo tenemos las partes. Tienen que implementar esto. Entonces no vamos a poner más botones ahí. Tienen que poner menú. Que menú que se despliega hacia abajo en donde usted elige la temporalidad porque ustedes ya tienen muchos botones ahí. Necesitarán los espacios para poner diferentes botones, no aquellos de temporalidad. Muy bien. Les voy a hablar del etiquetado. Vamos a borrar todo esto de aquí. Y les voy a hablar... Bueno, la Teresa General es lo que primero tenemos que saber. Tenemos que ir en esa dirección de la Teresa General. Tenemos aquí una gráfica que simula más o menos una situación que ocurre. Aquí observamos la tendencia general. El movimiento era falsista. Entonces la tendencia real con esa posición hacia arriba. Luego de aquí, justo en esta parte de aquí, cuando uno pensaba que iba a subir, el precio cae. Y cae, y cae más, y sigue cayendo. Entonces aquí es donde observamos en esa región manipulaciones. La mayor parte del tiempo estará en manipulación. Lo que tenemos que hacer primero es encontrar ese zig zag entre las velas. Este zig zag se encuentra con etiquetas como HL, HH, HL, HH. ¿Qué significa HH? Aquí, HIGH HIGH. Y aquí tenemos HIGH LOW. Y aquí tenemos LOWER LOW. La etiqueta de la LN. Y tenemos el lower heart también. El acelerador demuestra la tendencia general. Parece que hay mucho ruido aquí afuera. Mucho ruido en la data. La data acústica. Entonces, aquí este primero denota la tendencia global. Y el segundo denota lo más chico, o sea, lo que ocurre por último. Si ocurre por ultimo que la tendencia alcista se baja abajo hay al low Cuando la tendencia es bajista LL es el punto m y LH es cuando ya sube Es el hom de aqu ¿Qué tenemos que hacer? Tenemos que identificar donde hay una continuidad de la tendencia. La continuidad es denotada a través de la etiqueta BOS que se traduce a Break of Structure. Les voy a hablar del BOS. Significa que la tendencia se mantiene. La tendencia no se cambió cuando hay un POS. ¿Y dónde está el POS? Pues aquí está el POS. Alcance un valor máximo y al momento de regresar aquí, lo que tengo aquí es el retroceso. Aquí esto es llamado impulso y este es llamado retroceso. Retroceso menor que impulso. Entonces tenemos impulso, retroceso. Impulso mayor magnitud, retroceso menor magnitud. Impulso, retroceso. Impulso, retroceso. Pero aquí se manipula. ¿Dónde se manipula? Hay que identificar precisamente dónde se manipula. Aquí lo que tengo es un retroceso y en cambio la manipulación es aquí. Aquí es donde ocurre la manipulación. Pongamos aquí bien delimitada. ¿Por qué la manipulación aquí? Porque se va más abajo de lo que es el bajo que ya tenía previamente. Entonces hay que llevar m abajo Ese de aqu se fue m abajo que el anterior que ocurri aqu Ocurri la manipulaci En esa manipulaci dispar el stop loss de quienes estaban comprando se ha vuelto liquidez y con esa liquidez ellos mandaron el precio hacia arriba en otro momento Cuando ocurre eso es más adelante cuando se manifiesta realmente lo que quieren. Por eso aquí hay una sola flechita que se manda a la manipulación y la mayor parte del tiempo está manipulando. Esta es la etiqueta VOS, la que nos permite saber que el precio sigue con la tendencia general. Para diferenciar tendencia local de tendencia general. Una tendencia local es algo interno. No se afecta la tendencia general. ¿Ya? Entonces, aquí, ¿qué tenemos aquí? ¿En donde está punteado? Otro BOS. ¿Qué es el BOS? Es donde la tendencia general se mantiene. Alcista sobrepasó ese valor límite aquí. ¿No es cierto? Sobrepasó. Entonces se mantuvo la tendencia general. Entonces, el break-up stretch siempre caracteriza por mantener la tendencia general. ¿De acuerdo? Entonces, ¿y esta manipulación? ¿Cómo sé que esto no es un cambio de tendencia? Yo si que no es un cambio de tendencia porque no sobrepaso un low importante. Ustedes tienen de pronto un low importante aquí. Esto seria un major low. Major low. Es un low importante. ustedes encuentran el lobo importante De nuevo en la temporada m grande Va a encontrar lo importante en la temporada m grande Ese m de aqu no sobrepas lo importante que est ubicado aqu Solo fue para comer el stop loss de quien estaba por aquí arriba, pero lo importante está más abajo. Entonces se está manipulando, recogiendo liquidez para luego mandar a donde quiere. Así sucede, siempre sucede así. Recoge la liquidez que quiere y manda a su objetivo. No sobrepasó el logo importante, ustedes tienen que identificar dónde está el logo importante. No es cualquier LOW importante, sino que tiene que identificar por mirar hacia el temporalidad mayor. Necesito más temporalidades para poder decir dónde está este LOW importante. ¿Qué más necesito? Necesito el volumen que ocurrió aquí en este LOW importante. Porque cuando hay volumen significa que hay un interés mayor en esa zona que cuando hay menos volumen. Uno quiere preservar su capital a partir de ese punto. Si el precio va más hacia abajo pues ya no vale la pena seguir con mi posición hacia arriba. Sino que ya se desvanece, se va por la basura. La hipótesis de que el precio iba a seguir alzando. Pero si ya no vale la hipótesis, por lo tanto, esto ocurre cuando? Cuando lo importante es vencido. Hay una ruptura de ese lobo importante. Ese lobo importante también es denominado soporte. Está por debajo justamente para que cuando golpee siga hacia la dirección tendencial general. El soporte funciona como soporte. El soporte esta por la parte de abajo mientras que la resistencia esta por la parte de arriba. Entonces por arriba vamos a encontrar resistencia. ¿Y que es una resistencia? Pues es un major high. No puede ser un high cualquiera, tiene que ser un high importante, relevante. Por eso pongo major ahí para destacar que tiene que ser importante. Entonces la resistencia es por arriba, es decir, el precio va hacia ahí y rebota. Esta es la resistencia. El soporte es cuando el precio viene hacia abajo y rebota. La resistencia del precio golpea hacia arriba y rebota hacia abajo. Entonces tenemos este concepto de soporte y de resistencia. Ya identificamos donde está el POS. Ahora tenemos que identificar el Change of Character, que es otra etiqueta. Aquí tenemos el BOS y tenemos el Change of Character, CH por CH. Change of Character. El Change of Character, ¿qué significa? Significa que la tendencia realmente cambió. Pero podemos equivocarnos en esta asignación de esa etiqueta porque puede ser una manipulación. Si es una manipulación no va a valer. O sea, etiquetamos como change of character pero sería falso. Por lo tanto hay dos tipos de change of character. Uno que es verdadero y uno que es falso. El verdadero es el que si demuestra en el futuro que la tendencia cambió. Pero mientras no miramos el futuro, no hay como saber si la tendencia realmente cambió o si no. Hay esa indeterminaci y lo hacen de prop para que puedan seguir manipulando Entonces tenemos que mirar hacia el futuro para saber si fue un change of character verdadero real o si fue pura manipulaci Entonces hay dos tipos, puede ser el real o puede ser la manipulación que es el falso. Manipulacion. Cuando manipulacion la etiqueta change of caractere es falsa. Entonces, como sabemos que es falso o verdadero? Solo despues de mirar lo que sucedio despues. Sin antes mirar al futuro no hay como saberlo. Pero con la data de entrenamiento si tenemos como mirar al futuro. No tenemos como mirar al futuro con la data de testeo. Por lo tanto con la data de entrenamiento ustedes deben tratar de identificar a partir de ese Major Low o el Major High que está del otro lado. Un mayor o mayor o mayor. De ahí pueden identificar donde están estos puntos importantes. Porque lo que está en el medio es interno. Lo que es interno es pura manipulación. Puede irse a cualquier lado, arriba, hacia abajo, aleatorio, no gaussiano. Entonces tenemos que identificar los puntos importantes, los high highs importantes, low lows importantes para evitar ser golpeado por las manipulaciones. Todo eso vamos a filtrar, porque vamos a ser capaces de identificar donde están los puntos major low relevantes y major high relevantes. Eso si tenemos como programadores que identificar qu Primero porque contamos con temporalidad mayor despu porque contamos con el volumen y despu para entrenar tenemos la data con las velas futuras No tenemos en las velas del pasado en las velas futuras s lo tenemos Les voy a mostrar este video m las diapositivas que nos proporciona El video en si ustedes lo asisten en la casa tranquilos Les voy a explicar lo que hacen ah esas diapositivas Entonces, a ver. Aquí lo que les contaba, que el caso ideal es distinto del caso real. En la realidad ocurre eso. En la teoría nos enseña eso. Pero tenemos que tratar esto en lugar de aquello. Aquí observamos un RAI, un robot aquí abajo. Aquí adentro unos movimientos que están provocando un soporte. Cuando el operador del mercado observa dos niveles donde las velas alcanzaron ese nivel y lo respetaron, ahí se identifica como un punto que se está respetando. Y enseguida, ¿qué hacen? Suelen poner posiciones aquí, una vez que confirman, aquí las velas rojas significa alcista, y el blanco es bajista. Entonces, ¿qué hacen? Observan que se respetó ese nivel. Entonces, a partir de ahí empiezan a poner posiciones alcistas. Eso funciona a veces a veces no Todo para tratar de enga a la gente A veces funciona a veces no A veces lo que hacen es respetar aqu para darle una reducci de que est respetando ese nivel Pero m adelante lo que va a suceder es una manipulaci justo aqu Se viene el precio hacia aqu abajo y de ah adelante es donde pone otra vez hacia arriba Entonces tratan de engañar lo más que puedan para poder sacar lo más que puedan también. La mayor parte del tiempo aquí, manipulando, manipulando. En puntos puntuales es cuando confirma la tendencia real. Tendencia real aquí, salta porque todo eso es manipulación, aquí tiene tendencia real, desde adelante no sabemos. Porque está en una zona entre los puntos relevantes. Entonces vamos identificar los major highs y los major lows. Eso es crucial. Como lo vamos identificar? Utilizando temporalidad mayor, utilizando volumen. Y utilizando algo importante que está en el segundo indicador, el volumen profile. El volume profile es un volumen por precio y no por tiempo. El que les proporciona la data es por tiempo, en minutos cuando ocurre el volumen. En cambio el volume profile es uno que se distribuye a lo largo del precio. O sea, a un cierto precio, por ejemplo, el precio de 100. ¿Cuánto de volumen se transaccionó cuando el precio era 100? Eso nos va a dar un histograma distribuido a lo largo del precio. Por ejemplo, si tengo el precio entre 100 y 110, va a haber una gaussiana que está distribuida entre estos rangos. Entonces el volume profile, ustedes van a sacar el volume profile a partir del volumen vertical. El volume profile es un volumen horizontal que les toca programar a partir del volumen vertical. Pero eso será ya la parte 2.2 del proyecto. La parte 2.1 es pura estructura. Es una estructura. La parte de los dos es el volumen y el volumen. El volumen viene como una información complementaria a la estructura. Primero necesitamos conocer la estructura para después aplicar en tiempos puntuales el volumen. El volumen no sirve para aplicar en cualquier tiempo porque nos da ruidos también. Entonces trata de llenar de ruidos para engañar lo mas que pueda. Esa es la dinámica que funciona. Entonces aquí estamos tratando de identificar los puntos relevantes, máximo relevantes, mínimo relevantes, para a partir de ahí saber en donde actuar. En el medio de todos esos puntos relevantes no sabemos que va a suceder. Puede ser todo aleatorio porque son puntos internos. Lo que queremos saber es estas fronteras externas, hay que delimitarlas bien a través de los mecanismos que les hago. Alta temporalidad y el volume profile. Entonces necesitamos información de volumen para poder identificarlos bien. Entonces regresemos. Aquí tenemos nuestro zig zag para el caso ideal. El caso ideal funciona así. Si uno ve esta gráfica sabe dónde posicionarse, dónde comprar, dónde vender. Lo que pasa es que no sucede así. Si estamos observando el bajista, uno abre una posición de venta, abre una posición de venta, abre una posición de venta, siempre ganará. Llega aquí, se dispara al otro lado, usted cierra la posición y gana. Siempre gana. Pero ocurre justo al revés para que usted siempre perda. Entonces no se hace así. Lo que se hace es as Yo me manifiesto mi intenci como mercado una vez paso bastante tiempo manipulando luego vuelvo a manifestar mi intenci Sigo manipulando m un mont de veces despu de haber cogido la plata de la gente vuelve a mostrar mi intenci otra vez Esa es la práctica que funciona. Aquí usted tiene el boss, aquí tiene otra vez el boss. El voz real, porque hay el voz real y el voz falso. Uno podría decir que aquí es un voz, pero ese no es... El voz siempre va hacia arriba con la tendencia, o sea, cuando la tendencia es alcista, pasó del punto máximo, entonces rompió la estructura, o sea, break of structure. Rompio la estructura significa que mantuvo la tenencia. En cambio aquí abajo uno se ve con ruido. Uno puede pensar que este punto de aquí me está indicando que el precio se va hacia abajo. Pero es pura manipulación. Disparen stop loss de quienes habían comprado antes, ya salen perdiendo. Solo van a manifestar el interés real posterior a eso. Una vez que cogió todo de la liquidez. Después de haber robado cuanto quería, ahí sí manda su objetivo. Aquí están los bancos, aquí están los multimillonarios haciendo estos movimientos. No los multimillonarios personas como tal, sino los bancos encargados a que hacen esto. Entonces vemos que más tenemos aquí. Como medio manipulador. ¿Cómo identificar valor major highs y major lows? Esto como ya les dije, a través de la gráfica de mayor temporalidad y del valor. Ahora si vamos a distinguir qu es una estructura interna y qu es una estructura externa Una vez que yo identifico mi major lows y mi Major High lo que tengo adentro es ruido Ya Les tengo que identificar donde est estos ruidos Aquí es ruido, lo ruido es la parte interna. Si? Todo lo que está aquí adentro es ruido interno. Ya? La parte que corresponde a la parte externa es ese límite aquí. Esta frontera superior y esta frontera inferior. Aquí tenemos nuestros límites por arriba y nuestro límite por abajo. Si el precio rompe hacia abajo, el cambio de tendencia será verdadero. Si el precio rompe hacia arriba, la tendencia sigue vigente. ¿A partir de quienes? A partir de estos máximos relevantes y mínimos relevantes. Entonces lo crucial es poder identificar donde está el mínimo relevante y el máximo relevante. Todo lo demás que está aquí dentro es ruido. Tienen que descartar cuando se trata de aprender la máquina. O sea, aplicar un algoritmo. Para aplicar el algoritmo es interesante, como tenemos la data de entrenamiento, las reales culturas, observar con bastante atención ese punto de aquí. Porque en ese punto de aquí algo puede suceder con el volumen. Por ejemplo aquí estamos en el mismo nivel prácticamente. Aquí fue la manipulación. Entonces algo interesante ocurrió con el volumen en esa región. Hay que observar el comportamiento del volumen en esa zona. Como esta el volumen vertical y como esta el perfil de volumen horizontal. Porque de pronto puede haber un desbalance. ¿Qué es un desbalance? Es cuando hay más compradores que vendedores. Entonces de haber más compradores hay un desbalance que es favorable a que suba por haber más, quien más compre que quienes vendan. El desbalance se debe observar aqu a trav de lo que ocurre internamente con el volumen De pronto les toca observar el detalle del volumen Ustedes no tienen la data del detalle del volumen Pero si avanza bien, les puedo mostrar cómo es el detalle del volumen, cómo se desglosa internamente. Porque lo principal aquí es poder identificar dónde están los mínimos importantes y el máximo importante. Una vez que usted avanzó todo eso, y llegó a romper un máximo importante, el mínimo relevante se cambia de aquí hacia acá. Entonces, habrá que actualizar el Major Law hacia ese de que? Porque es el más recién. Entonces, al ser el más recién y el más bajo, estamos lidiando con un comportamiento estocástico. Un comportamiento estocástico es aquel que busca en un pasado recién la información para predecir lo que viene enseguida. Diferente de un pasado lejano, que voy mucho hacia atrás para saber características que nos permiten predecir. Entonces es un proceso de estocástico. Está la temporalidad, el tiempo que va avanzando discretamente, y aquí está la componente que no voy muy hacia atrás. Por lo tanto actualizaremos este punto mínimo. Pero esto sucede solo después de que se rompió esto de aquí. Antes yo no puedo decir que este es el punto mínimo por más elevado. Solo después de que rompió el máximo. No antes. Tengo que esperar que se cumplan todas estas velitas hasta observar la ruptura de esta resistencia. Aquí está la resistencia, ¿no? Resistencia, soporte. Rompió la resistencia. Y tengo una confirmación de que esta resistencia sí rompió. Si esto se confirma, ahí si actualizo. Este deja de ser el marco de media-low y pasa a ser este de aquí. Y de ahí sigo con mi movimiento. Todo esto que esta marcado es interno, es ruido. Estructura interna. Después de que se rompió hacia arriba, actualizo. En vez de luego hacer este de aquí. El siguiente más. Ahora vamos a mostrar el movimiento hacia abajo, el paquista. Observo que la tendencia general es paquista. Espero después de eso manipulaciones. Aquí hay una manipulación evidente. Y solo puedo poner esa etiqueta medio high una vez que se cumplió el traspaso hacia abajo. O sea que aquí se rompió de este lado. Rompió de este lado, ahí si puedo actualizar. Mientras tanto no puedo actualizar. Y aquí introduce otra manipulación. Miren que esta dentro del rango interno. Mientras este dentro del rango interno, pues puede esperar pura manipulación. Pero al momento que se rompe por aquí hacia arriba, supongo que eso va hacia arriba, entonces rompe eso. Al romper eso, hay un cambio de tendencia de la bajista hacia la alcista. Pero hay que romper primero eso. Sin romper eso, sigue bajista. Porque esta es una parte interna. Interna con relación a mi Major High y mi Major Low. Todo lo que est dentro de mi major high y mi major low es interno Hay que romper el soporte o la resistencia para ver un cambio efectivo en la etiqueta aqu no CH o CH El cambio de estructura el cambio de tendencia Muy bien, aquí está. Toda esta parte izquierda. La parte externa está bien marcada aquí. Major low y major high. Y eso solo se vuelve media high una vez que rompe aquí. O sea, yo tengo que conocer el futuro para poder actualizar mi etiqueta aquí. Eso es súper importante. Una vez que rompe aquí hacia abajo, esto de aquí se actualiza, pasa a ser este último punto media high. Deja de ser este y pasa a ser este. Yo voy actualizando a la medida que voy viendo que el soporte y la resistencia fueron rotos. Una vez que compruebo que fueron rotos, actualizo mis niveles superior e inferior. Yo solo voy a tener uno Major High y uno Major Low a cada momento. ¿Habo múltiples major highs? No, solo uno. Un major high y un major low. A ver que mas tenemos aquí. Ok, haber roto ese major low implica una continuación de movimientos. Es decir, la tendencia sigue bajista. Pese a que hubo manipulaciones en el medio. Actualizo el medio high, observe. Después de haber roto el soporte. Si no se rompe el soporte, no actualizo el medio high, sigue igual. Ustedes tienen que poner la etiqueta donde corresponde el medio high, medio low, poder identificar eso. Eso les toca a ustedes No s si el indicador que les voy a brindar de Trendy View se hace eso Pero Lo que quiero es que ustedes apliquen esa teor a la limpieza de la data Tienen que aplicar esa teor Les voy a dar un código fuente inicial para que a partir de ahí ustedes tengan una referencia de cómo se encuentran estos valores Si es un C o H verdadero o falso, ahí les tocará a ustedes. Aquí tenemos... Vamos identificar ahora el ojo en el BOS. El BOS que es el Brick of Structure, hay que tener un poco de cuidado en poner la etiqueta en el BOS. No solo el CH o H sino también Brick of Stroke. ¿Por qué? Porque aquí tenemos un valor HH, aquí arriba. Del otro lado la vela sobrepasó el HH y sobrepasó con cuerpo. La vela tiene un cuerpo, este es el cuerpo de la vela y estas son las mechas. En la parte superior, quien tiene fuerza, los compradores o vendedores? En la parte superior de la vela. Está equivocado. Los vendedores son los que tienen fuerza. Aquí están los vendedores que están empujando el precio hacia abajo. Por eso el high ocurre aquí por culpa de los compradores, pero los vendedores mandan el precio hacia abajo. Entonces la fuerza ganadora es la final Es como un cable que uno hace as con el cable y quien gana la batalla es quien finaliza la cosa no quien inicia Los compradores iniciaron hasta el jai pero luego los vendedores empujaron hacia abajo con fuerza ¿Quién ganó? Los vendedores. Esa parte demuestra fuerza de los vendedores. Entonces, mecha hacia arriba, fuerza vendedora. Mente hacia abajo, fuerza compradora. La fuerza esta en quien la manifesto por ultimo, porque ganó el proceso, la resistencia. Claro que puede seguir en la disputa en la siguiente vela. En la siguiente vela vamos a comprobar si quien tuvo la fuerza, Si se comprueba que los vendedores o los compradores tuvieron más fuerza. Al final esto es una batalla así. Aparte de la manipulación hay eso también. Uno tiene fuerzas y tiene manipulaciones. Aquí por ejemplo observamos un doble piso, golpeo hacia aquí rebotó, golpeo hacia aquí rebotó. Aquí buscó liquidez, recogió la liquidez. En esta liquidez no fue suficiente, es decir, encontró bastante volumen aquí en esta vela. Observen que el volumen aquí va a crecer. Más destacado que otras velas del promedio aquí. Entonces el volumen incrementa. Es cuando está recogiendo liquidez, ya que alcanza un nivel importante. Observamos si hay tomada de liquidez a partir de estos niveles que ya tenemos establecidos. Luego no fue suficiente que hago. Mando el precio otra vez hacia abajo. Recojo más liquidez porque hay todavía lo que recoger. El precio solo va a donde hay liquidez, donde el volumen tenga posibilidad de crecer. Si el volumen tiene posibilidad de bajar, no voy. Me quedo por donde puedo ganar más. Así está diseñado el algoritmo. Busca donde tiene mas posibilidad de ganar, recoge todo y de ahí se dispara a su intención. O sea el objetivo o la intención es observar al final de todo. Mientras tanto estamos aquí en manipulación, recogiendo liquidez, manipulando, tratando de hacer las suyas. Al momento final es cuando se manifiesta la intención real. Mando una visita hacia el otro lado, ya estoy en otro nivel. Alcance todo lo que quería y estoy cumpliendo con mi objetivo. ¿Por qué? Porque por ejemplo, supongo que alguien quiera poner una posición de 5 millones. Algo así. Entonces uno no va a poner todas esas posiciones de todo ese valor de un solo golpe. Porque si lo hacen, el precio dispara hacia arriba. Tiene que poner poco a poco. Pone un poco y va controlando a través de la manipulación haciendo ese juego para que alcance a ingresar todas esas posiciones. Necesita manipular bastante. Si uno pone de golpe todo eso el precio va a encarecerse rápidamente. El precio ya está caro, pues no podrá ganar. ¿Por qué? Porque al momento que trata de vender el precio estará caro. Por eso se hace poco a poco. Un release de poquito en poquito manipulando. Con ese mismo capital manipula. Manipular significa tomar de quienes no tienen para darse los que m tienen Esa es la manipulaci Hay que estar atento a eso para poder programarlo bien Manipulaci aqu y otra ac Uno ve que est respetando ese soporte Eso induce a que la gente pase a ingresar a partir de aqu Pero en otro movimiento se va a coger la liquidez de quienes pusieron ahí y se va a quedarse sin plata. Ok, ya. Entonces vamos. Aquí creemos esta zona de demanda. El mercado funciona con oferta y demanda. Ustedes ya escucharon eso. Entonces la oferta está arriba o abajo? La oferta está arriba y la demanda está abajo. Ya vimos que hay este concepto de resistencia aquí arriba. Que es sinónimo de oferta. Y tenemos abajo lo que se llama soporte, que es sinónimo de demanda. ¿Qué es la demanda? Es cuando hay interés en comprar. Tengo muchos compradores aquí abajo. Arriba, en cambio, tengo muchos vendedores. Entonces, ¿los vendedores qué quieren hacer? Quieren vender lo que tienen. Por lo tanto, ofrecen. En cambio los que están abajo, el precio está barato, quiero comprar. Los compradores se posicionan abajo, los vendedores se posicionan arriba. Esa es la estructura lógica del funcionamiento. Vendedores arriba, compradores por debajo. Porque quiero comprar más barato, a un precio más económico. Para que al momento que est en el medio del rango pueda vender por ah En cambio los que tienen inter en vender quieren vender cuando el precio es caro Porque si el precio esta caro tienen mas ganancias ellos Porque el precio real esta por mas por abajo y luego van a ganar mas Esta es la lógica de funcionamiento. Entonces se crea esta zona de demanda siempre y cuando se respetan estos niveles. Entonces se crea la zona de demanda aquí por debajo y se crea una zona de oferta hacia arriba. En esta zona de demanda habrá una cierta cantidad de compradores aquí abajo. Si, otra vez sigue respetando. Respeta una tercera vez. Respeta una cuarta vez. ¿Será que seguirá siempre así? Respetando, es decir, golpea ahí y rebota. Pero de golpear mucho, quita todos los compradores que están aquí abajo. El precio se va hacia abajo. Porque insistió bastante en esa zona. Entonces, un soporte es roto por varias veces. Primero doy un respiro, después regreso. Respiró, regreso. Doy un respiro, regreso. Hasta que ya no hay compradores ahí. Así funciona. Y lo mismo del otro lado. Yo voy, golpeo la resistencia, regreso. Porque hay muchos vendedores. Pero a medida que voy a hacer otra vez, ya va disminuyendo el número de vendedores. Yo insisto más veces. Hasta que la siguiente vez ya, Unas 5 veces es suficiente para quitar a todos los vendedores del camino, los que están por arriba y los que están abajo comprando. Unas cuantas veces que golpear un nivel relevante, un soporte o una resistencia, eso se desvanece. qu eso es importante Porque si ustedes saben de eso para incrementar la probabilidad de poder predecir mejor Esa es la idea ¿Qué más tenemos por aquí? Vamos a considerar el voz. El voz puede ser verdadero o falso. Este caso de aquí es un voz falso. ¿Por qué? Porque primero no cierro la vela con cuerpo. Entonces si cerrar esta vela de aquí, con cuerpo, etiquetaría cos de una. ¿Por qué? Porque sobrepasó el valor hh anterior. Entonces cerró con cuerpo, de una es un cos verdadero. Pero no es el caso, esta una mecha hacia arriba. Al estar una mecha no puedo poner la etiqueta POS todavía. Tengo que esperar lo que sucede después para observar. Si lo que viene después tiene menor cantidad de vendedores, entonces no rompe la estructura. Por lo tanto ese boss no lo pone. Cuando voy a poner un bus? Cuando yo tengo en la siguiente vela una cantidad de compras que sobrepase como mínimo el valor high máximo de la vela inicial. Tengo esta vela con este HI aquí. La siguiente vela si se sobrepasa el HI aquí por arriba, entonces ya puedo poner mi voz. El HI de la siguiente vela, por así decirlo, puede ser con cuerpo sobrepasando mejor. Si es con cuerpo mejor. Pero en el caso de ser sin cuerpo, este por ejemplo no es un VOS Valid. Pero en cambio S es un VOS válido porque los compradores primero alcanzaron un nivel más alto que el anterior. Aquí observan que este pico es superior al high anterior. Entonces comparo los highs. Si tengo un high superior al anterior, entonces valido mi etiqueta VOS. Si el high de la siguiente vela es menor, entonces el high es igual. Hay una regla, un iftn. Para solvente eso con base en high de las veces. Esto por un lado. Si estoy con una temporalidad de un minuto, esto de pronto no puede ser muy fiable. Pero si busco en la temporalidad de 5 minutos tengo mayor chance de acierto. Confirmo realmente mirando hacia una temporalidad mayor. Si estoy en una gráfica de 1 minuto y observo ese comportamiento y me da así un poco de duda. Si tengo duda, entonces miro mejor a la gráfica de 5 para observar la confirmación. O sea, una gráfica de temporalidad mayor. La de 15 está muy lejana, la de 5 es la más cercana a la de 1. Entonces, la de 1 tiene mucho ruido, mucho mucho. Entonces hay que tratar de filtrar, Observando siempre a alguien de mayor temporalidad. Entonces les dejo esta otra pista para que puedan solucionar casos así. Así mismo puede que ese voz aquí no sea suficiente para decir que la tendencia seguirá así. qu no Porque yo necesito confirmaci El punto es que necesito confirmaci adicional para poder poner mi etiqueta Si no tengo la debida confirmaci mejor no lo pongo Primero confirme Para luego de confirmaci poder aparecer la etiqueta Ustedes van a usar el m replay para que desglose cada vela y me muestre c van a poner la etiqueta Entonces habrá un modo replay que ustedes toca desarrollar ahorita para esta parte para que en el replay se pueda observar que momento fue el que usted activo la etiqueta. En el modo replay se observara. Solo se puede agregar la etiqueta una vez que confirma. Ok, aquí de pronto yo desconfío que eso no sea suficiente, tengo mis dudas. Mejor que ser un poco más para ver si va a seguir realmente sobrepasando ese nivel alto, porque al lidiar con una misma, En la mecha yo se que hay fuerza vendedora aquí arriba. ¿Será que esa fuerza vendedora se va a amplificar en las siguientes velas? Entonces eso es lo que me hace preguntar. Por lo tanto, yo pongo en sospecha, está en suspense hasta que se confirme. El punto importante es que primero confirme. Para eso use volumen, use temporalidad, use perfil de volumen, lo que sea necesario. En cambio hay otra cosa que es fácil de aplicar. Por qué? Porque la vela que esta aquí, esa otra, ya viene con cuerpo, un cuerpo largo, así que es fácil de etiquetar la voz aquí. El etiquetado de voz depende de primero confirmar. Aquí lo confirma de una. ¿Por qué? Porque cerró con cuerpo. Cuando cierra con mecha es cuando hay la riquidud Y siempre comparado con el nivel anterior A partir de aqu es cuando sabe comparar con aqu Tiene que obtener esa etiqueta m para poder calificar eso como un boss En este caso se confirma plenamente. Por eso dice, valid break of structure. En cambio este de aquí no se confirma. Está tímido aquí, miren. No está avanzando, está muy tímido. Incluso el posterior no cierra con más fuerza. Significa que los compradores que están con fuerza en esta parte, están actuando fuerte aquí abajo. A veces el tamaño de la vela no tiene nada que ver con el volumen que tiene la columna volumen. Hay un volumen enorme y una vela chica. Eso puede suceder. El volumen no está directamente correlacionado con el tamaño de la vela. Son dos cosas distintas. Puede haber un volumen grande y una vela chica. O puede haber un volumen chico y una vela grande. Son dos cosas totalmente desrelacionadas, son dos dominios distintos. Eso hay que prestar atención. No es porque usted ve una vela enorme de volumen, significa que va a tener una vela grande también. La cantidad de dinero que se procesa durante un cierto periodo de tiempo. De precio. Son dos cosas distintas. Incluso el color que ustedes ponen verde en la vela de volumen, eso no tiene nada que ver. No se puede poner un color verde en la vela de volumen o un color rojo. ¿Por qué? Porque el volumen es la suma de compradores más vendedores. Si el volumen es mas grande del mundo es mas grande del mundo Por eso poner una vela de volumen con color verde o rojo es equivocado Porque ah se suman Compradores compran por ejemplo 50 lotes vendedores toman 80 lotes suman 50 con 80 es 130 Entonces no es que se resta uno del otro. La resta del volumen comprador menos volumen vendedor se llama delta. Y eso ustedes no tienen ahí. Ustedes tienen la suma de valores absolutos. Los compradores más absolutos de vendedores. Este es el volumen que ustedes tienen en la data. Distinguir entre el volumen comprador y el volumen vendedor, eso ustedes no entienden. Es un concepto que va más allá de lo que he explicado hasta ahora. A ver que tenemos aquí. Aquí tenemos una vela tímida que no avanza. Aquí avanzó. Ahí dice válido. Pero si se confirma realmente va a depender de lo que viene todavía después. Yo no creo que sea suficiente para poner la esqueta voz. Porque si la vela siguiente ya viene a seguir, invalida el voz. Si la vela siguiente va hacia abajo, ese voz queda. Pero si la vela siguiente va hacia abajo, ese voz queda. ¿Qué es el dinero que hay aquí? Ahora la dirección de mercado. La dirección de mercado ya les conté. Primero va a ser la temporada mayor para observar. La tendencia es alcista, observando este automático. El idioma es todo interno, lo interno tiene mucho ruido. Ahora el etiquetado de CH o CH, eso les falta todavía. Ese etiquetado indica el cambio de la tendencia. Aquí tenemos la tendencia al sistema. Pero observando desde la perspectiva De lo importante y del high importante, esto de aquí no es un cambio de tendencia. Observe, el precio sube, vaya hacia abajo donde hay un retroceso. Hasta aquí no etiquetamos nada. Es apenas un retroceso. Observamos lo que viene a continuación, sube, pero luego baja, luego sube y otra vez baja, baja bastante. Pero como esta dentro de los límites importantes, no es un COHCH importante, es un minor. ¿Por qué? Porque no sobrepasó el soporte que está aquí abajo ni la resistencia que está aquí arriba. Hay que sobrepasar esos valores para poder efectivizar. En este caso sería ese de aquí. Tendría que venir el precio por debajo de ese de aquí para poder marcar el CH verdadero. Esto por lo tanto es solo una manipulaci La tendencia principal sigue al cista Aqu no hubo nada mas que manipulaci Cuando usted pone la etiqueta CH o CH aqu justo cuando el precio sobrepasa con cuerpo hacia abajo Mientras el precio no sobrepasa con el cuerpo hacia abajo, usted no pone esa etiqueta. No va a poner aquí, no va a poner aquí, solo después que confirme que se está cambiando la estructura interna. Esto es minor porque corresponde a la estructura interna. Por eso está puesto con un color menos destacado. Cuando ingresa a una posición de venta justo ahí, se equivoca, abre la posición por aquí, pone un stop loss hacia arriba, pone un take profit hacia abajo, esperando que el precio llegue a ese 2x1 y nunca llega. El precio antes de encontrar el medio low avanza hacia la dirección principal y eso hace que el que puso su posición aquí pierda. El stop loss es como un script que lo pones ahí para que te venda automáticamente cuando el valor caiga. Si no uno se equivocan fácilmente aquí y es, ah está bajando, voy a vender. Entonces yo no quiero que si estos caen y todos venden por alguna cosa. Mantener la tendencia principal. Es como un script automático que esta escuchando el precio y si ve que el precio se baja mas allá de ahí, vende automático. Eso es el stop loss para el mercado. Esto es lo que sucede. Entonces el punto importante es el major low el soporte importante y el major high importante Lo que esta en el medio no es un cambio de tendencia real Es fake Aquí dice, espere hasta que el precio establezca un cambio de tendencia basado en la etiqueta Major, y no en la etiqueta Minor. Por eso ustedes tendrán que poner las etiquetas Major y Minor adecuadamente. Si no, van a inferir y colocar a él. Este es un válido porque esta rompiendo. Observen aquí. Este si rompe el Major Law. En cambio ese que no rompe porque no tiene cuerpo, esta con mecha. Entonces hay que diferenciar, identificar si es mecha, el cruce con el mínimo. Aquí el valor mínimo. Cruzó pero es una mecha, entonces eso no está confirmado todavía. Es muy válido el CH o CH. En cambio el lado anterior era válido porque hizo con cuerpo. Eso es válido porque fue con un cuerpo fuerte ahí. Y se mantuvo. Eso es importante que se mantiene aquí. No ha sido consumido por los compradores que están por debajo. Aquí se rompe con fuego y se mantiene. Ahora, el tiempo que ustedes tienen que esperar para observar que eso no se va a ser consumido, ustedes pueden esperar la siguiente vela. Porque si la siguiente vela, los compradores disparan hacia arriba, entonces se invalido el movimiento. Entonces atenci a eso Aqu es el invadido Y aqu terminamos esta demostraci Ahora bien vamos a Subscrebe Foto. Foto. Foto. Foto. Foto. Foto. Foto. Foto. Esta es la herramienta. Ustedes van a buscar SMC structure más FBG. Este es el nombre del indicador. Les voy a mostrar. Entonces, vayan a TradeView y busquen este indicador. Aquí voy a poner mi indicador. Voy aquí en indicadores. Ingreso ese de aquí. SLC Struc
+
+[TRUNCADO: 5862 caracteres restantes. Usa rangos o pide menos sesiones.]

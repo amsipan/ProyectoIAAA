@@ -217,6 +217,7 @@ my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
 my $vis_hld     = 0;
 my $vis_liq     = 0;
+my $vis_diy     = 0;
 my $vis_zz_ext = 0;
 my $vis_zz_int = 0;
 my $vis_zigzag = 0;    # true si alguna capa ZZ está ON
@@ -233,6 +234,7 @@ my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
 my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
 my $cb_liq     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
+my $cb_diy     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'diy');
 my $cb_zigzag = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'zigzag');
 my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($chart_engine, $_) }
                 qw(INTERNAL EXTERNAL CHANNEL);
@@ -241,11 +243,11 @@ my %cb_liq_el = map {
 } qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY);
 my %overlay_state_ref = (
     smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
-    liq => \$vis_liq, zigzag => \$vis_zigzag,
+    liq => \$vis_liq, diy => \$vis_diy, zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
     smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
-    liq => $cb_liq, zigzag => $cb_zigzag,
+    liq => $cb_liq, diy => $cb_diy, zigzag => $cb_zigzag,
 );
 my %overlay_button;
 my $overlay_button_text = sub { $_[0] ? 'Ocultar' : 'Mostrar' };
@@ -477,6 +479,15 @@ if ($ENV{MARKET_RELOAD}) {
             },
         )->pack( -side => 'left' );
     }
+
+    # DIY Custom Strategy Builder (Supply/Demand Zones)
+    $p->Checkbutton(
+        -text     => 'DIY (S/D Zones)',
+        -variable => \$vis_diy,
+        -command  => sub {
+            $set_overlay_visible->( 'diy', $vis_diy ? 1 : 0 );
+        },
+    )->pack( -side => 'left' );
     # ZigZag externo ChartPrime (Length 150; VP/Channel/PoC OFF → solo azul)
     $p->Checkbutton(
         -text     => 'ZigZag externo',

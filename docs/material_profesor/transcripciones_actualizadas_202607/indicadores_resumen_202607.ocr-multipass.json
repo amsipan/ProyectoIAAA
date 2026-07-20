@@ -1,0 +1,404 @@
+{
+  "original_3x": [
+    {
+      "x_original": 8.3,
+      "y_original": 18.9,
+      "text": "ant",
+      "score": 0.841
+    },
+    {
+      "x_original": 6.9,
+      "y_original": 48.7,
+      "text": "de",
+      "score": 0.998
+    },
+    {
+      "x_original": 59.9,
+      "y_original": 59.0,
+      "text": "Publish",
+      "score": 0.991
+    },
+    {
+      "x_original": 511.3,
+      "y_original": 128.1,
+      "text": "Etructuna Imterna/ExTerna",
+      "score": 0.846
+    },
+    {
+      "x_original": 73.4,
+      "y_original": 97.7,
+      "text": "目",
+      "score": 0.914
+    },
+    {
+      "x_original": 25.8,
+      "y_original": 120.9,
+      "text": "]",
+      "score": 0.542
+    },
+    {
+      "x_original": 517.7,
+      "y_original": 182.7,
+      "text": "Nivelen de liquidon OB",
+      "score": 0.778
+    },
+    {
+      "x_original": 699.8,
+      "y_original": 252.5,
+      "text": "FVG",
+      "score": 0.836
+    },
+    {
+      "x_original": 804.4,
+      "y_original": 274.9,
+      "text": "combro un",
+      "score": 0.68
+    },
+    {
+      "x_original": 378.6,
+      "y_original": 306.0,
+      "text": "DIY",
+      "score": 0.837
+    },
+    {
+      "x_original": 747.2,
+      "y_original": 314.0,
+      "text": "Trend lioe / Camal",
+      "score": 0.89
+    },
+    {
+      "x_original": 721.0,
+      "y_original": 355.1,
+      "text": "EQH/EQL",
+      "score": 0.961
+    },
+    {
+      "x_original": 790.3,
+      "y_original": 422.1,
+      "text": "M/27H0",
+      "score": 0.561
+    },
+    {
+      "x_original": 854.4,
+      "y_original": 474.9,
+      "text": "Nivelh Fiboracd (2igzag extermo",
+      "score": 0.85
+    },
+    {
+      "x_original": 734.7,
+      "y_original": 538.2,
+      "text": "AnchodVWAa/M",
+      "score": 0.593
+    },
+    {
+      "x_original": 587.9,
+      "y_original": 592.4,
+      "text": "Amchored Volume Profi le",
+      "score": 0.916
+    },
+    {
+      "x_original": 523.0,
+      "y_original": 659.0,
+      "text": "Lcixta",
+      "score": 0.743
+    },
+    {
+      "x_original": 37.5,
+      "y_original": 705.7,
+      "text": "曲",
+      "score": 0.603
+    },
+    {
+      "x_original": 9.7,
+      "y_original": 789.9,
+      "text": "m.",
+      "score": 1.0
+    },
+    {
+      "x_original": 9.7,
+      "y_original": 802.3,
+      "text": "26",
+      "score": 1.0
+    },
+    {
+      "x_original": 1371.0,
+      "y_original": 1111.4,
+      "text": "8",
+      "score": 0.909
+    }
+  ],
+  "contrast_3x": [
+    {
+      "x_original": 8.5,
+      "y_original": 19.1,
+      "text": "ant",
+      "score": 0.958
+    },
+    {
+      "x_original": 6.9,
+      "y_original": 48.3,
+      "text": "de",
+      "score": 0.992
+    },
+    {
+      "x_original": 60.9,
+      "y_original": 59.0,
+      "text": "Publish",
+      "score": 0.993
+    },
+    {
+      "x_original": 510.9,
+      "y_original": 128.1,
+      "text": "Eructuna Imterma/ExTerma",
+      "score": 0.821
+    },
+    {
+      "x_original": 74.6,
+      "y_original": 97.7,
+      "text": "目",
+      "score": 0.847
+    },
+    {
+      "x_original": 517.7,
+      "y_original": 183.1,
+      "text": "Niveln de liquidon OB",
+      "score": 0.762
+    },
+    {
+      "x_original": 68.1,
+      "y_original": 198.9,
+      "text": "口",
+      "score": 0.566
+    },
+    {
+      "x_original": 690.7,
+      "y_original": 250.1,
+      "text": "FVG",
+      "score": 0.839
+    },
+    {
+      "x_original": 805.2,
+      "y_original": 274.5,
+      "text": "combro un",
+      "score": 0.625
+    },
+    {
+      "x_original": 377.8,
+      "y_original": 306.0,
+      "text": "DIY",
+      "score": 0.909
+    },
+    {
+      "x_original": 746.8,
+      "y_original": 314.0,
+      "text": "Trend lioe / Canal",
+      "score": 0.9
+    },
+    {
+      "x_original": 720.6,
+      "y_original": 354.7,
+      "text": "7031103",
+      "score": 0.816
+    },
+    {
+      "x_original": 790.3,
+      "y_original": 421.9,
+      "text": "oM/270",
+      "score": 0.526
+    },
+    {
+      "x_original": 854.4,
+      "y_original": 475.1,
+      "text": "Niveds Fiboracd (2issag extermo",
+      "score": 0.831
+    },
+    {
+      "x_original": 735.1,
+      "y_original": 537.8,
+      "text": "Anchoed VWAa/a ",
+      "score": 0.601
+    },
+    {
+      "x_original": 1275.8,
+      "y_original": 539.8,
+      "text": "Rium",
+      "score": 0.673
+    },
+    {
+      "x_original": 587.9,
+      "y_original": 592.4,
+      "text": "Amchored Volume Profile",
+      "score": 0.914
+    },
+    {
+      "x_original": 1106.9,
+      "y_original": 618.7,
+      "text": "Grab",
+      "score": 0.957
+    },
+    {
+      "x_original": 522.4,
+      "y_original": 658.6,
+      "text": "Lcirta",
+      "score": 0.734
+    },
+    {
+      "x_original": 10.1,
+      "y_original": 801.9,
+      "text": "26",
+      "score": 1.0
+    },
+    {
+      "x_original": 1370.2,
+      "y_original": 1111.8,
+      "text": "8",
+      "score": 0.986
+    }
+  ],
+  "gray_autocontrast_3x": [
+    {
+      "x_original": 8.3,
+      "y_original": 18.9,
+      "text": "ant",
+      "score": 0.928
+    },
+    {
+      "x_original": 6.9,
+      "y_original": 48.3,
+      "text": "de",
+      "score": 0.994
+    },
+    {
+      "x_original": 60.1,
+      "y_original": 58.8,
+      "text": "Publish",
+      "score": 0.982
+    },
+    {
+      "x_original": 511.3,
+      "y_original": 128.7,
+      "text": "Estmuctuna Imterna/ExTerna",
+      "score": 0.805
+    },
+    {
+      "x_original": 73.4,
+      "y_original": 97.7,
+      "text": "目",
+      "score": 0.959
+    },
+    {
+      "x_original": 71.8,
+      "y_original": 130.5,
+      "text": "0",
+      "score": 0.593
+    },
+    {
+      "x_original": 517.7,
+      "y_original": 182.7,
+      "text": "Nivelen de liguidon OB",
+      "score": 0.771
+    },
+    {
+      "x_original": 699.6,
+      "y_original": 252.3,
+      "text": "FVG",
+      "score": 0.796
+    },
+    {
+      "x_original": 803.6,
+      "y_original": 274.9,
+      "text": "comtro un",
+      "score": 0.668
+    },
+    {
+      "x_original": 379.0,
+      "y_original": 306.0,
+      "text": "DIY",
+      "score": 0.808
+    },
+    {
+      "x_original": 747.2,
+      "y_original": 314.0,
+      "text": "Trend lioe / Camal",
+      "score": 0.86
+    },
+    {
+      "x_original": 721.4,
+      "y_original": 355.5,
+      "text": "EQH/EQL",
+      "score": 0.939
+    },
+    {
+      "x_original": 790.3,
+      "y_original": 422.1,
+      "text": "M/27H0",
+      "score": 0.592
+    },
+    {
+      "x_original": 854.4,
+      "y_original": 475.3,
+      "text": "Niveln Fiboracd (21gzag extermo",
+      "score": 0.843
+    },
+    {
+      "x_original": 572.6,
+      "y_original": 500.7,
+      "text": "218gag exturmo/mtermo",
+      "score": 0.892
+    },
+    {
+      "x_original": 734.7,
+      "y_original": 538.2,
+      "text": "AnchodVWAa/a",
+      "score": 0.625
+    },
+    {
+      "x_original": 588.3,
+      "y_original": 592.4,
+      "text": "Amchored Volume Profile",
+      "score": 0.936
+    },
+    {
+      "x_original": 1106.9,
+      "y_original": 619.1,
+      "text": "Grab",
+      "score": 0.905
+    },
+    {
+      "x_original": 40.7,
+      "y_original": 667.8,
+      "text": "D",
+      "score": 0.509
+    },
+    {
+      "x_original": 522.2,
+      "y_original": 658.6,
+      "text": "Lcixta",
+      "score": 0.862
+    },
+    {
+      "x_original": 37.5,
+      "y_original": 705.7,
+      "text": "曲",
+      "score": 0.658
+    },
+    {
+      "x_original": 9.7,
+      "y_original": 789.9,
+      "text": "m.",
+      "score": 1.0
+    },
+    {
+      "x_original": 9.7,
+      "y_original": 802.3,
+      "text": "26",
+      "score": 1.0
+    },
+    {
+      "x_original": 1371.0,
+      "y_original": 1111.0,
+      "text": "8",
+      "score": 0.895
+    }
+  ]
+}

@@ -19,6 +19,8 @@ use Market::Indicators::ZigZag;
 use Market::Overlays::ZigZag;
 use Market::Indicators::Liquidity;
 use Market::Overlays::Liquidity;
+use Market::Indicators::DIY;
+use Market::Overlays::DIY;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -234,6 +236,19 @@ sub new {
     $self->{overlay_manager}->register( 'liq', $self->{liq_overlay} );
     $self->{_liq_fed_up_to} = -1;
 
+    # DIY Custom Strategy Builder (Supply & Demand Zones)
+    $self->{diy_indicator} = Market::Indicators::DIY->new();
+    $self->{diy_overlay}   = Market::Overlays::DIY->new(
+        indicator => $self->{diy_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'diy', $self->{diy_overlay} );
+    $self->{_diy_fed_up_to} = -1;
+    if ($self->{indicator_manager}) {
+        $self->{indicator_manager}->register('DIY', $self->{diy_indicator});
+    }
+
     $self->bind_events();
 
     return $self;
@@ -362,6 +377,12 @@ sub sync_overlay_indicators {
     if ( $self->_overlay_wants_feed('liq') && $self->{liq_indicator} ) {
         $self->_sync_liquidity_feed($feed_to);
     }
+
+    # DIY Custom Strategy Builder (Supply/Demand Zones)
+    if ( $self->_overlay_wants_feed('diy') && $self->{diy_indicator} ) {
+        $self->_feed_indicator_to($self->{diy_indicator}, '_diy_fed_up_to', $feed_to);
+    }
+
     return $feed_to;
 }
 

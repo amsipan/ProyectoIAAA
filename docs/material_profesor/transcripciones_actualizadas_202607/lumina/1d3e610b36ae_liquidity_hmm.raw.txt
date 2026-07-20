@@ -1,0 +1,574 @@
+# Transcripción Lumina
+- id: 1d3e610b36ae
+- materia: Inteligencia Artificial
+- fecha: 2026-06-19T22:50:28
+
+El comentario es el que vimos ayer. A ver, vimos estructura. Hoy toca liquidez. ¿Qué es la liquidez? Es donde se acumula el dinero en los mercados. Y justo ahí es donde el precio tiende a irse con
+
+mayor facilidad. Tenemos que identificar las zonas de liquidez para saber donde el precio probablemente va a ubicarse. El machine learning va a tratar de vincular observaciones con etiquetas. Entonces
+
+tenemos que buscar donde hay mayor probabilidad de que con las observaciones que tengamos alcancemos estas etiquetas. Las etiquetas pueden ser por ejemplo que el precio va a subir a partir de cierto
+
+evento o una cadena de eventos. Normalmente se va a disparar una cadena de eventos con una cadena de marco y a partir de una secuencia de observaciones que va a permitir disparar los eventos que
+
+queremos hacer. Entonces necesitamos uno de los eventos es la liquidez, es observar las velas de liquidez, la zona de liquidez para poder saber si el precio, que va a suceder con el precio. Solo
+
+podemos predecir si hay liquidez dentro de la estructura. No basta simplemente tener la estructura. Uno tiene que identificar eventos de liquidez para poder predecir. Entonces, en el aula virtual he
+
+colgado videos con respecto a este tema. Con respecto a lo visto ayer, el video uno es el que les mostré ayer. Video uno con este tema. Advanced Market Structure Course. Puse otros videos adicionales.
+
+Puse un video dos para completar la información. Y un video 3 que es m amplio con todo el tema de estructura y de liquidez todo en un video m grande de 49 minutos Entonces asistan estos videos con
+
+tiempo para que puedan estar programando correctamente los eventos que tenemos que observar para poder predecir en el mercado. El día de hoy vamos a ver este primer video sobre la teoría de análisis
+
+de liquidez. Video número uno. Se llama Liquid the Concept Simplified. Luego el video dos, también relacionado con el tema de liquidez. El mercado es una máquina de liquidez. Entonces, vamos a estar
+
+buscando liquidez todo el tiempo y estará alternando entre una liquidez interna y una liquidez externa. ¿A qué me refiero? Ayer vimos la estructura. Por ejemplo, hay una tendencia alcista, el precio
+
+que se porta más o menos así. Así se corta el precio, no con la tendencia ideal pero con una tendencia más realista. En esta zona se acumuló liquidez. Entonces, ¿qué sucedió? El precio vino aquí con
+
+las velas que han cogido esa liquidez. Osea han capturado ese dinero que estaba ahí para poder impulsar el movimiento hacia el otro lado desde aquí. Entonces, ¿por qué busca la liquidez? Para alcanzar
+
+su objetivo. Si el objetivo es subir el precio, entonces ellos tienen que bajar a recoger liquidez donde está el dinero para incrementar el volumen y poder disparar hacia su objetivo. Bien, aquí está
+
+el objetivo. Después de recoger liquidez. Objetivo después de recoger liquidez. Mientras no recoja la liquidez pues nada hecho no tengo como hacer el precio subir por qu ellos quieren que el precio
+
+suba Para vender caro Compraron barato y quieren vender caro Nada m compraron Compraron aqu Aqu est Compra institucional. Ahí están comprando y quienes le están vendiendo, porque si están comprando
+
+alguien les está vendiendo. ¿Quiénes le están vendiendo a los institucionales? Los minoristas. Los minoristas están disparando, están con sus stop loss todos aquí. S.L. Los minoristas. Los minoristas
+
+tienen stop loss cerquita a donde compró. No tienen muy grande porque no quieren perder mucho. Los institucionales en cambio tienen un stop loss mas amplio para poder acomodar mayor fluctuación. En
+
+cambio los minoristas si pierden un dólar ya es el limite. O pueden perder un poco mas pero los minoristas deben estar controlando la perda. Por eso ponen sus stop loss hacia abajo. Compraron por
+
+aquí, pusieron los stop loss abajo del nivel HL. Los institucionales forzaron el precio hacia abajo. ¿Quién fuerza el precio hacia abajo? Son los institucionales. Ellos forzan el precio hacia abajo
+
+porque tienen mucho dinero, lo que hace que los stop loss de los minoristas disparen. Y eso provoca ventas de los minoristas y compras de los institucionales. El precio ya est bajo lo suficiente con
+
+productos institucionales para que el precio suba otra vez y pueda vender m caro Entonces esa es la l Por lo tanto hay que identificar en la gr donde est las zonas de liquidez Porque ustedes tienen
+
+que tenerla bastante ahí presente, bien presente, porque cuando el precio llega ahí ustedes saben si dispara o no la toma de liquidez. El sweep, el barrido de liquidez. Cuando hablamos de barrido de
+
+liquidez significa que el precio regresa, es una manipulación. El barrido de liquidez es siempre una manipulación. Eso tiene que tener claro. Si el mercado barra la liquidez significa que está
+
+manipulado. Y si avanza de todo eso y rompe todo lo que estaba? Ya no es un barrido de liquidez, sino que es un liquidity run. Hay esta diferencia. Un barrido de liquidez que es un liquidity sweep. El
+
+barrido tiene manipulación. Ayer les hablé de la manipulación. Vino hacia abajo, disparó órdenes de ventas por los stop losses y enseguida compraron. Compraron tanto que el precio disparó hacia
+
+arriba. Compraron mucho. Por eso el precio disparó hacia arriba. Y ellos compran tanto que cuando llegan aquí las velas quedan grandes así. Y es una vela de un minuto rápida. Disparra una velocidad
+
+instantánea prácticamente. ¿Para qué? Para que los minoristas no estén ubicando sus posiciones aquí. Ellos, los institucionales, son los que pueden comprar ahí abajo. ¿Por qué? Porque los minoristas
+
+están todavía esperando la confirmación. No se ha confirmado que el precio va hacia abajo o que se va hacia arriba, pero una vez que observamos la vela grande aquí y el volumen creció en esta región
+
+significa que los institucionales discapacitaban. Los institucionales dispararon sus compras ahí. De pronto lo que va a suceder es algún tipo de retroceso aquí para asustar a los que están tratando de
+
+ingresar. Esta es la vela que asusta para que no ingresen porque están dudosos si va a suceder de subir o si no. Entonces se espera un retroceso, ese retroceso tiene un nombre especial, se llama
+
+retesteo. Ya, retesteo. Es decir, testeo la región, ya, y si, bueno, si uno espera más confirmaciones va a usar el retesteo para poder ingresar recién sus compras. Pero ya estará comprando a un precio
+
+más caro que los institucionales que compraron más barato. O sea, los minoristas siempre compran más caro que los institucionales. ¿Por qué? Porque los minoristas no pueden mover el precio, en cambio
+
+los institucionales sí. Ellos son los que ponen mucho dinero a disposición para que envíen el precio hacia donde quieran. Así funciona. Entonces, punto importante, detectar las zonas de liquidez antes
+
+de la barrida de liquidez. Antes de la barrida de liquidez usted tiene que saber dónde están las zonas de liquidez. Y hay siete lugares donde puede estar. Ahora les voy a mostrar este primer video,
+
+este de quien? La analiz de liquidez demuestra donde estan estas zonas. Le tocará ingresar en el proyecto donde estan ubicadas. Por que? Porque esto se trata de un evento, de un estado. Y como
+
+máquinas de estado las que somos buenas para programar, observamos estas etiquetas, Con el modelo oculto de marco observamos las etiquetas y a trav de estas etiquetas dado una secuencia de
+
+observaciones esta secuencia de observaciones se convierte en estados ocultos Entonces necesitamos observar la secuencia de estados observados de una forma que provoque un cambio en la cadena de
+
+Markov que est en el nivel oculto Entonces básicamente con la liquidez así como con la estructura de mercado lo que vamos generando son las observaciones que tenemos acá abajo. Tenemos la etiqueta
+
+BOS, tenemos CH o CH verdadero, tenemos CH o CH falso. También tiene otro nombre, se llama Indusment. ¿Qué es un inducement? Es cuando se trata de una manipulación, la tendencia no cambia. Aquí por
+
+ejemplo, está más bajo que el HL, entonces aquí sería un inducement, para decir, ah está cambiando hacia abajo, de alcista se está cambiando a bajista, pero en realidad no, es un falso. Esto induce a
+
+que los minoristas ingresen con órdenes de venta, pero no sucede la venta, sucede al revés. Entonces esto es el inducement, o sea es un change of character falso. Vamos a observar el ATR. El ATR como
+
+lo observamos? Dentro de rangos. Porque son valores continuos, entonces hay que poner dentro de rangos el ATR. Por ejemplo, el ATR de 10 a 20, de 20 a 30, a través de esos cestos o beams para los ATR.
+
+Tres niveles de ATR, cuatro niveles de ATR para decir que la ATR está cambiando también. Vamos observar el perfil de volumen volumen profile Vamos observar el volumen vertical Vamos observar el
+
+supertrend Vamos observar el filter range Vamos observar un mont de cosas para poder ver dos puntos Donde coinciden, donde convergen. Para poder afectar que? Para poder afectar la parte oculta. Esta
+
+es toda la parte observable. Usted saca esto de los indicadores y le va a dar las observaciones a la máquina de marco del modelo oculto. En el modelo oculto, lo que va a suceder? Va a estar alternando
+
+entre liquidez interna y liquidez externa. Vamos a interno más allá. Sosquid interno y liquidez externa. Siempre va a estar alternando pero habrá evidentemente estados intermedios. Por ejemplo, aquí
+
+que necesita algún tipo de confirmación. Ustedes van a necesitar tener algún estado intermedio por aquí. Intermedio. Vamos moviendo desde la izquierda hacia la derecha y desde la derecha hacia la
+
+izquierda. Poniendo flechas así, regresando hacia el otro lado. Si tienes la observación, si no tienes la observación, entonces la mayor parte del tiempo va a estar de pronto en ese estado intermedio.
+
+El estado intermedio es que est dentro de la zona intermedio Ustedes tienen la parte baja el major low la parte alta el major high que vimos ayer en la estructura Y en la mayor parte del tiempo el
+
+precio está golpeando en el medio. Por eso pongo aquí intermedio, la zona entre el major high y el major low. Esta es una propuesta de modelado, no significa que va a ser exactamente así. Pero la idea
+
+cuál es? La idea es que va a estar navegando entre estos dos extremos, liquidez interna y liquidez externa. ¿Dónde está la liquidez interna por aquí? Si aquí tenemos el major low, como vimos ayer, y
+
+aquí por ejemplo justo en otro lugar tenemos por aquí por ejemplo el major high. Entonces lo que va a suceder es que la mayor parte del tiempo el precio estará aquí dentro de esta zona. Aquí medimos
+
+el medio high y el medio low a través de alta temporalidad. ¿Qué es eso? Una hora, cuatro horas, diario, semanal, week. Uno observa los niveles importantes a partir de la temporalidad alta, el time
+
+frame elevado. Y adentro vamos a tener los picos pequeños que están en la baja temporalidad. Entonces, ¿qué hacemos con todo eso? Máquina HMM, máquina recursiva. Observamos un montón de estados que se
+
+van desencadenando cuando observamos una nueva vela que se va concretando. Se van armando las etiquetas y vamos dando esta secuencia a la cadena de marco. Y eso va alimentando el modelo hacia arriba.
+
+Al momento que se dispare de la liquidez externa hacia adentro, aquí sería el momento de ingresar. Justo aquí, desde la liquidez externa hacia la interna. Entonces aquí usted puede ingresar su modelo
+
+porque tiene alta probabilidad. Los otros no estamos seguros, a menos que sea después de observar una confirmación, ahí sí puede decir que aquí tiene alta probabilidad también. ¿Por qué? Confirmó alta
+
+probabilidad. En todas las demás transiciones no podemos hacer muchas cosas porque el movimiento es puro ruido. Solo podemos hacer algo cuando la probabilidad es elevada. Mientras tanto estamos
+
+esperando hasta que llegue de aquí para salir de aquí, ¿cierto? Salir de la liquidez externa. ¿Dónde está la liquidez externa? Pues está aquí en medio lobo. Está justo en esta parte. Aquí está la
+
+liquidez externa. Y aquí también está la liquidez externa. Pongamos aquí, liquidez externa. Aquí también, liquidez, justo en esta región, liquidez externa. ¿Aquí podemos hacer algo? No, porque uno no
+
+sabe qué ellos van a hacer. Estamos en una región interna, entonces es peligroso actuar ahí. Observen que los que compararon aquí acabaron perdiendo. Entonces llegando aquí, cuando tenemos el medio
+
+high desde una temporalidad mayor, podemos predecir que tenemos alta probabilidad de que el precio llegue aquí y volviera hacia abajo. Sobre todo en la primera llegada hacia el hilo. En la primera
+
+nunca va a avanzar todo ello sino que va a golpear hacia abajo. Alt probabilidad de que rebote desde arriba porque es un nivel importante es un major high Mientras que aqu golpea mitiga es decir come
+
+toda la liquidez deja la gente desamparada Eso es lo que sucede y tenemos que por lo tanto identificar la secuencia de eventos. Nuestro modelo tiene que entrenarse bien para poder identificar todo
+
+esto. Entonces esa es más o menos la estructura que necesitamos trabajar. Entonces la pregunta es ¿dónde están las zonas de liquidez? Eso tenemos que contestar. Tenemos que clasificar las velas que
+
+corresponden al barrido de liquidez. Tenemos que identificar la vela del RAN de liquidez, que es el otro tipo. Hay el Liquidity Sweep de RAN también. Y también hay uno que se llama liquidity grab.
+
+Tres tipos de grab. Siendo que el grab y el sweep tienen similitud muy parecida. El run es cuando avanza, rompe el soporte a la resistencia. Aquí hay una ruptura. De su ruptura del soporte o
+
+rompimiento, rompimiento de soporte o resistencia. El soporte y la resistencia también es una zona de liquidez. Pero hay más, un total de siete son enumerados aquí. Tenemos que ubicar todas ellas para
+
+que justo en el momento que pase por esta zona ustedes van a observar un comportamiento volumétrico muy elevado. Por las zonas de liquidez Porque es justo ah donde capturan la gente desapercibida y
+
+eso ocurre r es decir de golpe para no dar tiempo de hacer nada Uno ya tiene sus stop losses puestos ahí desde el momento que abrió una posición. Entonces, esos stop losses son posiciones estáticas
+
+que no se van a mover. Entonces uno abre la posición aquí por ejemplo y pone su stop loss aquí. No va a mover el stop loss, por lo tanto al que venga el precio hacia esa región coge todos esos stop
+
+losses y tienen ya liquidez suficiente para mandar el precio a su lado objetivo. Entonces, las temporalidades que implementamos en el proyecto fueron temporalidades chicas. Si ustedes tratan de crear
+
+un zig zag en estas gráficas, van a observar un comportamiento como el que les muestro aquí en esta figura. El comportamiento de la temporalidad chica está en rojo. Se observa en rojo porque es muy
+
+ruidoso. Todo el ruido que observamos en rojo aquí es debido a la baja temporalidad. Pero lo que ustedes tienen que hacer es obtener el zig zag de las temporalidades altas y meter ahí en la gráfica de
+
+temporalidad pequeña. Porque la temporalidad alta nos dará una señal limpia. La negra que está aquí se obtiene desde la temporalidad alta. Una hora, cuatro horas, dos horas, un día, una semana. En
+
+cambio la chica no nos va a permitir identificar la tendencia actual, a donde va el precio. Aquí con la negra si tenemos esa información, la dirección del mercado. En cambio con la roja no. La roja
+
+esta todo el tiempo perturbada esta ruidosa Entonces hay que filtrar para poder identificar correctamente a donde se mueve el precio Porque la mayor parte del tiempo est recogiendo la liquidez que se
+
+est armando Aquí por ejemplo hay un boss. Aquí aparentemente todo iba bien pero llegó aquí ruidoso. Aquí una manipulación. Mire, en esa manipulación tenemos un falso CH o CH. Es un inducement esto de
+
+aquí. Igual que les puse ahí, el inducement para el falso cambio de tendencia. La tendencia solo cambia después que atraviesa el punto relevante. Este es el punto relevante en ese momento. Porque el
+
+punto relevante empezaba desde abajo, el low a low, el major low. Pero a la medida que fue avanzando y que yo observé los movimientos, las velas posteriores, el major low pasó a ser este de aquí. No
+
+vamos a buscar el medio low que se quedó hace un año atrás. Hay que buscar el medio low más recién pero de la temporalidad mayor. No de la temporalidad chica, la chica esta ruidosa, pero la
+
+temporalidad grande nos va a dar un lolo mas recién, mas actualizado. Entonces por eso voy actualizando mi lolo basándome todavía en la temporalidad grande. Tenemos que trabajar así de forma
+
+visualizar varias temporalidades, la grande y las chicas. Las chicas me refiero a 1, 5 y 15. Y la grande 1, 4 diario o semanal. Para poder saber cómo vamos con la tendencia. Porque si se cambia en la
+
+grande, ahí si podemos confiar que es un major. Es un CH o CH verdadero. Porque cambió en la temporalidad grande. Mientras no se cambia en la grande, sigue la misma tendencia que antes. Entonces por
+
+eso necesitamos varias temporalidades. Tamparás temporalidades. Observamos aquí a través de la temporalidad alta un BOS, un break up structure que la tendencia continúa. ¿Dónde lo ponemos? Solo
+
+después de haberlo confirmado en esta posición aquí. Mientras no llega aquí que se confirma, no hay ese seguimiento. El POS se posiciona a partir de aquí confirmado. Y el change of character se
+
+posiciona donde? Esto sería un falso. ¿Cómo sé que es falso? Porque la tendencia grande no se ha cambiado. Por eso sé que es falso. La tendencia grande tiene su media low a low abajo. No ha roto hacia
+
+todo el media low. Por eso sé que es equivocado. Es un inducement. Entonces hay que etiquetar inducement ahí para informarle a la máquina de HMM. Porque si usted no pone la etiqueta correcta, tampoco
+
+va a predecir bien. Es natural, porque está pasando una data equivocada. Si usted pone el CH o CH falso, confunde con el verdadero, pues el modelo no funcionará, evidentemente. Entonces por eso tiene
+
+que sacar la etiqueta correcta, guiándose por las temporalidades más elevadas. Voy armando mis etiquetas a lo largo de que van apareciendo nuevas velas. Voy armando. Aquí apareció esa vela de aquí,
+
+entonces yo ya pongo mi DOS listo para poder informarle que ha sucedido un break of structure. Entonces yo le informo a la máquina de lo que va sucediendo para poder vincular con los estados ocultos
+
+respectivos. Ahora pues vamos al video para ubicar donde están las zonas de liquidez. Este es el video de 49 minutos. Este que muestra en pantalla que ustedes van a ver tranquilos tomando caf 49
+
+minutos medio larguito porque es toda la parte de estructura m liquidity La parte de liquidity est aqu al final Pero les voy a mostrar un video m corto si no no alcanza a explicar Porque para explicar
+
+un video completo como eso, ustedes ya tienen desde ayer la parte de estructura, así que van a poder entender eso. Ahora lo que les falta es el liquidity para que ustedes no se sientan perdidos al
+
+mirar el video. Entonces eso lo cierro y voy a abrir el otro. Yo más bien descargué el video en la compu porque si no toda hora hay propaganda, mucha propaganda. Entonces que vamos a ver aquí. Vamos a
+
+ver. Es una secuencia de la SNC. Entonces vamos a ver el método de manipulación, mirando hacia la liquidez. Liquidez estática, liquidez dinámica, patrones de liquidez y como evitar caer en trampa.
+
+Entonces, esta parte de liquidez es complementaria a la estructura. Sin ello, no tenemos información suficiente para saber el momento exacto donde ocurre la alta probabilidad. Necesitamos encontrar
+
+ese momento exacto en el tiempo. A lo largo de todo ese eje de tiempo habrá el momento exacto. Es distante uno del otro, no es tan a menudo. Pero hay que identificar. Y a través de la teoría vamos a
+
+tratar de ubicarlo. Entonces imaginen que hay un banco que va a ingresar las posiciones de una empresa que quiere comprar 5 millones en una moneda extranjera Por ejemplo euro d d euro o algo as
+
+Entonces el banco tiene los traders profesionales Ellos no van a ingresar todas estas ordens en un solo bol. Van a ingresar de poquito en poquito. ¿Por qué no ingresan todas de una sola vez? El precio
+
+subiría a las alturas y al momento que va a vender, nadie quiere comprar porque el precio está muy caro. Entonces tienen que liberar de poquito en poquito esa cantidad toda de dinero. Y este de
+
+liberar de poquito en poquito es donde va acumulando la liquidez. Y la liquidez aquí estará justo en donde están los stop losses del minorista, como vemos ahí. Ahora vamos avanzar aquí. Aquí tenemos
+
+una gráfica de la liquidez dinámica. La liquidez estática es donde están mis stop loss. Yo pongo estático, mi stop loss y ahí se queda una zona de liquidez. O sea, por debajo del lower low hay una
+
+zona de liquidez. Aquí por ejemplo hay, aquí también hay otra zona de liquidez en los gaps, los fair value gaps. Recordando que es un fair value gap, son tres velas. Yo tengo una vela, tengo una vela
+
+grandota por aquí y tengo otra arriba. Se arma un vacío entre la primera y la tercera. Eso es el FBQ. Es una zona donde el precio pasó todo recto. No regresó para poder hacer ninguna mecha en esa zona
+
+interna. Aqu se arma una liquidez Esta es una liquidez interna El precio siempre va a estar alternando entre liquidez interna y externa Aqu en liquidez interna yo tengo mi fair value gap Que más tengo
+
+aquí? Yo tengo mis inducements. Todos estos son liquideces internas. Donde tengo el industrimento tengo una liquidez interna. Donde tengo un ferrovalio gafo también tengo una liquidez interna. El
+
+precio estará siempre alternando entre la liquidez interna y la liquidez externa. La liquidez externa es donde están estos niveles relevantes, el major low y el major high. Aquí hay una liquidez
+
+externa, aquí hay una resistencia, aquí arriba, están acumulados los vendedores para vender, aquí abajo están acumulados los compradores para comprar. Desde la perspectiva de la alta temporalidad esto
+
+si se justifica, pero dentro de la pequeña temporalidad que es toda ruidosa se va acumulando esos zigzags alocados en el medio, entonces ahí también se va armando la liquidez interna. El mercado está
+
+siempre en esa dualidad. Liquidez interna y liquidez externa. Máquinas de estado. Entonces está transitando entre la una y la otra. Como les muestro aquí en ese diagrama de máquinas de estado.
+
+Entonces el precio regresa donde esta mi FBG eventualmente si, eventualmente el precio va a buscar donde esta el FBG porque ahí esta liquidez. La gente toma posiciones a partir de encontrar un FBG y
+
+por eso se arma la liquidez ahí en esa zona. Entonces, armamos donde está el FBG y tenemos que saber donde está nuestra demanda y donde está nuestra oferta. Estas también son zonas de liquidez. ¿Qué
+
+más tenemos aquí? El ciclo rural entre interno y externo. Esto ya les expliqué. El FBG. Regresó al FBG. Aquí. Regresó, mitigó parte del FBG, es decir, no consumió todo, consumió un trocito. Entonces
+
+ustedes tienen que mitigar el FBG, o sea, disminuir el grosor de esa banda, esa zona, para saber que ahí ya no hay más tanta liquidez. Porque parte de ella ha sido consumida cuando llegó el precio de
+
+regreso hacia ahí. En el indicador que les mostré ayer hay esa opción mitigated FBG para que adelgace el grosor de esa zona. Entonces va armando FBG y va mitigando FBG. Eso siempre va a suceder dentro
+
+de la región interna. ¿Qué más tenemos aquí? A ver, pasa una propaganda y aquí tenemos un punto importante. Entonces, liquidez estática se refiere a las zonas del mercado donde está el dinero. ¿Si?
+
+Como los stop losses, las órdenes de compra y de venta límites. ¿Qué es una orden de compra y de venta límite? ¿A quién sabe? Una orden límite. Una orden límite es una orden automática. Yo por ejemplo
+
+quiero comprar a 100. Si el precio actualmente vale 105, yo espero que el precio llegue a 100. Estoy ahí todo el día esperando que llegue a 100 o simplemente digo, pongo una orden límite y digo quiero
+
+comprar cuando el precio baje a 100. Ahí se compra. Esa orden es una orden automática, es una orden límite. La orden límite para compra, el precio está siempre más abajo que el precio actual. Aqu
+
+tenemos el precio actual 105 y yo quiero comprar cuando est a 100 porque yo pienso que el precio justo es de 100 Entonces yo ingreso una orden autom Cuando el precio llegue hasta ahí, dispara mi
+
+compra. Puede que el precio nunca llegue hasta ahí. Que llegue más cerca pero nunca llegue hasta ahí. O sea, que el precio llegue hacia ahí y siga bajando. Hay muchas formas de manipular. Hay que
+
+prestar bastante atención. Uno no puede tener una orden límite así por mucho tiempo. Tiene que estar siempre pendiente de lo que está sucediendo ahí para evitar pérdidas. Esta es una orden límite para
+
+compra, en donde el precio está por debajo del valor actual. Hay el contrario también, la orden límite para venta, que es justo en donde el precio esté arriba del actual. Es justo al revés. ¿Por qué?
+
+Porque quien vende quiere vender desde un precio más caro. Entonces espero que el precio esté lo más caro posible para ahí vender. Este es un límite de paro. Hay el orden stop también. ¿Qué sería un
+
+orden stop? Un orden stop es aquella que tiene el precio más caro que el actual para la compra. Por ejemplo, ahorita está en 100. Yo pienso, si el precio llega a 105, el precio va a disparar a 110.
+
+Entonces, yo tengo ese argumento. Entonces, una orden stop es que voy a disparar mi compra cuando el precio esté más caro. ¿Por qué? Porque yo creo que si sube a 100, va a subir mucho más. Por
+
+ejemplo, el petróleo, ¿no? El petróleo, la guerra, todo eso. La guerra va a disparar el precio del petróleo. Entonces, actualmente supongamos que esté a 80 dólares el barril. Cuando llega a 100, se
+
+pasa a 200. Entonces yo compro cuando esté a 100 y esto es un stop. Una orden stop, no es límite. El límite es el precio de compra siempre más barato. En cambio el stop es el precio de compra siempre
+
+más caro. Y hay el otro tipo el tercer tipo de orden que es orden a mercado Es el precio que est ahorita no espero ni ma ni pasado ma Comprar ahorita, orden a mercado. Puedo comprar o vender una orden
+
+a mercado al precio que este en ese rato. Es instantáneo. Lo que mueve el precio del mercado son las órdenes de liquidez y las órdenes instantáneas. Porque las que están esperando que ocurra un evento
+
+tal, de pronto a menos que estén ubicados en una zona importante. Por ejemplo, si estén en una zona superior donde están acumulados los vendedores, ahí ellos compran, ellos venden a limit, a limit.
+
+Los compradores de abajo compran al límite. O sea que esperan que el precio baje todo eso para desde ahí comprarlo. Entonces ahí se va acumulando la liquidez. En las órdenes automáticas que se dispara
+
+a partir de ciertos precios. Y en los stop losses también. Y de ahí viene la bendita vela de liquidez que va a barrer todo eso. Quitar el dinero a la gente y desamparar a muchos, dejar muchos llorando
+
+por ahí. Entonces ustedes tienen que saber dónde está esa vela de liquidez. Identificar que ocurre la liquidez para después de eso observar un movimiento de alta probabilidad. Aquí Machine Learning o
+
+aprendizaje automático, inteligencia artificial, va por ese lado. Donde está la mayoría de la probabilidad es donde puede inferir correctamente. Sin alta probabilidad pues no. Entonces el
+
+comportamiento gaussiano que les hablé ayer y el no gaussiano. La campana de Gauss promedio mayor volumen de probabilidad ah es donde operamos Ah podemos predecir Antes de eso por un movimiento
+
+aleatorio no se puede predecir nada ¿Y para qué necesitamos liquidez? ¿Para qué el mercado busca liquidez? Porque quiere alcanzar su objetivo. Si quieres que el precio suba, buscas la liquidez. La
+
+vela siguiente es una vela de momentum que ahí dice momentum. El momento es esa vela grandota que se dispara después de recoger la liquidez. Entonces recoges la liquidez, vela de liquidez. Ustedes
+
+tienen la vela identificada en la gráfica. Tienen que tener esa vela identificada. De ahí va a observar enseguida un disparo de una vela muy fuerte, con volumen fuerte de compras, tratando de alejarse
+
+de esa zona, porque es la zona en donde está acumulada mayor liquidez. Entonces se aleja de la zona y va a su destino. Así funciona la estructura. Ahora si tenemos aquí las 7 zonas de liquidez. La
+
+primera es abajo de los eco-low y arriba de los eco-high. ¿Qué es un icohai y qué es un icohai? Entonces, a ver, un poquito hacia atrás. Ok, ahí está. El ICOLOUS son dos H, aquí en este caso, como es
+
+alcista, HL, ¿no? Un HL aquí, un HL aquí, de prácticamente mismo nivel. Esos son los ICOLOUS. Los ICO HIGHS aquí del otro lado, prácticamente iguales, son niveles que tienen prácticamente el mismo
+
+precio. Y el mismo comportamiento rebotó ahí. Entonces aquí es una zona en donde se acumula la liquidez por arriba y aquí se acumula la zona de liquidez por debajo. Esta es una zona interna porque el
+
+major low está aquí en el swing low. Tenemos el swing high aquí en la parte superior. Entonces dentro de la zona interna vamos a encontrar equal highs y equal lows. Esta es la primera zona de
+
+liquidez. A ver, veamos la segunda. La segunda es el swing high. Abajo del swing high, aquí abajo, o arriba del swing high. Donde se acumulan los vendedores arriba y los compradores abajo. Vamos al
+
+tercero. El tercero dice, abajo o arriba de los trendlines y de los canales. ¿Dónde está el trendline? Aquí está el trendline, es esa línea blanca. Observen que el precio está respetando una línea
+
+diagonal. Entonces esa línea diagonal, semi recta diagonal es la trendline. Y justo abajo de ello se va armando liquidez. Por otro lado el canal el precio est limitado aqu una frontera inferior y una
+
+superior Entonces uno observa los primeros altos y bajos de un canal y empieza a comprar desde abajo o a vender desde arriba Y pones sus stop losses donde? Pues justo arriba y justo abajo. Entonces en
+
+la extremidad del canal habrá stop losses. Que va a hacer la vela de liquidez? Va a irse de golpe hacia arriba, arriba, arriba, arriba. Arriba de todo el canal y después se va hacia abajo. Justamente
+
+para recoger la liquidez y no dejar que la gente tenga un aliento. Entonces se sabe donde está. Están provocando eso. Eso es proposital. Lo hacen así justo para engañar a la gente. Esa es una forma de
+
+sacar liquidez. ¿Qué más tenemos? Tenemos la cuarta dentro de un order block. Este es un order block verdadero de abajo y el de arriba es falso. Por eso dice aquí inducement. Entonces aquí en el order
+
+block tenemos una zona y se mete dentro de la zona. El precio se mete dentro de la zona y encontramos un doge aquí adentro, una vela de cuerpo chico con mechas grandes. Es un doge o una vela
+
+envolvente. ¿Qué es un doge y qué es una vela envolvente? Un doge tiene esa característica, un cuerpo pequeño y medio grandes. Este es el doge. Cuando encontramos doge en niveles relevantes hay
+
+probable cambio de tendencia Aqu est bajista el DODGE est midiendo fuerza compradora por debajo fuerza vendedora por arriba y luego tenemos una indecisi Indecisión denota el doce. Y por otro lado, una
+
+vela doce es una posible reversión. Cuando ubicada en una zona de liquidez. Por lo tanto el DOJ denota indecisión y si usted está justo en la zona de liquidez puede ser que vaya al revés el precio. O
+
+sea que no sigue el movimiento que observamos previamente. Que se cambie el movimiento. Aquí el movimiento estaba bajando en ese momento. Observamos el doge aquí y luego una regresión. Y luego tenemos
+
+también las velas de engolfe. ¿Qué es una vela de engolfe? Son dos velas, dos o más. Aquí voy a poner el caso más sencillo. En donde una aparca la otra. Estos son engulfing candles. En español se
+
+llama velas envolventes. Tienen por ejemplo el alcista verde y la otra roja Una comi la otra Y el movimiento de nuevo Posible reversi cuando ubicada en zona de liquidez Eso también vale para los
+
+envolventes. Envolventes y para el DOJ. Tanto para DOCH como para envolvente vale esta posible relación siempre y cuando ubicado en zona de liquidez. ¿Qué más? Ah, otro punto relevante. Una vela
+
+envolvente puede que se cumplió hasta aquí y la otra parte cumple con lo demás. No necesariamente termina todo el envoltura en un minuto sino que puede demorar un poco más para poder englobar, abarcar
+
+y comer toda la vela. ¿Qué sucede con la brela envolvente? Una posible reducción cuando hay una zona de liquidez. Aquí tenemos, aquí sería envolvente también. Si uno considera las dos blancas aquí,
+
+que son bachistas, como una sola, Si uno tiene una sola y considera estas de aquí, estas cuatro como una sola, tendría una vela envolvente. Porque unió estas dos, da una altura así. Una de las otras
+
+cuatro da una altura así, por lo tanto está envolviendo. No necesariamente es una y otra, dos. Puede ser dos y cuatro para poder englobar, abarcar, comer toda la vela anterior. Es decir, el movimiento
+
+bajista fue cancelado por la vela involvente en una zona de liquidez. Eso ustedes observan en la zona de liquidez, no me van a observar en otros lados porque no cumple. Si? Aquí por ejemplo era un
+
+industrimento falso, no cumple. Se tiene que observar esto en la zona. Tiene que observar esto en las zonas de liquidez. Aquí observamos una doge, y las envolventes pueden ser un clúster de velas
+
+envolventes. Usted puede tener un clúster agrupadas las velas doge, también puede tener. No necesariamente una sola, puede haber varias velitas, puede haber un cluster de ellas para significar que
+
+todo ello es una sola cosa. Entonces, clusterizar las velas envolventes, clusterizar las velas nos da una información más precisa. O cuando miramos hacia otra temporalidad, estas minudencias
+
+desaparecen. Porque vamos a observar que cinco velas, por ejemplo, representan una. Cuando miramos a una temporalidad mayor, todo colapsó a una sola cosa. Lo que ocurrió en el intermedio, que son las
+
+metitas, puede que en la vela de cinco minutos no conste, porque esta dentro del cuerpo de la vela de cinco minutos. Entonces mirar hacia otras temporalidades nos da una indicación más acertada. Aquí
+
+por ejemplo si miramos hacia una temporalidad mayor, esto se conforma a una sola vela de ocho y no varias. Por eso la importancia de estar en otras temporalidades y no solo en la minuto, solo una.
+
+Siempre bastante atento a las otras temporalidades también. ¿Y qué es lo que destaca el order block? El order block se destaca por una zona más grande. Aquí tenemos un rango en donde el precio trabaja
+
+aquí adentro. Aqu tenemos un order block Y es una zona en donde previamente se observ una mecha bastante importante aqu desde un momento previo Entonces el orden del bloque se arma desde un momento
+
+previo y se queda la marca como zona de liquidez En cambio el otro de arriba es falso, es un indústria. Esto es el cuarto. Ustedes necesitarán siete. Vamos al quinto. Abajo y arriba de un soporte de
+
+una resistencia. Entonces el soporte de la resistencia. Que ya saben de que se trata. Y los niveles de Fibonacci. Por eso les pido los niveles de Fibonacci. Aquí está el 61.4 es el porcentaje entre el
+
+alto y el bajo. Si estamos en una tendencia bajista, 64% es todo eso, lo demás es el complemento. Para la tendencia bajista es así, el 64 está en la parte inferior. Para la tendencia alcista el 61.4%
+
+estará en la parte superior, al revés. Entonces aquí en los niveles de Fibonacci suele golpear un nivel de Fibonacci, retroceder y volver a intentar otra vez. O puede irse de una hacia afuera. Por lo
+
+tanto los niveles de Fibonacci también son niveles relevantes. Ahí no pone todos los niveles porque la temporalidad que está actuando debe ser una de ejecución. Hay temporalidad de ejecución y
+
+temporalidad de estructura. ¿Cierto? Mayores temporalidades, la estructura. Ejecución es donde estamos tratando de observar los detalles de lo que va sucediendo en cada momento. Un minuto, cinco o
+
+quince. Entonces ahí también los niveles de fibonacci se ubica en la liquidez. Y el s donde est est en la vela diaria Creo que s ah Entonces en la vela diaria observar la vela diaria El alto el bajo
+
+el open y el close de la vela diaria Estos son niveles de liquidez tambi Entonces yo veo la vela diaria del día que ya terminó. Por ejemplo, hoy lunes yo veo lo que fue el día anterior, viernes. Hoy
+
+por ejemplo martes veo como fue el cierre de lunes, siempre del día anterior porque ahí se acumula liquidez también. El diario y el semanal. Son zonas importantes. A cada vela diaria usted va a tener
+
+una liquidez acumulada. Entonces encontrar esos niveles de liquidez, por lo tanto va a necesitar trendlines, dibujar trendlines en las gráficas. Sobre todo para ubicar donde está la zona de liquidez.
+
+No necesariamente poner el trendline en la gráfica Para no ensuciar mucho la gráfica. Porque estas líneas cuando están así, ensucian bastante la gráfica. Las que no ensucian tanto son las líneas
+
+horizontales. Pero si usted empieza a poner líneas que están cruzando la gráfica de abajo hacia arriba, Todo se queda ruidoso o feo y uno se confunde y no sabe qué hacer. Las líneas de tendencia
+
+tienen en memoria, saben dónde están, pero no las muestran. A menos que el usuario halla la opción de mostrar líneas de tendencia, dónde está mi zona de liquidez. Si no hace eso, no se muestran. Pero
+
+usted tiene que saber donde están esos tres lados para saber donde está la zona de liquidez. Tratemos de mantener la gráfica más lenta posible porque son muchos los indicadores que necesitamos. Los
+
+que tienen así de líneas son los que contaminan menos las gráficas. Los que son as como medias m o l de tendencia eso contamina bastante la gala Vamos a los casos prácticos. Aquí tenemos el
+
+hipoicolose, donde se acumula la liquidez por debajo, el hipohigh al contrario. Tenemos un double bottom y un double top. Y el double bottom son dos golpes hacia ese nivel y se respeta aparentemente.
+
+Entonces aunque se respeta, minoristas ingresan por aquí para comprar. Ingresan para comprar y luego ponen sus estóculosos aquí abajo. Aquí se va acumulando liquidez. Pero uno que es bajista va a
+
+ponerla, no se va a basar en esa linea horizontal sino va a basarse en una linea de tendencia, un trend line. El bajista pone el trend line y observa que ha atravesado el trend line. Se ha metido
+
+hacia abajo. ¿Qué significa eso para el bajista? Significa que hay un posible cambio de la tendencia alcista hacia la bajista. Entonces los bajistas van a meter posiciones hacia abajo, el precio
+
+retrocede un poco, pero ya hay liquidez aquí abajo. ¿Donde pone sus posiciones los bajistas? Pone justo aquí, ya que el precio llegó hasta ese punto. Pone atrás sus stop losses y se va acumulando
+
+liquidez aquí. Se acumula liquidez de los bajistas por debajo, liquidez de los bajistas por arriba. Por lo tanto, un escenario perfecto para limpiar todo eso, barrer y decepcionar a todos. Por lo
+
+tanto, se hace el barrito hacia arriba y lo mete hacia abajo enseguida. Hasta llegar a la zona importante. Entonces, eso dispara. órdenes stop losses tanto de venta como de compra. De venta por los
+
+que compraron y de compra por los que están recién vendiendo. Entonces se dispara todo eso y el volumen sube bastante. Observar el comportamiento del volumen porque se ve afectado siempre que pasa por
+
+un barrido. Un barrido de liquidez. Si? Entonces tenemos un barrido de liquidez y el volumen dispara. Una forma de saber donde están estas zonas de liquidez es mirar donde el volumen disparo en la
+
+data. Porque donde se ve un aumento expresivo del volumen es un alto indicativo de que tenemos una zona de liquidez. Entonces el precio va hacia arriba, recoge los stop losses de los vendedores y
+
+manda el precio hacia abajo para recoger también los stop losses de los compradores. Ahí tenemos todo limpio. Y el momento de ingresar es aquí. O sea, no debería haber ingresado aquí. Debe ingresar
+
+aquí. Aquí es donde la probabilidad de ganar es acertada. Antes, cerca de la liquidez interna es ruido. Entonces, ¿dónde maximizo mi probabilidad? Cuando salgo de la liquidez externa, ahí abajo es la
+
+liquidez externa. Si usted trata de salir de la liquidez interna, puede alcanzar el ruido y ocurrir eso que les pasó a los minoristas que están ahí. Mientras que el mayorista el institucional sale
+
+ganando de todos Da un 7 a 0 aqu Pero ustedes como ya saben de eso van a entrenar la m de marco para ingresar solo aqu Tardemente pero seguro ¿Ok? Tardemente pero seguro, después de que todo ya pasó,
+
+toda la pesadilla pasó. Ahora vemos que más hay aquí. Pregunta ¿Cuáles de estas zonas son seguras para operar? Aquí les muestro la zona. Bueno ya estamos viendo aquí, sucede que la gráfica como no
+
+está tocando vela por vela, uno ya está viendo aquí, entonces ya observo que esta es la zona que se opera. Pero si uno no sabe eso porque no ve esas velas, tenemos el replay en donde ustedes van a
+
+estar observando, buscando distinguir entre zona interna y externa para poder operar donde haya mayor probabilidad de acierto. Puede que el precio rebote aquí, no estoy asegurando que el precio
+
+necesariamente se va hacia abajo. Pero es mas seguro operar aqui que perder operando aqui. Porque aqui la probabilidad de perder es mucho mayor que la de aca. Entonces vamos por donde maximiza la
+
+probabilidad. Así siempre para no arriesgar tanto. El un indusment, el de Aviva. Un cambio falso de estructura. Igual que los double bottoms o double tops, uno también tiene los triples. Es un triple
+
+fue y regres Y eso acumula todav m liquidez lo que significa que es un punto m de ventaja para los institucionales alcanzar esta regi y comer toda esta liquidez Porque dio m oportunidades a m
+
+compradores ingresar habiendo observado esto Entonces se acumuló la zona de liquidez, ustedes ingresaron después y no perdieron nada. Ahora tenemos el caso al revés, las ventas, la tendencia bajista
+
+ocurre prácticamente lo mismo. Solo que al contrario, en lugar de bottom tenemos tops aquí. La parte no mitigada significa que las velas no alcanzaron esa región todavía. Una vez que las velas
+
+alcanzan la región se queda mitigada. Veamos que más tenemos por aquí. Aquí la línea de tendencia que está respetando un nivel diagonal. Se va acumulando liquidez hasta que llega el momento que rompe
+
+todo eso. Esto ocurre así en un cerrar de ojos. En un cerrar de ojos ocurre el barrido de todo eso, consume la liquidez y ya está equivocado. O deprime a todos los que están ahí. El barrido es
+
+instantáneo y luego rebota hacia la región donde uno planteó originalmente. Rufy, cuando ocurre el barrido, ¿eso es cuando...? O sea, el barrido es que ya coge la liquidez. El barrido es para coger la
+
+liquidez, coge esa liquidez, todo ese dinero y con ese bolsillo lleno de dinero puede irse a donde quiera. Esa es la idea de acumular esas zonas de liquidez. Porque como ellos tienen mucho dinero,
+
+ellos pueden mandar a la empresa a donde está la liquidez para recoger más. Eso es lo que sucede. El minorista no tiene como controlar el movimiento de precios. Entonces ah tenemos Listo hasta ah el
+
+video Ahora les voy a mostrar lo que tengo aqu parcialmente desarrollado para que ustedes tengan una idea de la data real Les voy a enseñar aquí mi portafolio. Porque a ustedes les tocará la data
+
+real. Es posible que yo les ofrezca más data para estar viendo así más o menos actualizado con 3DVIV y tener una cantidad más alta. Ustedes tienen de abril, entonces puede que les den la data de mayo
+
+hasta la fe. Para estar ahí, no tan par a par con el 3DV pero un poco más al día. Entonces voy a mostrar lo que tengo de implementación con respecto a Liquidity. Porque la identificación de lo que
+
+ocurre con la liquidez depende de muchas cosas. Depende de encontrar estos altos y bajos. El zig zag ustedes tienen que encontrarlo perfectamente. El zig zag, la parte alta y la parte baja. Si no lo
+
+encuentran perfectamente van a equivocarse en ubicar la liquidez. ¿Qué significa encontrar perfectamente? Significa que las velas de liquidez es donde usted ha puesto la etiqueta, una de estas cuatro,
+
+HH, HL, LL y LH. Todas las velas de liquidez tienen que tener esa etiqueta. Punto uno. O sea, si usted se salta, por ejemplo, tantas velas para observar la liquidez, eso ya no vale. No puede saltar,
+
+tiene que encontrar justo en el pulo, en el salto del gato, para poder tener la etiqueta puesta correctamente. El punto es que todas las velas de liquidez tienen que tener una de estas cuatro
+
+etiquetas. HH, HL, LL o LH. No vale saltar porque en 3D View hay un esquema de elegir el pivote. Y la configuración ahí dice tantas velas hacia la izquierda, tantas velas hacia la derecha. No, no debe
+
+ser así. No debe ser saltados. Porque si uno salta, justo cuando saltó estas seis o cinco velas, justo en el medio sucedió la liquidez. No puede. En cambio tenemos que actuar con maquina de estado. El
+
+3DView no permite una gestión de maquina de estado eficiente. Si? Osea programar en pain de 3DView esta limitado a muchas cosas. Primero no le ofrece maquina de estado como recurso. Después tiene una
+
+capacidad de procesamiento muy pequeña. Usted no puede estar necesitando mucho procesamiento. No puede desarrollar machine learning para eso. Lo hacen todo limitado justamente para que la gente no
+
+observe donde están ocurriendo estos eventos para poder asociarlo con los estados ocultos. Entonces lo hacen así de propósito para que la gente esté lo más equivocada posible. Y ellos se saben siempre
+
+ganando. Esa es la idea. Entonces como ya tenemos la data, ahí sí podemos hacer el procesamiento que se requiera, usar el QPU, lo que sea, y contar con máquinas de estados para poder hacer la tensión
+
+entre estados. Porque son muchos los estados que se necesita para poder darle un tratamiento adecuado Si uno no tiene todo ese control a trav de m de estado pues no sabe vincular todo ese mont de
+
+informaci para articular bien las predicciones Por eso hacerlo en otro lenguaje de programaci que no sea el de TradingView es mejor Siempre cuando uno cuenta con la data para hacer ese procesamiento
+
+Veamos lo que tenemos aquí. Ya se abrió la herramienta. Voy a ejecutar el código. ¿Estoy en el script correcto? Mirando desde la temporalidad de un minuto va a haber mucho ruido. El zig zag estará muy
+
+ruidoso. Pero mirando desde una temporalidad mayor, yo solo tengo 15 minutos, me faltan las temporalidades grandes, como ustedes tienen también. Pero observen aquí. Aquí, a ver, yo necesito hacer una
+
+edición aquí, ¿cómo hago? Este es de dibujo, esta herramienta de dibujo. Normalmente hay una flechita hacia la izquierda o hacia la derecha donde no activa el dibujo. Pero aquí no está esa flechita.
+
+No hay, no es cierto? Esta es una pantalla distinta a las demás. Entonces sucede aqu El zig zag aqu est mal ubicado ese tendr que estar ubicado aqu arriba Entonces les toca estar viendo si el hh las
+
+etiquetas est puestas en el lugar correcto Porque este valor aqu es m alto que este No es que llegue aqu y se vaya directo aqu No est mal Tiene que ir hasta aqu donde es este m aqu Entonces usted
+
+tiene un máximo aquí y noten cuántas velas pasó para observar el mínimo. Aquí está el máximo, saltó una vela, dos velas. Dentro de dos velas ya encontré el mínimo. Aquí está un barrido de liquidez. El
+
+precio saltó de ese valor, $26814, saltó a $26795. Bastante salto aquí, justamente para no dar tiempo a la gente de hacer nada y de coger la liquidez aquí. Primero el precio cayó todo y después subió
+
+y volvió a subir. Esta es la fuerza alcista. Primero los bajistas cogieron de sorpresa, pero eso es algoritmo, no es que están los compradores y vendedores actuando. Esto es todo provocado, barrido de
+
+liquidez es eso que pasó aquí. Pero el zig zag esta mal puesto. Aquí debería ser un HH aquí arriba y desde aquí saltar aquí para el LN. Noten la distancia donde debería estar la línea azul. Aquí está
+
+mal puesto, lo pongo acá. Eso ocurre el día 21 de abril, a las 23.14, esa vela en particular, 23.13. Entonces aquí yo tengo un barrido de liquidez y luego como si no hubiera pasado nada estoy ahí
+
+arriba otra vez. Entonces yo barr la liquidez y observo un alt volumen aqu en este barrito de liquidez Barre la liquidez por debajo Pero hab liquidez por arriba También trataba de barrer enseguida.
+
+Aquí hay un barrido por arriba. Barrido por arriba, barido por abajo. Ya estoy limpiando por debajo y por arriba. Y de ahí puedo volver a donde quiera ahora. Voy a donde quiera. Estas son velas de un
+
+minuto. Mi intención es bajar. Entonces solo después de la vela de liquidez es donde observo el objetivo, a donde quieren irse, a donde quieren llevar el precio. Sin haber observado la vela de
+
+liquidez pues no puedo ingresar nada. Y observen que a veces hacen el barrido por abajo y por arriba. Para asegurar que en ninguno de los lados esta la liquidez. Justamente porque quiero tener el
+
+camino libre para poder navegar a donde sea mi destino. Navegamos un poco mas. Pero ahora la pregunta es donde apareció esa zona de liquidez? Tenemos que mirar desde una temporalidad mayor. Fijense,
+
+yo tengo aquí 23.13, esa vela de barrido. La vela de barril está en la temporalidad chica. Eso es súper importante. No va a estar en la temporalidad grande porque en la grande es demorada. Es en la
+
+chica donde ocurren rápidamente las cosas. Entonces tienen que diferenciar. Identifico la vela de liquidez en la temporalidad pequeña. No en la grande porque en la grande es demorada, tiene todo el
+
+tiempo del mundo para hacerlo. Es en la chica donde veo el barril. Voy a mirar desde esa vela, voy a arrastrarla un poco más hacia la izquierda y voy a tratar de ubicar donde esta esa vela en una
+
+temporalidad grande. Fíjense, voy a poner la temporalidad. Aquí la mayor que tengo es la temporalidad. Trabajo de la temporalidad de 15 minutos. Trato de ubicar esta misma, mirando la temporalidad de
+
+15 minutos. A ver, aquí estoy 21. A ver, que hora es esta? 21 y cuarto. Aquí 23 con 15. Me parece que es esta. A ver, voy a ver más de aquí. Si, es esto. Entonces el barrido de liquidez no se observa
+
+desde la vela de 15 minutos. Ustedes tienen que mirar desde la temporada chica para saber dónde ocurrió el barrido. Porque desde la grande aparentemente todo normal, no pasó nada. Porque el barrido
+
+ocurre instantáneamente, rápidamente ocurre. Pero el nivel que ocurrió, fíjense, ocurrió en esa vela, entonces el barrido alcanzó hasta aquí. Aquí, cuando nos ponemos a observar de donde, porque busco
+
+ese barrido en ese nivel y observamos algo interesante aquí. Fíjense, fíjense en donde está la vela anterior con su nivel. Esta verde tiene una mechita que va coincidiendo con el mismo nivel. Entonces
+
+ahí tenemos una situación del double bot. Los niveles están empatados, por lo tanto generó una liquidez. Yo me puse hacia abajo para hacer el barrido que coincid con el double bottom Entonces yo miro
+
+siempre una temporada mayor para saber donde efectivamente comparar el double bottom No es as comparando a las chicas con el double bottom porque eso puede dar una informaci alejada Entonces
+
+visualizar el contexto es s importante Y aquí tenemos velos envolventes. Esta es la una y esta es la otra, fíjense. Osea, aqui tuve que 2 por 1, esa proporcion que les dije ahi, 2 por 1 son
+
+equivalentes. El movimiento es bastante significativo en el rango de precio y se observa únicamente como envolvente. ¿Y que tenemos antes de eso? Antes de eso ustedes tienen una tendencia bajista.
+
+Estoy mirando desde la temporalidad de 15 y aquí está todo bajista. Llegó a un nivel importante aquí abajo, regresó hacia arriba y aquí observamos desde la temporada grande el engolfe, la vela
+
+envolvente. Y con eso de la vela envolvente, ¿qué sucedió? La tendencia después de ser el parquista pasó a ser el artista. Este concepto de engolfin se aplica a las temporalidades grandes también, o
+
+sea 15 minutos, no solo la mastiga. Voy a mirar que mas sucede aquí. De donde viene todo eso. Efectivamente viene de bajista. Y observamos el engolte aquí, lo que denotó es un cambio de la tendencia.
+
+¿Qué más tenemos por aquí? Entonces mirando desde la temporalidad grande tenemos los zigzags mucho m limpios porque esos peque ruidos desaparecen Aqu un poco medio ruidoso pero entr en un canal
+
+lateral Uno debe poner la l de tendencia el trade line Hacia aquí porque aquí va a acumular la liquidez. Aquí tenemos el trend line y usted pone el trend line aquí, va a cortar aquí en esa esquina y
+
+justo aquí que observamos el barrido de liquidez. Miren. Barrió la liquidez aquí y regresó hacia el otro lado. Hice el barrido y luego regresó. Regresó barrio abajo y regresó hacia arriba. Este es un
+
+punto relevante. Pero observe que el siguiente pico no alcanzó todo lo de aquí. Cuando llega a un punto, un major high como fue ese, el movimiento puede que no se atreva a sobrepasar el major high que
+
+está arriba. Porque los vendedores agresivamente disparan sus ventas desde arriba. Entonces no se atrevió, se puso un poquito más abajo para poder recién disparar. Entonces observar desde la
+
+temporalidad mayor nos da una perspectiva diferente, nos da una información diferente a donde está la tendencia actual. Evidentemente aqu tenemos 15 minutos no es la de una hora o la de cuatro pero ya
+
+da una informaci mucho m consistente de la que se observa con un minuto cinco minutos Porque aqu tenemos m claro los movimientos Aquí se observa por ejemplo que todo lo que está pasando aquí en un
+
+minuto estaría bajando, subiendo, bajando, subiendo. Una vela de esa consolida todo el movimiento ocurrido durante todos los 15 minutos. Pudo haber subidas, bajadas y todo esto está siendo omitido al
+
+mostrar las velas de 15 minutos. Ok, hasta ahí creo que vamos. Tenemos aquí abajo una clasificación que les tocará poner. Tenemos aquí la parte de clasificación de las velas. Básicamente la
+
+clasificación que estamos obteniendo aquí es una que nos va a permitir consolidar el tipo de liquidez. Si es una liquidez de barrido, si es un round o si es un grafo. Para mas detalles, mirar el video
+
+de 49 minutos. Al final de este video esta la parte de liquidez. La primera parte, los primeros 40 minutos es solo estructura. Y el chico habla bastante despacio, asi que no será dificil para el
+
+divino. Habla bastante despacio. ¿Que tengo aquí de etiquetas para mostrarles? Les voy a mostrar las etiquetas que estoy creando. Era de comprar ese día, mira 160, literal casi ya es subida del 50%
+
+por mil. Es que no estaba lista, no tengo una cuenta así creada y todo esto. Es créate. Ok, si se le es medio voluminosa la información. Ahorita tuvieron 1400. A ver, vamos por si, esto es de aqui.
+
+Trato de observar más de 100. Osea, como tu dice, por acá. Analicemos, aplíquemos. El tipo de SWIFT es el que está pendiente de ser aceptado. Hay una prueba de SWIFT. Antes de hacer el SWIFT se hace
+
+una prueba de cómo está el nivel. El que les contaba sobre el testeo del nivel. El testeo que les dije ahí. En caso de prueba de SWEEP, tenden acceptance. Aquí está el SWEEP reclaim. El SWEEP reclaim
+
+es que efectivó el SWEEP aquí en este caso. Yo tengo aqu el superplane en la vela de 8 Si Miro la vela de 8 Miro la vela de 8 Es de la ma del d 21 Vamos a mirar la vela de 8.45 del día 21. Día 21,
+
+siete horas. Días con 45. Voy a agrandar un poco más la gráfica. Esta es la de 10.15. ¿Qué se me llama Ricardo? ¿Qué se está haciendo? 8 cosa cosa est haciendo 8 y 30 La serie de McLaury del coser Oye
+
+dale Qu gente Qué cosa estás haciendo? Qué loco. Entonces aquí, justo aquí es donde tenemos identificado el SWEEP, aquí esa vez. Recogió la liquidez que estaba por aquí y mandó el precio hacia otro
+
+lado del engaño. Objetivo, recogió la liquidez. Y ahí miramos el contexto para ver de dónde viene ese nivel. Este nivel se respeta en otro lado para ver donde corresponde el acumulado de liquidez.
+
+Usted lo tiene desde aquí. Un double volume aqu f Aqu se acumul liquidez Entonces vino hacia abajo en ese mismo nivel recogi la liquidez y mand hacia arriba Entonces buscar estos puntos en donde se
+
+observa el double top o double bottom para que usted sepa en donde está el avance, recogiendo la liquidez. Esta zona importante de liquidez. Bueno, les va a quedar los videos para asistir. Eso es todo
+
+por hoy. Mañana ya pasamos a un algoritmo de la cifra. Vamos alcanzar hasta aquí la parte de indicadores.
+
+El comentario es el que vimos ayer. A ver, vimos estructura. Hoy toca liquidez. ¿Qué es la liquidez? Es donde se acumula el dinero en los mercados. Y justo ahí es donde el precio tiende a irse con mayor facilidad. Tenemos que identificar las zonas de liquidez para saber donde el precio probablemente va a ubicarse. El machine learning va a tratar de vincular observaciones con etiquetas. Entonces tenemos que buscar donde hay mayor probabilidad de que con las observaciones que tengamos alcancemos estas etiquetas. Las etiquetas pueden ser por ejemplo que el precio va a subir a partir de cierto evento o una cadena de eventos. Normalmente se va a disparar una cadena de eventos con una cadena de marco y a partir de una secuencia de observaciones que va a permitir disparar los eventos que queremos hacer. Entonces necesitamos uno de los eventos es la liquidez, es observar las velas de liquidez, la zona de liquidez para poder saber si el precio, que va a suceder con el precio. Solo podemos predecir si hay liquidez dentro de la estructura. No basta simplemente tener la estructura. Uno tiene que identificar eventos de liquidez para poder predecir. Entonces, en el aula virtual he colgado videos con respecto a este tema. Con respecto a lo visto ayer, el video uno es el que les mostré ayer. Video uno con este tema. Advanced Market Structure Course. Puse otros videos adicionales. Puse un video dos para completar la información. Y un video 3 que es m amplio con todo el tema de estructura y de liquidez todo en un video m grande de 49 minutos Entonces asistan estos videos con tiempo para que puedan estar programando correctamente los eventos que tenemos que observar para poder predecir en el mercado. El día de hoy vamos a ver este primer video sobre la teoría de análisis de liquidez. Video número uno. Se llama Liquid the Concept Simplified. Luego el video dos, también relacionado con el tema de liquidez. El mercado es una máquina de liquidez. Entonces, vamos a estar buscando liquidez todo el tiempo y estará alternando entre una liquidez interna y una liquidez externa. ¿A qué me refiero? Ayer vimos la estructura. Por ejemplo, hay una tendencia alcista, el precio que se porta más o menos así. Así se corta el precio, no con la tendencia ideal pero con una tendencia más realista. En esta zona se acumuló liquidez. Entonces, ¿qué sucedió? El precio vino aquí con las velas que han cogido esa liquidez. Osea han capturado ese dinero que estaba ahí para poder impulsar el movimiento hacia el otro lado desde aquí. Entonces, ¿por qué busca la liquidez? Para alcanzar su objetivo. Si el objetivo es subir el precio, entonces ellos tienen que bajar a recoger liquidez donde está el dinero para incrementar el volumen y poder disparar hacia su objetivo. Bien, aquí está el objetivo. Después de recoger liquidez. Objetivo después de recoger liquidez. Mientras no recoja la liquidez pues nada hecho no tengo como hacer el precio subir por qu ellos quieren que el precio suba Para vender caro Compraron barato y quieren vender caro Nada m compraron Compraron aqu Aqu est Compra institucional. Ahí están comprando y quienes le están vendiendo, porque si están comprando alguien les está vendiendo. ¿Quiénes le están vendiendo a los institucionales? Los minoristas. Los minoristas están disparando, están con sus stop loss todos aquí. S.L. Los minoristas. Los minoristas tienen stop loss cerquita a donde compró. No tienen muy grande porque no quieren perder mucho. Los institucionales en cambio tienen un stop loss mas amplio para poder acomodar mayor fluctuación. En cambio los minoristas si pierden un dólar ya es el limite. O pueden perder un poco mas pero los minoristas deben estar controlando la perda. Por eso ponen sus stop loss hacia abajo. Compraron por aquí, pusieron los stop loss abajo del nivel HL. Los institucionales forzaron el precio hacia abajo. ¿Quién fuerza el precio hacia abajo? Son los institucionales. Ellos forzan el precio hacia abajo porque tienen mucho dinero, lo que hace que los stop loss de los minoristas disparen. Y eso provoca ventas de los minoristas y compras de los institucionales. El precio ya est bajo lo suficiente con productos institucionales para que el precio suba otra vez y pueda vender m caro Entonces esa es la l Por lo tanto hay que identificar en la gr donde est las zonas de liquidez Porque ustedes tienen que tenerla bastante ahí presente, bien presente, porque cuando el precio llega ahí ustedes saben si dispara o no la toma de liquidez. El sweep, el barrido de liquidez. Cuando hablamos de barrido de liquidez significa que el precio regresa, es una manipulación. El barrido de liquidez es siempre una manipulación. Eso tiene que tener claro. Si el mercado barra la liquidez significa que está manipulado. Y si avanza de todo eso y rompe todo lo que estaba? Ya no es un barrido de liquidez, sino que es un liquidity run. Hay esta diferencia. Un barrido de liquidez que es un liquidity sweep. El barrido tiene manipulación. Ayer les hablé de la manipulación. Vino hacia abajo, disparó órdenes de ventas por los stop losses y enseguida compraron. Compraron tanto que el precio disparó hacia arriba. Compraron mucho. Por eso el precio disparó hacia arriba. Y ellos compran tanto que cuando llegan aquí las velas quedan grandes así. Y es una vela de un minuto rápida. Disparra una velocidad instantánea prácticamente. ¿Para qué? Para que los minoristas no estén ubicando sus posiciones aquí. Ellos, los institucionales, son los que pueden comprar ahí abajo. ¿Por qué? Porque los minoristas están todavía esperando la confirmación. No se ha confirmado que el precio va hacia abajo o que se va hacia arriba, pero una vez que observamos la vela grande aquí y el volumen creció en esta región significa que los institucionales discapacitaban. Los institucionales dispararon sus compras ahí. De pronto lo que va a suceder es algún tipo de retroceso aquí para asustar a los que están tratando de ingresar. Esta es la vela que asusta para que no ingresen porque están dudosos si va a suceder de subir o si no. Entonces se espera un retroceso, ese retroceso tiene un nombre especial, se llama retesteo. Ya, retesteo. Es decir, testeo la región, ya, y si, bueno, si uno espera más confirmaciones va a usar el retesteo para poder ingresar recién sus compras. Pero ya estará comprando a un precio más caro que los institucionales que compraron más barato. O sea, los minoristas siempre compran más caro que los institucionales. ¿Por qué? Porque los minoristas no pueden mover el precio, en cambio los institucionales sí. Ellos son los que ponen mucho dinero a disposición para que envíen el precio hacia donde quieran. Así funciona. Entonces, punto importante, detectar las zonas de liquidez antes de la barrida de liquidez. Antes de la barrida de liquidez usted tiene que saber dónde están las zonas de liquidez. Y hay siete lugares donde puede estar. Ahora les voy a mostrar este primer video, este de quien? La analiz de liquidez demuestra donde estan estas zonas. Le tocará ingresar en el proyecto donde estan ubicadas. Por que? Porque esto se trata de un evento, de un estado. Y como máquinas de estado las que somos buenas para programar, observamos estas etiquetas, Con el modelo oculto de marco observamos las etiquetas y a trav de estas etiquetas dado una secuencia de observaciones esta secuencia de observaciones se convierte en estados ocultos Entonces necesitamos observar la secuencia de estados observados de una forma que provoque un cambio en la cadena de Markov que est en el nivel oculto Entonces básicamente con la liquidez así como con la estructura de mercado lo que vamos generando son las observaciones que tenemos acá abajo. Tenemos la etiqueta BOS, tenemos CH o CH verdadero, tenemos CH o CH falso. También tiene otro nombre, se llama Indusment. ¿Qué es un inducement? Es cuando se trata de una manipulación, la tendencia no cambia. Aquí por ejemplo, está más bajo que el HL, entonces aquí sería un inducement, para decir, ah está cambiando hacia abajo, de alcista se está cambiando a bajista, pero en realidad no, es un falso. Esto induce a que los minoristas ingresen con órdenes de venta, pero no sucede la venta, sucede al revés. Entonces esto es el inducement, o sea es un change of character falso. Vamos a observar el ATR. El ATR como lo observamos? Dentro de rangos. Porque son valores continuos, entonces hay que poner dentro de rangos el ATR. Por ejemplo, el ATR de 10 a 20, de 20 a 30, a través de esos cestos o beams para los ATR. Tres niveles de ATR, cuatro niveles de ATR para decir que la ATR está cambiando también. Vamos observar el perfil de volumen volumen profile Vamos observar el volumen vertical Vamos observar el supertrend Vamos observar el filter range Vamos observar un mont de cosas para poder ver dos puntos Donde coinciden, donde convergen. Para poder afectar que? Para poder afectar la parte oculta. Esta es toda la parte observable. Usted saca esto de los indicadores y le va a dar las observaciones a la máquina de marco del modelo oculto. En el modelo oculto, lo que va a suceder? Va a estar alternando entre liquidez interna y liquidez externa. Vamos a interno más allá. Sosquid interno y liquidez externa. Siempre va a estar alternando pero habrá evidentemente estados intermedios. Por ejemplo, aquí que necesita algún tipo de confirmación. Ustedes van a necesitar tener algún estado intermedio por aquí. Intermedio. Vamos moviendo desde la izquierda hacia la derecha y desde la derecha hacia la izquierda. Poniendo flechas así, regresando hacia el otro lado. Si tienes la observación, si no tienes la observación, entonces la mayor parte del tiempo va a estar de pronto en ese estado intermedio. El estado intermedio es que est dentro de la zona intermedio Ustedes tienen la parte baja el major low la parte alta el major high que vimos ayer en la estructura Y en la mayor parte del tiempo el precio está golpeando en el medio. Por eso pongo aquí intermedio, la zona entre el major high y el major low. Esta es una propuesta de modelado, no significa que va a ser exactamente así. Pero la idea cuál es? La idea es que va a estar navegando entre estos dos extremos, liquidez interna y liquidez externa. ¿Dónde está la liquidez interna por aquí? Si aquí tenemos el major low, como vimos ayer, y aquí por ejemplo justo en otro lugar tenemos por aquí por ejemplo el major high. Entonces lo que va a suceder es que la mayor parte del tiempo el precio estará aquí dentro de esta zona. Aquí medimos el medio high y el medio low a través de alta temporalidad. ¿Qué es eso? Una hora, cuatro horas, diario, semanal, week. Uno observa los niveles importantes a partir de la temporalidad alta, el time frame elevado. Y adentro vamos a tener los picos pequeños que están en la baja temporalidad. Entonces, ¿qué hacemos con todo eso? Máquina HMM, máquina recursiva. Observamos un montón de estados que se van desencadenando cuando observamos una nueva vela que se va concretando. Se van armando las etiquetas y vamos dando esta secuencia a la cadena de marco. Y eso va alimentando el modelo hacia arriba. Al momento que se dispare de la liquidez externa hacia adentro, aquí sería el momento de ingresar. Justo aquí, desde la liquidez externa hacia la interna. Entonces aquí usted puede ingresar su modelo porque tiene alta probabilidad. Los otros no estamos seguros, a menos que sea después de observar una confirmación, ahí sí puede decir que aquí tiene alta probabilidad también. ¿Por qué? Confirmó alta probabilidad. En todas las demás transiciones no podemos hacer muchas cosas porque el movimiento es puro ruido. Solo podemos hacer algo cuando la probabilidad es elevada. Mientras tanto estamos esperando hasta que llegue de aquí para salir de aquí, ¿cierto? Salir de la liquidez externa. ¿Dónde está la liquidez externa? Pues está aquí en medio lobo. Está justo en esta parte. Aquí está la liquidez externa. Y aquí también está la liquidez externa. Pongamos aquí, liquidez externa. Aquí también, liquidez, justo en esta región, liquidez externa. ¿Aquí podemos hacer algo? No, porque uno no sabe qué ellos van a hacer. Estamos en una región interna, entonces es peligroso actuar ahí. Observen que los que compararon aquí acabaron perdiendo. Entonces llegando aquí, cuando tenemos el medio high desde una temporalidad mayor, podemos predecir que tenemos alta probabilidad de que el precio llegue aquí y volviera hacia abajo. Sobre todo en la primera llegada hacia el hilo. En la primera nunca va a avanzar todo ello sino que va a golpear hacia abajo. Alt probabilidad de que rebote desde arriba porque es un nivel importante es un major high Mientras que aqu golpea mitiga es decir come toda la liquidez deja la gente desamparada Eso es lo que sucede y tenemos que por lo tanto identificar la secuencia de eventos. Nuestro modelo tiene que entrenarse bien para poder identificar todo esto. Entonces esa es más o menos la estructura que necesitamos trabajar. Entonces la pregunta es ¿dónde están las zonas de liquidez? Eso tenemos que contestar. Tenemos que clasificar las velas que corresponden al barrido de liquidez. Tenemos que identificar la vela del RAN de liquidez, que es el otro tipo. Hay el Liquidity Sweep de RAN también. Y también hay uno que se llama liquidity grab. Tres tipos de grab. Siendo que el grab y el sweep tienen similitud muy parecida. El run es cuando avanza, rompe el soporte a la resistencia. Aquí hay una ruptura. De su ruptura del soporte o rompimiento, rompimiento de soporte o resistencia. El soporte y la resistencia también es una zona de liquidez. Pero hay más, un total de siete son enumerados aquí. Tenemos que ubicar todas ellas para que justo en el momento que pase por esta zona ustedes van a observar un comportamiento volumétrico muy elevado. Por las zonas de liquidez Porque es justo ah donde capturan la gente desapercibida y eso ocurre r es decir de golpe para no dar tiempo de hacer nada Uno ya tiene sus stop losses puestos ahí desde el momento que abrió una posición. Entonces, esos stop losses son posiciones estáticas que no se van a mover. Entonces uno abre la posición aquí por ejemplo y pone su stop loss aquí. No va a mover el stop loss, por lo tanto al que venga el precio hacia esa región coge todos esos stop losses y tienen ya liquidez suficiente para mandar el precio a su lado objetivo. Entonces, las temporalidades que implementamos en el proyecto fueron temporalidades chicas. Si ustedes tratan de crear un zig zag en estas gráficas, van a observar un comportamiento como el que les muestro aquí en esta figura. El comportamiento de la temporalidad chica está en rojo. Se observa en rojo porque es muy ruidoso. Todo el ruido que observamos en rojo aquí es debido a la baja temporalidad. Pero lo que ustedes tienen que hacer es obtener el zig zag de las temporalidades altas y meter ahí en la gráfica de temporalidad pequeña. Porque la temporalidad alta nos dará una señal limpia. La negra que está aquí se obtiene desde la temporalidad alta. Una hora, cuatro horas, dos horas, un día, una semana. En cambio la chica no nos va a permitir identificar la tendencia actual, a donde va el precio. Aquí con la negra si tenemos esa información, la dirección del mercado. En cambio con la roja no. La roja esta todo el tiempo perturbada esta ruidosa Entonces hay que filtrar para poder identificar correctamente a donde se mueve el precio Porque la mayor parte del tiempo est recogiendo la liquidez que se est armando Aquí por ejemplo hay un boss. Aquí aparentemente todo iba bien pero llegó aquí ruidoso. Aquí una manipulación. Mire, en esa manipulación tenemos un falso CH o CH. Es un inducement esto de aquí. Igual que les puse ahí, el inducement para el falso cambio de tendencia. La tendencia solo cambia después que atraviesa el punto relevante. Este es el punto relevante en ese momento. Porque el punto relevante empezaba desde abajo, el low a low, el major low. Pero a la medida que fue avanzando y que yo observé los movimientos, las velas posteriores, el major low pasó a ser este de aquí. No vamos a buscar el medio low que se quedó hace un año atrás. Hay que buscar el medio low más recién pero de la temporalidad mayor. No de la temporalidad chica, la chica esta ruidosa, pero la temporalidad grande nos va a dar un lolo mas recién, mas actualizado. Entonces por eso voy actualizando mi lolo basándome todavía en la temporalidad grande. Tenemos que trabajar así de forma visualizar varias temporalidades, la grande y las chicas. Las chicas me refiero a 1, 5 y 15. Y la grande 1, 4 diario o semanal. Para poder saber cómo vamos con la tendencia. Porque si se cambia en la grande, ahí si podemos confiar que es un major. Es un CH o CH verdadero. Porque cambió en la temporalidad grande. Mientras no se cambia en la grande, sigue la misma tendencia que antes. Entonces por eso necesitamos varias temporalidades. Tamparás temporalidades. Observamos aquí a través de la temporalidad alta un BOS, un break up structure que la tendencia continúa. ¿Dónde lo ponemos? Solo después de haberlo confirmado en esta posición aquí. Mientras no llega aquí que se confirma, no hay ese seguimiento. El POS se posiciona a partir de aquí confirmado. Y el change of character se posiciona donde? Esto sería un falso. ¿Cómo sé que es falso? Porque la tendencia grande no se ha cambiado. Por eso sé que es falso. La tendencia grande tiene su media low a low abajo. No ha roto hacia todo el media low. Por eso sé que es equivocado. Es un inducement. Entonces hay que etiquetar inducement ahí para informarle a la máquina de HMM. Porque si usted no pone la etiqueta correcta, tampoco va a predecir bien. Es natural, porque está pasando una data equivocada. Si usted pone el CH o CH falso, confunde con el verdadero, pues el modelo no funcionará, evidentemente. Entonces por eso tiene que sacar la etiqueta correcta, guiándose por las temporalidades más elevadas. Voy armando mis etiquetas a lo largo de que van apareciendo nuevas velas. Voy armando. Aquí apareció esa vela de aquí, entonces yo ya pongo mi DOS listo para poder informarle que ha sucedido un break of structure. Entonces yo le informo a la máquina de lo que va sucediendo para poder vincular con los estados ocultos respectivos. Ahora pues vamos al video para ubicar donde están las zonas de liquidez. Este es el video de 49 minutos. Este que muestra en pantalla que ustedes van a ver tranquilos tomando caf 49 minutos medio larguito porque es toda la parte de estructura m liquidity La parte de liquidity est aqu al final Pero les voy a mostrar un video m corto si no no alcanza a explicar Porque para explicar un video completo como eso, ustedes ya tienen desde ayer la parte de estructura, así que van a poder entender eso. Ahora lo que les falta es el liquidity para que ustedes no se sientan perdidos al mirar el video. Entonces eso lo cierro y voy a abrir el otro. Yo más bien descargué el video en la compu porque si no toda hora hay propaganda, mucha propaganda. Entonces que vamos a ver aquí. Vamos a ver. Es una secuencia de la SNC. Entonces vamos a ver el método de manipulación, mirando hacia la liquidez. Liquidez estática, liquidez dinámica, patrones de liquidez y como evitar caer en trampa. Entonces, esta parte de liquidez es complementaria a la estructura. Sin ello, no tenemos información suficiente para saber el momento exacto donde ocurre la alta probabilidad. Necesitamos encontrar ese momento exacto en el tiempo. A lo largo de todo ese eje de tiempo habrá el momento exacto. Es distante uno del otro, no es tan a menudo. Pero hay que identificar. Y a través de la teoría vamos a tratar de ubicarlo. Entonces imaginen que hay un banco que va a ingresar las posiciones de una empresa que quiere comprar 5 millones en una moneda extranjera Por ejemplo euro d d euro o algo as Entonces el banco tiene los traders profesionales Ellos no van a ingresar todas estas ordens en un solo bol. Van a ingresar de poquito en poquito. ¿Por qué no ingresan todas de una sola vez? El precio subiría a las alturas y al momento que va a vender, nadie quiere comprar porque el precio está muy caro. Entonces tienen que liberar de poquito en poquito esa cantidad toda de dinero. Y este de liberar de poquito en poquito es donde va acumulando la liquidez. Y la liquidez aquí estará justo en donde están los stop losses del minorista, como vemos ahí. Ahora vamos avanzar aquí. Aquí tenemos una gráfica de la liquidez dinámica. La liquidez estática es donde están mis stop loss. Yo pongo estático, mi stop loss y ahí se queda una zona de liquidez. O sea, por debajo del lower low hay una zona de liquidez. Aquí por ejemplo hay, aquí también hay otra zona de liquidez en los gaps, los fair value gaps. Recordando que es un fair value gap, son tres velas. Yo tengo una vela, tengo una vela grandota por aquí y tengo otra arriba. Se arma un vacío entre la primera y la tercera. Eso es el FBQ. Es una zona donde el precio pasó todo recto. No regresó para poder hacer ninguna mecha en esa zona interna. Aqu se arma una liquidez Esta es una liquidez interna El precio siempre va a estar alternando entre liquidez interna y externa Aqu en liquidez interna yo tengo mi fair value gap Que más tengo aquí? Yo tengo mis inducements. Todos estos son liquideces internas. Donde tengo el industrimento tengo una liquidez interna. Donde tengo un ferrovalio gafo también tengo una liquidez interna. El precio estará siempre alternando entre la liquidez interna y la liquidez externa. La liquidez externa es donde están estos niveles relevantes, el major low y el major high. Aquí hay una liquidez externa, aquí hay una resistencia, aquí arriba, están acumulados los vendedores para vender, aquí abajo están acumulados los compradores para comprar. Desde la perspectiva de la alta temporalidad esto si se justifica, pero dentro de la pequeña temporalidad que es toda ruidosa se va acumulando esos zigzags alocados en el medio, entonces ahí también se va armando la liquidez interna. El mercado está siempre en esa dualidad. Liquidez interna y liquidez externa. Máquinas de estado. Entonces está transitando entre la una y la otra. Como les muestro aquí en ese diagrama de máquinas de estado. Entonces el precio regresa donde esta mi FBG eventualmente si, eventualmente el precio va a buscar donde esta el FBG porque ahí esta liquidez. La gente toma posiciones a partir de encontrar un FBG y por eso se arma la liquidez ahí en esa zona. Entonces, armamos donde está el FBG y tenemos que saber donde está nuestra demanda y donde está nuestra oferta. Estas también son zonas de liquidez. ¿Qué más tenemos aquí? El ciclo rural entre interno y externo. Esto ya les expliqué. El FBG. Regresó al FBG. Aquí. Regresó, mitigó parte del FBG, es decir, no consumió todo, consumió un trocito. Entonces ustedes tienen que mitigar el FBG, o sea, disminuir el grosor de esa banda, esa zona, para saber que ahí ya no hay más tanta liquidez. Porque parte de ella ha sido consumida cuando llegó el precio de regreso hacia ahí. En el indicador que les mostré ayer hay esa opción mitigated FBG para que adelgace el grosor de esa zona. Entonces va armando FBG y va mitigando FBG. Eso siempre va a suceder dentro de la región interna. ¿Qué más tenemos aquí? A ver, pasa una propaganda y aquí tenemos un punto importante. Entonces, liquidez estática se refiere a las zonas del mercado donde está el dinero. ¿Si? Como los stop losses, las órdenes de compra y de venta límites. ¿Qué es una orden de compra y de venta límite? ¿A quién sabe? Una orden límite. Una orden límite es una orden automática. Yo por ejemplo quiero comprar a 100. Si el precio actualmente vale 105, yo espero que el precio llegue a 100. Estoy ahí todo el día esperando que llegue a 100 o simplemente digo, pongo una orden límite y digo quiero comprar cuando el precio baje a 100. Ahí se compra. Esa orden es una orden automática, es una orden límite. La orden límite para compra, el precio está siempre más abajo que el precio actual. Aqu tenemos el precio actual 105 y yo quiero comprar cuando est a 100 porque yo pienso que el precio justo es de 100 Entonces yo ingreso una orden autom Cuando el precio llegue hasta ahí, dispara mi compra. Puede que el precio nunca llegue hasta ahí. Que llegue más cerca pero nunca llegue hasta ahí. O sea, que el precio llegue hacia ahí y siga bajando. Hay muchas formas de manipular. Hay que prestar bastante atención. Uno no puede tener una orden límite así por mucho tiempo. Tiene que estar siempre pendiente de lo que está sucediendo ahí para evitar pérdidas. Esta es una orden límite para compra, en donde el precio está por debajo del valor actual. Hay el contrario también, la orden límite para venta, que es justo en donde el precio esté arriba del actual. Es justo al revés. ¿Por qué? Porque quien vende quiere vender desde un precio más caro. Entonces espero que el precio esté lo más caro posible para ahí vender. Este es un límite de paro. Hay el orden stop también. ¿Qué sería un orden stop? Un orden stop es aquella que tiene el precio más caro que el actual para la compra. Por ejemplo, ahorita está en 100. Yo pienso, si el precio llega a 105, el precio va a disparar a 110. Entonces, yo tengo ese argumento. Entonces, una orden stop es que voy a disparar mi compra cuando el precio esté más caro. ¿Por qué? Porque yo creo que si sube a 100, va a subir mucho más. Por ejemplo, el petróleo, ¿no? El petróleo, la guerra, todo eso. La guerra va a disparar el precio del petróleo. Entonces, actualmente supongamos que esté a 80 dólares el barril. Cuando llega a 100, se pasa a 200. Entonces yo compro cuando esté a 100 y esto es un stop. Una orden stop, no es límite. El límite es el precio de compra siempre más barato. En cambio el stop es el precio de compra siempre más caro. Y hay el otro tipo el tercer tipo de orden que es orden a mercado Es el precio que est ahorita no espero ni ma ni pasado ma Comprar ahorita, orden a mercado. Puedo comprar o vender una orden a mercado al precio que este en ese rato. Es instantáneo. Lo que mueve el precio del mercado son las órdenes de liquidez y las órdenes instantáneas. Porque las que están esperando que ocurra un evento tal, de pronto a menos que estén ubicados en una zona importante. Por ejemplo, si estén en una zona superior donde están acumulados los vendedores, ahí ellos compran, ellos venden a limit, a limit. Los compradores de abajo compran al límite. O sea que esperan que el precio baje todo eso para desde ahí comprarlo. Entonces ahí se va acumulando la liquidez. En las órdenes automáticas que se dispara a partir de ciertos precios. Y en los stop losses también. Y de ahí viene la bendita vela de liquidez que va a barrer todo eso. Quitar el dinero a la gente y desamparar a muchos, dejar muchos llorando por ahí. Entonces ustedes tienen que saber dónde está esa vela de liquidez. Identificar que ocurre la liquidez para después de eso observar un movimiento de alta probabilidad. Aquí Machine Learning o aprendizaje automático, inteligencia artificial, va por ese lado. Donde está la mayoría de la probabilidad es donde puede inferir correctamente. Sin alta probabilidad pues no. Entonces el comportamiento gaussiano que les hablé ayer y el no gaussiano. La campana de Gauss promedio mayor volumen de probabilidad ah es donde operamos Ah podemos predecir Antes de eso por un movimiento aleatorio no se puede predecir nada ¿Y para qué necesitamos liquidez? ¿Para qué el mercado busca liquidez? Porque quiere alcanzar su objetivo. Si quieres que el precio suba, buscas la liquidez. La vela siguiente es una vela de momentum que ahí dice momentum. El momento es esa vela grandota que se dispara después de recoger la liquidez. Entonces recoges la liquidez, vela de liquidez. Ustedes tienen la vela identificada en la gráfica. Tienen que tener esa vela identificada. De ahí va a observar enseguida un disparo de una vela muy fuerte, con volumen fuerte de compras, tratando de alejarse de esa zona, porque es la zona en donde está acumulada mayor liquidez. Entonces se aleja de la zona y va a su destino. Así funciona la estructura. Ahora si tenemos aquí las 7 zonas de liquidez. La primera es abajo de los eco-low y arriba de los eco-high. ¿Qué es un icohai y qué es un icohai? Entonces, a ver, un poquito hacia atrás. Ok, ahí está. El ICOLOUS son dos H, aquí en este caso, como es alcista, HL, ¿no? Un HL aquí, un HL aquí, de prácticamente mismo nivel. Esos son los ICOLOUS. Los ICO HIGHS aquí del otro lado, prácticamente iguales, son niveles que tienen prácticamente el mismo precio. Y el mismo comportamiento rebotó ahí. Entonces aquí es una zona en donde se acumula la liquidez por arriba y aquí se acumula la zona de liquidez por debajo. Esta es una zona interna porque el major low está aquí en el swing low. Tenemos el swing high aquí en la parte superior. Entonces dentro de la zona interna vamos a encontrar equal highs y equal lows. Esta es la primera zona de liquidez. A ver, veamos la segunda. La segunda es el swing high. Abajo del swing high, aquí abajo, o arriba del swing high. Donde se acumulan los vendedores arriba y los compradores abajo. Vamos al tercero. El tercero dice, abajo o arriba de los trendlines y de los canales. ¿Dónde está el trendline? Aquí está el trendline, es esa línea blanca. Observen que el precio está respetando una línea diagonal. Entonces esa línea diagonal, semi recta diagonal es la trendline. Y justo abajo de ello se va armando liquidez. Por otro lado el canal el precio est limitado aqu una frontera inferior y una superior Entonces uno observa los primeros altos y bajos de un canal y empieza a comprar desde abajo o a vender desde arriba Y pones sus stop losses donde? Pues justo arriba y justo abajo. Entonces en la extremidad del canal habrá stop losses. Que va a hacer la vela de liquidez? Va a irse de golpe hacia arriba, arriba, arriba, arriba. Arriba de todo el canal y después se va hacia abajo. Justamente para recoger la liquidez y no dejar que la gente tenga un aliento. Entonces se sabe donde está. Están provocando eso. Eso es proposital. Lo hacen así justo para engañar a la gente. Esa es una forma de sacar liquidez. ¿Qué más tenemos? Tenemos la cuarta dentro de un order block. Este es un order block verdadero de abajo y el de arriba es falso. Por eso dice aquí inducement. Entonces aquí en el order block tenemos una zona y se mete dentro de la zona. El precio se mete dentro de la zona y encontramos un doge aquí adentro, una vela de cuerpo chico con mechas grandes. Es un doge o una vela envolvente. ¿Qué es un doge y qué es una vela envolvente? Un doge tiene esa característica, un cuerpo pequeño y medio grandes. Este es el doge. Cuando encontramos doge en niveles relevantes hay probable cambio de tendencia Aqu est bajista el DODGE est midiendo fuerza compradora por debajo fuerza vendedora por arriba y luego tenemos una indecisi Indecisión denota el doce. Y por otro lado, una vela doce es una posible reversión. Cuando ubicada en una zona de liquidez. Por lo tanto el DOJ denota indecisión y si usted está justo en la zona de liquidez puede ser que vaya al revés el precio. O sea que no sigue el movimiento que observamos previamente. Que se cambie el movimiento. Aquí el movimiento estaba bajando en ese momento. Observamos el doge aquí y luego una regresión. Y luego tenemos también las velas de engolfe. ¿Qué es una vela de engolfe? Son dos velas, dos o más. Aquí voy a poner el caso más sencillo. En donde una aparca la otra. Estos son engulfing candles. En español se llama velas envolventes. Tienen por ejemplo el alcista verde y la otra roja Una comi la otra Y el movimiento de nuevo Posible reversi cuando ubicada en zona de liquidez Eso también vale para los envolventes. Envolventes y para el DOJ. Tanto para DOCH como para envolvente vale esta posible relación siempre y cuando ubicado en zona de liquidez. ¿Qué más? Ah, otro punto relevante. Una vela envolvente puede que se cumplió hasta aquí y la otra parte cumple con lo demás. No necesariamente termina todo el envoltura en un minuto sino que puede demorar un poco más para poder englobar, abarcar y comer toda la vela. ¿Qué sucede con la brela envolvente? Una posible reducción cuando hay una zona de liquidez. Aquí tenemos, aquí sería envolvente también. Si uno considera las dos blancas aquí, que son bachistas, como una sola, Si uno tiene una sola y considera estas de aquí, estas cuatro como una sola, tendría una vela envolvente. Porque unió estas dos, da una altura así. Una de las otras cuatro da una altura así, por lo tanto está envolviendo. No necesariamente es una y otra, dos. Puede ser dos y cuatro para poder englobar, abarcar, comer toda la vela anterior. Es decir, el movimiento bajista fue cancelado por la vela involvente en una zona de liquidez. Eso ustedes observan en la zona de liquidez, no me van a observar en otros lados porque no cumple. Si? Aquí por ejemplo era un industrimento falso, no cumple. Se tiene que observar esto en la zona. Tiene que observar esto en las zonas de liquidez. Aquí observamos una doge, y las envolventes pueden ser un clúster de velas envolventes. Usted puede tener un clúster agrupadas las velas doge, también puede tener. No necesariamente una sola, puede haber varias velitas, puede haber un cluster de ellas para significar que todo ello es una sola cosa. Entonces, clusterizar las velas envolventes, clusterizar las velas nos da una información más precisa. O cuando miramos hacia otra temporalidad, estas minudencias desaparecen. Porque vamos a observar que cinco velas, por ejemplo, representan una. Cuando miramos a una temporalidad mayor, todo colapsó a una sola cosa. Lo que ocurrió en el intermedio, que son las metitas, puede que en la vela de cinco minutos no conste, porque esta dentro del cuerpo de la vela de cinco minutos. Entonces mirar hacia otras temporalidades nos da una indicación más acertada. Aquí por ejemplo si miramos hacia una temporalidad mayor, esto se conforma a una sola vela de ocho y no varias. Por eso la importancia de estar en otras temporalidades y no solo en la minuto, solo una. Siempre bastante atento a las otras temporalidades también. ¿Y qué es lo que destaca el order block? El order block se destaca por una zona más grande. Aquí tenemos un rango en donde el precio trabaja aquí adentro. Aqu tenemos un order block Y es una zona en donde previamente se observ una mecha bastante importante aqu desde un momento previo Entonces el orden del bloque se arma desde un momento previo y se queda la marca como zona de liquidez En cambio el otro de arriba es falso, es un indústria. Esto es el cuarto. Ustedes necesitarán siete. Vamos al quinto. Abajo y arriba de un soporte de una resistencia. Entonces el soporte de la resistencia. Que ya saben de que se trata. Y los niveles de Fibonacci. Por eso les pido los niveles de Fibonacci. Aquí está el 61.4 es el porcentaje entre el alto y el bajo. Si estamos en una tendencia bajista, 64% es todo eso, lo demás es el complemento. Para la tendencia bajista es así, el 64 está en la parte inferior. Para la tendencia alcista el 61.4% estará en la parte superior, al revés. Entonces aquí en los niveles de Fibonacci suele golpear un nivel de Fibonacci, retroceder y volver a intentar otra vez. O puede irse de una hacia afuera. Por lo tanto los niveles de Fibonacci también son niveles relevantes. Ahí no pone todos los niveles porque la temporalidad que está actuando debe ser una de ejecución. Hay temporalidad de ejecución y temporalidad de estructura. ¿Cierto? Mayores temporalidades, la estructura. Ejecución es donde estamos tratando de observar los detalles de lo que va sucediendo en cada momento. Un minuto, cinco o quince. Entonces ahí también los niveles de fibonacci se ubica en la liquidez. Y el s donde est est en la vela diaria Creo que s ah Entonces en la vela diaria observar la vela diaria El alto el bajo el open y el close de la vela diaria Estos son niveles de liquidez tambi Entonces yo veo la vela diaria del día que ya terminó. Por ejemplo, hoy lunes yo veo lo que fue el día anterior, viernes. Hoy por ejemplo martes veo como fue el cierre de lunes, siempre del día anterior porque ahí se acumula liquidez también. El diario y el semanal. Son zonas importantes. A cada vela diaria usted va a tener una liquidez acumulada. Entonces encontrar esos niveles de liquidez, por lo tanto va a necesitar trendlines, dibujar trendlines en las gráficas. Sobre todo para ubicar donde está la zona de liquidez. No necesariamente poner el trendline en la gráfica Para no ensuciar mucho la gráfica. Porque estas líneas cuando están así, ensucian bastante la gráfica. Las que no ensucian tanto son las líneas horizontales. Pero si usted empieza a poner líneas que están cruzando la gráfica de abajo hacia arriba, Todo se queda ruidoso o feo y uno se confunde y no sabe qué hacer. Las líneas de tendencia tienen en memoria, saben dónde están, pero no las muestran. A menos que el usuario halla la opción de mostrar líneas de tendencia, dónde está mi zona de liquidez. Si no hace eso, no se muestran. Pero usted tiene que saber donde están esos tres lados para saber donde está la zona de liquidez. Tratemos de mantener la gráfica más lenta posible porque son muchos los indicadores que necesitamos. Los que tienen así de líneas son los que contaminan menos las gráficas. Los que son as como medias m o l de tendencia eso contamina bastante la gala Vamos a los casos prácticos. Aquí tenemos el hipoicolose, donde se acumula la liquidez por debajo, el hipohigh al contrario. Tenemos un double bottom y un double top. Y el double bottom son dos golpes hacia ese nivel y se respeta aparentemente. Entonces aunque se respeta, minoristas ingresan por aquí para comprar. Ingresan para comprar y luego ponen sus estóculosos aquí abajo. Aquí se va acumulando liquidez. Pero uno que es bajista va a ponerla, no se va a basar en esa linea horizontal sino va a basarse en una linea de tendencia, un trend line. El bajista pone el trend line y observa que ha atravesado el trend line. Se ha metido hacia abajo. ¿Qué significa eso para el bajista? Significa que hay un posible cambio de la tendencia alcista hacia la bajista. Entonces los bajistas van a meter posiciones hacia abajo, el precio retrocede un poco, pero ya hay liquidez aquí abajo. ¿Donde pone sus posiciones los bajistas? Pone justo aquí, ya que el precio llegó hasta ese punto. Pone atrás sus stop losses y se va acumulando liquidez aquí. Se acumula liquidez de los bajistas por debajo, liquidez de los bajistas por arriba. Por lo tanto, un escenario perfecto para limpiar todo eso, barrer y decepcionar a todos. Por lo tanto, se hace el barrito hacia arriba y lo mete hacia abajo enseguida. Hasta llegar a la zona importante. Entonces, eso dispara. órdenes stop losses tanto de venta como de compra. De venta por los que compraron y de compra por los que están recién vendiendo. Entonces se dispara todo eso y el volumen sube bastante. Observar el comportamiento del volumen porque se ve afectado siempre que pasa por un barrido. Un barrido de liquidez. Si? Entonces tenemos un barrido de liquidez y el volumen dispara. Una forma de saber donde están estas zonas de liquidez es mirar donde el volumen disparo en la data. Porque donde se ve un aumento expresivo del volumen es un alto indicativo de que tenemos una zona de liquidez. Entonces el precio va hacia arriba, recoge los stop losses de los vendedores y manda el precio hacia abajo para recoger también los stop losses de los compradores. Ahí tenemos todo limpio. Y el momento de ingresar es aquí. O sea, no debería haber ingresado aquí. Debe ingresar aquí. Aquí es donde la probabilidad de ganar es acertada. Antes, cerca de la liquidez interna es ruido. Entonces, ¿dónde maximizo mi probabilidad? Cuando salgo de la liquidez externa, ahí abajo es la liquidez externa. Si usted trata de salir de la liquidez interna, puede alcanzar el ruido y ocurrir eso que les pasó a los minoristas que están ahí. Mientras que el mayorista el institucional sale ganando de todos Da un 7 a 0 aqu Pero ustedes como ya saben de eso van a entrenar la m de marco para ingresar solo aqu Tardemente pero seguro ¿Ok? Tardemente pero seguro, después de que todo ya pasó, toda la pesadilla pasó. Ahora vemos que más hay aquí. Pregunta ¿Cuáles de estas zonas son seguras para operar? Aquí les muestro la zona. Bueno ya estamos viendo aquí, sucede que la gráfica como no está tocando vela por vela, uno ya está viendo aquí, entonces ya observo que esta es la zona que se opera. Pero si uno no sabe eso porque no ve esas velas, tenemos el replay en donde ustedes van a estar observando, buscando distinguir entre zona interna y externa para poder operar donde haya mayor probabilidad de acierto. Puede que el precio rebote aquí, no estoy asegurando que el precio necesariamente se va hacia abajo. Pero es mas seguro operar aqui que perder operando aqui. Porque aqui la probabilidad de perder es mucho mayor que la de aca. Entonces vamos por donde maximiza la probabilidad. Así siempre para no arriesgar tanto. El un indusment, el de Aviva. Un cambio falso de estructura. Igual que los double bottoms o double tops, uno también tiene los triples. Es un triple fue y regres Y eso acumula todav m liquidez lo que significa que es un punto m de ventaja para los institucionales alcanzar esta regi y comer toda esta liquidez Porque dio m oportunidades a m compradores ingresar habiendo observado esto Entonces se acumuló la zona de liquidez, ustedes ingresaron después y no perdieron nada. Ahora tenemos el caso al revés, las ventas, la tendencia bajista ocurre prácticamente lo mismo. Solo que al contrario, en lugar de bottom tenemos tops aquí. La parte no mitigada significa que las velas no alcanzaron esa región todavía. Una vez que las velas alcanzan la región se queda mitigada. Veamos que más tenemos por aquí. Aquí la línea de tendencia que está respetando un nivel diagonal. Se va acumulando liquidez hasta que llega el momento que rompe todo eso. Esto ocurre así en un cerrar de ojos. En un cerrar de ojos ocurre el barrido de todo eso, consume la liquidez y ya está equivocado. O deprime a todos los que están ahí. El barrido es instantáneo y luego rebota hacia la región donde uno planteó originalmente. Rufy, cuando ocurre el barrido, ¿eso es cuando...? O sea, el barrido es que ya coge la liquidez. El barrido es para coger la liquidez, coge esa liquidez, todo ese dinero y con ese bolsillo lleno de dinero puede irse a donde quiera. Esa es la idea de acumular esas zonas de liquidez. Porque como ellos tienen mucho dinero, ellos pueden mandar a la empresa a donde está la liquidez para recoger más. Eso es lo que sucede. El minorista no tiene como controlar el movimiento de precios. Entonces ah tenemos Listo hasta ah el video Ahora les voy a mostrar lo que tengo aqu parcialmente desarrollado para que ustedes tengan una idea de la data real Les voy a enseñar aquí mi portafolio. Porque a ustedes les tocará la data real. Es posible que yo les ofrezca más data para estar viendo así más o menos actualizado con 3DVIV y tener una cantidad más alta. Ustedes tienen de abril, entonces puede que les den la data de mayo hasta la fe. Para estar ahí, no tan par a par con el 3DV pero un poco más al día. Entonces voy a mostrar lo que tengo de implementación con respecto a Liquidity. Porque la identificación de lo que ocurre con la liquidez depende de muchas cosas. Depende de encontrar estos altos y bajos. El zig zag ustedes tienen que encontrarlo perfectamente. El zig zag, la parte alta y la parte baja. Si no lo encuentran perfectamente van a equivocarse en ubicar la liquidez. ¿Qué significa encontrar perfectamente? Significa que las velas de liquidez es donde usted ha puesto la etiqueta, una de estas cuatro, HH, HL, LL y LH. Tod
+
+[TRUNCADO: 12168 caracteres restantes. Usa rangos o pide menos sesiones.]
