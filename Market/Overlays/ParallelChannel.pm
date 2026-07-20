@@ -81,6 +81,31 @@ sub draw {
     # Preview del draft
     my $draft = $draw->draft_points();
     if ( $draw->is_tool_active() && @$draft ) {
+        # Con 2 puntos fijos + cursor: previsualizar el canal completo (p3 = cursor).
+        # Así el usuario ve la altura/ancho siguiendo el ratón hasta el 3.er clic.
+        if ( @$draft == 2 && $self->{_preview_cursor} ) {
+            # p3 preview: precio = cursor; índice = medio del segmento base, para
+            # que la altura se vea centrada igual que al fijar el 3.er clic.
+            my $mid_index = ( $draft->[0]{index} + $draft->[1]{index} ) / 2;
+            my $prev = {
+                p1           => { %{ $draft->[0] } },
+                p2           => { %{ $draft->[1] } },
+                p3           => { index => $mid_index, price => 0 + $self->{_preview_cursor}{price} },
+                extend_right => $draw->{extend_right} ? 1 : 0,
+                extend_left  => $draw->{extend_left}  ? 1 : 0,
+                show_mid     => $draw->{show_mid}     ? 1 : 0,
+                line_color   => $draw->{line_color},
+                fill_color   => $draw->{fill_color},
+            };
+            my $geo = $draw->geometry_for(
+                $prev,
+                data_end   => $self->{_data_end} // $win_end,
+                view_start => $win_start,
+                view_end   => $win_end,
+            );
+            $self->_paint_channel( $canvas, $scales, $geo, $prev, $x_of, $y_of, $tag )
+              if $geo;
+        }
         $self->_paint_draft( $canvas, $scales, $draft, $x_of, $y_of, $draw );
     }
 
@@ -157,9 +182,31 @@ sub _paint_channel {
             1;
         };
     }
+
+    # Punto medio de la línea BASE (altura del lado base). El lado de la paralela
+    # ya tiene su handle de altura en p3, que está centrado en el índice medio.
+    my $mid_i = ( $geo->{i_min} + $geo->{i_max} ) / 2;
+    my ( undef, $mb0, undef, $mb1 ) = @{ $geo->{line0} };
+    {
+        my $x = $x_of->($mid_i);
+        my $y = $y_of->( ( $mb0 + $mb1 ) / 2 );
+        eval {
+            $canvas->createRectangle(
+                $x - 4, $y - 4, $x + 4, $y + 4,
+                -outline => '#ffffff',
+                -fill    => $line_c,
+                -width   => 2,
+                -tags    => [ $tag, 'pchan_mid_base' ],
+            );
+            1;
+        };
+    }
 }
 
-# hit_test → 'p1'|'p2'|'p3' si el clic cae sobre un ancla, o undef.
+# hit_test → handle bajo el cursor, o undef. Prioridad:
+#   'p1'|'p2'|'p3'  → esquinas y altura de la paralela (p3 ya está centrado)
+#   'mid_base'      → punto medio de la línea base (altura del lado base)
+#   'body'          → cuerpo de un segmento (arrastrar todo el canal)
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -178,12 +225,58 @@ sub hit_test {
         return abs( $x - $px ) <= $tol && abs( $y - $py ) <= $tol;
     };
 
+    # 1) Esquinas
     for my $name (qw(p1 p2 p3)) {
         my $pt = $ch->{$name} or next;
         return $name
           if $near->( $x_of->( $pt->{index} ), $y_of->( $pt->{price} ) );
     }
+
+    # Geometría de las dos líneas para medios y cuerpo.
+    my $geo = $draw->geometry_for(
+        $ch,
+        data_end   => $self->{_data_end} // ( $self->{_range}[1] // 0 ),
+        view_start => $win_start,
+        view_end   => ( $self->{_range}[1] // 0 ),
+    );
+    return undef unless $geo;
+    my ( $i0a, $p0a, $i0b, $p0b ) = @{ $geo->{line0} };   # base (p1-p2)
+    my ( $i1a, $p1a, $i1b, $p1b ) = @{ $geo->{line1} };   # paralela (p3)
+
+    # 2) Punto medio de la línea base (altura del lado base). El lado paralela
+    #    usa p3, ya cubierto arriba como esquina (está centrado en el medio).
+    my $mid_i = ( $geo->{i_min} + $geo->{i_max} ) / 2;
+    my $base_mid_p = ( $p0a + $p0b ) / 2;
+    return 'mid_base'
+      if $near->( $x_of->($mid_i), $y_of->($base_mid_p) );
+
+    # 3) Cuerpo: sobre cualquiera de los dos segmentos (perpendicular <= tol)
+    my $on_seg = sub {
+        my ( $ia, $pa, $ib, $pb ) = @_;
+        return _dist_to_segment(
+            $x, $y,
+            $x_of->($ia), $y_of->($pa), $x_of->($ib), $y_of->($pb),
+        ) <= 6;
+    };
+    return 'body' if $on_seg->( $i0a, $p0a, $i0b, $p0b );
+    return 'body' if $on_seg->( $i1a, $p1a, $i1b, $p1b );
+
     return undef;
+}
+
+# Distancia de un punto al segmento en píxeles.
+sub _dist_to_segment {
+    my ( $px, $py, $ax, $ay, $bx, $by ) = @_;
+    my $dx = $bx - $ax;
+    my $dy = $by - $ay;
+    my $len2 = $dx * $dx + $dy * $dy;
+    return sqrt( ( $px - $ax )**2 + ( $py - $ay )**2 ) if $len2 < 1e-9;
+    my $t = ( ( $px - $ax ) * $dx + ( $py - $ay ) * $dy ) / $len2;
+    $t = 0 if $t < 0;
+    $t = 1 if $t > 1;
+    my $cx = $ax + $t * $dx;
+    my $cy = $ay + $t * $dy;
+    return sqrt( ( $px - $cx )**2 + ( $py - $cy )**2 );
 }
 
 sub _paint_draft {

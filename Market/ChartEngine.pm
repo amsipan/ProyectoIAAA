@@ -191,7 +191,7 @@ sub new {
     require Market::Drawing::ParallelChannel;
     require Market::Overlays::ParallelChannel;
     $self->{pchan_drawing} = Market::Drawing::ParallelChannel->new(
-        extend_right => 1,
+        extend_right => 0,
         extend_left  => 0,
     );
     $self->{pchan_overlay} = Market::Overlays::ParallelChannel->new(
@@ -2955,15 +2955,34 @@ sub _start_horizontal_drag {
         my $hit = $self->_trend_hit_test( $x, $y );
         if ( defined $hit ) {
             $self->{_trend_drag} = { handle => $hit };
+            # Para arrastre del cuerpo ('body'), sembrar el anclaje delta con la
+            # posición actual del cursor (evita salto en el primer movimiento).
+            if ( $hit =~ /:body$/ ) {
+                my $idx = $self->_global_index_from_x($x);
+                my $scale = $self->{_last_price_scale}
+                  // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+                my $price = ( $scale && $scale->can('y_to_value') ) ? $scale->y_to_value($y) : undef;
+                $self->{_trend_drag}{last} = { index => $idx, price => $price }
+                  if defined $idx && defined $price;
+            }
             return;
         }
     }
 
-    # Parallel Channel: drag de un ancla existente (p1/p2/p3) — no paneo
+    # Parallel Channel: drag de un ancla / punto medio / cuerpo — no paneo
     if ( $self->{pchan_drawing} && $self->{pchan_drawing}->get_channel() ) {
         my $hit = $self->_pchan_hit_test( $x, $y );
         if ( defined $hit ) {
             $self->{_pchan_drag} = { handle => $hit };
+            # Arrastre del cuerpo: sembrar anclaje delta con la posición actual.
+            if ( $hit eq 'body' ) {
+                my $idx = $self->_global_index_from_x($x);
+                my $scale = $self->{_last_price_scale}
+                  // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+                my $price = ( $scale && $scale->can('y_to_value') ) ? $scale->y_to_value($y) : undef;
+                $self->{_pchan_drag}{last} = { index => $idx, price => $price }
+                  if defined $idx && defined $price;
+            }
             return;
         }
     }
@@ -3725,6 +3744,23 @@ sub _on_mouse_move {
     else {
         $self->_draw_crosshair_all();
         $self->_draw_pointer_symbol($widget, $pixel_x, $pixel_y, 'cross');
+    }
+
+    # Preview en vivo del Parallel Channel: con 2 puntos fijos, el 3.º (altura del
+    # canal) sigue el cursor hasta el 3.er clic (estilo TradingView).
+    if ( $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active()
+        && $self->{pchan_drawing}->draft_count() == 2 && $self->{pchan_overlay} ) {
+        my $idx = $self->_global_index_from_x($pixel_x);
+        my $scale = $self->{_last_price_scale}
+          // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+        my $price = ( $scale && $scale->can('y_to_value') ) ? $scale->y_to_value($pixel_y) : undef;
+        if ( defined $idx && defined $price ) {
+            $self->{pchan_overlay}{_preview_cursor} = { index => $idx, price => $price };
+            $self->request_render();
+        }
+    }
+    elsif ( $self->{pchan_overlay} && $self->{pchan_overlay}{_preview_cursor} ) {
+        delete $self->{pchan_overlay}{_preview_cursor};
     }
 }
 
@@ -4825,7 +4861,28 @@ sub _pchan_drag_to {
     my $price = $scale->y_to_value($y);
     return unless defined $idx && defined $price;
 
-    $draw->set_point( $handle, { index => $idx, price => $price } );
+    if ( $handle eq 'p1' || $handle eq 'p2' ) {
+        # Esquinas de la base: reposicionan el ancla completo (índice + precio).
+        $draw->set_point( $handle, { index => $idx, price => $price } );
+    }
+    elsif ( $handle eq 'p3' ) {
+        # Altura del lado paralela: p3 solo cambia el precio; se mantiene centrado
+        # en el índice medio de la base (lo re-centra base_mid_index).
+        my $mid = $draw->base_mid_index();
+        $draw->set_point( 'p3', { index => $mid, price => $price } );
+    }
+    elsif ( $handle eq 'mid_base' ) {
+        # Altura del lado base: desplaza la línea p1-p2 en vertical (conserva pendiente).
+        $draw->move_base_to_price($price);
+    }
+    elsif ( $handle eq 'body' ) {
+        # Arrastrar todo el canal por el delta desde la posición previa del cursor.
+        my $last = $self->{_pchan_drag}{last};
+        if ($last) {
+            $draw->move_channel( $idx - $last->{index}, $price - $last->{price} );
+        }
+        $self->{_pchan_drag}{last} = { index => $idx, price => $price };
+    }
     $self->request_render();
 }
 
@@ -4996,7 +5053,18 @@ sub _trend_drag_to {
     my $price = $scale->y_to_value($y);
     return unless defined $idx && defined $price;
 
-    $draw->set_point( $li, $which, { index => $idx, price => $price } );
+    if ( $which eq 'body' ) {
+        # Arrastrar la línea entera: mover ambos extremos por el delta respecto
+        # a la posición previa del cursor (index/price). Anclaje en _trend_drag.
+        my $last = $self->{_trend_drag}{last};
+        if ($last) {
+            $draw->move_line( $li, $idx - $last->{index}, $price - $last->{price} );
+        }
+        $self->{_trend_drag}{last} = { index => $idx, price => $price };
+    }
+    else {
+        $draw->set_point( $li, $which, { index => $idx, price => $price } );
+    }
     $self->request_render();
 }
 

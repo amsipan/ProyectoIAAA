@@ -142,6 +142,7 @@ sub hit_test {
     };
 
     my $lines = $draw->lines();
+    # Prioridad: primero extremos (más específicos), luego cuerpo de la línea.
     for ( my $li = $#$lines; $li >= 0; $li-- ) {
         my $ln = $lines->[$li];
         for my $which (qw(p1 p2)) {
@@ -151,7 +152,32 @@ sub hit_test {
             }
         }
     }
+    # Cuerpo de la línea: distancia perpendicular del clic al segmento <= tol.
+    for ( my $li = $#$lines; $li >= 0; $li-- ) {
+        my $ln = $lines->[$li];
+        next unless $ln->{p1} && $ln->{p2};
+        my $x1 = $x_of->( $ln->{p1}{index} ); my $y1 = $y_of->( $ln->{p1}{price} );
+        my $x2 = $x_of->( $ln->{p2}{index} ); my $y2 = $y_of->( $ln->{p2}{price} );
+        if ( _dist_to_segment( $x, $y, $x1, $y1, $x2, $y2 ) <= 6 ) {
+            return "$li:body";
+        }
+    }
     return undef;
+}
+
+# Distancia de un punto (px,py) al segmento (ax,ay)-(bx,by), en píxeles.
+sub _dist_to_segment {
+    my ( $px, $py, $ax, $ay, $bx, $by ) = @_;
+    my $dx = $bx - $ax;
+    my $dy = $by - $ay;
+    my $len2 = $dx * $dx + $dy * $dy;
+    return sqrt( ( $px - $ax )**2 + ( $py - $ay )**2 ) if $len2 < 1e-9;
+    my $t = ( ( $px - $ax ) * $dx + ( $py - $ay ) * $dy ) / $len2;
+    $t = 0 if $t < 0;
+    $t = 1 if $t > 1;
+    my $cx = $ax + $t * $dx;
+    my $cy = $ay + $t * $dy;
+    return sqrt( ( $px - $cx )**2 + ( $py - $cy )**2 );
 }
 
 1;

@@ -12,7 +12,7 @@ sub new {
         channel      => undef,    # hash p1,p2,p3,extend_*,colors
         draft        => [],       # 0..2 puntos mientras se dibuja
         tool_active  => 0,
-        extend_right => exists $args{extend_right} ? ( $args{extend_right} ? 1 : 0 ) : 1,
+        extend_right => exists $args{extend_right} ? ( $args{extend_right} ? 1 : 0 ) : 0,
         extend_left  => exists $args{extend_left}  ? ( $args{extend_left}  ? 1 : 0 ) : 0,
         show_mid     => $args{show_mid} ? 1 : 0,
         line_color   => $args{line_color} // '#42a5f5',
@@ -62,6 +62,48 @@ sub set_point {
     return $self;
 }
 
+# base_mid_index — índice medio del segmento base (p1-p2).
+sub base_mid_index {
+    my ($self) = @_;
+    my $ch = $self->{channel} or return undef;
+    return ( $ch->{p1}{index} + $ch->{p2}{index} ) / 2;
+}
+
+# base_mid_price — precio de la línea base en su índice medio.
+sub base_mid_price {
+    my ($self) = @_;
+    my $ch = $self->{channel} or return undef;
+    my $m  = $self->slope( $ch->{p1}, $ch->{p2} );
+    return $self->price_on_line( $ch->{p1}, $m, $self->base_mid_index() );
+}
+
+# move_base_to_price($price) — desplaza la línea BASE verticalmente para que su
+# punto medio pase por $price (mueve p1 y p2 por el mismo delta, conserva la
+# pendiente). Es el handle de altura del lado de la base (segmento con p1/p2).
+sub move_base_to_price {
+    my ( $self, $price ) = @_;
+    my $ch = $self->{channel} or return $self;
+    return $self unless defined $price;
+    my $cur = $self->base_mid_price();
+    return $self unless defined $cur;
+    my $dp = $price - $cur;
+    $ch->{p1}{price} += $dp;
+    $ch->{p2}{price} += $dp;
+    return $self;
+}
+
+# move_channel($d_index, $d_price) — traslada TODO el canal (p1,p2,p3) por un
+# delta. Usado al arrastrar el cuerpo (segmento superior o inferior).
+sub move_channel {
+    my ( $self, $di, $dp ) = @_;
+    my $ch = $self->{channel} or return $self;
+    for my $which (qw(p1 p2 p3)) {
+        $ch->{$which}{index} += $di;
+        $ch->{$which}{price} += $dp;
+    }
+    return $self;
+}
+
 sub draft_points { [ @{ $_[0]->{draft} || [] } ] }
 
 sub draft_count {
@@ -96,11 +138,15 @@ sub _commit_draft {
     my ($self) = @_;
     my @d = @{ $self->{draft} || [] };
     return unless @d >= 3;
+    # p3 = altura del canal: el 3.er clic aporta solo el PRECIO; su índice se
+    # fija al punto MEDIO del segmento base (p1-p2), como en TradingView, para
+    # que el handle de altura quede centrado en la línea superior/inferior.
+    my $mid_index = ( $d[0]{index} + $d[1]{index} ) / 2;
     # Un solo canal: reemplaza el anterior
     $self->{channel} = {
         p1           => { %{ $d[0] } },
         p2           => { %{ $d[1] } },
-        p3           => { %{ $d[2] } },
+        p3           => { index => $mid_index, price => 0 + $d[2]{price} },
         extend_right => $self->{extend_right} ? 1 : 0,
         extend_left  => $self->{extend_left}  ? 1 : 0,
         show_mid     => $self->{show_mid}     ? 1 : 0,

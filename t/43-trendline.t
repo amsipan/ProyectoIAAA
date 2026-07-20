@@ -44,25 +44,26 @@ use Market::Overlays::TrendLine;
     is( $ln->{p2}{index}, 20, 'p2 index' );
     is( $ln->{p2}{price}, 110, 'p2 price' );
 
-    ok( $d->is_tool_active(), 'tool sigue activo tras commit (permite encadenar varias)' );
+    ok( !$d->is_tool_active(), 'tool se apaga tras commit (TV: 2 clics y sale del modo)' );
 }
 
 # ---------------------------------------------------------------------------
-# 3. Varias líneas a la vez
+# 3. Varias líneas: hay que re-activar el tool por cada línea (estilo TV)
 # ---------------------------------------------------------------------------
 {
     my $d = Market::Drawing::TrendLine->new();
     $d->start_tool();
     $d->add_point( { index => 0,  price => 50 } );
-    $d->add_point( { index => 5,  price => 60 } );
+    $d->add_point( { index => 5,  price => 60 } );   # commit → tool off
+    is( $d->line_count(), 1, 'primera línea creada' );
+    # sin re-activar, el siguiente clic se ignora
+    is( $d->add_point( { index => 8, price => 55 } ), undef, 'clic ignorado con tool off' );
+    is( $d->line_count(), 1, 'no se añadió línea sin re-activar' );
+    # re-activar para la segunda línea
+    $d->start_tool();
     $d->add_point( { index => 8,  price => 55 } );
     $d->add_point( { index => 12, price => 70 } );
-    is( $d->line_count(), 2, 'se pueden colocar varias líneas' );
-
-    # add_point sin tool activo se ignora
-    $d->cancel_tool();
-    is( $d->add_point( { index => 1, price => 1 } ), undef, 'add_point ignorado sin tool activo' );
-    is( $d->line_count(), 2, 'no se añadió línea con tool inactivo' );
+    is( $d->line_count(), 2, 'segunda línea tras re-activar el tool' );
 }
 
 # ---------------------------------------------------------------------------
@@ -92,6 +93,7 @@ use Market::Overlays::TrendLine;
     my $d = Market::Drawing::TrendLine->new();
     $d->start_tool();
     $d->add_point( { index => 0, price => 1 } ); $d->add_point( { index => 1, price => 2 } );
+    $d->start_tool();
     $d->add_point( { index => 2, price => 3 } ); $d->add_point( { index => 3, price => 4 } );
     is( $d->line_count(), 2, 'dos líneas colocadas' );
 
@@ -100,6 +102,22 @@ use Market::Overlays::TrendLine;
 
     $d->clear_all();
     is( $d->line_count(), 0, 'clear_all borra todo' );
+}
+
+# ---------------------------------------------------------------------------
+# 5b. move_line traslada ambos extremos por un delta (arrastrar el cuerpo)
+# ---------------------------------------------------------------------------
+{
+    my $d = Market::Drawing::TrendLine->new();
+    $d->start_tool();
+    $d->add_point( { index => 10, price => 100 } );
+    $d->add_point( { index => 20, price => 110 } );
+    $d->move_line( 0, 5, -3 );
+    my $ln = $d->lines->[0];
+    is( $ln->{p1}{index}, 15, 'move_line: p1 index +5' );
+    is( $ln->{p1}{price}, 97, 'move_line: p1 price -3' );
+    is( $ln->{p2}{index}, 25, 'move_line: p2 index +5' );
+    is( $ln->{p2}{price}, 107, 'move_line: p2 price -3' );
 }
 
 # ---------------------------------------------------------------------------

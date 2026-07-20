@@ -90,8 +90,9 @@ sub add_point {
             p2 => { %{ $d[1] } },
         };
         $self->{draft} = [];
-        # tool_active sigue en 1: permite encadenar varias líneas. La UI/Esc
-        # o cancel_tool lo apagan cuando el usuario termina.
+        # TV-style: al 2.º clic se cierra la línea y se SALE del modo tool.
+        # Para otra línea, el usuario vuelve a pulsar "Trendline".
+        $self->{tool_active} = 0;
         return 'done';
     }
     return 'draft';
@@ -108,6 +109,18 @@ sub set_point {
         index => 0 + ( defined $pt->{index} ? $pt->{index} : $cur->{index} ),
         price => 0 + ( defined $pt->{price} ? $pt->{price} : $cur->{price} ),
     };
+    return $self;
+}
+
+# move_line($line_idx, $d_index, $d_price) — traslada la línea entera (ambos
+# extremos) por un delta. Usado al arrastrar el cuerpo ('body').
+sub move_line {
+    my ( $self, $li, $di, $dp ) = @_;
+    my $ln = $self->{lines}[$li] or return $self;
+    for my $which (qw(p1 p2)) {
+        $ln->{$which}{index} += $di;
+        $ln->{$which}{price} += $dp;
+    }
     return $self;
 }
 

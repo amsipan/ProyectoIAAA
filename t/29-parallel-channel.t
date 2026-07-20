@@ -20,11 +20,27 @@ use Market::Drawing::ParallelChannel;
     my $ch = $d->get_channel();
     ok( $ch, 'canal creado' );
     ok( $d->slopes_equal($ch), 'L0 y L1 paralelas (offset constante)' );
+    # p3 (altura) se centra en el índice medio del segmento base (10+20)/2 = 15
+    is( $ch->{p3}{index}, 15, 'p3 centrado en el medio del segmento base' );
+    is( $ch->{p3}{price}, 90, 'p3 conserva el precio del 3.er clic (altura)' );
 
     my $geo = $d->geometry_for( $ch, data_end => 50 );
     ok( $geo, 'geometry_for' );
-    is( $geo->{i_max}, 50, 'extend_right hasta data_end' );
+    is( $geo->{i_max}, 50, 'extend_right hasta data_end cuando está activo' );
     ok( abs( $geo->{m} - 1 ) < 1e-9, 'pendiente m=(110-100)/(20-10)=1' );
+}
+
+# extend_right OFF (default nuevo): el canal termina EN el 2.º punto, no infinito
+{
+    my $d = Market::Drawing::ParallelChannel->new();   # extend_right por defecto = 0
+    $d->start_tool();
+    $d->add_point( { index => 10, price => 100 } );
+    $d->add_point( { index => 20, price => 110 } );
+    $d->add_point( { index => 15, price => 90 } );
+    my $ch  = $d->get_channel();
+    my $geo = $d->geometry_for( $ch, data_end => 500 );
+    is( $geo->{i_max}, 20, 'sin extend_right el canal termina en el 2.º punto (no infinito)' );
+    is( $geo->{i_min}, 10, 'el canal empieza en el 1.er punto' );
 }
 
 {
@@ -98,6 +114,50 @@ use Market::Drawing::ParallelChannel;
     is( $ov->hit_test( 100, 390, $sc, 0 ), 'p2', 'hit_test p2 (100,390)' );
     is( $ov->hit_test( 60,  415, $sc, 0 ), 'p3', 'hit_test p3 (60,415)' );
     is( $ov->hit_test( 300, 100, $sc, 0 ), undef, 'hit_test lejos = undef' );
+}
+
+# --- Altura por lado (mid_base / mid_para) + arrastre del canal (move_channel) ---
+{
+    my $d = Market::Drawing::ParallelChannel->new();   # extend_right OFF
+    $d->start_tool();
+    $d->add_point( { index => 0,  price => 100 } );
+    $d->add_point( { index => 10, price => 100 } );   # base horizontal (m=0)
+    $d->add_point( { index => 5,  price => 80  } );   # paralela abajo; p3 idx→medio(5)
+    my $ch = $d->get_channel();
+
+    # Punto medio de la base: precio en el índice medio (m=0 → 100)
+    is( $d->base_mid_index(), 5,   'base_mid_index = medio del segmento base' );
+    is( $d->base_mid_price(), 100, 'base_mid_price = precio de la base en el medio' );
+
+    # move_base_to_price: sube toda la base a 105 (p1 y p2 +5)
+    $d->move_base_to_price(105);
+    is( $ch->{p1}{price}, 105, 'move_base_to_price: p1 +5' );
+    is( $ch->{p2}{price}, 105, 'move_base_to_price: p2 +5' );
+    is( $ch->{p3}{price}, 80,  'move_base_to_price: paralela (p3) intacta' );
+
+    # move_channel: traslada todo por delta (+2 idx, -10 precio)
+    $d->move_channel( 2, -10 );
+    is( $ch->{p1}{index}, 2,  'move_channel: p1 index +2' );
+    is( $ch->{p1}{price}, 95, 'move_channel: p1 price -10' );
+    is( $ch->{p3}{price}, 70, 'move_channel: p3 price -10' );
+}
+
+# --- hit_test de puntos medios y cuerpo ---
+{
+    my $d = Market::Drawing::ParallelChannel->new();
+    $d->start_tool();
+    $d->add_point( { index => 0,  price => 100 } );
+    $d->add_point( { index => 10, price => 100 } );   # base horizontal
+    $d->add_point( { index => 5,  price => 80  } );   # paralela en 80
+    my $ov = Market::Overlays::ParallelChannel->new( drawing => $d, visible => 1 );
+    my $sc = PChanMockScale->new();   # x=idx*10, y=500-price
+
+    # medio en idx=5 → x=50. base y=400 (precio 100). El lado paralela usa p3,
+    # que está en (idx 5, precio 80) → hit_test lo detecta como 'p3'.
+    is( $ov->hit_test( 50, 400, $sc, 0 ), 'mid_base', 'hit_test punto medio base' );
+    is( $ov->hit_test( 50, 420, $sc, 0 ), 'p3', 'altura paralela = handle p3 centrado' );
+    # sobre la línea base lejos del medio (idx=2 → x=20, y=400) = cuerpo
+    is( $ov->hit_test( 20, 400, $sc, 0 ), 'body', 'hit_test cuerpo del canal' );
 }
 
 done_testing();
