@@ -201,6 +201,17 @@ sub new {
     );
     $self->{overlay_manager}->register( 'pchan', $self->{pchan_overlay} );
 
+    # TrendLine (drawing tool TV): varias líneas de 2 puntos, arrastrables.
+    require Market::Drawing::TrendLine;
+    require Market::Overlays::TrendLine;
+    $self->{trend_drawing} = Market::Drawing::TrendLine->new();
+    $self->{trend_overlay} = Market::Overlays::TrendLine->new(
+        drawing => $self->{trend_drawing},
+        theme   => $self->{theme},
+        visible => 1,
+    );
+    $self->{overlay_manager}->register( 'trend', $self->{trend_overlay} );
+
     # ZigZag — externo ChartPrime + interno ZZMTF.
     # Fib Retracement = Drawing tool (ver fib_drawing abajo), no elemento ZZ.
     $self->{zigzag_indicator} = Market::Indicators::ZigZag->new(
@@ -2935,6 +2946,19 @@ sub _start_horizontal_drag {
         return;
     }
 
+    # TrendLine: 2 clics por línea (modo tool), o drag de un extremo existente.
+    if ( $self->{trend_drawing} && $self->{trend_drawing}->is_tool_active() ) {
+        $self->_trend_click( $x, $y );
+        return;
+    }
+    if ( $self->{trend_drawing} && $self->{trend_drawing}->line_count() ) {
+        my $hit = $self->_trend_hit_test( $x, $y );
+        if ( defined $hit ) {
+            $self->{_trend_drag} = { handle => $hit };
+            return;
+        }
+    }
+
     if ($self->{_replay_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
         # Robustez: si el clic cae en zona sin vela (borde/hueco), en vez de dejar
@@ -3072,6 +3096,12 @@ sub _on_horizontal_drag {
     # Drag de handles Fib (p1/p2/bordes) — no paneo
     if ( $self->{_fib_drag} && $self->{fib_drawing} && $self->{fib_drawing}->get_fib() ) {
         $self->_fib_drag_to( $x, $y );
+        return;
+    }
+
+    # Drag de un extremo de TrendLine — no paneo
+    if ( $self->{_trend_drag} && $self->{trend_drawing} ) {
+        $self->_trend_drag_to( $x, $y );
         return;
     }
 
@@ -3527,6 +3557,7 @@ sub _end_drag {
     $self->{_fib_drag} = undef;
     $self->{_vp_drag_active} = undef;
     $self->{_avwap_drag_active} = undef;
+    $self->{_trend_drag} = undef;
 }
 
 sub _vertical_drag {
@@ -4804,6 +4835,121 @@ sub cancel_fib_retracement_tool {
     }
     $self->request_render();
     return $self;
+}
+
+# ---------------------------------------------------------------------------
+# TrendLine (drawing tool TV) — varias líneas de 2 puntos, extremos arrastrables
+# ---------------------------------------------------------------------------
+sub start_trendline_tool {
+    my ($self) = @_;
+    return $self unless $self->{trend_drawing};
+    # No mezclar con otras herramientas de clic activas.
+    $self->cancel_parallel_channel_tool()
+      if $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active();
+    $self->cancel_fib_retracement_tool()
+      if $self->{fib_drawing} && $self->{fib_drawing}->is_tool_active();
+    $self->{trend_drawing}->start_tool();
+    if ( ref( $self->{trend_mode_callback} ) eq 'CODE' ) {
+        $self->{trend_mode_callback}->( 1, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub cancel_trendline_tool {
+    my ($self) = @_;
+    return $self unless $self->{trend_drawing};
+    $self->{trend_drawing}->cancel_tool();
+    $self->{_trend_drag} = undef;
+    if ( ref( $self->{trend_mode_callback} ) eq 'CODE' ) {
+        $self->{trend_mode_callback}->( 0, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+# Borra la última línea colocada (deshacer).
+sub clear_last_trendline {
+    my ($self) = @_;
+    return $self unless $self->{trend_drawing};
+    $self->{trend_drawing}->clear_last();
+    $self->request_render();
+    return $self;
+}
+
+# Borra todas las líneas y sale del modo tool.
+sub clear_trendlines {
+    my ($self) = @_;
+    return $self unless $self->{trend_drawing};
+    $self->{trend_drawing}->clear_all();
+    $self->{trend_drawing}->cancel_tool();
+    $self->{_trend_drag} = undef;
+    if ( ref( $self->{trend_mode_callback} ) eq 'CODE' ) {
+        $self->{trend_mode_callback}->( 0, 0 );
+    }
+    $self->request_render();
+    return $self;
+}
+
+sub _trend_click {
+    my ( $self, $x, $y ) = @_;
+    my $draw = $self->{trend_drawing};
+    return unless $draw && $draw->is_tool_active();
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
+    }
+    return unless defined $idx;
+
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+    return unless defined $price;
+
+    my $status = $draw->add_point( { index => $idx, price => $price } );
+    if ( ref( $self->{trend_mode_callback} ) eq 'CODE' ) {
+        my $n = $draw->draft_count();
+        $self->{trend_mode_callback}->( 1, $n );
+    }
+    $self->request_render();
+    return $status;
+}
+
+sub _trend_hit_test {
+    my ( $self, $x, $y ) = @_;
+    my $ov = $self->{trend_overlay};
+    return undef unless $ov && $ov->can('hit_test');
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return undef unless $scale;
+    my ( $ws, $we ) = eval { $self->compute_window() };
+    return $ov->hit_test( $x, $y, $scale, $ws // 0 );
+}
+
+sub _trend_drag_to {
+    my ( $self, $x, $y ) = @_;
+    my $handle = $self->{_trend_drag}{handle};
+    return unless defined $handle;
+    my $draw = $self->{trend_drawing} or return;
+    my ( $li, $which ) = split /:/, $handle;
+    return unless defined $li && defined $which;
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
+    }
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+    return unless defined $idx && defined $price;
+
+    $draw->set_point( $li, $which, { index => $idx, price => $price } );
+    $self->request_render();
 }
 
 sub clear_fib_retracement {

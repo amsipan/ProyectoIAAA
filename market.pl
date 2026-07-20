@@ -577,6 +577,46 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left', -padx => 2 );
     $pchan_hint->pack( -side => 'left', -padx => 4 );
 
+    # TrendLine (varias líneas de 2 puntos, extremos arrastrables)
+    my $trend_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
+    $trend_box->Label(-text => 'Trend:')->pack(-side => 'left', -padx => 2);
+    my $trend_hint = $trend_box->Label(
+        -text => '',
+        -fg   => '#E65100',
+        -font => [ 'Helvetica', 9, 'bold' ],
+    );
+    $chart_engine->{trend_mode_callback} = sub {
+        my ( $active, $n ) = @_;
+        if ($active) {
+            my $step = ( $n // 0 ) + 1;
+            $step = 2 if $step > 2;
+            $trend_hint->configure(
+                -text => "Clic $step/2… (Esc cancela)",
+                -fg   => '#E65100',
+            );
+        }
+        else {
+            $trend_hint->configure( -text => '', -fg => '#666666' );
+        }
+    };
+    $trend_box->Button(
+        -text    => 'Trendline',
+        -command => sub { $chart_engine->start_trendline_tool(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $trend_box->Button(
+        -text    => 'Cancelar',
+        -command => sub { $chart_engine->cancel_trendline_tool(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $trend_box->Button(
+        -text    => 'Borrar última',
+        -command => sub { $chart_engine->clear_last_trendline(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $trend_box->Button(
+        -text    => 'Borrar todas',
+        -command => sub { $chart_engine->clear_trendlines(); },
+    )->pack( -side => 'left', -padx => 2 );
+    $trend_hint->pack( -side => 'left', -padx => 4 );
+
     # Fib Retracement (clone TV: 2 clics / pick pierna ZZ / hasta última vela)
     my $fib_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 6 );
     $fib_box->Label( -text => 'Fib:' )->pack( -side => 'left', -padx => 2 );
