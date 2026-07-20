@@ -46,6 +46,22 @@ sub clear_channel {
 
 sub get_channel { $_[0]->{channel} }
 
+# set_point($which, {index,price}) — reposiciona un ancla del canal (p1|p2|p3).
+# p1/p2 definen la pendiente de la trendline base; p3 la paralela. Mover
+# cualquiera recalcula toda la geometría en geometry_for.
+sub set_point {
+    my ( $self, $which, $pt ) = @_;
+    return $self unless $self->{channel};
+    return $self unless $which eq 'p1' || $which eq 'p2' || $which eq 'p3';
+    return $self unless ref($pt) eq 'HASH';
+    my $cur = $self->{channel}{$which};
+    $self->{channel}{$which} = {
+        index => 0 + ( defined $pt->{index} ? $pt->{index} : $cur->{index} ),
+        price => 0 + ( defined $pt->{price} ? $pt->{price} : $cur->{price} ),
+    };
+    return $self;
+}
+
 sub draft_points { [ @{ $_[0]->{draft} || [] } ] }
 
 sub draft_count {

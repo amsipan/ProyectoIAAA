@@ -66,4 +66,38 @@ use Market::Drawing::ParallelChannel;
     ok( $ov->is_visible, 'visible' );
 }
 
+# --- Handles: mover anclas (set_point) + hit_test del overlay ---
+{
+    my $d = Market::Drawing::ParallelChannel->new();
+    $d->start_tool();
+    $d->add_point( { index => 0,  price => 100 } );
+    $d->add_point( { index => 10, price => 110 } );
+    $d->add_point( { index => 5,  price => 90  } );
+    ok( $d->get_channel(), 'canal creado con 3 clics' );
+
+    # set_point mueve solo el ancla indicada
+    $d->set_point( 'p3', { index => 6, price => 85 } );
+    my $ch = $d->get_channel();
+    is( $ch->{p3}{index}, 6,  'p3 movido en índice' );
+    is( $ch->{p3}{price}, 85, 'p3 movido en precio' );
+    is( $ch->{p1}{index}, 0,  'p1 intacto tras mover p3' );
+
+    # set_point con which inválido = no-op
+    $d->set_point( 'pX', { index => 1, price => 1 } );
+    is( $d->get_channel()->{p1}{index}, 0, 'which inválido es no-op' );
+
+    # hit_test del overlay con mock de scale (x=index*10, y=500-price)
+    package PChanMockScale;
+    sub new { bless {}, shift }
+    sub index_to_center_x { my ($s,$i)=@_; return $i*10; }
+    sub value_to_y        { my ($s,$p)=@_; return 500 - $p; }
+    package main;
+    my $ov = Market::Overlays::ParallelChannel->new( drawing => $d, visible => 1 );
+    my $sc = PChanMockScale->new();
+    is( $ov->hit_test( 0,   400, $sc, 0 ), 'p1', 'hit_test p1 (0,400)' );
+    is( $ov->hit_test( 100, 390, $sc, 0 ), 'p2', 'hit_test p2 (100,390)' );
+    is( $ov->hit_test( 60,  415, $sc, 0 ), 'p3', 'hit_test p3 (60,415)' );
+    is( $ov->hit_test( 300, 100, $sc, 0 ), undef, 'hit_test lejos = undef' );
+}
+
 done_testing();

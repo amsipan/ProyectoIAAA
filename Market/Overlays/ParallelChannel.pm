@@ -140,6 +140,50 @@ sub _paint_channel {
             1;
         };
     }
+
+    # Handles arrastrables en las 3 anclas (p1/p2 = base, p3 = paralela).
+    for my $name (qw(p1 p2 p3)) {
+        my $pt = $ch->{$name} or next;
+        my $x  = $x_of->( $pt->{index} );
+        my $y  = $y_of->( $pt->{price} );
+        eval {
+            $canvas->createOval(
+                $x - 5, $y - 5, $x + 5, $y + 5,
+                -outline => '#ffffff',
+                -fill    => $line_c,
+                -width   => 2,
+                -tags    => [ $tag, "pchan_handle_$name" ],
+            );
+            1;
+        };
+    }
+}
+
+# hit_test → 'p1'|'p2'|'p3' si el clic cae sobre un ancla, o undef.
+sub hit_test {
+    my ( $self, $x, $y, $scales, $win_start ) = @_;
+    my $draw = $self->{drawing};
+    my $ch   = $draw ? $draw->get_channel() : undef;
+    return undef unless $ch && $scales;
+
+    $win_start //= ( $self->{_range}[0] // 0 );
+    my $x_of = sub {
+        my ($gi) = @_;
+        return $scales->index_to_center_x( ( $gi // 0 ) - $win_start );
+    };
+    my $y_of = sub { $scales->value_to_y( $_[0] ) };
+    my $near = sub {
+        my ( $px, $py, $tol ) = @_;
+        $tol //= 12;
+        return abs( $x - $px ) <= $tol && abs( $y - $py ) <= $tol;
+    };
+
+    for my $name (qw(p1 p2 p3)) {
+        my $pt = $ch->{$name} or next;
+        return $name
+          if $near->( $x_of->( $pt->{index} ), $y_of->( $pt->{price} ) );
+    }
+    return undef;
 }
 
 sub _paint_draft {

@@ -2959,6 +2959,15 @@ sub _start_horizontal_drag {
         }
     }
 
+    # Parallel Channel: drag de un ancla existente (p1/p2/p3) — no paneo
+    if ( $self->{pchan_drawing} && $self->{pchan_drawing}->get_channel() ) {
+        my $hit = $self->_pchan_hit_test( $x, $y );
+        if ( defined $hit ) {
+            $self->{_pchan_drag} = { handle => $hit };
+            return;
+        }
+    }
+
     if ($self->{_replay_select_mode}) {
         my $idx = $self->_global_index_from_x($x);
         # Robustez: si el clic cae en zona sin vela (borde/hueco), en vez de dejar
@@ -3102,6 +3111,12 @@ sub _on_horizontal_drag {
     # Drag de un extremo de TrendLine — no paneo
     if ( $self->{_trend_drag} && $self->{trend_drawing} ) {
         $self->_trend_drag_to( $x, $y );
+        return;
+    }
+
+    # Drag de un ancla del Parallel Channel — no paneo
+    if ( $self->{_pchan_drag} && $self->{pchan_drawing} && $self->{pchan_drawing}->get_channel() ) {
+        $self->_pchan_drag_to( $x, $y );
         return;
     }
 
@@ -3558,6 +3573,7 @@ sub _end_drag {
     $self->{_vp_drag_active} = undef;
     $self->{_avwap_drag_active} = undef;
     $self->{_trend_drag} = undef;
+    $self->{_pchan_drag} = undef;
 }
 
 sub _vertical_drag {
@@ -4779,6 +4795,38 @@ sub clear_parallel_channel {
     }
     $self->request_render();
     return $self;
+}
+
+sub _pchan_hit_test {
+    my ( $self, $x, $y ) = @_;
+    my $ov = $self->{pchan_overlay};
+    return undef unless $ov && $ov->can('hit_test');
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return undef unless $scale;
+    my ( $ws, $we ) = eval { $self->compute_window() };
+    return $ov->hit_test( $x, $y, $scale, $ws // 0 );
+}
+
+sub _pchan_drag_to {
+    my ( $self, $x, $y ) = @_;
+    my $handle = $self->{_pchan_drag}{handle} or return;
+    my $draw   = $self->{pchan_drawing} or return;
+    return unless $draw->get_channel();
+
+    my $idx = $self->_global_index_from_x($x);
+    if ( !defined $idx ) {
+        my $last_valid = $self->_causal_end();
+        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
+    }
+    my $scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return unless $scale && $scale->can('y_to_value');
+    my $price = $scale->y_to_value($y);
+    return unless defined $idx && defined $price;
+
+    $draw->set_point( $handle, { index => $idx, price => $price } );
+    $self->request_render();
 }
 
 sub _pchan_click {
