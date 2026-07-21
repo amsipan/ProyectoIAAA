@@ -1,6 +1,6 @@
 # Producto oficial (canónico)
 
-**Última actualización:** 2026-07-19  
+**Última actualización:** 2026-07-20
 **Política:** solo este stack se carga en runtime. Todo lo demás está **fuera del repo** (`docs/LEGACY.md`).
 
 > **Dirección del proyecto (meta = entrenar modelos):**  
@@ -24,6 +24,10 @@
 
 `ChartEngine->new` registra:  
 `smc_pro`, `smc_fvg`, `hld`, `pchan`, `zigzag`, `fib`, **`liq`**.
+
+Dataset predeterminado: `Data/2026_07_20.csv` (NQ1! 1m, `UTC-5`, volumen real;
+18.658 velas entre `2026-07-01T00:00:00-05:00` y `2026-07-20T15:58:00-05:00`).
+`market.pl` agrega desde esta base las temporalidades superiores bajo demanda.
 
 No existen en el árbol del repo (legacy):
 

@@ -12,3 +12,6 @@ scratch/
 /legacy/
 /t/legacy/
 
+# Servidores MCP de agente (no forman parte de la app de charting)
+/mcps/
+

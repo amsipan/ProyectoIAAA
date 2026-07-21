@@ -114,9 +114,9 @@ Fuente de estado de tasks: **`tasks/README.md`** (más actual que este archivo s
 - **Tensores/ML (Fase 3):** AI::MXNet (NDArray). Parches en Fedora35: `docs/SETUP_FEDORA35.md`.
 - **Gráficas de análisis (PCC/heatmap):** Chart::Plotly (material del profesor).
 - **Datos:**
-  - `Data/2026_03.csv` — dataset principal de desarrollo (~29.888 velas 1m; contenido real
-    abril 2026 `UTC-5`, no marzo). Calibración visual vs TradingView `NQ1!` / CME 15m.
-  - `Data/2026_06_29.csv`, `Data/2026_07_06.csv` — datasets adicionales (entregas / pruebas).
+  - `Data/2026_07_20.csv` — dataset predeterminado: 18.658 velas NQ1! 1m con volumen,
+    del 1 al 20 de julio de 2026 (`UTC-5`).
+  - Los demás CSV de `Data/` se conservan como datasets históricos y fallbacks.
 - **Tiempo:** `Time::Moment`.
 - **Entorno:** WSL Fedora35 (EOL) + WSLg.
 - **VCS:** Git; remote GitHub. Working tree en OneDrive; **gitdir separado** en
@@ -149,7 +149,7 @@ ProyectoIAAA/
     Debug/                      # arquitecto only
       TimeAxisSnapshot.pm  IndicatorSnapshot.pm
   Data/
-    2026_03.csv  2026_06_29.csv  2026_07_06.csv
+    2026_07_20.csv  # default; demás CSV = históricos/fallback
   assets/                       # cursores XBM (Select Bar)
   docs/                         # SDD + handoffs + material_profesor/
     reference_indicators/       # Pine/TV originals (LuxAlgo, Mxwll, DIY, ZigZag…)

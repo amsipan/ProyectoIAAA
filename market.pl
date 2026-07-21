@@ -23,8 +23,8 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-# Dataset por defecto: export TradingView NQ1! 1m (ISO UTC-5, ETH) — lo más
-# reciente. Base nativa = 1m; 5m/15m/1h/2h/4h/D/W se agregan desde 1m.
+# Dataset por defecto: Data/2026_07_20.csv (NQ1! 1m, ISO UTC-5, volumen real).
+# Base nativa = 1m; 5m/15m/1h/2h/4h/D/W se agregan desde 1m.
 # El export 15m y los CSV antiguos quedan como opción/fallback dentro de Data/.
 # Copia portable en Data/; fallback a Downloads si falta la copia.
 my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 1.csv';
@@ -37,7 +37,8 @@ if (-f $tv_src && !-f $tv_dst) {
 }
 
 my @csv_candidates = (
-    $tv_dst,                    # default: export TV 1m (más reciente)
+    'Data/2026_07_20.csv',      # default: 1–20 julio 2026, 1m y volumen real
+    $tv_dst,                    # fallback: export TV 1m anterior
     $tv_src,
     'Data/tv_nq1_15m.csv',      # opción: export TV 15m
     # Fallbacks legacy (solo si no hay export TV)
@@ -48,7 +49,7 @@ my $archivo_csv;
 for my $cand (@csv_candidates) {
     if (-f $cand) { $archivo_csv = $cand; last; }
 }
-die "CRÍTICO: no se encontró dataset (tv_nq1_1m.csv ni tv_nq1_15m.csv ni export TV ni 2026_06.csv)\n"
+die "CRÍTICO: no se encontró dataset (2026_07_20.csv, tv_nq1_1m.csv, tv_nq1_15m.csv ni 2026_06.csv)\n"
     unless defined $archivo_csv;
 
 # Detectar base por nombre: *15m* → base 15m; si no (1m u otros) → 1m.

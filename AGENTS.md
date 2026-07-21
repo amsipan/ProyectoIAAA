@@ -64,8 +64,8 @@ las velas visibles + una ventana de contexto indexada**, nunca todo el historial
 - **Entorno de ejecución:** WSL Fedora35 (EOL, mirrors en `archives.fedoraproject.org`)
 - **Dependencias Perl:** `Time::Moment`, `Tk` (módulos CPAN ya instalados en Fedora35);
   Fase 3: `AI::MXNet`, `Chart::Plotly`
-- **Datos:** `Data/2026_03.csv` (~29.888 velas 1m; contenido real abril 2026 UTC-5);
-  también `Data/2026_06_29.csv`, `Data/2026_07_06.csv`
+- **Datos:** `Data/2026_07_20.csv` es el dataset predeterminado (18.658 velas NQ1! 1m,
+  1–20 julio 2026 UTC-5, con volumen); los demás CSV de `Data/` son históricos/fallback.
 - **Control de versiones:** Git, remote `https://github.com/amsipan/ProyectoIAAA`
 
 ## Estructura
@@ -95,7 +95,7 @@ ProyectoIAAA/
     Debug/                   # Arquitecto only
       TimeAxisSnapshot.pm  IndicatorSnapshot.pm
   Data/
-    2026_03.csv  2026_06_29.csv  2026_07_06.csv
+    2026_07_20.csv  # default; demás CSV = históricos/fallback
   assets/                    # blank_cursor XBM (Select Bar)
   docs/                      # SDD (LEER PRIMERO)
     reference_indicators/    # Pine/TV source code canónico (consultar para portar)

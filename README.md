@@ -26,7 +26,8 @@ Código antiguo (Liquidity v1, Mxwll, etc.) está **fuera de este repo**: [`docs
 ## Estructura del proyecto (resumen)
 
 - **`market.pl`** — punto de entrada; UI por pestañas; carga CSV y lanza el loop Tk.
-- **`Data/`** — CSVs OHLCV (p. ej. `tv_nq1_15m.csv`, datasets junio/julio 2026).
+- **`Data/`** — CSVs OHLCV. El predeterminado es `2026_07_20.csv`: NQ1! 1m,
+  18.658 velas con volumen, del 1 al 20 de julio de 2026 (`UTC-5`).
 - **`Market/`** — código modular:
   - **Datos:** `MarketData.pm`
   - **Indicadores oficiales:** ATR, SMC_Pro, SMC_Structures_FVG, HLD, ZigZag, Liquidity
