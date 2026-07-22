@@ -57,6 +57,24 @@ sub _media_colors {
         $draw->($self->{canvas}, $icon_color);
         return $self;
     }
+    # set_active($bool) — resalta el botón cuando su modo está encendido
+    # (p. ej. Select Bar activo). Azul TV en ON; cara gris normal en OFF.
+    sub set_active {
+        my ($self, $on) = @_;
+        $on = $on ? 1 : 0;
+        my ($face, $face_active) = Market::UI::ReplayPanel::_media_colors();
+        my $bg = $on ? '#2962ff' : $face;
+        my $fg = $on ? '#ffffff' : Market::UI::ReplayPanel::MEDIA_ICON();
+        eval { $self->{frame}->configure(-relief => $on ? 'sunken' : 'raised'); 1 };
+        for my $w (grep { $_ } ($self->{inner}, $self->{hit}, $self->{canvas})) {
+            eval { $w->configure(-background => $bg); 1 };
+        }
+        if ($self->{label}) {
+            eval { $self->{label}->configure(-background => $bg, -foreground => $fg); 1 };
+        }
+        $self->{_active} = $on;
+        return $self;
+    }
 }
 
 sub _media_frame_opts {
@@ -247,10 +265,8 @@ sub new {
     };
 
     my $sel_box = $inner->Frame(-background => $bg)->pack(-side => 'left', -padx => 1);
-    $pack_btn->(
-        _make_media_text_button($sel_box, 'Select bar', $callbacks->{select_bar}),
-        -in => $sel_box,
-    );
+    my $select_bar_btn = _make_media_text_button($sel_box, 'Select bar', $callbacks->{select_bar});
+    $pack_btn->( $select_bar_btn, -in => $sel_box );
 
     my $goto_menu = Market::UI::ReplayGotoMenu->new(
         parent  => $menu_parent,
@@ -336,6 +352,7 @@ sub new {
         interval_lbl   => $interval_btn,
         play_btn_widget => $play_btn,
         mark_btn        => $mark_btn,
+        select_bar_btn  => $select_bar_btn,
         inline          => $inline,
         visible        => $inline ? 1 : 0,
     }, $class;
@@ -438,6 +455,16 @@ sub sync_mark_button {
     my $btn = $self->{mark_btn};
     return $self unless $btn && $btn->can('configure');
     $btn->configure(-text => $on ? 'Mark: on' : 'Mark: off');
+    return $self;
+}
+
+# sync_select_bar_button($on) — resalta "Select bar" mientras el modo de
+# selección de vela está activo (feedback visual que faltaba).
+sub sync_select_bar_button {
+    my ($self, $on) = @_;
+    my $btn = $self->{select_bar_btn};
+    return $self unless $btn && $btn->can('set_active');
+    $btn->set_active($on ? 1 : 0);
     return $self;
 }
 
