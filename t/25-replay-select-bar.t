@@ -264,11 +264,14 @@ use Market::ReplayController;
         ctrl_zoom_x_shift => 0,
     }, 'Market::ChartEngine';
 
+    # Modelo robusto: la vista se gobierna por replay_view_end (borde derecho
+    # LOGICO absoluto). Sin anchor el head queda pegado al borde (view_end=index);
+    # con anchor se dejan slots vacios a la derecha (view_end > index, head ~80%).
     $chart->frame_replay_view_at(49);
-    ok(!$chart->{follow_replay_head}, 'sin anchor: follow Replay apagado');
+    is($chart->{replay_view_end}, 49, 'sin anchor: head pegado al borde derecho');
 
     $chart->frame_replay_view_at(49, { anchor => 1 });
-    ok($chart->{follow_replay_head}, 'anchor: follow Replay encendido');
+    ok($chart->{replay_view_end} > 49, 'anchor: hueco a la derecha (head ~80%)');
     $chart->{replay_controller}->start(49);
 
     my ($s, $e) = $chart->compute_window();
