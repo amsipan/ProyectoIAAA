@@ -351,26 +351,92 @@ sub compute_window {
 
     my $replay = $self->{replay_controller};
     if ($replay && $replay->is_active()) {
-        my $causal_end = $self->_causal_end();
-        my $effective_total = $causal_end + 1;
-
-        if ($self->{follow_replay_head}) {
-            # El hueco derecho son slots logicos, no un x_shift de cientos de px.
-            my $blank = $self->_replay_blank_slots($visible);
-            my $view_end = $causal_end + $blank;
-            return ($view_end - $visible + 1, $view_end);
-        }
-
-        # Vista manual: offset puede ser negativo para mostrar espacio vacio a la
-        # derecha, pero _causal_slice impide leer el dataset real tras causal_end.
-        $self->{offset} = $self->_clamp_offset($self->{offset}, $effective_total);
-        my $view_end = $causal_end - $self->{offset};
-        return ($view_end - $visible + 1, $view_end);
+        return $self->_replay_window($visible);
     }
 
     $self->{offset} = $self->_clamp_offset($self->{offset}, $total_candles);
     my $end_idx = $total_candles - 1 - $self->{offset};
     return ($end_idx - $visible + 1, $end_idx);
+}
+
+# _replay_window($visible) — geometria del viewport durante Replay.
+#
+# MODELO ROBUSTO (unica fuente de verdad = replay_view_end, indice LOGICO
+# absoluto del borde derecho del viewport). Reemplaza el antiguo trio en
+# conflicto (follow_replay_head / offset / frozen) que provocaba que:
+#   - tras pausar+interactuar+play todo el grafico se desplazara cada tick,
+#   - un zoom-out dejara el estado inconsistente de forma permanente,
+#   - al retroceder el head se alejara fuera de pantalla.
+#
+# Reglas (con replay_view_end definido, que es SIEMPRE en la app real porque
+# frame_replay_view_at lo fija al encuadrar):
+#   * AUTO-SCROLL POR DETECCION DE BORDE: la vista solo se desplaza cuando el
+#     head estaba EXACTAMENTE en el borde derecho y avanzo (via
+#     replay_prev_causal_end). Mientras haya hueco (view_end > causal_end) la
+#     ventana queda FIJA y las velas nuevas rellenan el hueco SIN mover nada.
+#     Tras panear/zoomear (view_end deja de coincidir con el borde), un nuevo
+#     Play NO arrastra el grafico: las velas quedan estaticas. Esto elimina la
+#     necesidad de flags de modo (no hay follow/frozen/offset en conflicto).
+#   * Clamp min-visible SIEMPRE: al retroceder (step_backward) se conservan al
+#     menos MIN_VISIBLE_BARS velas reales en pantalla; la vista se desplaza con
+#     el head en lugar de dejarlo escapar del marco.
+#   * Clamp izquierda: no se permite hueco en blanco a la izquierda (start >= 0).
+#
+# Ramas legacy (replay_view_end indefinido) solo para pruebas unitarias que
+# construyen el ChartEngine a mano (t/38): reproducen el comportamiento previo.
+sub _replay_window {
+    my ($self, $visible) = @_;
+
+    my $causal_end = $self->_causal_end();
+    $causal_end = 0 if $causal_end < 0;
+
+    if (defined $self->{replay_view_end}) {
+        my $view_end = $self->{replay_view_end};
+
+        # AUTO-SCROLL POR DETECCION DE BORDE (sin flags fragiles): la vista solo
+        # se desplaza cuando el head estaba EXACTAMENTE en el borde derecho y
+        # avanzo. Asi, tras panear (view_end deja de coincidir con el borde) o
+        # tras pausar/interactuar, un nuevo Play NO arrastra todo el grafico:
+        # las velas quedan estaticas y las nuevas rellenan el hueco. El head solo
+        # "empuja" el borde cuando ya lo habia alcanzado (fase de scroll continuo).
+        my $prev = $self->{replay_prev_causal_end};
+        if (defined $prev && $causal_end > $prev && $view_end == $prev) {
+            $view_end = $causal_end;
+        }
+
+        # CLAMP MIN-VISIBLE derecha (siempre): conservar >= MIN_VISIBLE_BARS velas
+        # reales en pantalla. Al retroceder (step_backward) esto arrastra la vista
+        # con el head en lugar de dejarlo escapar del marco; tambien acota el hueco
+        # a la derecha para que no se pueda desplazar a puro blanco.
+        my $min_real = MIN_VISIBLE_BARS;
+        $min_real = $causal_end + 1 if $min_real > $causal_end + 1;
+        my $max_blank = $visible - $min_real;
+        $max_blank = 0 if $max_blank < 0;
+        my $max_end = $causal_end + $max_blank;
+        $view_end = $max_end if $view_end > $max_end;
+
+        # CLAMP izquierda: no permitir hueco en blanco a la izquierda (start >= 0),
+        # salvo que haya menos velas que el viewport (entonces se muestran todas).
+        my $min_end = $visible - 1;
+        $min_end = $causal_end if $causal_end < $min_end;
+        $view_end = $min_end if $view_end < $min_end;
+
+        $self->{replay_view_end} = $view_end;          # ancla absoluta persistente
+        $self->{replay_prev_causal_end} = $causal_end; # para detectar el proximo avance
+        return ($view_end - $visible + 1, $view_end);
+    }
+
+    # --- legacy (solo tests que construyen el ChartEngine a mano, p.ej. t/38) ---
+    if ($self->{follow_replay_head}) {
+        my $blank = $self->_replay_blank_slots($visible);
+        my $view_end = $causal_end + $blank;
+        return ($view_end - $visible + 1, $view_end);
+    }
+
+    my $effective_total = $causal_end + 1;
+    $self->{offset} = $self->_clamp_offset($self->{offset}, $effective_total);
+    my $view_end = $causal_end - $self->{offset};
+    return ($view_end - $visible + 1, $view_end);
 }
 
 # Extrae solo datos causalmente permitidos y rellena el resto del viewport con
@@ -1469,6 +1535,8 @@ sub restore_after_replay_exit {
     my ($self) = @_;
     delete $self->{replay_view_anchor}; # compat con sesiones antiguas
     delete $self->{follow_replay_head};
+    delete $self->{replay_view_end};    # ancla absoluta de Replay
+    delete $self->{replay_prev_causal_end};
     $self->{ctrl_zoom_x_shift} = 0;
     $self->{offset} = 0;
     # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render):
@@ -1742,7 +1810,34 @@ sub frame_replay_view_at {
     $self->{visible_bars} = $vis;
     $self->{offset} = 0;
     delete $self->{replay_view_anchor}; # reemplazado por estado semantico
-    $self->{follow_replay_head} = $opts->{anchor} ? 1 : 0;
+    delete $self->{follow_replay_head}; # legacy: reemplazado por replay_view_end
+    $self->{ctrl_zoom_x_shift} = 0;
+
+    # Ancla absoluta: borde derecho LOGICO del viewport. Con anchor => 1 (Select
+    # Bar) se deja el hueco ~20% a la derecha (head al ~80%); sin anchor, el head
+    # queda pegado al borde. A partir de aqui replay_view_end es la unica verdad.
+    my $blank = $opts->{anchor} ? $self->_replay_blank_slots($vis) : 0;
+    $self->{replay_view_end} = $index + $blank;
+    delete $self->{replay_prev_causal_end}; # reinicia deteccion de borde
+    return $self;
+}
+
+# mark_replay_play_start — al pulsar Play, garantiza que exista el ancla absoluta
+# (replay_view_end). El relleno del hueco antes de desplazar, el auto-scroll por
+# deteccion de borde y el clamp min-visible viven en _replay_window sobre
+# replay_view_end (unica verdad), de modo que ninguna interaccion previa (pausa,
+# zoom, step, paneo) deja el viewport en un estado que desplace todo el grafico
+# al reanudar.
+sub mark_replay_play_start {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    # Si la vista no tiene ancla absoluta (arranque directo por Play sin pasar por
+    # Select Bar), fijarla al borde derecho actual.
+    if (!defined $self->{replay_view_end}) {
+        my ($start, $end) = $self->compute_window();
+        $self->{replay_view_end} = $end if defined $end;
+    }
     $self->{ctrl_zoom_x_shift} = 0;
     return $self;
 }
@@ -2768,15 +2863,7 @@ sub _ctrl_horizontal_zoom {
     my $canvas_w = $self->_canvas_width($self->{price_canvas});
     return if !$canvas_w || $canvas_w <= 0;
 
-    # En seguimiento Replay, cualquier zoom conserva el head en ~80%; el hueco
-    # se recalcula en slots y no se genera x_shift.
     my $rc = $self->{replay_controller};
-    if ($rc && $rc->is_active() && $self->{follow_replay_head}) {
-        $self->{visible_bars} = $new_visible;
-        $self->{ctrl_zoom_x_shift} = 0;
-        $self->request_render();
-        return;
-    }
 
     my $old_scale = Market::Panels::Scales->new(bars => $old_visible, right_margin => RIGHT_MARGIN);
     $old_scale->{width} = $canvas_w;
@@ -2796,12 +2883,20 @@ sub _ctrl_horizontal_zoom {
     my $target_start = $anchor_global - (($anchor_x - ($new_bar_w / 2)) / $new_bar_w);
     my $new_start = $self->round($target_start);
     my $new_end = $new_start + $new_visible - 1;
-    my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
-    my $base_total = $base_end + 1;
-    my $new_offset = $base_end - $new_end;
 
     $self->{visible_bars} = $new_visible;
-    $self->{offset} = $self->_clamp_offset($new_offset, $base_total);
+    if ($rc && $rc->is_active() && defined $self->{replay_view_end}) {
+        # En Replay el viewport se gobierna por replay_view_end (borde derecho
+        # LOGICO). El zoom preserva el ancla ajustando ese borde; _replay_window
+        # aplica los clamps (min-visible, no-blanco-izquierda). No se toca offset.
+        $self->{replay_view_end} = $new_end;
+    }
+    else {
+        my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
+        my $base_total = $base_end + 1;
+        my $new_offset = $base_end - $new_end;
+        $self->{offset} = $self->_clamp_offset($new_offset, $base_total);
+    }
     ($new_start, $new_end) = $self->compute_window();
 
     my $new_shift = $anchor_x - (($anchor_global - $new_start + 0.5) * $new_bar_w);
@@ -2872,8 +2967,10 @@ sub _horizontal_zoom {
 
     # 3. Aplicar el nuevo zoom.
     $self->{visible_bars} = $new_visible;
+    my $rc = $self->{replay_controller};
+    my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
 
-    if (!$use_cursor_anchor) {
+    if (!$use_cursor_anchor && !$in_replay_abs) {
         if ($old_offset <= 0) {
             $self->{offset} = $self->_clamp_offset($old_offset);
             $self->request_render();
@@ -2895,17 +2992,22 @@ sub _horizontal_zoom {
     #    X/bar_w lo da Scales->x_to_index_float (la división vive en Scales).
     my $local_target = $scale->x_to_index_float($anchor_screen_x) - 0.5;
     my $end_idx      = $anchor_index + ($new_visible - 1 - $local_target);
-    my $rc = $self->{replay_controller};
-    my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
-    my $base_total = $base_end + 1;
-    my $offset = $base_end - $end_idx;
+    $end_idx = $self->round($end_idx);
 
-    # 6. Offset entero y acotado. compute_window define:
-    #      end = total - 1 - offset ; start = end - visible_bars + 1.
-    #    El clamp conserva como mínimo MIN_VISIBLE_BARS velas reales en ambos extremos.
-
-    $offset = $self->round($offset);
-    $self->{offset} = $self->_clamp_offset($offset, $base_total);
+    if ($in_replay_abs) {
+        # En Replay el viewport se gobierna por replay_view_end (borde derecho
+        # LOGICO absoluto). El zoom preserva el ancla ajustando ese borde;
+        # _replay_window aplica los clamps. No se toca offset (ignorado en Replay).
+        $self->{replay_view_end} = $end_idx;
+    }
+    else {
+        my $base_end = $total - 1;
+        my $base_total = $base_end + 1;
+        my $offset = $base_end - $end_idx;
+        # 6. Offset entero y acotado. compute_window define:
+        #      end = total - 1 - offset ; start = end - visible_bars + 1.
+        $self->{offset} = $self->_clamp_offset($offset, $base_total);
+    }
 
     if ($use_cursor_anchor) {
         my ($new_start, undef) = $self->compute_window();
@@ -3073,13 +3175,17 @@ sub _start_horizontal_drag {
     $self->{drag_start_x} = defined $root_x ? $root_x : $x;
     $self->{drag_start_y} = defined $root_y ? $root_y : $y;
     $self->{drag_start_panel} = defined $widget && defined $self->{atr_canvas} && $widget == $self->{atr_canvas} ? 'atr' : 'price';
-    my $drag_offset = $self->{offset};
     my $rc = $self->{replay_controller};
-    if ($rc && $rc->is_active() && $self->{follow_replay_head}) {
-        # Equivalente en offset de la vista follow; permite empezar el drag sin salto.
-        $drag_offset = -$self->_replay_blank_slots($self->{visible_bars});
+    if ($rc && $rc->is_active()) {
+        # En Replay el viewport se gobierna por replay_view_end (borde derecho
+        # LOGICO absoluto), no por offset. Se captura el borde actual para que el
+        # paneo parta sin salto.
+        my (undef, $view_end) = $self->compute_window();
+        $self->{drag_start_view_end} = $view_end;
     }
-    $self->{drag_start_offset} = $drag_offset;
+    else {
+        $self->{drag_start_offset} = $self->{offset};
+    }
     $self->{drag_start_x_shift} = $self->{ctrl_zoom_x_shift} || 0;
 
     if (defined $widget) {
@@ -3164,32 +3270,45 @@ sub _on_horizontal_drag {
     my $delta_whole = int($delta_float);
     my $remainder_px = $dx - ($delta_whole * $bar_w);
 
-    my $new_offset = $self->{drag_start_offset} + $delta_whole;
     my $new_shift  = ($self->{drag_start_x_shift} || 0) + $remainder_px;
-
-    # El primer pan manual toma control del viewport; render ya no reencuadra.
     my $rc = $self->{replay_controller};
-    delete $self->{follow_replay_head} if $rc && $rc->is_active();
 
-    # Normalizar: mantener x_shift en [-bar_w, bar_w] ajustando offset.
-    while ($new_shift >= $bar_w) {
-        $new_shift -= $bar_w;
-        $new_offset += 1;
+    if ($rc && $rc->is_active() && defined $self->{drag_start_view_end}) {
+        # PANEO EN REPLAY: gobernado por replay_view_end (borde derecho LOGICO
+        # absoluto), no por offset. Arrastrar a la derecha (dx>0) mueve la vista
+        # hacia el pasado (view_end disminuye). El clamp min-visible / izquierda
+        # vive en _replay_window, unica autoridad de geometria.
+        my $new_view_end = $self->{drag_start_view_end} - $delta_whole;
+        while ($new_shift >= $bar_w) { $new_shift -= $bar_w; $new_view_end -= 1; }
+        while ($new_shift <= -$bar_w) { $new_shift += $bar_w; $new_view_end += 1; }
+        $self->{replay_view_end} = $new_view_end;
+        my ($vs, $ve) = $self->compute_window();     # aplica clamps
+        # Si el clamp corrigio el borde, no permitir residuo subvela (sin temblor).
+        $new_shift = 0 if defined $ve && $ve != $new_view_end;
+        $self->{ctrl_zoom_x_shift} = $new_shift;
     }
-    while ($new_shift <= -$bar_w) {
-        $new_shift += $bar_w;
-        $new_offset -= 1;
-    }
+    else {
+        my $new_offset = $self->{drag_start_offset} + $delta_whole;
 
-    my $offset_total = ($rc && $rc->is_active()) ? ($self->_causal_end() + 1) : undef;
-    $self->{offset} = $self->_clamp_offset($new_offset, $offset_total);
-    # spec 0018c: si el offset tocó su límite (2 velas en el borde), NO permitir
-    # desplazamiento sub-vela adicional: x_shift se anula para que las velas no
-    # tiemblen ni se asomen más allá del límite al seguir arrastrando.
-    if ($self->{offset} != $new_offset) {
-        $new_shift = 0;
+        # Normalizar: mantener x_shift en [-bar_w, bar_w] ajustando offset.
+        while ($new_shift >= $bar_w) {
+            $new_shift -= $bar_w;
+            $new_offset += 1;
+        }
+        while ($new_shift <= -$bar_w) {
+            $new_shift += $bar_w;
+            $new_offset -= 1;
+        }
+
+        $self->{offset} = $self->_clamp_offset($new_offset, undef);
+        # spec 0018c: si el offset tocó su límite (2 velas en el borde), NO permitir
+        # desplazamiento sub-vela adicional: x_shift se anula para que las velas no
+        # tiemblen ni se asomen más allá del límite al seguir arrastrando.
+        if ($self->{offset} != $new_offset) {
+            $new_shift = 0;
+        }
+        $self->{ctrl_zoom_x_shift} = $new_shift;
     }
-    $self->{ctrl_zoom_x_shift} = $new_shift;
 
     if (($self->{drag_start_panel} || 'price') eq 'atr') {
         $self->_apply_atr_vertical_drag_from_start($current_y);

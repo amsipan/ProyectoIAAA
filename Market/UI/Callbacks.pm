@@ -503,6 +503,9 @@ sub make_replay_play {
         if (!$rc->is_active()) {
             _replay_begin($chart, _replay_start_index($chart));
         }
+        # Congela el borde derecho actual: las velas nuevas rellenan el hueco a la
+        # derecha sin mover las ya dibujadas hasta que el head toque ese borde.
+        $chart->mark_replay_play_start() if $chart->can('mark_replay_play_start');
         my $tick = sub {
             return unless $rc->{playing};
             $rc->advance_one_tick();
