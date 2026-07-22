@@ -354,6 +354,20 @@ sub compute_window {
         my $causal_end = $self->_causal_end();
         my $effective_total = $causal_end + 1;
 
+        # Playback congelado (relleno del hueco antes de desplazar). Al pulsar
+        # Play se captura replay_frozen_end = borde derecho LOGICO de la vista de
+        # ese instante (via mark_replay_play_start). Mientras el head no alcance
+        # ese borde, la ventana queda FIJA y las velas nuevas rellenan el hueco a
+        # la derecha sin mover ninguna vela ya dibujada. Cuando el head supera el
+        # borde, la vista pasa a seguir al head (se desplaza 1 vela por tick).
+        # _causal_slice sigue truncando en causal_end: el hueco queda en blanco y
+        # nunca revela futuro.
+        if (defined $self->{replay_frozen_end}) {
+            my $frozen = $self->{replay_frozen_end};
+            my $view_end = $causal_end > $frozen ? $causal_end : $frozen;
+            return ($view_end - $visible + 1, $view_end);
+        }
+
         if ($self->{follow_replay_head}) {
             # El hueco derecho son slots logicos, no un x_shift de cientos de px.
             my $blank = $self->_replay_blank_slots($visible);
@@ -1469,6 +1483,7 @@ sub restore_after_replay_exit {
     my ($self) = @_;
     delete $self->{replay_view_anchor}; # compat con sesiones antiguas
     delete $self->{follow_replay_head};
+    delete $self->{replay_frozen_end};
     $self->{ctrl_zoom_x_shift} = 0;
     $self->{offset} = 0;
     # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render):
@@ -1742,8 +1757,29 @@ sub frame_replay_view_at {
     $self->{visible_bars} = $vis;
     $self->{offset} = 0;
     delete $self->{replay_view_anchor}; # reemplazado por estado semantico
+    delete $self->{replay_frozen_end};  # re-encuadre: aun no se ha dado Play
     $self->{follow_replay_head} = $opts->{anchor} ? 1 : 0;
     $self->{ctrl_zoom_x_shift} = 0;
+    return $self;
+}
+
+# mark_replay_play_start — al pulsar Play, congela el borde derecho LOGICO de la
+# vista actual para que las velas nuevas rellenen el hueco a la derecha SIN mover
+# las ya dibujadas. Cuando el head alcanza ese borde, compute_window vuelve a
+# seguir al head (desplaza 1 vela/tick). Idempotente: re-capturar tras pausa no
+# provoca saltos. Si el usuario paneo hacia el PASADO (head fuera de vista por la
+# derecha), no congela: conserva el comportamiento previo de ver el pasado
+# mientras el replay avanza.
+sub mark_replay_play_start {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self unless $rc && $rc->is_active();
+    my $causal_end = $self->_causal_end();
+    my ($start, $end) = $self->compute_window();
+    if (defined $end && $end >= $causal_end) {
+        $self->{replay_frozen_end} = $end;
+        $self->{ctrl_zoom_x_shift} = 0;
+    }
     return $self;
 }
 
@@ -3075,7 +3111,13 @@ sub _start_horizontal_drag {
     $self->{drag_start_panel} = defined $widget && defined $self->{atr_canvas} && $widget == $self->{atr_canvas} ? 'atr' : 'price';
     my $drag_offset = $self->{offset};
     my $rc = $self->{replay_controller};
-    if ($rc && $rc->is_active() && $self->{follow_replay_head}) {
+    if ($rc && $rc->is_active() && defined $self->{replay_frozen_end}) {
+        # Vista congelada (playback): offset equivalente = causal_end - view_end,
+        # para que soltar la congelacion y arrastrar no provoque salto.
+        my (undef, $view_end) = $self->compute_window();
+        $drag_offset = $self->_causal_end() - $view_end if defined $view_end;
+    }
+    elsif ($rc && $rc->is_active() && $self->{follow_replay_head}) {
         # Equivalente en offset de la vista follow; permite empezar el drag sin salto.
         $drag_offset = -$self->_replay_blank_slots($self->{visible_bars});
     }
@@ -3169,7 +3211,12 @@ sub _on_horizontal_drag {
 
     # El primer pan manual toma control del viewport; render ya no reencuadra.
     my $rc = $self->{replay_controller};
-    delete $self->{follow_replay_head} if $rc && $rc->is_active();
+    if ($rc && $rc->is_active()) {
+        delete $self->{follow_replay_head};
+        # Al panear manualmente durante Play, el usuario retoma el control: se
+        # suelta la vista congelada y offset gobierna el viewport (via el drag).
+        delete $self->{replay_frozen_end};
+    }
 
     # Normalizar: mantener x_shift en [-bar_w, bar_w] ajustando offset.
     while ($new_shift >= $bar_w) {
