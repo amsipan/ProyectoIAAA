@@ -343,7 +343,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 
 # Opción A: TF siempre visible y cinco pestañas compactas por dominio.
 my %panel;
-$panel{$_} = $panel_row->Frame() for qw(Estructura Liquidez ZigZag Volumen Vista);
+$panel{$_} = $panel_row->Frame() for qw(Estructura Liquidez ZigZag Dibujo Volumen Vista);
 
 my $active_tab = 'Estructura';
 my $show_panel = sub {
@@ -367,11 +367,12 @@ my %tab_label = (
     Estructura => 'Estructura',
     Liquidez   => 'Liquidez',
     ZigZag     => 'ZigZag',
+    Dibujo     => 'Dibujo',
     Volumen    => 'Volumen',
     Vista      => 'Vista',
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(Estructura Liquidez ZigZag Volumen Vista)) {
+for my $name (qw(Estructura Liquidez ZigZag Dibujo Volumen Vista)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -513,7 +514,7 @@ if ($ENV{MARKET_RELOAD}) {
     }
 }
 
-# ---- Pestaña "ZigZag": ZZ interno/externo + Parallel Channel + Fib ----
+# ---- Pestaña "ZigZag": solo ZZ interno/externo (Canal/Trend/Fib → "Dibujo") ----
 {
     my $p = $panel{ZigZag};
     # ZigZag interno ZZMTF (Show ZZ ON; fib OFF; verde/rojo; res 15/30/60)
@@ -542,6 +543,13 @@ if ($ENV{MARKET_RELOAD}) {
         -variable => \$vis_zz_ext,
         -command  => sub { $set_zz_layer->( 'EXTERNAL', $vis_zz_ext ? 1 : 0 ); },
     )->pack( -side => 'left' );
+}
+
+# ---- Pestaña "Dibujo": herramientas de trazado (Canal + Trend + Fib) ----
+# Separadas de ZigZag para respetar el ancho máximo en laptop 14" (~1050 px).
+# Ver docs/UI_FASE_ACTUAL.md (restricción de ancho).
+{
+    my $p = $panel{Dibujo};
 
     # Parallel Channel (herramienta TV del video del profe)
     my $pchan_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
