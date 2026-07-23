@@ -148,10 +148,14 @@ my $price_canvas = $price_frame->Canvas(
 )->pack(-side => 'left', -expand => 1, -fill => 'both');
 
 my $time_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -fill => 'x');
-$time_frame->Canvas(
+# Esquina inferior derecha (intersección eje precio × eje tiempo): aloja el
+# toggle A/M del modo de escala de precio (estilo TradingView). Se cablea más
+# abajo, tras crear $chart_engine.
+my $price_mode_corner = $time_frame->Frame(
     -width => $right_axis_width, -height => $time_axis_height, -background => $theme{bg},
-    -relief => 'sunken', -bd => 1, -highlightthickness => 0
+    -relief => 'sunken', -bd => 1,
 )->pack(-side => 'right', -fill => 'y');
+$price_mode_corner->packPropagate(0);
 my $time_axis_canvas = $time_frame->Canvas(
     -height => $time_axis_height, -background => $theme{bg}, -relief => 'sunken',
     -bd => 1, -highlightthickness => 0, -cursor => 'sb_h_double_arrow'
@@ -176,7 +180,7 @@ my $atr_scale_mode = 'auto';
 my $active_tf = $base_tf;  # UI resalta el TF base (15m con export TV)
 my $replay_on   = 0;
 my $replay_select_mode = 0;
-my $replay_watermark_on = 1;
+my $replay_watermark_on = 0;   # marca de agua "Replay" oculta por defecto; se activa con Mark/tecla M
 my $replay_panel;
 my %ui_vars = (
     active_tf => \$active_tf, replay_on => \$replay_on,
@@ -195,14 +199,54 @@ my $chart_engine = Market::ChartEngine->new(
     time_axis_canvas  => $time_axis_canvas,
     scale_mode_callback => sub { $scale_mode = $_[0] },
     atr_scale_mode_callback => sub { $atr_scale_mode = $_[0] },
-    replay_select_mode_callback => sub { $replay_select_mode = $_[0] ? 1 : 0 },
+    replay_select_mode_callback => sub {
+        $replay_select_mode = $_[0] ? 1 : 0;
+        # Feedback visual: resaltar "Select bar" mientras el modo está activo.
+        if ($replay_panel && ref($replay_panel) && $replay_panel->can('sync_select_bar_button')) {
+            $replay_panel->sync_select_bar_button($replay_select_mode);
+        }
+    },
     theme             => \%theme
 );
 
 $chart_engine->{replay_watermark_on_ref} = \$replay_watermark_on;
 $chart_engine->{replay_on_ref} = \$replay_on;
 $chart_engine->{plot_frames} = [$price_frame, $atr_frame];
+# Referencia del frame ATR para poder ocultarlo/mostrarlo (toggle UI).
+$chart_engine->{atr_frame} = $atr_frame;
 $chart_engine->init_plot_cursors();
+
+# --- Toggle A/M del modo de escala de PRECIO (esquina inf. derecha, estilo TV) ---
+# A = automático, M = manual. El botón activo se resalta. Estos botones y los de
+# la pestaña Vista comparten los mismos callbacks para no desincronizarse.
+my $PMODE_ON_BG   = '#2962ff';   # activo
+my $PMODE_ON_FG   = '#ffffff';
+my $PMODE_OFF_BG  = '#e9edf3';   # inactivo
+my $PMODE_OFF_FG  = '#1c2431';
+my ($price_mode_A, $price_mode_M);
+my $refresh_price_mode_buttons = sub {
+    my $auto = ($scale_mode eq 'auto');
+    $price_mode_A->configure(-bg => $auto ? $PMODE_ON_BG : $PMODE_OFF_BG,
+                             -fg => $auto ? $PMODE_ON_FG : $PMODE_OFF_FG) if $price_mode_A;
+    $price_mode_M->configure(-bg => !$auto ? $PMODE_ON_BG : $PMODE_OFF_BG,
+                             -fg => !$auto ? $PMODE_ON_FG : $PMODE_OFF_FG) if $price_mode_M;
+};
+my $set_price_mode = sub {
+    my ($mode) = @_;
+    $chart_engine->set_scale_mode($mode);   # actualiza $scale_mode vía callback
+    $refresh_price_mode_buttons->();
+};
+$price_mode_A = $price_mode_corner->Button(
+    -text => 'A', -font => [ 'Helvetica', 8, 'bold' ],
+    -bd => 1, -relief => 'raised', -padx => 1, -pady => 0, -highlightthickness => 0,
+    -command => sub { $set_price_mode->('auto'); },
+)->pack(-side => 'left', -expand => 1, -fill => 'both');
+$price_mode_M = $price_mode_corner->Button(
+    -text => 'M', -font => [ 'Helvetica', 8, 'bold' ],
+    -bd => 1, -relief => 'raised', -padx => 1, -pady => 0, -highlightthickness => 0,
+    -command => sub { $set_price_mode->('manual'); },
+)->pack(-side => 'left', -expand => 1, -fill => 'both');
+$refresh_price_mode_buttons->();
 
 $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);
@@ -807,12 +851,8 @@ if ($ENV{MARKET_RELOAD}) {
 # ---- Pestaña "Vista": Escala + Grid + Reset + Replay completo ----
 {
     my $p = $panel{Vista};
-    my $price_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $price_box->Label(-text => 'Precio:')->pack(-side => 'left', -padx => 3);
-    $price_box->Radiobutton(-text => 'Auto', -value => 'auto', -variable => \$scale_mode,
-        -indicatoron => 0, -padx => 5, -command => sub { $chart_engine->set_scale_mode('auto') })->pack(-side => 'left', -padx => 1);
-    $price_box->Radiobutton(-text => 'Manual', -value => 'manual', -variable => \$scale_mode,
-        -indicatoron => 0, -padx => 5, -command => sub { $chart_engine->set_scale_mode('manual') })->pack(-side => 'left', -padx => 1);
+    # Modo de escala de PRECIO: se controla con los botones A/M de la esquina
+    # inferior derecha del gráfico (estilo TradingView). Aquí ya no va.
 
     my $atr_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $atr_box->Label(-text => 'ATR:')->pack(-side => 'left', -padx => 3);
@@ -833,6 +873,20 @@ if ($ENV{MARKET_RELOAD}) {
         -command     => sub {
             my $on = $chart_engine->toggle_grid();
             $grid_btn->configure(-text => $on ? 'Ocultar' : 'Mostrar');
+        },
+    )->pack(-side => 'left', -padx => 1);
+
+    # Panel ATR desplegable: ocultarlo da más espacio vertical al gráfico.
+    # (a futuro este panel inferior puede alojar un dibujador de volumen)
+    my $atr_toggle_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $atr_toggle_box->Label(-text => 'Panel ATR:')->pack(-side => 'left', -padx => 3);
+    my $atr_btn;
+    $atr_btn = $atr_toggle_box->Button(
+        -text    => 'Mostrar',   # ATR oculto por defecto
+        -padx    => 5,
+        -command => sub {
+            my $shown = $chart_engine->toggle_atr_panel();
+            $atr_btn->configure(-text => $shown ? 'Ocultar' : 'Mostrar');
         },
     )->pack(-side => 'left', -padx => 1);
 
@@ -864,6 +918,9 @@ $mw->update if $maximized;
 $mw->after(200, sub {
     print "[*] Render inicial (producto oficial: velas + ATR; capas bajo demanda)...\n";
     $chart_engine->render();
+    # Panel ATR oculto por defecto (más espacio al gráfico); se muestra con el
+    # botón "Panel ATR" en la pestaña Vista.
+    $chart_engine->set_atr_panel_visible(0) if $chart_engine->can('set_atr_panel_visible');
     $mw->after(200,  sub { $chart_engine->request_render(); });
     $mw->after(800,  sub { $chart_engine->request_render(); });
 });

@@ -1201,11 +1201,13 @@ sub render {
     # parcialmente visibles durante paneo se rendericen desde antes.
     $self->{price_panel}->render($self->{price_canvas}, $draw_candles, $price_scale);
     $self->_draw_replay_watermark($self->{price_canvas});
-    $self->{atr_panel}->render($self->{atr_canvas}, $draw_atr, $atr_scale);
+    # ATR oculto (toggle UI): no pintar el panel ni su eje (canvas sin pack).
+    my $atr_shown = !$self->{_atr_hidden};
+    $self->{atr_panel}->render($self->{atr_canvas}, $draw_atr, $atr_scale) if $atr_shown;
     my $time_labels = $self->compute_intraday_labels();
     $self->{price_panel}->draw_time_axis($self->{price_canvas}, $time_labels, { draw_grid => ($self->{show_grid} ? 1 : 0), draw_labels => 0 });
     $self->_render_price_axis($price_scale, $visible_candles, $replay_head_candle);
-    $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr);
+    $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr) if $atr_shown;
     $self->_render_time_axis($price_scale, $time_labels);
 
     # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx.
@@ -3643,6 +3645,40 @@ sub show_grid {
 sub toggle_grid {
     my ($self) = @_;
     return $self->set_show_grid(!$self->{show_grid});
+}
+
+# --- Panel ATR ocultable/desplegable (deja más espacio al gráfico) ---
+# El panel inferior de ATR se puede ocultar con packForget del $atr_frame.
+# Como el price_frame tiene expand=1, al ocultarlo el gráfico crece solo.
+# _atr_hidden guarda el estado; el render omite pintar el ATR cuando está oculto.
+sub atr_panel_visible {
+    my ($self) = @_;
+    return $self->{_atr_hidden} ? 0 : 1;
+}
+
+sub set_atr_panel_visible {
+    my ($self, $on) = @_;
+    $on = $on ? 1 : 0;
+    my $frame = $self->{atr_frame};
+    return $self unless $frame;
+    if ($on) {
+        $self->{_atr_hidden} = 0;
+        # Re-empaquetar debajo del eje de tiempo (top, fill x), como al arrancar.
+        eval { $frame->pack(-side => 'top', -fill => 'x'); 1 };
+    }
+    else {
+        $self->{_atr_hidden} = 1;
+        eval { $frame->packForget; 1 };
+    }
+    # Reencuadrar: el price_frame (expand=1) toma/cede el alto liberado.
+    $self->request_render();
+    return $self;
+}
+
+sub toggle_atr_panel {
+    my ($self) = @_;
+    $self->set_atr_panel_visible( $self->{_atr_hidden} ? 1 : 0 );
+    return $self->atr_panel_visible();
 }
 
 sub set_scale_mode {
