@@ -2,16 +2,13 @@ package Market::Overlays::AnchoredVWAP;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Overlays::AnchoredVWAP
-#
-# Render visual (no cambia la fórmula del indicador):
-#   - Polilínea única por serie (mismos puntos centro-de-vela).
-#   - Grosor uniforme (estilo TV).
-#   - Centro azul; banda ±1σ verde; bandas ±2/±3σ verde oliva/amarillento.
-#   - Relleno semitransparente entre upper1 y lower1 (stipple Tk).
-#   - Círculo handle deslicable en la vela ancla.
-# =============================================================================
+# Render visual (no cambia la fórmula del indicador)
+# Polilínea única por serie (mismos puntos centro-de-vela).
+# Grosor uniforme (estilo TV).
+# Centro azul; banda ±1σ verde; bandas ±2/±3σ verde oliva/amarillento.
+# Relleno semitransparente entre upper1 y lower1 (stipple Tk).
+# Círculo handle deslicable en la vela ancla.
 
 sub new {
     my ($class, %args) = @_;

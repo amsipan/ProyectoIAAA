@@ -76,7 +76,7 @@ sub set_scale {
     $self->{scale} = $scale;
 }
 
-# set_run_candles(\%map) — task 0058: mapa global { index => run_dir } para recoloreo RUN.
+# set_run_candles(\%map) — mapa global { index => run_dir } para recoloreo RUN.
 sub set_run_candles {
     my ($self, $map) = @_;
     $self->{_run_candles} = (ref($map) eq 'HASH') ? $map : {};
@@ -125,7 +125,7 @@ sub render {
     $scale->{width}  ||= $canvas_w;
     $scale->{height} = $canvas_h;
 
-    # spec 0000i: overscan. draw_start_offset permite que el slice de dibujo
+    # overscan. draw_start_offset permite que el slice de dibujo
     # incluya velas extra (start-1, end+1). Los índices locales negativos o
     # >= visible_count posicionan las velas overscan correctamente.
     my $draw_offset = $scale->{draw_start_offset} || 0;
@@ -245,15 +245,13 @@ sub render {
 }
 
 # Precio de cierre de la última vela visible.
-#
-# Dibuja:
-#   1. Línea horizontal entrecortada a todo el ancho del plot, a la altura del
-#      close de la última vela visible, con el color del precio actual
-#      (verde alcista / rojo bajista). Recorre todo el gráfico.
-#   2. La cajita de precio en el margen derecho del plot, SOLO si no hay
-#      price_axis_canvas separado (draw_last_label=1). Con eje separado, la
-#      cajita vive en ChartEngine::_render_price_axis (tag axis_last_price).
-#
+# Dibuja
+# 1. Línea horizontal entrecortada a todo el ancho del plot, a la altura del
+# close de la última vela visible, con el color del precio actual
+# (verde alcista / rojo bajista). Recorre todo el gráfico.
+# 2. La cajita de precio en el margen derecho del plot, SOLO si no hay
+# price_axis_canvas separado (draw_last_label=1). Con eje separado, la
+# cajita vive en ChartEngine::_render_price_axis (tag axis_last_price).
 # En Replay, $self->{_last_candle} es la última vela causal (replay_idx), así
 # que la línea sigue al precio del replay sin fuga de futuro.
 sub render_last_visible_price {
@@ -276,7 +274,7 @@ sub render_last_visible_price {
     my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
 
     # 1. Línea horizontal entrecortada full-width al nivel del precio actual.
-    #    Toggle UI (Vista): show_last_price_line; off por defecto.
+    # Toggle UI (Vista): show_last_price_line; off por defecto.
     if ( $self->{show_last_price_line} ) {
         $canvas->createLine(
             0, $y, $w, $y,
@@ -307,28 +305,25 @@ sub render_last_visible_price {
 }
 
 # Dibuja el crosshair en este panel y sus etiquetas (valor + tiempo).
-#
-# Firma (contrato acordado con ChartEngine::_draw_crosshair_all, tarea 6.1):
-#     draw_crosshair($x, $y, $time_text)
-#   * $x         : coordenada X de pantalla del cursor. Si es undef, se borra TODO el
-#                  crosshair (líneas + etiquetas, incluida la de tiempo) y se retorna.
-#   * $y         : coordenada Y de pantalla. Si es undef, el cursor no está sobre este
-#                  panel: se dibuja solo la línea vertical (sin línea/etiqueta de valor).
-#   * $time_text : cadena ya formateada con el tiempo bajo el cursor (p.ej. "09:15" o
-#                  "18 May"), o undef si no hay etiqueta de tiempo que mostrar.
-#
+# Firma (contrato acordado con ChartEngine::_draw_crosshair_all, tarea 6.1)
+# draw_crosshair($x, $y, $time_text)
+# * $x: coordenada X de pantalla del cursor. Si es undef, se borra TODO el
+# crosshair (líneas + etiquetas, incluida la de tiempo) y se retorna.
+# * $y: coordenada Y de pantalla. Si es undef, el cursor no está sobre este
+# panel: se dibuja solo la línea vertical (sin línea/etiqueta de valor).
+# * $time_text: cadena ya formateada con el tiempo bajo el cursor (p.ej. "09:15" o
+# "18 May"), o undef si no hay etiqueta de tiempo que mostrar.
 # La coordenada X es compartida con el ATRPanel para sincronización temporal (Req. 7.1).
-# Comportamiento (Req. 7.1, 7.2, 7.4, 7.5):
-#   * Línea vertical punteada en $x a lo alto del canvas.
-#   * Si $y definido: línea horizontal punteada + cajita de valor en el eje derecho con
-#     el precio obtenido vía scale->y_to_value($y).
-#   * Si $time_text definido: cajita oscura con el texto de tiempo centrada en $x dentro
-#     de la banda inferior (alineada al borde inferior), bajo la línea vertical.
-#
+# Comportamiento (Req. 7.1, 7.2, 7.4, 7.5)
+# * Línea vertical punteada en $x a lo alto del canvas.
+# * Si $y definido: línea horizontal punteada + cajita de valor en el eje derecho con
+# el precio obtenido vía scale->y_to_value($y).
+# * Si $time_text definido: cajita oscura con el texto de tiempo centrada en $x dentro
+# de la banda inferior (alineada al borde inferior), bajo la línea vertical.
 # Colores tomados del tema claro en $self->{theme}, con defaults seguros vía // por si la
-# clave no está definida (no se hardcodean colores del tema oscuro):
-#   * crosshair_line (líneas)            -> '#9598a1'
-#   * label_bg / label_fg (cajitas)      -> '#363a45' / '#ffffff'
+# clave no está definida (no se hardcodean colores del tema oscuro)
+# * crosshair_line (líneas) -> '#9598a1'
+# * label_bg / label_fg (cajitas) -> '#363a45' / '#ffffff'
 # Todo se etiqueta con el tag 'price_crosshair' para borrarse junto al resto.
 sub draw_crosshair {
     my ($self, $x, $y, $time_text) = @_;
@@ -425,7 +420,7 @@ sub draw_crosshair {
     }
 }
 
-# draw_time_crosshair_label($canvas, $x, $time_text) — spec 0000d:
+# draw_time_crosshair_label($canvas, $x, $time_text)
 # Dibuja la caja negra con la etiqueta de tiempo del crosshair sobre el
 # canvas del eje temporal (time_axis_canvas), centrada verticalmente en
 # ese canvas y con clamp horizontal para no salirse por izquierda/derecha.
@@ -468,29 +463,26 @@ sub draw_time_crosshair_label {
 }
 
 # Dibuja las etiquetas del eje de tiempo en la banda inferior del panel de precios.
-#
 # Entrada: arrayref de etiquetas enriquecidas producidas por
-# ChartEngine::compute_intraday_labels, cada una con la forma:
-#     { index   => <índice LOCAL 0-based en la ventana visible>,
-#       text    => <'HH:MM' o 'DD Mon', ya formateado por ChartEngine>,
-#       is_date => 0|1 }
-#
-# Reglas (Req. 5.1, 5.3, 5.4, 6.1, 6.2):
-#   * La banda inferior ocupa el ANCHO COMPLETO del canvas y las etiquetas quedan
-#     centradas verticalmente dentro del eje temporal compacto.
-#   * Cada etiqueta se centra en scale->index_to_center_x(index) (tolerancia 1 px). El
-#     index es LOCAL; la X NO se calcula a mano (regla de oro: coordenadas solo en
-#     Scales), de modo que las etiquetas siguen a su barra ante scroll/zoom.
-#   * El texto ya viene resuelto desde ChartEngine; aquí solo se dibuja $item->{text}
-#     (no se reformatea). El texto de fecha "DD Mon" es más ancho y se centra con el
-#     anchor 's' para que quede legible sobre su barra.
-#   * Grid vertical (hora o fecha): mismo estilo TradingView que el horizontal —
-#     punteado fino (casi puntos), width=1, color `grid`. Día/mes NO se engrosan
-#     ni se oscurecen (a diferencia del antiguo date_grid sólido).
-#   * Etiquetas de fecha (is_date=1): solo el TEXTO en negrita; la línea es idéntica.
-#   * Crosshair (PricePanel::draw_crosshair) usa dash [4,4] y gris más oscuro
-#     para no confundirse con el grid.
-#
+# ChartEngine::compute_intraday_labels, cada una con la forma
+# { index => <índice LOCAL 0-based en la ventana visible>,
+# text => <'HH:MM' o 'DD Mon', ya formateado por ChartEngine>,
+# is_date => 0|1 }
+# Reglas (Req. 5.1, 5.3, 5.4, 6.1, 6.2)
+# * La banda inferior ocupa el ANCHO COMPLETO del canvas y las etiquetas quedan
+# centradas verticalmente dentro del eje temporal compacto.
+# * Cada etiqueta se centra en scale->index_to_center_x(index) (tolerancia 1 px). El
+# index es LOCAL; la X NO se calcula a mano (regla de oro: coordenadas solo en
+# Scales), de modo que las etiquetas siguen a su barra ante scroll/zoom.
+# * El texto ya viene resuelto desde ChartEngine; aquí solo se dibuja $item->{text}
+# (no se reformatea). El texto de fecha "DD Mon" es más ancho y se centra con el
+# anchor 's' para que quede legible sobre su barra.
+# * Grid vertical (hora o fecha): mismo estilo TradingView que el horizontal
+# punteado fino (casi puntos), width=1, color `grid`. Día/mes NO se engrosan
+# ni se oscurecen (a diferencia del antiguo date_grid sólido).
+# * Etiquetas de fecha (is_date=1): solo el TEXTO en negrita; la línea es idéntica.
+# * Crosshair (PricePanel::draw_crosshair) usa dash [4,4] y gris más oscuro
+# para no confundirse con el grid.
 # Colores tomados del tema claro almacenado en $self->{theme}, con defaults seguros
 # vía // por si el tema no define la clave (no se hardcodean colores del tema oscuro).
 sub draw_time_axis {
@@ -527,7 +519,7 @@ sub draw_time_axis {
         my $x = $scale->index_to_center_x($idx);
 
         # Grid vertical unificado (TV): punteado fino, sin énfasis por día/mes.
-        # spec 0000d: no dibujar grid si el label quedó oculto por thinning.
+        # no dibujar grid si el label quedó oculto por thinning.
         if ( $draw_grid && $item_grid && $item_label ) {
             $canvas->createLine(
                 $x, 0, $x, $h,

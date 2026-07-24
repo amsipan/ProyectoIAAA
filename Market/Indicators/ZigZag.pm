@@ -2,25 +2,19 @@ package Market::Indicators::ZigZag;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Indicators::ZigZag — dirección interna (MTF) + externa (swing)
-# Task 0033: dos ZigZag conviven con SMC/Mxwll; cálculo puro sin Tk.
-#
+# dos ZigZag conviven con SMC/Mxwll; cálculo puro sin Tk.
 # Interno (ZZMTF / LonesomeTheBlue): resolución HTF (default 30m profe), period=2.
-#   Captura profe: Show Zig Zag ON; Fibonacci OFF; colores verde/rojo.
-#   Source: docs/reference_indicators/zigzag_mtf_fibonacci_lonesometheblue.txt
-#   Pivotes ph/pl con ventana len desde newbar; dir +1/-1; último tramo ajustable.
-#
+# Captura profe: Show Zig Zag ON; Fibonacci OFF; colores verde/rojo.
+# Source
+# Pivotes ph/pl con ventana len desde newbar; dir +1/-1; último tramo ajustable.
 # Externo (ChartPrime): swingLength=150, solo línea zigzag azul.
-#   Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF.
-#   Source: docs/reference_indicators/zigzag_volumeprofile_chartprime.txt
-#   max_external_segments=15 (paridad visual TV).
-#
+# Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF.
+# Source
+# max_external_segments=15 (paridad visual TV).
 # compute_internal / compute_external: on-demand (producto 3.2).
 # external_only=1 ⇒ no calcular interno (compat fase 3.1 / atajos).
-#
 # Contrato: new / update_last($md,$i) / get_values / reset
-# =============================================================================
 
 use Time::Moment;
 
@@ -175,12 +169,12 @@ sub get_values {
     };
 }
 
-# external_channel — deprecado (task 0061); vacío; tests antiguos solo exigen la clave.
+# external_channel — deprecado; vacío; tests antiguos solo exigen la clave.
 sub _external_channel_list {
     return [];
 }
 
-# trend_channels — canal de tendencia clásico (task 0061).
+# trend_channels — canal de tendencia clásico.
 # Trendline: 2 pivotes del mismo lado (2 lows si tendencia up, 2 highs si down).
 # Paralela: misma pendiente, anclada al pivote opuesto más extremo ENTRE esos dos.
 # Nota: _ext_vertices trae vértices DUPLICADOS (cada segmento empuja inicio+fin, así
@@ -303,7 +297,7 @@ sub get_snapshot_items {
     return \@items;
 }
 
-# --- MTF bucket (fronteras de reloj, estilo MarketData) -----------------------
+# MTF bucket (fronteras de reloj, estilo MarketData)
 
 sub _mtf_bucket_id {
     my ($self, $ts) = @_;
@@ -416,7 +410,7 @@ sub _rebuild_internal_segments {
     $self->{_int_segments} = \@segs;
 }
 
-# --- Externo: swingLength + lógica ChartPrime (solo línea) --------------------
+# Externo: swingLength + lógica ChartPrime (solo línea)
 
 sub _push_buf {
     my ($buf, $val, $max) = @_;
@@ -469,7 +463,7 @@ sub _update_external {
     my $at_high = defined $swing_high && $high >= $swing_high - 1e-9;
     my $at_low  = defined $swing_low  && $low  <= $swing_low  + 1e-9;
 
-    # ChartPrime (zigzag_volumeprofile_chartprime.txt) asigna priceHigh := low[1]
+    # ChartPrime (zigzag_volumeprofile_chartprime.txt) asigna priceHigh:= low[1]
     # (bug del Pine: el swing high queda en la mecha inferior). Corregimos solo el
     # pivote alto: usar high (tope real de la vela). Los mínimos siguen en low.
     if ($at_high) {

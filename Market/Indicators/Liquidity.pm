@@ -2,17 +2,8 @@ package Market::Indicators::Liquidity;
 use strict;
 use warnings;
 
-# =============================================================================
-# Market::Indicators::Liquidity — Liquidity v2 (desde cero, sin legacy)
-#
-# PDF 2ª fase §4 + clase profe 16-jun + IndicacionesExaProy:
-#   BSL / SSL / EQH / EQL + FSM Detected → Swept → Acceptance|Reclaimed → Resolved
-#   Sweep (≤2 velas regresa) | Grab (3..grab_max regresa) | Run (N cierres fuera)
-#
-# Contrato ChartEngine: new / update_last($md,$i) / reset / get_values
-# Export hacia modelos: export_liquidity_events / get_observation_stream
-# Sin Tk.
-# =============================================================================
+# Liquidity v2: BSL/SSL/EQH/EQL y FSM Detected→Swept→Acceptance|Reclaimed→Resolved.
+# Sweep / Grab / Run. Sin Tk.
 
 use constant {
     DEFAULT_K              => 3,
@@ -263,9 +254,7 @@ sub get_observation_stream {
     return \@stream;
 }
 
-# ---------------------------------------------------------------------------
 # Internals
-# ---------------------------------------------------------------------------
 
 sub _update_atr {
     my ( $self, $i, $h, $l, $cl ) = @_;

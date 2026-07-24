@@ -9,24 +9,18 @@ use Market::MarketData;
 use Market::IndicatorManager;
 use Market::Indicators::ATR;
 use Market::ChartEngine;
-use Market::UI::Callbacks;   # factorías de callbacks de la barra (TF/Replay/Overlays)
-use Market::UI::ReplayPanel; # panel flotante Replay estilo TradingView (task 0043)
+use Market::UI::Callbacks;   # callbacks de la barra (TF/Replay/Overlays)
+use Market::UI::ReplayPanel; # panel flotante de Replay
 
-print "========== LAUNCHING FINANCIAL CHARTING ENGINE (Tk) ==========\n";
+print "[*] Iniciando motor de charting (Tk)...\n";
 
-# ==========================================
-# 1. DATOS E INDICADORES BASE (solo lo de Fase 1 para arranque instantáneo)
-# ==========================================
-# Producto oficial: ATR al arranque; capas SMC/ZZ/HLD/Liquidity v2 bajo demanda
-# (docs/PRODUCTO_OFICIAL.md). Legacy Mxwll/VP/VWAP no se cargan.
+# Datos e indicadores base (ATR al arranque; overlays bajo demanda).
 my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
 # Dataset por defecto: Data/2026_07_20.csv (NQ1! 1m, ISO UTC-5, volumen real).
 # Base nativa = 1m; 5m/15m/1h/2h/4h/D/W se agregan desde 1m.
-# El export 15m y los CSV antiguos quedan como opción/fallback dentro de Data/.
-# Copia portable en Data/; fallback a Downloads si falta la copia.
 my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 1.csv';
 my $tv_dst = 'Data/tv_nq1_1m.csv';
 if (-f $tv_src && !-f $tv_dst) {
@@ -37,11 +31,10 @@ if (-f $tv_src && !-f $tv_dst) {
 }
 
 my @csv_candidates = (
-    'Data/2026_07_20.csv',      # default: 1–20 julio 2026, 1m y volumen real
-    $tv_dst,                    # fallback: export TV 1m anterior
+    'Data/2026_07_20.csv',      # default: julio 2026, 1m con volumen
+    $tv_dst,                    # fallback TV 1m
     $tv_src,
-    'Data/tv_nq1_15m.csv',      # opción: export TV 15m
-    # Fallbacks legacy (solo si no hay export TV)
+    'Data/tv_nq1_15m.csv',      # opción TV 15m
     'Data/2026_06.csv',
     'C:/Users/bryan/Downloads/Proyecto/2026_06.csv',
 );
@@ -49,7 +42,7 @@ my $archivo_csv;
 for my $cand (@csv_candidates) {
     if (-f $cand) { $archivo_csv = $cand; last; }
 }
-die "CRÍTICO: no se encontró dataset (2026_07_20.csv, tv_nq1_1m.csv, tv_nq1_15m.csv ni 2026_06.csv)\n"
+die "No se encontró dataset (2026_07_20.csv, tv_nq1_1m.csv, tv_nq1_15m.csv ni 2026_06.csv)\n"
     unless defined $archivo_csv;
 
 # Detectar base por nombre: *15m* → base 15m; si no (1m u otros) → 1m.
@@ -60,7 +53,7 @@ if ($archivo_csv =~ /15m|_15\.csv|, 15\.csv/i) {
 $market_data->set_base_timeframe($base_tf);
 
 print "[*] Leyendo dataset (base=$base_tf)...\n";
-open my $fh, '<', $archivo_csv or die "CRÍTICO: No se pudo abrir $archivo_csv: $!";
+open my $fh, '<', $archivo_csv or die "No se pudo abrir $archivo_csv: $!";
 my $header = <$fh>;  # time,open,high,low,close,Plot|Volume
 my $n_file = 0;
 my ($ts_first, $ts_last);
@@ -95,9 +88,7 @@ for (my $i = 0; $i < $market_data->size(); $i++) {
 }
 print "[*] Listo — abriendo UI en $base_tf\n";
 
-# ==========================================
 # 2. VENTANA PRINCIPAL
-# ==========================================
 my $mw = MainWindow->new;
 $mw->title("IAAA — Motor de Charting (EPN 2026A)");
 $mw->minsize(900, 600);
@@ -115,9 +106,7 @@ if ($screen_ok) {
 }
 $mw->deiconify; $mw->raise; $mw->focusForce;
 
-# ==========================================
 # PALETA DE TEMA CLARO
-# ==========================================
 my %theme = (
     bg => '#ffffff', grid => '#e6e6e6', date_grid => '#c4c9d1',
     axis_text => '#363a45', bull => '#26a69a', bear => '#ef5350',
@@ -130,9 +119,7 @@ my $time_axis_height = 18;
 my $right_axis_width = 60;
 my $atr_axis_width   = 48;
 
-# ==========================================
 # 3. LAYOUT: barra compacta abajo, chart arriba
-# ==========================================
 my $frame_controles = $mw->Frame(-relief => 'raised', -bd => 1)
     ->pack(-side => 'bottom', -fill => 'x');
 
@@ -172,9 +159,7 @@ my $atr_canvas = $atr_frame->Canvas(
     -height => 140, -background => $theme{bg}, -relief => 'sunken', -bd => 1
 )->pack(-side => 'left', -expand => 1, -fill => 'x');
 
-# ==========================================
 # 4. MOTOR ORQUESTADOR
-# ==========================================
 my $scale_mode = 'auto';
 my $atr_scale_mode = 'auto';
 my $active_tf = $base_tf;  # UI resalta el TF base (15m con export TV)
@@ -216,7 +201,7 @@ $chart_engine->{plot_frames} = [$price_frame, $atr_frame];
 $chart_engine->{atr_frame} = $atr_frame;
 $chart_engine->init_plot_cursors();
 
-# --- Toggle A/M del modo de escala de PRECIO (esquina inf. derecha, estilo TV) ---
+# Toggle A/M del modo de escala de PRECIO (esquina inf. derecha, estilo TV)
 # A = automático, M = manual. El botón activo se resalta. Estos botones y el
 # modo de escala comparten los mismos callbacks para no desincronizarse.
 my $PMODE_ON_BG   = '#2962ff';   # activo
@@ -258,7 +243,7 @@ $chart_engine->bind_replay_window_shortcuts($mw);
 
 $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 
-# Capas producto oficial (OFF por defecto). Ver docs/PRODUCTO_OFICIAL.md
+# Capas Producto (OFF por defecto). Ver
 my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
 my $vis_hld     = 0;
@@ -279,7 +264,7 @@ my $fib_extend_to_last = 0;
 # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
 my $vis_pph       = 0;
 my $pph_show_reg  = 1;   # pivots regulares ▼▲
-my $pph_show_miss = 1;   # pivots perdidos 👻
+my $pph_show_miss = 1;   # pivots perdidos
 my $pph_show_rastro = 1; # rastro "1" (Josafa)
 
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
@@ -357,24 +342,12 @@ $chart_engine->{zz_external_ui_sync} = sub {
 my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, $_, \%ui_vars) }
              Market::UI::Callbacks->timeframes();
 
-# ============================================================================
-# 5. BARRA DE CONTROLES INLINE (todo en la MISMA ventana) — task 0018b
-# ============================================================================
-# IMPORTANTE: NO se usa menubar nativo ($mw->Menu/-menu) ni Optionmenu. Bajo
-# WSLg ambos abren ventanas X separadas (popups), que aparecen en posiciones
-# erráticas, se traban o no cargan. Todos los controles van inline con widgets
-# que NO crean ventanas: Radiobutton, Checkbutton, Button. La barra se organiza
-# en dos filas para no saturar.
-# DISEÑO DE PESTAÑAS (task 0032): antes había 2 filas saturadas que se salían de
-# la pantalla (TF + capas + liq + mxwll no cabían). Ahora:
-#   - FILA SUPERIOR (siempre visible): selector TF + botones de PESTAÑA.
-#   - FILA INFERIOR (área de panel): muestra SOLO el panel de la pestaña activa.
-# Se emula un "notebook" con Frames + pack/packForget (NO se usa menubar nativo,
-# Optionmenu ni Tk::NoteBook: bajo WSLg abren ventanas X aparte y fallan).
+# Barra de controles inline (sin menubar/Optionmenu: bajo WSLg abren popups X).
+# Fila superior: TF + pestañas. Fila inferior: panel de la pestaña activa.
 my $tab_row   = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 my $panel_row = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 
-# Reset Vista: siempre visible (cualquier pestaña), abajo-derecha bajo el ↻.
+# Reset Vista: siempre visible en cualquier pestaña.
 $panel_row->Button(
     -text    => 'Reset Vista',
     -padx    => 5,
@@ -383,7 +356,7 @@ $panel_row->Button(
     -command => sub { $chart_engine->reset_view() },
 )->pack( -side => 'right', -padx => 3 );
 
-# --- Selector de temporalidad: SIEMPRE visible (lo más usado) ---
+# Selector de temporalidad: SIEMPRE visible (lo más usado)
 my $tf_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
 $tf_box->Label(-text => 'TF:')->pack(-side => 'left', -padx => 3);
 for my $tf (Market::UI::Callbacks->timeframes()) {
@@ -537,12 +510,10 @@ if ($ENV{MARKET_RELOAD}) {
     print "[*] RELOAD: fresh process started (MARKET_RELOAD=1)\n";
 }
 
-# ============================================================================
 # OPCIÓN A: cinco pestañas por dominio (compactas para 14"). Cada control y
 # callback se conserva; solo se reorganizan por grupo temático.
-# ============================================================================
 
-# ---- Pestaña "Estructura": SMC Pro / Structures+FVG / HLD ----
+# Pestaña Estructura
 {
     my $p = $panel{Estructura};
     my $box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
@@ -589,7 +560,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack(-side => 'left', -padx => 3);
 }
 
-# ---- Pestaña "Liquidez": capa Liquidity + Niveles + Eventos ----
+# Pestaña Liquidez
 {
     my $p = $panel{Liquidez};
     $p->Checkbutton(
@@ -626,7 +597,7 @@ if ($ENV{MARKET_RELOAD}) {
     }
 }
 
-# ---- Pestaña "ZigZag": solo ZZ interno/externo (Canal/Trend/Fib → "Dibujo") ----
+# Pestaña ZigZag
 {
     my $p = $panel{ZigZag};
     # ZigZag interno ZZMTF (Show ZZ ON; fib OFF; verde/rojo; res 15/30/60)
@@ -657,9 +628,9 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
 }
 
-# ---- Pestaña "Dibujo": herramientas de trazado (Canal + Trend + Fib) ----
+# Pestaña Dibujo
 # Separadas de ZigZag para respetar el ancho máximo en laptop 14" (~1050 px).
-# Ver docs/UI_FASE_ACTUAL.md (restricción de ancho).
+# Ver(restricción de ancho).
 {
     my $p = $panel{Dibujo};
 
@@ -792,7 +763,7 @@ if ($ENV{MARKET_RELOAD}) {
     $fib_hint->pack( -side => 'left', -padx => 4 );
 }
 
-# ---- Pestaña "Auto": Trendline auto + Canal auto (ciclo nacer/vivir/morir) ----
+# Pestaña Auto
 # Separada de Dibujo por ancho en laptop 14" (manuales quedan en Dibujo).
 {
     my $p = $panel{Auto};
@@ -821,7 +792,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
 }
 
-# ---- Pestaña "Volumen": AVP / AVWAP / Pivots-Fantasmas / DIY ----
+# Pestaña Volumen
 {
     my $p = $panel{Volumen};
     # Anchored Volume Profile (AVP): Off | Manual | Auto (ZZ ext)
@@ -989,7 +960,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
 }
 
-# ---- Pestaña "Vista": Escala ATR + Grid + Linea precio + Panel ATR ----
+# Pestaña Vista
 {
     my $p = $panel{Vista};
     # Modo de escala de PRECIO: se controla con los botones A/M de la esquina
@@ -1039,7 +1010,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack(-side => 'left', -padx => 1);
 }
 
-# ---- Pestaña "Replay": controles inline; al abrir se preselecciona Select bar ----
+# Pestaña Replay
 {
     my $p = $panel{Replay};
     my $replay_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
@@ -1058,9 +1029,7 @@ if ($ENV{MARKET_RELOAD}) {
 # Mostrar la pestaña inicial.
 $show_panel->('Estructura');
 
-# ==========================================
 # 7. RENDER INICIAL + LOOP
-# ==========================================
 print "[*] Abriendo ventana...\n";
 $mw->update;
 my $maximized = eval { $mw->state('zoomed'); 1 };

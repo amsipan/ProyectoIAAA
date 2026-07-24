@@ -203,10 +203,10 @@ sub _paint_channel {
     }
 }
 
-# hit_test → handle bajo el cursor, o undef. Prioridad:
-#   'p1'|'p2'|'p3'  → esquinas y altura de la paralela (p3 ya está centrado)
-#   'mid_base'      → punto medio de la línea base (altura del lado base)
-#   'body'          → cuerpo de un segmento (arrastrar todo el canal)
+# hit_test → handle bajo el cursor, o undef. Prioridad
+# 'p1'|'p2'|'p3' → esquinas y altura de la paralela (p3 ya está centrado)
+# 'mid_base' → punto medio de la línea base (altura del lado base)
+# 'body' → cuerpo de un segmento (arrastrar todo el canal)
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -244,7 +244,7 @@ sub hit_test {
     my ( $i1a, $p1a, $i1b, $p1b ) = @{ $geo->{line1} };   # paralela (p3)
 
     # 2) Punto medio de la línea base (altura del lado base). El lado paralela
-    #    usa p3, ya cubierto arriba como esquina (está centrado en el medio).
+    # usa p3, ya cubierto arriba como esquina (está centrado en el medio).
     my $mid_i = ( $geo->{i_min} + $geo->{i_max} ) / 2;
     my $base_mid_p = ( $p0a + $p0b ) / 2;
     return 'mid_base'

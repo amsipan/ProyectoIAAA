@@ -2,26 +2,22 @@ package Market::Indicators::PivotPointsHL;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Indicators::PivotPointsHL
-#   Port causal de "Pivot Points High Low & Missed Reversal Levels [LuxAlgo]"
-#   (Pine v5). Source: docs/reference_indicators/pivot_points_hl_missed_reversal_luxalgo.txt
-#
-#   - Pivots regulares: high (▼) / low (▲), confirmados length velas después.
-#   - Pivots "missed" (perdidos): marcados con 👻 (fantasma).
-#   - Zigzag entre pivots (sólido = confirmado, punteado = missed/pendiente).
-#   - Ghost levels: líneas horizontales al nivel del pivote (semitransparentes).
-#   - Fantasma provisional (barstate.islast en Pine): el pivote en formación del
-#     último índice causal. "Mientras el fantasma se mueve no operar; cuando se
-#     queda quieto, sí" (profe). Se recalcula en cada vela → se ve moverse en Replay.
-#   - Rastro "1" (Josafa Ghosts_in_swings): al cambiar de punta el fantasma
-#     provisional, deja marcador en la posición previa (conteo visual de saltos).
-#
-#   Cálculo PURO (sin Tk). Contrato: new / reset / update_last($md,$i) / get_values.
-#   Totalmente causal: solo mira velas <= índice actual, así el feed incremental y
-#   el rewind de Replay (reset + refeed) lo reconstruyen sin fuga de futuro.
-#   Source rastro/AVWAP auto: docs/reference_indicators/ghosts_in_swings_josafa.txt
-# =============================================================================
+# Port causal de "Pivot Points High Low & Missed Reversal Levels [LuxAlgo]"
+# (Pine v5). Source
+# Pivots regulares: high (▼) / low (▲), confirmados length velas después.
+# Pivots "missed" (perdidos): marcados con (fantasma).
+# Zigzag entre pivots (sólido = confirmado, punteado = missed/pendiente).
+# Ghost levels: líneas horizontales al nivel del pivote (semitransparentes).
+# Fantasma provisional (barstate.islast en Pine): el pivote en formación del
+# último índice causal. "Mientras el fantasma se mueve no operar; cuando se
+# queda quieto, sí" (profe). Se recalcula en cada vela → se ve moverse en Replay.
+# Rastro "1" (Josafa Ghosts_in_swings): al cambiar de punta el fantasma
+# provisional, deja marcador en la posición previa (conteo visual de saltos).
+# Cálculo PURO (sin Tk). Contrato: new / reset / update_last($md,$i) / get_values.
+# Totalmente causal: solo mira velas <= índice actual, así el feed incremental y
+# el rewind de Replay (reset + refeed) lo reconstruyen sin fuga de futuro.
+# Source rastro/AVWAP auto
 
 sub new {
     my ($class, %args) = @_;
@@ -254,15 +250,14 @@ sub _on_pivot_low {
 }
 
 # Fantasma provisional (barstate.islast del Pine, líneas 121-152).
-# os==1 → busca el low mínimo desde px1 (👻 abajo, style_label_up);
-# os==0 → busca el high máximo (👻 arriba, style_label_down).
+# os==1 → busca el low mínimo desde px1 ( abajo, style_label_up);
+# os==0 → busca el high máximo ( arriba, style_label_down).
 # Se mueve en cada vela hasta que un pivote real lo confirma ("se queda quieto").
-#
-# Colores (fiel al source):
-#   ghost (etiqueta 👻): os==1 → miss_pl (verde) ; os==0 → miss_ph (rojo)
-#   líneas diagonal (l.150) y horizontal (l.152): color OPUESTO al ghost →
-#     os==1 → miss_ph (rojo) ; os==0 → miss_pl (verde)
-#   La horizontal va desde (x,y) hasta n, semitransparente (color.new(...,50)).
+# Colores (fiel al source)
+# ghost (etiqueta ): os==1 → miss_pl (verde); os==0 → miss_ph (rojo)
+# líneas diagonal (l.150) y horizontal (l.152): color OPUESTO al ghost →
+# os==1 → miss_ph (rojo); os==0 → miss_pl (verde)
+# La horizontal va desde (x,y) hasta n, semitransparente (color.new(...,50)).
 sub _provisional {
     my ($self) = @_;
     my $n = $self->{_last};
@@ -294,7 +289,7 @@ sub _provisional {
         from_index => $self->{_px1}, from_price => $self->{_py1},
         index      => $best_x,       price      => $best_y,
         dir        => $dir,
-        ghost_key  => $ghost_key,    # color del fantasma 👻
+        ghost_key  => $ghost_key,    # color del fantasma
         line_key   => $line_key,     # color de la diagonal + horizontal
         last_index => $n,            # extensión horizontal hasta la vela actual
     };

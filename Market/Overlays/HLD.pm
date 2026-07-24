@@ -102,7 +102,7 @@ sub draw {
     my $x1 = $x_of->($i1);
     my $x2 = $x_of->($i2);
 
-    # --- Líneas ---
+    # Líneas
     my $y_r = $y_of->( $r->{resistance} );
     eval {
         $canvas->createLine(
@@ -114,7 +114,7 @@ sub draw {
         1;
     };
 
-    my @labels;    # { text, price, y_nat }  y_nat = altura natural de la línea
+    my @labels;    # { text, price, y_nat } y_nat = altura natural de la línea
     push @labels,
       { text => 'HLD R', price => $r->{resistance}, y_nat => $y_r };
 
@@ -153,7 +153,7 @@ sub draw {
     };
     push @labels, { text => 'HLD S', price => $r->{support}, y_nat => $y_s };
 
-    # --- Etiquetas a la DERECHA, misma altura que su línea ---
+    # Etiquetas a la DERECHA, misma altura que su línea
     # Si se solapan: ordenar por Y de pantalla (arriba→abajo) y empujar SOLO
     # hacia abajo a las de más abajo, sin invertir el orden (evita HLD S
     # encima de HLD close cuando la línea S está debajo).

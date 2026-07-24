@@ -2,48 +2,10 @@ package Market::UI::Callbacks;
 use strict;
 use warnings;
 
-# =============================================================================
-# Market::UI::Callbacks — factorías de callbacks para la barra de controles de
-# Fase 2 (spec 0010 / task 0004).
-# =============================================================================
-#
-# Capa de ACCIONES de UI desacoplada de la construcción de widgets Tk. Cada
-# factoría recibe las dependencias ($chart, refs de estado, opcionalmente $mw
-# para `after`) y devuelve una subrutina lista para enchufar en el `-command`
-# / `-onchange` de un widget Tk (Button, Optionmenu, Checkbutton).
-#
-# Por qué existe este módulo: los callbacks antes estaban inline en market.pl
-# como `-command => sub { ... }` dentro de la construcción de widgets. Como
-# `use Tk; MainWindow->new` no es ejecutable headless, ese cableado era
-# imposible de testear. Extraer las acciones puras (sin Tk) permite que
-# t/17-ui-wiring.t verifique con mocks que:
-#   - cada callback de TF invoca $chart->set_timeframe($tf) con el valor correcto
-#     para las 8 temporalidades (1m,5m,15m,1h,2h,4h,D,W);
-#   - cada botón de Replay invoca el método correcto del ReplayController
-#     (start/play/pause/step_forward/step_backward/fast_forward/exit) y
-#     dispara re-render;
-#   - cada toggle de overlay invoca overlay_manager->set_visible / liq->set_element_visible.
-#
-# REGLA (task 0004 / CONSTITUTION): aquí NO se reimplementa la lógica de
-# Replay (el truncado por replay_idx ya lo hace ChartEngine.sync_overlay_indicators
-# vía task 0015). Solo se cablea UI → controlador/motor y se pide re-render.
-# Tampoco se toca zoom/drag/crosshair de Fase 1.
-#
-# DEPENDENCIAS INYECTADAS:
-#   $chart  : instancia de Market::ChartEngine. Expone:
-#               set_timeframe($tf), request_render(), reset_view(),
-#               {replay_controller}, {overlay_manager}, {smc_overlay},
-#               {liq_overlay}, {market_data}.
-#   $mw     : MainWindow Tk (para `after`). En tests se pasa un mock cuyo
-#             `after($ms,$cb)` ejecuta $cb inmediatamente (o lo registra).
-#   $vars   : hashref con referencias a variables de estado compartidas:
-#               active_tf   => \$active_tf,
-#               replay_on   => \$replay_on   (bool pintado en la UI).
-# =============================================================================
+# Callbacks de la barra (TF, Replay, overlays), desacoplados de Tk.
+# Delegan al motor; no reimplementan lógica de Replay ni overlays.
 
-# Lista de temporalidades válidas (spec 0001). Orden de visualización en el
-# menú desplegable: del más fino al más grueso. Es la fuente de verdad del
-# Optionmenu de market.pl, así ni un TF se queda fuera por error.
+# Temporalidades del menú (orden fino → grueso).
 my @TIMEFRAMES = qw(1m 5m 15m 1h 2h 4h D W);
 
 # Etiquetas legibles para el menú desplegable (TF => texto humano).
@@ -68,14 +30,12 @@ sub tf_label {
     return $TF_LABEL{$tf};
 }
 
-# ----------------------------------------------------------------------------
 # Timeframe
-# ----------------------------------------------------------------------------
 
 # make_tf_callback($chart, $tf, $vars) — callback para seleccionar un TF.
-#   1. Llama a $chart->set_timeframe($tf) (recalcula ATR + overlays, reset vista).
-#   2. Sincroniza $vars->{active_tf} con el TF seleccionado (estado del menú).
-#   3. set_timeframe ya dispara reset_view → request_render; no duplicamos.
+# 1. Llama a $chart->set_timeframe($tf) (recalcula ATR + overlays, reset vista).
+# 2. Sincroniza $vars->{active_tf} con el TF seleccionado (estado del menú).
+# 3. set_timeframe ya dispara reset_view → request_render; no duplicamos.
 sub make_tf_callback {
     my ($class, $chart, $tf, $vars) = @_;
     die "make_tf_callback: requiere \$chart" unless $chart;
@@ -88,12 +48,10 @@ sub make_tf_callback {
     };
 }
 
-# ----------------------------------------------------------------------------
-# Replay (spec 0002). 7 controles del PDF.
-# IMPORTANTE: NO reimplementamos el truncado; el ReplayController +
-# ChartEngine.sync_overlay_indicators (task 0015) ya respetan replay_idx.
+# Replay. 7 controles del PDF.
+# NO reimplementamos el truncado; el ReplayController +
+# ChartEngine.sync_overlay_indicators ya respetan replay_idx.
 # Cada callback mueve el índice y pide re-render.
-# ----------------------------------------------------------------------------
 
 # _replay($chart) — acceso al ReplayController a través del ChartEngine.
 # Desacopla el callback del nombre interno del atributo.
@@ -102,7 +60,7 @@ sub _replay {
     return $chart->{replay_controller};
 }
 
-# _ui_mw($vars) — MainWindow Tk inyectado en ui_vars (task 0045 reschedule).
+# _ui_mw($vars) — MainWindow Tk inyectado en ui_vars ( reschedule).
 sub _ui_mw {
     my ($vars) = @_;
     return unless ref($vars) eq 'HASH';
@@ -119,7 +77,7 @@ sub _show_default_tab {
     return;
 }
 
-# _show_replay_tab / _hide_replay_menus — toolbar inline (task 0045 UX).
+# _show_replay_tab / _hide_replay_menus — toolbar inline ( UX).
 sub _show_replay_tab {
     my ($vars) = @_;
     if (ref($vars) eq 'HASH' && ref($vars->{show_replay_tab}) eq 'CODE') {
@@ -163,7 +121,7 @@ sub _hide_replay_panel {
     return;
 }
 
-# _sync_replay_ui_cleanup($chart, $vars) — task 0040: detiene Play, sale de Replay
+# _sync_replay_ui_cleanup($chart, $vars) — detiene Play, sale de Replay
 # y limpia selección; sincroniza vars UI (replay_on, replay_select_mode).
 sub _sync_replay_ui_cleanup {
     my ($chart, $vars) = @_;
@@ -186,7 +144,7 @@ sub _sync_replay_ui_cleanup {
     return;
 }
 
-# _sync_replay_play_icon — task 0046: triangulo vs barras pause en el boton play.
+# _sync_replay_play_icon — triangulo vs barras pause en el boton play.
 sub _sync_replay_play_icon {
     my ($chart, $vars) = @_;
     return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
@@ -198,7 +156,7 @@ sub _sync_replay_play_icon {
     return;
 }
 
-# _sync_replay_mark_button — task 0051: texto Mark: on/off tras toggle (boton o tecla M).
+# _sync_replay_mark_button — texto Mark: on/off tras toggle (boton o tecla M).
 sub _sync_replay_mark_button {
     my ($chart, $vars) = @_;
     return unless ref($vars) eq 'HASH' && $vars->{replay_panel};
@@ -210,7 +168,7 @@ sub _sync_replay_mark_button {
     return;
 }
 
-# _replay_begin($chart, $start_idx, $opts) — task 0040-B: encuadra vista y arranca replay.
+# _replay_begin($chart, $start_idx, $opts) — B: encuadra vista y arranca replay.
 # $opts->{anchor} => 1: ultima vela ~80% del plot (Select Bar estilo TradingView).
 sub _replay_begin {
     my ($chart, $start_idx, $opts) = @_;
@@ -226,7 +184,7 @@ sub _replay_begin {
     return $rc;
 }
 
-# _replay_start_index($chart) — índice inicial para Replay (task 0030).
+# _replay_start_index($chart) — índice inicial para Replay.
 # Si hay vela seleccionada: selected-1 (la seleccionada no cuenta).
 # Si no: last - visible_bars (comportamiento automático previo).
 sub _replay_start_index {
@@ -255,7 +213,7 @@ sub make_replay_start {
     };
 }
 
-# make_replay_activate($chart, $vars) — task 0043/0045: pestaña Replay = modo tijeras.
+# make_replay_activate($chart, $vars) — pestaña Replay = modo tijeras.
 # Si el replay ya está activo (vela elegida), solo muestra la barra de controles.
 # Si no, entra en Select Bar; la línea azul aparece al mover el cursor sobre el chart.
 sub make_replay_activate {
@@ -293,7 +251,7 @@ sub replay_confirm_bar_selection {
     return;
 }
 
-# _replay_goto_begin — arranca replay en $start_idx y sincroniza UI (task 0044).
+# _replay_goto_begin — arranca replay en $start_idx y sincroniza UI.
 sub _replay_goto_begin {
     my ($chart, $vars, $start_idx) = @_;
     return unless $chart && defined $start_idx;
@@ -314,7 +272,7 @@ sub make_replay_goto_menu_stub {
     return sub { };
 }
 
-# make_replay_goto_bar — modo selección manual (task 0044).
+# make_replay_goto_bar — modo selección manual.
 sub make_replay_goto_bar {
     my ($class, $chart, $vars) = @_;
     die "make_replay_goto_bar: requiere \$chart" unless $chart;
@@ -329,7 +287,7 @@ sub make_replay_goto_bar {
     };
 }
 
-# make_replay_goto_first — primera vela disponible (índice 0; task 0044).
+# make_replay_goto_first — primera vela disponible (índice 0; ).
 sub make_replay_goto_first {
     my ($class, $chart, $vars) = @_;
     die "make_replay_goto_first: requiere \$chart" unless $chart;
@@ -338,7 +296,7 @@ sub make_replay_goto_first {
     };
 }
 
-# make_replay_goto_random — vela aleatoria en [MIN_VISIBLE_BARS, last-1] (task 0044).
+# make_replay_goto_random — vela aleatoria en [MIN_VISIBLE_BARS, last-1].
 sub make_replay_goto_random {
     my ($class, $chart, $vars) = @_;
     die "make_replay_goto_random: requiere \$chart" unless $chart;
@@ -350,7 +308,7 @@ sub make_replay_goto_random {
     };
 }
 
-# _replay_date_prompt($mw) — Entry simple para Go-to Date (task 0044).
+# _replay_date_prompt($mw) — Entry simple para Go-to Date.
 sub _replay_date_prompt {
     my ($mw) = @_;
     return undef unless $mw && eval { $mw->exists };
@@ -377,7 +335,7 @@ sub _replay_date_prompt {
     return $result;
 }
 
-# make_replay_goto_date — salta a la vela más cercana a la fecha (task 0044).
+# make_replay_goto_date — salta a la vela más cercana a la fecha.
 # $prompt_fn opcional para tests headless (devuelve string de fecha o undef).
 sub make_replay_goto_date {
     my ($class, $chart, $mw, $vars, $prompt_fn) = @_;
@@ -405,7 +363,7 @@ sub make_replay_interval_menu_stub {
     return sub { };
 }
 
-# --- Intervalo de replay (task 0045) ---
+# Intervalo de replay
 
 sub chart_tf_minutes {
     my ($chart) = @_;
@@ -478,7 +436,7 @@ sub apply_replay_interval_selection {
     return $rc;
 }
 
-# make_replay_select_bar($chart, $vars) — activa/desactiva modo Select Bar (task 0030).
+# make_replay_select_bar($chart, $vars) — activa/desactiva modo Select Bar.
 sub make_replay_select_bar {
     my ($class, $chart, $vars) = @_;
     die "make_replay_select_bar: requiere \$chart" unless $chart;
@@ -492,7 +450,7 @@ sub make_replay_select_bar {
 }
 
 # make_replay_play($chart, $mw, $vars) — Play (interno; usar toggle en UI).
-# Autoplay con tick_ms() del ReplayController y advance_one_tick() (task 0041/0045).
+# Autoplay con tick_ms() del ReplayController y advance_one_tick() ().
 sub make_replay_play {
     my ($class, $chart, $mw, $vars) = @_;
     die "make_replay_play: requiere \$chart" unless $chart;
@@ -518,7 +476,7 @@ sub make_replay_play {
     };
 }
 
-# make_replay_toggle_play — task 0046: un boton alterna Play <-> Pause.
+# make_replay_toggle_play — un boton alterna Play <-> Pause.
 sub make_replay_toggle_play {
     my ($class, $chart, $mw, $vars) = @_;
     die "make_replay_toggle_play: requiere \$chart" unless $chart;
@@ -615,7 +573,7 @@ sub make_replay_pause {
     };
 }
 
-# make_replay_jump_real — task 0046/UX TV: >> muestra chart vivo y re-entra Select Bar.
+# make_replay_jump_real — TV: >> muestra chart vivo y re-entra Select Bar.
 # TradingView: al pulsar Jump to real-time se ven todas las velas y el modo tijeras
 # vuelve a activarse (como recien entrar en replay), sin salir de la pestaña Replay.
 sub make_replay_jump_real {
@@ -711,7 +669,7 @@ sub make_replay_exit {
     };
 }
 
-# make_replay_toggle_watermark — task 0051: flip marca "Replay" (boton Mark y tecla M).
+# make_replay_toggle_watermark — flip marca "Replay" (boton Mark y tecla M).
 sub make_replay_toggle_watermark {
     my ($class, $chart, $vars) = @_;
     die "make_replay_toggle_watermark: requiere \$chart" unless $chart;
@@ -726,11 +684,9 @@ sub make_replay_toggle_watermark {
     };
 }
 
-# ----------------------------------------------------------------------------
-# Overlays / Capas (spec 0003 / task 0003).
+# Overlays / Capas.
 # Cada toggle llama al OverlayManager o al overlay de liquidez. NO toca la
 # lógica del overlay; solo cambia visibilidad y pide re-render.
-# ----------------------------------------------------------------------------
 
 # make_overlay_toggle($chart, $name) — toggle de un overlay completo por nombre
 # de registro ('smc' o 'liq'). Recibe un bool ($on) desde el Checkbutton Tk
@@ -749,7 +705,7 @@ sub make_overlay_toggle {
     };
 }
 
-# make_vwap_toggle($chart) — capa Anchored VWAP estilo TradingView:
+# make_vwap_toggle($chart) — capa Anchored VWAP estilo TradingView
 # al activar sin ancla entra en modo "clic en vela"; al desactivar oculta la capa
 # (conserva ancla si ya se fijó, para re-mostrar sin re-elegir).
 sub make_vwap_toggle {
@@ -846,10 +802,10 @@ sub make_vp_settings_setter {
     };
 }
 
-# make_vwap_band_setter($chart) — aplica ajustes de bandas estilo TV Inputs:
-#   Bands Multiplier #1/#2/#3 (on/off + multiplicador).
-# Uso: $cb->(1, on => 1, mult => 1.0);  # banda 1
-#      $cb->(2, on => 0);               # solo apagar #2
+# make_vwap_band_setter($chart) — aplica ajustes de bandas estilo TV Inputs
+# Bands Multiplier #1/#2/#3 (on/off + multiplicador).
+# Uso: $cb->(1, on => 1, mult => 1.0); # banda 1
+# $cb->(2, on => 0); # solo apagar #2
 # Recalcula el indicador si hay ancla y pide re-render.
 sub make_vwap_band_setter {
     my ($class, $chart) = @_;
@@ -898,7 +854,7 @@ sub make_liq_element_toggle {
 # make_mxwll_element_toggle($chart, $element) — toggle de un elemento de la capa
 # Mxwll (STRUCTURE/SWINGS/OB/FVG/AOE/FIBS) via set_element_visible del overlay.
 # La visibilidad general de la capa Mxwll se controla aparte (make_overlay_toggle).
-# ORDEN 9 (task 0021 I): permite encender/apagar cada elemento por separado, igual
+# permite encender/apagar cada elemento por separado, igual
 # que ya se hace con los sub-elementos de Liquidez.
 sub make_mxwll_element_toggle {
     my ($class, $chart, $element) = @_;

@@ -7,7 +7,7 @@ use parent 'Market::UI::ReplayDropdown';
 
 use Market::UI::Callbacks;
 
-# Market::UI::ReplayIntervalMenu — dropdown UPDATE INTERVAL (task 0045).
+# Market::UI::ReplayIntervalMenu — dropdown UPDATE INTERVAL.
 
 sub interval_option_labels {
     return ('1 hour', '2 hours', '3 hours', '4 hours', '1 day');

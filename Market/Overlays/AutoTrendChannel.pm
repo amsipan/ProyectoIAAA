@@ -2,13 +2,8 @@ package Market::Overlays::AutoTrendChannel;
 use strict;
 use warnings;
 
-# =============================================================================
-# Market::Overlays::AutoTrendChannel — render de Trendline/Canal automáticos.
-#   Tag: ov_auto_tc
-#   Oral (Lumina 20-jul): UN canal activo que acompaña la última vela causal;
-#   al tomar liquidez DESAPARECE (“para no quedarse muchos canales”). Toques
-#   en riel inferior; superior variable; mediana punteada. Solo ACTIVE.
-# =============================================================================
+# Render de trendline/canal automáticos (tag ov_auto_tc).
+# Un canal activo hasta toma de liquidez; toques en riel inferior.
 
 sub new {
     my ( $class, %args ) = @_;

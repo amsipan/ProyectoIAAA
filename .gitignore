@@ -15,3 +15,7 @@ scratch/
 # Servidores MCP de agente (no forman parte de la app de charting)
 /mcps/
 
+
+# Empaque de entrega (no versionar binarios/zips grandes)
+/dist/
+

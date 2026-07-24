@@ -3,21 +3,18 @@ use strict;
 use warnings;
 
 # HLD — High/Low de vela HTF (profesor ~40:00–46:30). Sin Pine TV.
-#
-# Regla unificada (diario y 4h) — citas:
-#   «vela del pasado que apunta a ese precio»
-#   «más recién pasado en donde el precio está topando»
-#   «o de dos días o tres o cuatro»
-#   «4 horas … habrá más velas que considerar»  (= hay más barras en la serie,
-#    no “salta 6 y ve 26 días atrás”)
-#
-# Algoritmo:
-#   P = close(end)
-#   Diario: más reciente i con age>=1 y P en [low,high] (día anterior OK)
-#   4h: más reciente i con age>=4 (~16h) y P en [low,high]  — no solo la anterior
-#   Si no hay en rango: OHLC más cercano (con el mismo min age; fallback sin min)
-#   ATH → no HLD
-#
+# Regla unificada (diario y 4h) — citas
+# «vela del pasado que apunta a ese precio»
+# «más recién pasado en donde el precio está topando»
+# «o de dos días o tres o cuatro»
+# «4 horas … habrá más velas que considerar» (= hay más barras en la serie,
+# no “salta 6 y ve 26 días atrás”)
+# Algoritmo
+# P = close(end)
+# Diario: más reciente i con age>=1 y P en [low,high] (día anterior OK)
+# 4h: más reciente i con age>=4 (~16h) y P en [low,high] — no solo la anterior
+# Si no hay en rango: OHLC más cercano (con el mismo min age; fallback sin min)
+# ATH → no HLD
 # Ventana preferente (~4 días del profe) dentro de la cual se elige la más reciente
 # que cumpla min_age; si no hay, se abre a todo el pasado (con min_age).
 

@@ -177,7 +177,7 @@ sub draw {
     );
     my $hist_on = $self->is_element_visible('HISTORY');
 
-    # --- Niveles ---
+    # Niveles
     my @level_draw;
     for my $lv ( @{ $r->{levels} || [] } ) {
         my $kind = uc( $lv->{kind} // '' );
@@ -301,7 +301,7 @@ sub draw {
         $n_lbl++;
     }
 
-    # --- Eventos resueltos (marcadores) ---
+    # Eventos resueltos (marcadores)
     my @events =
       grep {
              defined $_->{resolve_index}

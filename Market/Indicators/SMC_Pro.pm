@@ -2,21 +2,7 @@ package Market::Indicators::SMC_Pro;
 use strict;
 use warnings;
 
-# =============================================================================
-# Market::Indicators::SMC_Pro — paridad Smart Money Concepts Pro [Neon]
-# =============================================================================
-# Referencia: docs/reference_indicators/smc_pro_neon.txt (+ luxalgo_smc.txt)
-# Config canónica: captura del profesor (NO defaults Pine si chocan).
-#
-# Defaults captura + TV Bryan:
-#   internal size=5, swing length=50, swing labels ON, strong/weak ON
-#   internal structure ON, swing structure ON
-#   internal OB ON + swing OB ON count=5 (demo profe; Neon Int ON/Swing OFF),
-#   ATR filter (parsed HVOL), mit High/Low con reducción gradual (no solo binario Neon)
-#   EQH/EQL ON bars=3 thr=0.1*ATR(200)
-#   FVG Pro OFF; MTF Daily/Weekly/Monthly OFF (TV Bryan; profe viejo ON)
-# Pine indicator(): max_labels_count=500, max_lines_count=500, max_boxes_count=500
-# =============================================================================
+# Smart Money Concepts Pro (cálculo). Estructura interna/swing, OB, EQH/EQL.
 
 use constant {
     BULLISH_LEG => 1,
@@ -31,7 +17,7 @@ use constant {
 sub new {
     my ($class, %opts) = @_;
     my $self = {
-        # --- captura ---
+        # captura
         display_mode        => $opts{display_mode} // 'Historical',
         show_swing_labels   => exists $opts{show_swing_labels} ? ($opts{show_swing_labels} ? 1 : 0) : 1,
         show_strong_weak    => exists $opts{show_strong_weak} ? ($opts{show_strong_weak} ? 1 : 0) : 1,
@@ -114,7 +100,7 @@ sub _push_capped {
 
 # Presupuesto compartido de LÍNEAS (eventos BOS/CHoCH + EQ) = max_lines_count.
 # Las etiquetas de pivote van en MAX_LABELS por separado.
-# Recorte estable (shift del más antiguo). NO usar merge+sort sobre el buffer:
+# Recorte estable (shift del más antiguo). NO usar merge+sort sobre el buffer
 # reventaba Tk ("Not a HASH reference") en series largas y abortaba el draw.
 sub _push_line_item {
     my ($self, $arr_key, $item) = @_;
@@ -221,7 +207,7 @@ sub update_last {
     return;
 }
 
-# --- ATR ---
+# ATR
 sub _update_atr {
     my ($self, $i, $h, $l, $c) = @_;
     my $p = $self->{atr_len};
@@ -280,8 +266,8 @@ sub _lowest {
 }
 
 # leg(size) at bar i: pivot candidate at i-size (LuxAlgo/Neon).
-# newHigh: high[i-size] > max(high[i-size+1 .. i])  → start of bearish leg (pivot high)
-# newLow:  low[i-size]  < min(low[i-size+1 .. i])   → start of bullish leg (pivot low)
+# newHigh: high[i-size] > max(high[i-size+1.. i]) → start of bearish leg (pivot high)
+# newLow: low[i-size] < min(low[i-size+1.. i]) → start of bullish leg (pivot low)
 # Only emits when leg state *changes* (ta.change != 0).
 # Pine: var legState = 0 (BEARISH). Primer newHigh es 0→0 → sin pivote.
 sub _leg_at {
@@ -397,7 +383,7 @@ sub _get_current_structure {
             $self->{_trail_top_bar} = $pivot_i;
             my $prev_lvl = $p->{last};
             if ($self->{show_swing_labels}) {
-                # Pine: current > last ? HH : LH; con last=na la comp. es falsa → LH
+                # Pine: current > last ? HH: LH; con last=na la comp. es falsa → LH
                 my $label = (defined $prev_lvl && $price > $prev_lvl) ? 'HH' : 'LH';
                 $self->_push_capped('_pivots', {
                     index => $pivot_i, type => $label, price => $price, scope => 'swing',
@@ -540,13 +526,13 @@ sub _store_order_block {
     my $from = $pivot->{bar};
     return unless defined $from && defined $i;
 
-    # Pine storeOrderBlock (Neon / LuxAlgo):
-    #   arr := parsedLows.slice(p.barIndex, bar_index)   # end EXCLUSIVO
-    #   idx := p.barIndex + arr.indexof(arr.min())       # PRIMERA ocurrencia
-    #   ob  := parsedHighs/Lows de esa barra
+    # Pine storeOrderBlock (Neon / LuxAlgo)
+    # arr:= parsedLows.slice(p.barIndex, bar_index) # end EXCLUSIVO
+    # idx:= p.barIndex + arr.indexof(arr.min()) # PRIMERA ocurrencia
+    # ob:= parsedHighs/Lows de esa barra
     # OB Volatility Filter = ATR → highVolatilityBar = (H-L) >= 2*ATR
-    #   parsedHigh = HVOL ? low  : high
-    #   parsedLow  = HVOL ? high : low
+    # parsedHigh = HVOL ? low: high
+    # parsedLow = HVOL ? high: low
     # (_update_parsed rellena _ph/_pl). NO usar raw H/L: rompería paridad source.
     my $to = $i - 1;
     return if $to < $from;
@@ -600,10 +586,10 @@ sub _mitigate_order_blocks {
     my $h = $self->{_h}[$i];
     my $l = $self->{_l}[$i];
     return unless defined $h && defined $l;
-    # Mitigación gradual + escalón (pedido profe / capturas TV):
-    #   - hi/lo = zona RESTANTE (tramo izquierdo, "delgado").
-    #   - orig_hi/orig_lo = zona ORIGINAL (tramo derecho, "grueso").
-    #   - last_mitig_index = donde se corta el escalón.
+    # Mitigación gradual + escalón (pedido profe / capturas TV)
+    # hi/lo = zona RESTANTE (tramo izquierdo, "delgado").
+    # orig_hi/orig_lo = zona ORIGINAL (tramo derecho, "grueso").
+    # last_mitig_index = donde se corta el escalón.
     # Neon source es binario; aquí la geometría sigue las capturas del curso.
     my @keep;
     for my $ob (@{ $self->{_obs} }) {
@@ -753,7 +739,7 @@ sub _update_mtf_levels {
     $self->{_mtf_levels} = \@levels;
 }
 
-# --- Public getters (non-mutating) ---
+# Public getters (non-mutating)
 
 sub get_pivots {
     my ($self) = @_;

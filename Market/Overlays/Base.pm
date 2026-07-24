@@ -2,25 +2,8 @@ package Market::Overlays::Base;
 use strict;
 use warnings;
 
-# Market::Overlays::Base — contrato base para todos los overlays de Fase 2.
-#
-# Cada overlay vive en Market::Overlays/<Nombre>.pm y consume un indicador de
-# cálculo de Market::Indicators/<Nombre>.pm (separación cálculo/render).
-#
-# Contrato uniforme:
-#   new(%args)         — recibe canvas, tema, etc.
-#   set_visible($bool) — activa/desactiva el overlay.
-#   is_visible         — bool.
-#   compute_visible($market_data, $indicator, $start, $end) — prepara datos
-#                       solo de la ventana visible + contexto. NO recorre todo
-#                       el historial (regla de rendimiento PDF §2).
-#   draw($canvas, $scales) — dibuja en el Canvas usando Scales.
-#   clear($canvas)     — borra sus ítems del Canvas (tags propios).
-#   tag                — retorna el tag de Canvas namespaced del overlay.
-#
-# Esta clase es una convención/rol, no una clase base con herencia.
-# Cada overlay implementa estos métodos directamente. Este módulo documenta
-# el contrato y provee un helper de validación.
+# Contrato base de overlays (visible / compute / draw).
+# validate() comprueba que el objeto implemente la interfaz.
 
 sub validate {
     my ($class, $overlay) = @_;

@@ -2,22 +2,18 @@ package Market::Indicators::SMC_Structures_FVG;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Indicators::SMC_Structures_FVG — paridad "SMC Structures and FVG"
-# =============================================================================
-# Source: docs/reference_indicators/smc_structures_and_fvg_ludogh68.txt (LudoGH68)
-#
-# Config canónica = captura del profesor (NO defaults Pine si chocan):
-#   Display FVG ON, Reduce mitigated ON, Number of FVG = 5
-#   Break with body OFF, Display current structure OFF
-#   BOS gray / CHoCH bull green / bear red, width 1
-#   Number of breaks = 10, all Structure Fibonacci OFF
-# =============================================================================
+# Source:(LudoGH68)
+# Config canónica = captura del profesor (NO defaults Pine si chocan)
+# Display FVG ON, Reduce mitigated ON, Number of FVG = 5
+# Break with body OFF, Display current structure OFF
+# BOS gray / CHoCH bull green / bear red, width 1
+# Number of breaks = 10, all Structure Fibonacci OFF
 
 sub new {
     my ($class, %opts) = @_;
     my $self = {
-        # --- captura profe ---
+        # captura profe
         show_fvg             => exists $opts{show_fvg} ? ($opts{show_fvg} ? 1 : 0) : 1,
         reduce_mitigated_fvg => exists $opts{reduce_mitigated_fvg}
             ? ($opts{reduce_mitigated_fvg} ? 1 : 0) : 1,
@@ -88,10 +84,8 @@ sub update_last {
     return;
 }
 
-# -----------------------------------------------------------------------------
 # FVG — LudoGH: isBullishFVG = high[3] < low[1]; isBearishFVG = low[3] > high[1]
 # box left=bar-2, right starts at bar-1, extends to current; max fvg_history
-# -----------------------------------------------------------------------------
 sub _process_fvg {
     my ($self, $i) = @_;
     return if $i < 3;
@@ -188,11 +182,9 @@ sub _trim_fvgs {
     }
 }
 
-# -----------------------------------------------------------------------------
 # Structure helpers — port of get_structure_highest/lowest_bar + highestbars
-# Offsets are relative to current bar i (0 = current, -1 = prev, ...).
+# Offsets are relative to current bar i (0 = current, -1 = prev,...).
 # Absolute bar = i + offset.
-# -----------------------------------------------------------------------------
 sub _highestbars_offset {
     my ($self, $i, $length) = @_;
     return 0 if $length < 1 || $i < 0;
@@ -291,9 +283,7 @@ sub _break_price {
     return $side eq 'high' ? $self->{_h}[$i] : $self->{_l}[$i];
 }
 
-# -----------------------------------------------------------------------------
 # Structure processing — full LudoGH break conditions
-# -----------------------------------------------------------------------------
 sub _process_structure {
     my ($self, $i) = @_;
     return if $i < 0;
@@ -449,7 +439,7 @@ sub _push_break {
     }
 }
 
-# --- Public getters ---
+# Public getters
 
 sub get_events {
     my ($self) = @_;

@@ -2,11 +2,9 @@ package Market::Overlays::TrendLine;
 use strict;
 use warnings;
 
-# =============================================================================
 # Render de TrendLine (drawing tool TV). Tag: draw_trend.
 # Dibuja todas las líneas colocadas + handles arrastrables en cada extremo +
 # preview del draft (1.er punto y línea elástica al 2.º clic).
-# =============================================================================
 
 sub new {
     my ( $class, %args ) = @_;

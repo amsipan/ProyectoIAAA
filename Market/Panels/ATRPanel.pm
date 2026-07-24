@@ -92,7 +92,7 @@ sub render {
     $scale->_draw_y_scale($canvas);
     $canvas->lower('y_grid');
 
-    # spec 0000i: overscan. draw_start_offset permite índices locales negativos.
+    # overscan. draw_start_offset permite índices locales negativos.
     my $draw_offset = $scale->{draw_start_offset} || 0;
     my $visible_count = $scale->{visible_count} || scalar(@$visible_values);
 

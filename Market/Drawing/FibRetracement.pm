@@ -2,12 +2,10 @@ package Market::Drawing::FibRetracement;
 use strict;
 use warnings;
 
-# =============================================================================
 # Fib Retracement — clone herramienta nativa TradingView
 # 2 anclas: p1 = nivel 1 (1.er clic), p2 = nivel 0 (2.º clic).
 # price(level) = p2.price + level * (p1.price - p2.price)
 # extend_to_last: proyecta la caja hasta la última vela (data_end), no infinito.
-# =============================================================================
 
 my @DEFAULT_LEVELS = (
     { ratio => 0,     color => '#787b86', fill => '#b2b5be' },
@@ -272,11 +270,11 @@ sub last_consolidated_zz_segment {
 }
 
 # last_impulse_zz_segment_for_fib(\@segs) — impulso para Fib ZZ ext.
-# Regla simple (producto):
-#   - Última pierna consolidada UP → anclar ahí.
-#   - Si la última cerrada es DOWN → devolver la UP consolidada previa
-#     (el follow no cambia de firma → se mantiene el Fib anterior).
-#   - Nunca el tramo vivo. Sin Fib en bajadas (el retroceso no ancla).
+# Regla simple (producto)
+# Última pierna consolidada UP → anclar ahí.
+# Si la última cerrada es DOWN → devolver la UP consolidada previa
+# (el follow no cambia de firma → se mantiene el Fib anterior).
+# Nunca el tramo vivo. Sin Fib en bajadas (el retroceso no ancla).
 sub last_impulse_zz_segment_for_fib {
     my ( $class_or_self, $segs ) = @_;
     return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;

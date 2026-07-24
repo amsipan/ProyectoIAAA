@@ -2,18 +2,15 @@ package Market::Indicators::AnchoredVWAP;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Indicators::AnchoredVWAP
-#
-# Anchored VWAP estilo TradingView (drawing tool):
-#   - El usuario fija una vela de ancla (anchor_idx).
-#   - Desde esa vela en adelante: VWAP acumulado ponderado por volumen.
-#   - Source por defecto: HLC3 = (H+L+C)/3 (como la imagen Anchored_VWAP.jpg de TV).
-#   - Bandas de desviación estándar (modo Standard):
-#       variance = E[p²] - VWAP² (ponderado por vol)
-#       upper/lower = VWAP ± mult * stdev
-#   - Multiplicadores #1/#2/#3 (TV defaults según imagen: 1 y 2 activadas, 3 desactivada).
-# =============================================================================
+# Anchored VWAP estilo TradingView (drawing tool)
+# El usuario fija una vela de ancla (anchor_idx).
+# Desde esa vela en adelante: VWAP acumulado ponderado por volumen.
+# Source por defecto: HLC3 = (H+L+C)/3 (como la imagen Anchored_VWAP.jpg de TV).
+# Bandas de desviación estándar (modo Standard)
+# variance = E[p²] - VWAP² (ponderado por vol)
+# upper/lower = VWAP ± mult * stdev
+# Multiplicadores #1/#2/#3 (TV defaults según imagen: 1 y 2 activadas, 3 desactivada).
 
 sub new {
     my ($class, %opts) = @_;

@@ -2,8 +2,7 @@ package Market::OverlayManager;
 use strict;
 use warnings;
 
-# Market::OverlayManager — registro de overlays (spec 0003).
-#
+# Market::OverlayManager — registro de overlays.
 # Registra overlays por nombre, itera los activos, delega draw/clear.
 # ChartEngine lo invoca en render() tras dibujar paneles, respetando replay_idx.
 

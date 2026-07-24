@@ -2,13 +2,11 @@ package Market::Overlays::ZigZag;
 use strict;
 use warnings;
 
-# =============================================================================
 # Market::Overlays::ZigZag — render ZZ
-#   INTERNAL = ZZMTF (verde/rojo)
-#   EXTERNAL = ChartPrime (azul)
-#   CHANNEL  = OFF
+# INTERNAL = ZZMTF (verde/rojo)
+# EXTERNAL = ChartPrime (azul)
+# CHANNEL = OFF
 # Fib = herramienta Drawing::FibRetracement (no este overlay).
-# =============================================================================
 
 my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
 
@@ -102,14 +100,12 @@ sub _seg_span {
 
 # _filter_segments_continuous_by_element_density($elem, $items) — devuelve los
 # segmentos a dibujar, ordenados por índice.
-#
 # IMPORTANTE (bug de "líneas cortadas"): el zigzag es una CADENA CONTINUA — el
 # to_index/to_price de cada segmento es el from del siguiente. Quitar segmentos
 # intermedios (por densidad, recencia o span) ROMPE la línea y deja huecos entre
 # las piernas verde/roja. Por eso aquí NO se recorta la cadena: se dibujan todos
 # los segmentos visibles. El decluttering del zigzag ya lo controla la RESOLUCIÓN
 # MTF (15m/30m/60m), no la densidad. Con pct=0 el elemento se oculta por completo.
-#
 # Esto es además 100% independiente del zoom: la misma cadena en cualquier vista.
 sub _filter_segments_continuous_by_element_density {
     my ($self, $elem, $items) = @_;

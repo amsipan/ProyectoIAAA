@@ -3,43 +3,34 @@ use strict;
 use warnings;
 use Time::Local qw(timegm);
 
-# =============================================================================
 # Market::Indicators::VolumeProfile2 — AVP v2 (paridad TradingView calibrada)
-#
-# Versión corregida de Market::Indicators::VolumeProfile (misma API pública:
-# new/reset/set_anchor/clear_anchor/set_row_size/set_value_area_pct/
+# Versión corregida de Market::Indicators::VolumeProfile (misma API pública
+# new/reset/set_anchor/clear_anchor/set_row_size/set_value_area_pct
 # set_volume_mode/update_last/compute/get_values) — intercambiable en
 # ChartEngine cambiando la clase instanciada.
-#
 # Diferencias matemáticas vs v1 (calibradas contra 5 anclas GT de TradingView
-# en NQ1! 15m; ver scratch/calibrate3.py):
-#
-#   1. REJILLA ALINEADA AL TICK: step = ceil( ((max-min)/row_size) / tick ) * tick
-#      (v1 usaba (max-min)/row_size flotante). Origen en min de la ventana.
-#      n_rows = ceil((max-min)/step)  (típicamente < row_size; p.ej. 974).
-#
-#   2. VOLUMEN LTF (lower timeframe): TradingView calcula el AVP con barras
-#      1m, no con las velas del chart 15m. v2 carga CSVs 1m (ltf_dir/ltf_files):
-#        - con columna Volume  -> volumen real;
-#        - sin columna Volume  -> volumen estimado (modelo 'slotrange':
-#          promedio por minuto-del-día medido en la data real × rango relativo).
-#      Cada barra LTF reparte su volumen a partes iguales entre las filas que
-#      su [low,high] toca (share = vol/n_tocadas). Up/Down: close>=open => up.
-#      Barras del chart sin cobertura LTF aportan su volumen si > 0; si no hay
-#      ningún volumen -> fallback v=1 por barra (renderiza como v1).
-#
-#   3. POC = fila de mayor volumen (empate => primera/más baja). Precio POC =
-#      punto MEDIO de la fila redondeado al tick (v1 reportaba mid sin ajustar
-#      rejilla).
-#
-#   4. VALUE AREA 70% (algoritmo documentado por TV): desde el POC, comparar
-#      SUMA de las 2 filas superiores vs SUMA de las 2 inferiores; se agrega
-#      el PAR ganador completo (en borde, la fila disponible). Empate => sube.
-#      VAH = hi de la fila superior del VA; VAL = lo de la fila inferior.
-#      (v1 agregaba de a 1 y cortaba a mitad de par => desplazaba VAH/VAL.)
-#
+# en NQ1! 15m; ver scratch/calibrate3.py)
+# 1. REJILLA ALINEADA AL TICK: step = ceil( ((max-min)/row_size) / tick ) * tick
+# (v1 usaba (max-min)/row_size flotante). Origen en min de la ventana.
+# n_rows = ceil((max-min)/step) (típicamente < row_size; p.ej. 974).
+# 2. VOLUMEN LTF (lower timeframe): TradingView calcula el AVP con barras
+# 1m, no con las velas del chart 15m. v2 carga CSVs 1m (ltf_dir/ltf_files)
+# con columna Volume -> volumen real;
+# sin columna Volume -> volumen estimado (modelo 'slotrange'
+# promedio por minuto-del-día medido en la data real × rango relativo).
+# Cada barra LTF reparte su volumen a partes iguales entre las filas que
+# su [low,high] toca (share = vol/n_tocadas). Up/Down: close>=open => up.
+# Barras del chart sin cobertura LTF aportan su volumen si > 0; si no hay
+# ningún volumen -> fallback v=1 por barra (renderiza como v1).
+# 3. POC = fila de mayor volumen (empate => primera/más baja). Precio POC =
+# punto MEDIO de la fila redondeado al tick (v1 reportaba mid sin ajustar
+# rejilla).
+# 4. VALUE AREA 70% (algoritmo documentado por TV): desde el POC, comparar
+# SUMA de las 2 filas superiores vs SUMA de las 2 inferiores; se agrega
+# el PAR ganador completo (en borde, la fila disponible). Empate => sube.
+# VAH = hi de la fila superior del VA; VAL = lo de la fila inferior.
+# (v1 agregaba de a 1 y cortaba a mitad de par => desplazaba VAH/VAL.)
 # Optimización igual que v1: lazy (_dirty), update_last O(1), LTF cacheado.
-# =============================================================================
 
 sub new {
     my ($class, %opts) = @_;
@@ -200,9 +191,7 @@ sub get_values {
     return $self->{_profile};
 }
 
-# ---------------------------------------------------------------------------
 # Utilidades de tiempo y rejilla
-# ---------------------------------------------------------------------------
 sub _iso_epoch {
     my ($s) = @_;
     return undef unless defined $s;
@@ -291,7 +280,6 @@ sub _ensure_ltf_loaded {
 }
 
 
-# ---------------------------------------------------------------------------
 sub _recalculate_profile {
     my ($self) = @_;
     my $anchor = $self->{anchor_idx};
@@ -300,7 +288,7 @@ sub _recalculate_profile {
     return unless defined $anchor && $end >= 0;
     return if $anchor > $end;
 
-    # 1) Rango de la ventana [ancla .. fin] sobre barras del chart
+    # 1) Rango de la ventana [ancla.. fin] sobre barras del chart
     my $min_p = 1e300;
     my $max_p = -1e300;
     for my $i ($anchor .. $end) {
@@ -365,8 +353,8 @@ sub _recalculate_profile {
     };
 
     if (@$ltf) {
-        # 3a) Barras del chart NO cubiertas por ninguna barra LTF (huecos):
-        #     aportan su volumen propio si > 0, si no, volumen estimado.
+        # 3a) Barras del chart NO cubiertas por ninguna barra LTF (huecos)
+        # aportan su volumen propio si > 0, si no, volumen estimado.
         my $jj = 0;
         $jj++ while $jj < @$ltf && $ltf->[$jj][0] < $t0;
         for my $i ($anchor .. $end) {

@@ -3,17 +3,14 @@ use strict;
 use warnings;
 use parent 'Market::Overlays::Base';
 
-# =============================================================================
 # Market::Overlays::VolumeProfile — Anchored Volume Profile (AVP render)
-#
-# Renderizado estilo TradingView AVP (captura profe Anchored_Volume_Profile.jpg):
-#   - Caja de rango ancla -> última vela (fondo sutil)
-#   - Histograma horizontal a la DERECHA (width: 30% del plot)
-#   - Value Area Up/Down en Cyan (#4DD0E1)
-#   - Up Volume exterior en Verde (#81C784), Down Volume exterior en Rojo (#E57373)
-#   - Líneas negras sólidas para VAH, VAL y POC
-#   - Mantiene capas por detrás de las velas (lower bajo tag 'candle')
-# =============================================================================
+# Renderizado estilo TradingView AVP (captura profe Anchored_Volume_Profile.jpg)
+# Caja de rango ancla -> última vela (fondo sutil)
+# Histograma horizontal a la DERECHA (width: 30% del plot)
+# Value Area Up/Down en Cyan (#4DD0E1)
+# Up Volume exterior en Verde (#81C784), Down Volume exterior en Rojo (#E57373)
+# Líneas negras sólidas para VAH, VAL y POC
+# Mantiene capas por detrás de las velas (lower bajo tag 'candle')
 
 sub new {
     my ($class, %args) = @_;

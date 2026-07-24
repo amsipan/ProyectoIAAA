@@ -31,11 +31,11 @@ use Market::Overlays::PivotPointsHL;
 use Market::Indicators::AutoTrendChannel;
 use Market::Overlays::AutoTrendChannel;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
-#   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
-#                       son canvases separados, así que debe ser 0.
-#   MIN_VISIBLE_BARS => mínimo de velas visibles en la ventana (Req. 8, 10)
-#   ZOOM_STEP        => barras por paso de rueda en el zoom horizontal
-#   TIME_AXIS_DRAG_PX_PER_BAR => sensibilidad del drag horizontal del eje temporal
+# RIGHT_MARGIN => margen interno derecho del área de ploteo. Los ejes ahora
+# son canvases separados, así que debe ser 0.
+# MIN_VISIBLE_BARS => mínimo de velas visibles en la ventana (Req. 8, 10)
+# ZOOM_STEP => barras por paso de rueda en el zoom horizontal
+# TIME_AXIS_DRAG_PX_PER_BAR => sensibilidad del drag horizontal del eje temporal
 use constant {
     RIGHT_MARGIN     => 0,
     MIN_VISIBLE_BARS => 2,
@@ -49,7 +49,7 @@ use constant {
     # hueco fijo 20% del ancho (px), independiente del zoom en barras.
     REPLAY_BAR_ANCHOR_FRAC => 0.80,
     REPLAY_RIGHT_GAP_FRAC  => 0.20,
-    # task 0053: tijera Select Bar (glyph unicode; linea/velo siguen azules).
+    # tijera Select Bar (glyph unicode; linea/velo siguen azules).
     REPLAY_SELECT_SCISSOR_FONT => 'Helvetica 22',
     REPLAY_SELECT_SCISSOR_FILL => 'black',
 };
@@ -145,15 +145,15 @@ sub new {
         theme  => $self->{theme},
     );
 
-    # spec 0002: ReplayController — índice-tope para Replay.
+    # ReplayController — índice-tope para Replay.
     $self->{replay_controller} = Market::ReplayController->new(
         market_data => $self->{market_data},
     );
 
-    # spec 0003: OverlayManager — registro de overlays.
+    # OverlayManager — registro de overlays.
     $self->{overlay_manager} = Market::OverlayManager->new();
 
-    # spec 0013: SMC Pro [Neon] + Structures/FVG (LudoGH) — config capturas profe.
+    # SMC Pro [Neon] + Structures/FVG (LudoGH) — config capturas profe.
     # Reemplaza el híbrido SMC_Structures + Mxwll como verdad de estructura.
     $self->{smc_pro_indicator} = Market::Indicators::SMC_Pro->new();
     $self->{smc_pro_overlay} = Market::Overlays::SMC_Pro->new(
@@ -178,10 +178,7 @@ sub new {
     $self->{overlay_manager}->register('smc_fvg', $self->{smc_fvg_overlay});
     $self->{_smc_fvg_fed_up_to} = -1;
 
-    # --- PRODUCTO OFICIAL (docs/PRODUCTO_OFICIAL.md) ---
-    # smc_pro, smc_fvg, hld, pchan, zigzag, fib, liq (Liquidity v2).
-    # Legacy (Mxwll/Strategy/VP/VWAP/SMC_Structures viejo + Liquidity v1):
-    #   FUERA del repo — docs/LEGACY.md
+    # Capas: smc_pro, smc_fvg, hld, pchan, zigzag, fib, liq.
 
     # HLD — soporte/resistencia de vela 4h|D (algoritmo profe; sin Pine TV)
     $self->{hld_indicator} = Market::Indicators::HLD->new();
@@ -409,28 +406,25 @@ sub compute_window {
 }
 
 # _replay_window($visible) — geometria del viewport durante Replay.
-#
 # MODELO ROBUSTO (unica fuente de verdad = replay_view_end, indice LOGICO
 # absoluto del borde derecho del viewport). Reemplaza el antiguo trio en
-# conflicto (follow_replay_head / offset / frozen) que provocaba que:
-#   - tras pausar+interactuar+play todo el grafico se desplazara cada tick,
-#   - un zoom-out dejara el estado inconsistente de forma permanente,
-#   - al retroceder el head se alejara fuera de pantalla.
-#
+# conflicto (follow_replay_head / offset / frozen) que provocaba que
+# tras pausar+interactuar+play todo el grafico se desplazara cada tick,
+# un zoom-out dejara el estado inconsistente de forma permanente,
+# al retroceder el head se alejara fuera de pantalla.
 # Reglas (con replay_view_end definido, que es SIEMPRE en la app real porque
-# frame_replay_view_at lo fija al encuadrar):
-#   * AUTO-SCROLL POR DETECCION DE BORDE: la vista solo se desplaza cuando el
-#     head estaba EXACTAMENTE en el borde derecho y avanzo (via
-#     replay_prev_causal_end). Mientras haya hueco (view_end > causal_end) la
-#     ventana queda FIJA y las velas nuevas rellenan el hueco SIN mover nada.
-#     Tras panear/zoomear (view_end deja de coincidir con el borde), un nuevo
-#     Play NO arrastra el grafico: las velas quedan estaticas. Esto elimina la
-#     necesidad de flags de modo (no hay follow/frozen/offset en conflicto).
-#   * Clamp min-visible SIEMPRE: al retroceder (step_backward) se conservan al
-#     menos MIN_VISIBLE_BARS velas reales en pantalla; la vista se desplaza con
-#     el head en lugar de dejarlo escapar del marco.
-#   * Clamp izquierda: no se permite hueco en blanco a la izquierda (start >= 0).
-#
+# frame_replay_view_at lo fija al encuadrar)
+# * AUTO-SCROLL POR DETECCION DE BORDE: la vista solo se desplaza cuando el
+# head estaba EXACTAMENTE en el borde derecho y avanzo (via
+# replay_prev_causal_end). Mientras haya hueco (view_end > causal_end) la
+# ventana queda FIJA y las velas nuevas rellenan el hueco SIN mover nada.
+# Tras panear/zoomear (view_end deja de coincidir con el borde), un nuevo
+# Play NO arrastra el grafico: las velas quedan estaticas. Esto elimina la
+# necesidad de flags de modo (no hay follow/frozen/offset en conflicto).
+# * Clamp min-visible SIEMPRE: al retroceder (step_backward) se conservan al
+# menos MIN_VISIBLE_BARS velas reales en pantalla; la vista se desplaza con
+# el head en lugar de dejarlo escapar del marco.
+# * Clamp izquierda: no se permite hueco en blanco a la izquierda (start >= 0).
 # Ramas legacy (replay_view_end indefinido) solo para pruebas unitarias que
 # construyen el ChartEngine a mano (t/38): reproducen el comportamiento previo.
 sub _replay_window {
@@ -445,7 +439,7 @@ sub _replay_window {
         # AUTO-SCROLL POR DETECCION DE BORDE (sin flags fragiles): la vista solo
         # se desplaza cuando el head estaba EXACTAMENTE en el borde derecho y
         # avanzo. Asi, tras panear (view_end deja de coincidir con el borde) o
-        # tras pausar/interactuar, un nuevo Play NO arrastra todo el grafico:
+        # tras pausar/interactuar, un nuevo Play NO arrastra todo el grafico
         # las velas quedan estaticas y las nuevas rellenan el hueco. El head solo
         # "empuja" el borde cuando ya lo habia alcanzado (fase de scroll continuo).
         my $prev = $self->{replay_prev_causal_end};
@@ -475,7 +469,7 @@ sub _replay_window {
         return ($view_end - $visible + 1, $view_end);
     }
 
-    # --- legacy (solo tests que construyen el ChartEngine a mano, p.ej. t/38) ---
+    # legacy (solo tests que construyen el ChartEngine a mano, p.ej. t/38)
     if ($self->{follow_replay_head}) {
         my $blank = $self->_replay_blank_slots($visible);
         my $view_end = $causal_end + $blank;
@@ -509,10 +503,10 @@ sub _causal_slice {
     return $slice;
 }
 
-# sync_overlay_indicators — task 0015 (producto oficial).
+# sync_overlay_indicators — (Producto).
 # Alimenta indicadores oficiales hasta el tope de Replay (sin futuro).
-#   * Replay ACTIVO   → feed_to = replay_idx
-#   * Replay INACTIVO → feed_to = size()-1
+# * Replay ACTIVO → feed_to = replay_idx
+# * Replay INACTIVO → feed_to = size()-1
 # Bajo demanda: solo capas visibles (smc_pro, smc_fvg, zigzag, …).
 sub sync_overlay_indicators {
     my ($self) = @_;
@@ -528,7 +522,7 @@ sub sync_overlay_indicators {
         $feed_to = $last_idx;
     }
 
-    # Solo producto oficial.
+    # Solo Producto.
     my $smc_wants_feed = $self->_any_named_overlay_wants(qw(smc_pro smc)) ? 1 : 0;
     my $smc_fvg_wants_feed = $self->_overlay_wants_feed('smc_fvg') ? 1 : 0;
     if ($smc_wants_feed) {
@@ -765,7 +759,7 @@ sub _collect_liquidity_pivots {
     return @out ? \@out : undef;
 }
 
-# compute_run_candle_map — task 0058: índices globales de velas RUN relevantes
+# compute_run_candle_map — índices globales de velas RUN relevantes
 # para recoloreo en PricePanel. Respeta toggle RUN del overlay y replay_idx.
 # Público para tests headless (mismo patrón que sync_overlay_indicators).
 sub _prepare_run_candle_map_for_frame {
@@ -837,7 +831,7 @@ sub set_zigzag_layer {
     return $self;
 }
 
-# _overlay_wants_feed($name) — true si el indicador asociado debe alimentarse:
+# _overlay_wants_feed($name) — true si el indicador asociado debe alimentarse
 # cuando su overlay está visible, o cuando no hay overlay registrado (tests).
 sub _overlay_wants_feed {
     my ($self, $name) = @_;
@@ -868,10 +862,10 @@ sub _any_named_overlay_wants {
 
 
 # _feed_indicator_to($indicator, $cursor_key, $feed_to)
-# task 0015: lleva un indicador incremental exactamente al índice $feed_to,
+# lleva un indicador incremental exactamente al índice $feed_to,
 # respetando el cursor $self->{$cursor_key} (último índice ya alimentado).
-#   * Avance (feed_to > cursor): update_last de cursor+1 .. feed_to.
-#   * Retroceso (feed_to < cursor): reset() + realimentar 0 .. feed_to.
+# * Avance (feed_to > cursor): update_last de cursor+1.. feed_to.
+# * Retroceso (feed_to < cursor): reset() + realimentar 0.. feed_to.
 # El indicador refleja el estado si el dataset terminara en feed_to (sin futuro en Replay).
 sub _feed_indicator_to {
     my ($self, $indicator, $cursor_key, $feed_to) = @_;
@@ -896,7 +890,7 @@ sub _feed_indicator_to {
     return;
 }
 
-# --- SMC Pro / FVG: feed no bloqueante ---
+# SMC Pro / FVG: feed no bloqueante
 sub _feed_indicator_chunk {
     my ($self, $indicator, $cursor_key, $feed_to, $chunk) = @_;
     return 1 unless $indicator && defined $feed_to && $feed_to >= 0;
@@ -1184,7 +1178,7 @@ sub render {
     my $visible_candles = $self->_causal_slice('OHLC', $start, $end);
     my $visible_atr     = $self->_causal_slice('ATR',  $start, $end);
 
-    # spec 0000i: overscan de render horizontal. El slice de dibujo incluye
+    # overscan de render horizontal. El slice de dibujo incluye
     # una vela extra a cada lado (start-1, end+1) para que las velas parcialmente
     # visibles durante paneo suave (ctrl_zoom_x_shift) se rendericen desde antes.
     # La escala X sigue usando x_bars de la ventana visible; draw_start_offset
@@ -1316,7 +1310,7 @@ sub render {
     $self->{atr_panel}->set_scale($atr_scale);
 
     # 5. Ejecutar render en cada sub-canvas
-    # spec 0000i: pasar draw_candles (con overscan) al panel para que las velas
+    # pasar draw_candles (con overscan) al panel para que las velas
     # parcialmente visibles durante paneo se rendericen desde antes.
     $self->{price_panel}->render($self->{price_canvas}, $draw_candles, $price_scale);
     $self->_draw_replay_watermark($self->{price_canvas});
@@ -1329,7 +1323,7 @@ sub render {
     $self->_render_atr_axis($atr_scale, $visible_atr, $replay_head_atr) if $atr_shown;
     $self->_render_time_axis($price_scale, $time_labels);
 
-    # spec 0003 / task 0015: overlays — compute + draw respetando replay_idx.
+    # overlays — compute + draw respetando replay_idx.
     # Los indicadores ya se sincronizaron antes de pintar los paneles para que
     # velas semánticas (RUN) y overlays compartan el mismo estado causal.
     if ($self->{overlay_manager}) {
@@ -1585,9 +1579,7 @@ sub _redraw_pointer_symbol {
     return;
 }
 
-# ----------------------------------------------------------------------------
-# Replay Select Bar (task 0030): elegir vela de inicio con click + Shift+flechas.
-# ----------------------------------------------------------------------------
+# Replay Select Bar: elegir vela de inicio con click + Shift+flechas.
 
 sub set_replay_select_mode {
     my ($self, $on) = @_;
@@ -1661,14 +1653,14 @@ sub restore_after_replay_exit {
     delete $self->{replay_prev_causal_end};
     $self->{ctrl_zoom_x_shift} = 0;
     $self->{offset} = 0;
-    # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render):
+    # Limpieza explícita e inmediata de artefactos de Replay (no esperar al render)
     # evita que la marca "Replay" o el velo de Select Bar queden colgados un frame.
     $self->_clear_replay_select_hover();
     $self->_purge_replay_visuals();
     return $self;
 }
 
-# task 0050/0051: atajos replay en canvas precio/ATR (guards por estado; sin binds dinamicos).
+# atajos replay en canvas precio/ATR (guards por estado; sin binds dinamicos).
 # Precedencia Shift+flechas: select_mode > replay activo > nada.
 
 sub _replay_shift_down_key {
@@ -1760,7 +1752,7 @@ sub _replay_key_m {
     return $self;
 }
 
-# _replay_key_m_window — task 0052: M a nivel ventana solo toggle marca (no escala).
+# _replay_key_m_window — M a nivel ventana solo toggle marca (no escala).
 sub _replay_key_m_window {
     my ($self) = @_;
     my $rc = $self->{replay_controller};
@@ -1770,7 +1762,7 @@ sub _replay_key_m_window {
     return $self;
 }
 
-# focus_price_canvas_for_replay — task 0052: foco teclado al chart tras arrancar replay.
+# focus_price_canvas_for_replay — foco teclado al chart tras arrancar replay.
 sub focus_price_canvas_for_replay {
     my ($self) = @_;
     my $canvas = $self->{price_canvas};
@@ -1795,10 +1787,10 @@ sub _blank_cursor_xbm_paths {
     return ();
 }
 
-# task 0053/UX: cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
+# cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
 # Fedora35/WSLg (Tk 804.036): none/blank NO existen y '' deja cget=undef (WSLg muestra flecha
 # fantasma). Lo que SÍ oculta el puntero: cursor XBM fuente+mascara todo-ceros con hotspot,
-# spec arrayref ['@src', mask, fg, bg]. Verificado por captura (arquitecto, 0053).
+# spec arrayref ['@src', mask, fg, bg]. Verificado por captura (revisión, 0053).
 sub _select_mode_blank_cursor {
     my ($self) = @_;
     return $self->{_select_blank_cursor} if exists $self->{_select_blank_cursor};
@@ -1868,7 +1860,7 @@ sub init_plot_cursors {
     return $self;
 }
 
-# bind_replay_window_shortcuts($mw) — task 0052: atajos via bind all (foco en panel OK).
+# bind_replay_window_shortcuts($mw) — atajos via bind all (foco en panel OK).
 sub bind_replay_window_shortcuts {
     my ($self, $mw) = @_;
     return $self unless $mw;
@@ -1907,7 +1899,7 @@ sub replay_window_shortcut_sequences {
     return $h ? [ sort keys %$h ] : [];
 }
 
-# task 0040-B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
+# B: encuadra la vista con $index como tope visible (offset=0 bajo Replay).
 # $opts->{anchor} => 1 deja hueco ~20% a la derecha (ultima vela ~80% del plot).
 sub frame_replay_view_at {
     my ($self, $index, $opts) = @_;
@@ -1971,11 +1963,9 @@ sub selected_bar {
     return $self->{_selected_bar};
 }
 
-# ---------------------------------------------------------------------------
 # Anchored VWAP — modo "elige vela de anclaje" (como el tool nativo de TV)
-# ---------------------------------------------------------------------------
 
-# VWAP/VP placement = legacy (docs/LEGACY.md). Stubs (no dibujo / no estado).
+# VWAP/VP placement = legacy Stubs (no dibujo / no estado).
 sub is_vwap_select_mode {
     my ($self) = @_;
     return $self->{_vwap_select_mode} ? 1 : 0;
@@ -2589,7 +2579,7 @@ sub set_selected_bar {
     $idx = $last if $idx > $last;
     $self->_clear_replay_select_hover();
     $self->{_selected_bar} = $idx;
-    # task 0040-C: tras elegir vela, volver a paneo normal (modo OFF, conservar selección).
+    # C: tras elegir vela, volver a paneo normal (modo OFF, conservar selección).
     $self->clear_replay_select_mode();
     return $self;
 }
@@ -2608,7 +2598,7 @@ sub adjust_selected_bar {
     return $self->set_selected_bar($idx);
 }
 
-# index_for_timestamp($ts_str) — índice de vela con timestamp más cercano (task 0044).
+# index_for_timestamp($ts_str) — índice de vela con timestamp más cercano.
 sub index_for_timestamp {
     my ($self, $ts_str) = @_;
     return undef unless defined $ts_str && length $ts_str;
@@ -2643,7 +2633,7 @@ sub index_for_timestamp {
     return $best_idx;
 }
 
-# replay_random_start_index — índice aleatorio válido para Go-to Random (task 0044).
+# replay_random_start_index — índice aleatorio válido para Go-to Random.
 sub replay_random_start_index {
     my ($self) = @_;
     my $md = $self->{market_data};
@@ -2695,7 +2685,7 @@ sub _global_index_from_x {
     return $global;
 }
 
-# _replay_watermark_visible — task 0046: marca "Replay" solo si activo Y flag ON.
+# _replay_watermark_visible — marca "Replay" solo si activo Y flag ON.
 sub _replay_watermark_visible {
     my ($self) = @_;
     my $replay = $self->{replay_controller};
@@ -2762,7 +2752,7 @@ sub _draw_replay_select_marker {
     return;
 }
 
-# task 0042: hover visual estilo TradingView (línea azul, velo, Re:, tijeras).
+# hover visual estilo TradingView (línea azul, velo, Re:, tijeras).
 sub _clear_replay_select_hover {
     my ($self) = @_;
     my @tags = qw(replay_select_hover replay_select_veil replay_select_scissors);
@@ -3107,27 +3097,23 @@ sub bind_events {
 
 # _anchor_index_and_x($anchor_x) — calcula el punto de anclaje del zoom (Req. 9.1, 9.2,
 # 9.4) ANTES de cambiar el nivel de zoom.
-#
-# Dado un X de pantalla (o undef), devuelve la pareja:
-#       ($anchor_index, $anchor_screen_x)
+# Dado un X de pantalla (o undef), devuelve la pareja
+# ($anchor_index, $anchor_screen_x)
 # donde $anchor_index es el índice GLOBAL del dato que debe quedar fijo y
 # $anchor_screen_x es la coordenada X de pantalla en la que debe permanecer.
-#
 # Toda conversión X<->índice vive EXCLUSIVAMENTE en Scales (regla de oro de
 # coordenadas): se instancia un Market::Panels::Scales con los mismos parámetros que
 # usa render() —bars = nº de velas visibles (end - start + 1 de compute_window),
 # right_margin => RIGHT_MARGIN y el ancho real del canvas de precios—.
-#
-#   * $anchor_x DEFINIDO (cursor sobre una barra del área de ploteo):
-#       local  = Scales->x_to_index($anchor_x)   # índice LOCAL acotado a [0, bars-1]
-#       global = start + local                    # índice GLOBAL del dato
-#       => devuelve (global, $anchor_x)
-#
-#   * $anchor_x UNDEF (sin cursor): el ancla es la última vela visible, cuyo índice
-#     GLOBAL es 'end' (de compute_window). Su X de pantalla es el centro de su barra:
-#       local_de_end = end - start
-#       screen_x     = Scales->index_to_center_x(local_de_end)
-#       => devuelve (end, screen_x)
+# * $anchor_x DEFINIDO (cursor sobre una barra del área de ploteo)
+# local = Scales->x_to_index($anchor_x) # índice LOCAL acotado a [0, bars-1]
+# global = start + local # índice GLOBAL del dato
+# => devuelve (global, $anchor_x)
+# * $anchor_x UNDEF (sin cursor): el ancla es la última vela visible, cuyo índice
+# GLOBAL es 'end' (de compute_window). Su X de pantalla es el centro de su barra
+# local_de_end = end - start
+# screen_x = Scales->index_to_center_x(local_de_end)
+# => devuelve (end, screen_x)
 sub _anchor_index_and_x {
     my ($self, $anchor_x) = @_;
 
@@ -3164,12 +3150,10 @@ sub _anchor_index_and_x {
 }
 
 # _zoom_anchor_x — decide el X de anclaje para los eventos de rueda/Button-4/5.
-#
 # Devuelve $self->{last_mouse_x} (ya actualizado por <Motion>) SOLO si el cursor está
 # sobre una barra del área de ploteo, es decir, dentro de [0, plot_width]. En cualquier
 # otro caso (sin cursor, o el cursor cae sobre el margen derecho de precios) devuelve
 # undef, de modo que el ancla pase a ser la última vela visible (Req. 9.1).
-#
 # plot_width vive en Scales (regla de oro): se obtiene de una instancia con el ancho
 # real del canvas y RIGHT_MARGIN, sin calcular el margen por nuestra cuenta.
 sub _zoom_anchor_x {
@@ -3338,25 +3322,22 @@ sub _ctrl_horizontal_zoom {
 
 # _horizontal_zoom($delta, $anchor_x) — zoom horizontal con ANCLAJE (Req. 8.1, 8.2,
 # 9.1, 9.2, 9.3, 9.4).
-#
-# $delta      cambio en visible_bars (negativo = zoom-in, positivo = zoom-out).
-# $anchor_x   X de pantalla del ancla, o undef. Si se llama con un solo argumento
-#             ($anchor_x undef), el ancla es la última vela visible (compatibilidad
-#             con los llamadores antiguos de un argumento).
-#
-# Algoritmo (design.md, "Algoritmo de zoom con anclaje"):
-#   1. (anchor_index, anchor_screen_x) = _anchor_index_and_x($anchor_x)  [ANTES del zoom]
-#   2. new_visible = clamp(visible_bars + delta, MIN_VISIBLE_BARS, total)
-#   3. visible_bars = new_visible
-#   4. bar_w' = plot_width / new_visible  (derivado dentro de Scales)
-#   5. reposicionar el ancla en anchor_screen_x:
-#        local'   = anchor_screen_x / bar_w' - 0.5   (vía Scales->x_to_index_float)
-#        end_idx' = anchor_index + (new_visible - 1 - local')
-#        offset   = (total - 1) - end_idx'
-#   6. offset entero y acotado para conservar como mínimo dos velas reales en cada extremo.
+# $delta cambio en visible_bars (negativo = zoom-in, positivo = zoom-out).
+# $anchor_x X de pantalla del ancla, o undef. Si se llama con un solo argumento
+# ($anchor_x undef), el ancla es la última vela visible (compatibilidad
+# con los llamadores antiguos de un argumento).
+# Algoritmo (design.md, "Algoritmo de zoom con anclaje")
+# 1. (anchor_index, anchor_screen_x) = _anchor_index_and_x($anchor_x) [ANTES del zoom]
+# 2. new_visible = clamp(visible_bars + delta, MIN_VISIBLE_BARS, total)
+# 3. visible_bars = new_visible
+# 4. bar_w' = plot_width / new_visible (derivado dentro de Scales)
+# 5. reposicionar el ancla en anchor_screen_x
+# local' = anchor_screen_x / bar_w' - 0.5 (vía Scales->x_to_index_float)
+# end_idx' = anchor_index + (new_visible - 1 - local')
+# offset = (total - 1) - end_idx'
+# 6. offset entero y acotado para conservar como mínimo dos velas reales en cada extremo.
 
-#   7. request_render()
-#
+# 7. request_render()
 # Toda conversión X<->índice se hace SOLO con Scales (Req. 9.4). El ancla se conserva
 # dentro de la tolerancia de una barra (Req. 9.3) porque offset es entero (el redondeo
 # introduce a lo sumo ±0.5 barra de desviación).
@@ -3369,11 +3350,11 @@ sub _horizontal_zoom {
     my $use_cursor_anchor = defined $anchor_x;
 
     # 1. Punto de anclaje (índice GLOBAL + X de pantalla) ANTES de cambiar el zoom.
-    #    Solo Ctrl+rueda usa ancla de cursor; rueda normal conserva el borde derecho.
+    # Solo Ctrl+rueda usa ancla de cursor; rueda normal conserva el borde derecho.
     my ($anchor_index, $anchor_screen_x) = $use_cursor_anchor ? $self->_anchor_index_and_x($anchor_x) : $self->_anchor_index_and_x(undef);
 
     # 2. Nuevo nº de velas visibles, acotado a [MIN_VISIBLE_BARS, total].
-    #    (Esto sustituye el antiguo mínimo de 10 por MIN_VISIBLE_BARS = 2.)
+    # (Esto sustituye el antiguo mínimo de 10 por MIN_VISIBLE_BARS = 2.)
     my $new_visible = $self->{visible_bars} + $delta;
 
     my $max_visible = $total < MAX_VISIBLE_BARS ? $total : MAX_VISIBLE_BARS;
@@ -3394,7 +3375,7 @@ sub _horizontal_zoom {
     }
 
     # 4. Nueva escala con el nuevo nº de barras. bar_w' = plot_width / new_visible se
-    #    deriva dentro de Scales; la inversión X->índice continuo vive en x_to_index_float.
+    # deriva dentro de Scales; la inversión X->índice continuo vive en x_to_index_float.
     my $scale = Market::Panels::Scales->new(
         bars         => $new_visible,
 
@@ -3403,8 +3384,8 @@ sub _horizontal_zoom {
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
 
     # 5. Reposicionar el ancla en su X de pantalla previa.
-    #    index_to_center_x(local) = (local + 0.5) * bar_w  =>  local = X/bar_w - 0.5.
-    #    X/bar_w lo da Scales->x_to_index_float (la división vive en Scales).
+    # index_to_center_x(local) = (local + 0.5) * bar_w => local = X/bar_w - 0.5.
+    # X/bar_w lo da Scales->x_to_index_float (la división vive en Scales).
     my $local_target = $scale->x_to_index_float($anchor_screen_x) - 0.5;
     my $end_idx      = $anchor_index + ($new_visible - 1 - $local_target);
     $end_idx = $self->round($end_idx);
@@ -3419,8 +3400,8 @@ sub _horizontal_zoom {
         my $base_end = $total - 1;
         my $base_total = $base_end + 1;
         my $offset = $base_end - $end_idx;
-        # 6. Offset entero y acotado. compute_window define:
-        #      end = total - 1 - offset ; start = end - visible_bars + 1.
+        # 6. Offset entero y acotado. compute_window define
+        # end = total - 1 - offset; start = end - visible_bars + 1.
         $self->{offset} = $self->_clamp_offset($offset, $base_total);
     }
 
@@ -3579,7 +3560,7 @@ sub _start_horizontal_drag {
         }
     }
 
-    # spec 0000c: preservar x_shift para paneo fraccional suave. NO limpiar
+    # preservar x_shift para paneo fraccional suave. NO limpiar
     # ctrl_zoom_state aquí; reset_view/set_timeframe sí lo resetean cuando corresponde.
     my $root_x = eval { $widget->pointerx() };
     my $root_y = eval { $widget->pointery() };
@@ -3678,7 +3659,7 @@ sub _on_horizontal_drag {
     my $bar_w = $scale->plot_width() / ($self->{visible_bars} || 1);
     return if $bar_w <= 0;
 
-    # spec 0000c: paneo horizontal suave/fraccional. Se separa el desplazamiento
+    # paneo horizontal suave/fraccional. Se separa el desplazamiento
     # en píxeles en parte entera (offset) y resto fraccional (x_shift), de modo
     # que arrastres menores a una vela desplacen visualmente sin saltar offset.
     my $dx = $current_x - $self->{drag_start_x};
@@ -3717,7 +3698,7 @@ sub _on_horizontal_drag {
         }
 
         $self->{offset} = $self->_clamp_offset($new_offset, undef);
-        # spec 0018c: si el offset tocó su límite (2 velas en el borde), NO permitir
+        # si el offset tocó su límite (2 velas en el borde), NO permitir
         # desplazamiento sub-vela adicional: x_shift se anula para que las velas no
         # tiemblen ni se asomen más allá del límite al seguir arrastrando.
         if ($self->{offset} != $new_offset) {
@@ -4082,7 +4063,7 @@ sub toggle_last_price_line {
     return $self->set_show_last_price_line( !$self->{show_last_price_line} );
 }
 
-# --- Panel ATR ocultable/desplegable (deja más espacio al gráfico) ---
+# Panel ATR ocultable/desplegable (deja más espacio al gráfico)
 # El panel inferior de ATR se puede ocultar con packForget del $atr_frame.
 # Como el price_frame tiene expand=1, al ocultarlo el gráfico crece solo.
 # _atr_hidden guarda el estado; el render omite pintar el ATR cuando está oculto.
@@ -4354,8 +4335,7 @@ sub _on_mouse_move {
     }
 }
 
-# _crosshair_time_label — etiqueta de fecha estilo TradingView (Dow DD Mon 'YY) de la vela bajo el cursor (Req. 7.4, spec 0000).
-#
+# _crosshair_time_label — etiqueta de fecha estilo TradingView (Dow DD Mon 'YY) de la vela bajo el cursor.
 # Calcula el índice de dato bajo el cursor a partir de la posición horizontal
 # almacenada en $self->{last_mouse_x}. Toda conversión X->índice vive en Scales
 # (regla de oro de coordenadas): se instancia un Market::Panels::Scales con los
@@ -4363,19 +4343,17 @@ sub _on_mouse_move {
 # visibles (end - start + 1 de compute_window), right_margin => RIGHT_MARGIN y el
 # ancho real del canvas de precios— y se usa x_to_index para obtener el índice
 # LOCAL dentro de la ventana visible.
-#
-# El índice LOCAL se convierte a GLOBAL sumando 'start' (inicio de la ventana):
-#   global = start + local
+# El índice LOCAL se convierte a GLOBAL sumando 'start' (inicio de la ventana)
+# global = start + local
 # Con ese índice global se obtiene el timestamp de MarketData (get_timestamp), se
 # parsea con Time::Moment y se formatea como fecha+hora TradingView
 # 'Dow DD Mon 'YY HH:MM' (p.ej. "Thu 23 Apr '26 09:31") reutilizando el helper
-# _crosshair_date_label($tm) como prefijo de fecha y añadiendo HH:MM (spec 0000c).
-#
-# Devuelve la cadena 'Dow DD Mon 'YY HH:MM', o undef si:
-#   * no hay cursor (last_mouse_x indefinido),
-#   * la ventana visible no tiene barras,
-#   * el índice global queda fuera del rango real de datos, o
-#   * el timestamp no existe / no es parseable por Time::Moment.
+# _crosshair_date_label($tm) como prefijo de fecha y añadiendo HH:MM.
+# Devuelve la cadena 'Dow DD Mon 'YY HH:MM', o undef si
+# * no hay cursor (last_mouse_x indefinido),
+# * la ventana visible no tiene barras,
+# * el índice global queda fuera del rango real de datos, o
+# * el timestamp no existe / no es parseable por Time::Moment.
 sub _crosshair_time_label {
     my ($self) = @_;
 
@@ -4405,7 +4383,7 @@ sub _crosshair_time_label {
     my $causal_end = $self->_causal_end();
     return undef if $global < 0 || $global > $causal_end;
 
-    # Timestamp de MarketData -> Time::Moment -> 'Dow DD Mon 'YY HH:MM' (spec 0000c).
+    # Timestamp de MarketData -> Time::Moment -> 'Dow DD Mon 'YY HH:MM'.
     my $ts = $self->{market_data}->get_timestamp($global);
     return undef unless defined $ts;
     my $tm = eval { Time::Moment->from_string($ts) };
@@ -4446,14 +4424,14 @@ sub _draw_crosshair_all {
 
     if (!defined $last_x) {
         # Cursor fuera: limpiar el crosshair y la etiqueta de tiempo en ambos
-        # paneles. Contrato acordado con la tarea 6.2 para PricePanel:
+        # paneles. Contrato acordado con la tarea 6.2 para PricePanel
         # draw_crosshair($x, $y, $time_text) -> con todo undef se borra también la
         # etiqueta de tiempo. El ATRPanel conserva su firma de 2 argumentos.
         $self->{price_panel}->draw_crosshair(undef, undef, undef);
         $self->{atr_panel}->draw_crosshair(undef, undef);
         $self->_draw_price_axis_crosshair(undef);
         $self->_draw_atr_axis_crosshair(undef);
-        # spec 0000d: limpiar la etiqueta del crosshair temporal del canvas del eje.
+        # limpiar la etiqueta del crosshair temporal del canvas del eje.
         if (defined $self->{time_axis_canvas}) {
             $self->{time_axis_canvas}->delete('time_axis_crosshair');
         }
@@ -4475,11 +4453,11 @@ sub _draw_crosshair_all {
     # Etiqueta de tiempo (HH:MM) de la vela bajo el cursor; undef si no aplica.
     my $time_text = $self->_crosshair_time_label();
 
-    # PricePanel recibe la etiqueta de tiempo como TERCER argumento (Req. 7.4):
+    # PricePanel recibe la etiqueta de tiempo como TERCER argumento (Req. 7.4)
     # draw_crosshair($x, $y, $time_text). El ATRPanel mantiene su firma de 2
     # argumentos (NO recibe etiqueta de tiempo); la X sigue sincronizada entre
     # ambos paneles porque comparten $last_x.
-    # spec 0000d: si existe time_axis_canvas, la caja de tiempo se dibuja ahí
+    # si existe time_axis_canvas, la caja de tiempo se dibuja ahí
     # (draw_time_crosshair_label), no en el price_canvas.
     if (defined $self->{time_axis_canvas}) {
         $self->{price_panel}->draw_crosshair($last_x, $price_y, undef);
@@ -4495,14 +4473,14 @@ sub _draw_crosshair_all {
 sub set_timeframe {
     my ($self, $tf) = @_;
 
-    # spec 0001: 8 temporalidades soportadas.
+    # 8 temporalidades soportadas.
     my %valid_tf = map { $_ => 1 } qw(1m 5m 15m 1h 2h 4h D W);
     if (!$valid_tf{$tf}) {
             warn "Temporalidad '$tf' no soportada por el sistema.";
             return;
     }
 
-    # task 0040-D: cambio de TF normaliza replay/selección (Play se detiene en Callbacks).
+    # D: cambio de TF normaliza replay/selección (Play se detiene en Callbacks).
     if ($self->{replay_controller}) {
         $self->{replay_controller}->exit();
     }
@@ -4527,7 +4505,7 @@ sub set_timeframe {
     for (my $i = 0; $i < $n_bars; $i++) {
         $self->{indicator_manager}->update_last($self->{market_data}, $i);
     }
-    # spec 0013: reset SMC Pro + Structures/FVG al cambiar timeframe.
+    # reset SMC Pro + Structures/FVG al cambiar timeframe.
     if ($self->{smc_pro_indicator} || $self->{smc_indicator}) {
         my $ind = $self->{smc_pro_indicator} // $self->{smc_indicator};
         $ind->reset() if $ind;
@@ -4596,37 +4574,32 @@ sub reset_view {
 
 # compute_intraday_labels — etiquetas del eje de tiempo inferior (Req. 5.2, 5.6, 5.7,
 # 5.8, 6.1, 6.2, 6.4).
-#
-# Produce un arrayref de etiquetas enriquecidas con la forma:
-#       { index => <índice LOCAL en la ventana visible>,
-#         text  => <'HH:MM' o 'DD Mon'>,
-#         is_date => 0|1,
-#         grid => 0|1,
-#         label => 0|1 }
-#
+# Produce un arrayref de etiquetas enriquecidas con la forma
+# { index => <índice LOCAL en la ventana visible>,
+# text => <'HH:MM' o 'DD Mon'>,
+# is_date => 0|1,
+# grid => 0|1,
+# label => 0|1 }
 # Convención de índice (CRÍTICA): el `index` de salida es LOCAL (0-based dentro de la
 # ventana visible), porque las velas se dibujan con índices locales 0..N-1 y
 # PricePanel::draw_time_axis centra cada etiqueta vía Scales->index_to_center_x(index).
 # El índice local se obtiene como `global - start`, robusto frente a timestamps
 # omitidos (no es la posición del bucle).
-#
-# Espaciado temporal (Req. 5.6, spec 0000b): el eje inferior prioriza fronteras
+# Espaciado temporal: el eje inferior prioriza fronteras
 # REALES de reloj/calendario tipo TradingView, no equidistancia por stride. Se
 # escanea cada timestamp visible; un tick se selecciona si cae en una frontera
 # real del intervalo elegido (HH:MM con (hour*60+minute) % interval == 0). Los
 # gaps de sesión/noche/fin de semana no crean huecos visuales (las velas siguen
 # por índice), pero tampoco fuerzan marcas equidistantes que pierdan coherencia
 # de reloj.
-#
 # Cambios de día (Req. 6.1, 6.4): la fecha ("DD Mon", is_date => 1) aparece SOLO
 # cuando hay cambio real de día respecto al timestamp global anterior, o cuando la
 # vela cae en medianoche real (00:00) sin vela anterior. La primera vela visible a
 # mitad de día NO se convierte en fecha: muestra "HH:MM".
-#
-# Casos límite:
-#   * Ventana sin barras => lista vacía sin error (Req. 5.7).
-#   * Timestamp no parseable => esa etiqueta se omite y continúan las demás (Req. 5.8;
-#     get_all_timestamps ya descarta los no parseables).
+# Casos límite
+# * Ventana sin barras => lista vacía sin error (Req. 5.7).
+# * Timestamp no parseable => esa etiqueta se omite y continúan las demás (Req. 5.8;
+# get_all_timestamps ya descarta los no parseables).
 sub compute_intraday_labels {
     my ($self) = @_;
 
@@ -4666,7 +4639,7 @@ sub compute_intraday_labels {
     my $tf_minutes = $self->_timeframe_minutes();
     my $interval_minutes = $self->_time_axis_interval_minutes($tf_minutes, $bar_w);
 
-    # spec 0000g: plan global de cadencia uniforme tipo TradingView.
+    # plan global de cadencia uniforme tipo TradingView.
     # Se elige UNA cadencia dominante para toda la ventana visible, no se
     # aceptan candidatos localmente por peso. Los días son anchors obligatorios
     # y las horas siguen una única cadencia. Esto evita secuencias irregulares
@@ -4680,7 +4653,7 @@ sub compute_intraday_labels {
         $prev_tm = eval { Time::Moment->from_string($pre_ts) } if defined $pre_ts;
     }
 
-    # Construir candidatos desde velas reales (spec 0000e/0000f: índices enteros).
+    # Construir candidatos desde velas reales (índices enteros).
     my @candidates;
     for my $el (@$visible_elements) {
         my $global = $el->{index};
@@ -4710,7 +4683,7 @@ sub compute_intraday_labels {
         $prev_tm = $tm;
     }
 
-    # Elegir el mejor plan global de cadencia (spec 0000g).
+    # Elegir el mejor plan global de cadencia.
     my $plan = $self->_choose_time_axis_plan(\@candidates, $bar_w, $tf_minutes);
 
     # Marcar aceptados del plan con label=1; el resto queda con label=0 pero
@@ -4742,7 +4715,7 @@ sub compute_intraday_labels {
     return \@labels;
 }
 
-# _choose_time_axis_plan($candidates, $bar_w, $tf_minutes) — spec 0000g
+# _choose_time_axis_plan($candidates, $bar_w, $tf_minutes)
 # Elije un plan global de cadencia uniforme. Prueba cadencias de densa a
 # dispersa; la primera que produce min_gap_px >= 65 y consistencia entre
 # segmentos día-a-día es el plan Modo A aceptado.
@@ -4771,7 +4744,7 @@ sub _choose_time_axis_plan {
     $min_indices = 1 if $min_indices < 1;
 
     for my $cad (@cadences) {
-        # spec 0000g: solo probar cadencias cuyo espaciado natural en píxeles
+        # solo probar cadencias cuyo espaciado natural en píxeles
         # es >= min_label_px. Thinning de una cadencia densa crea cadencias
         # efectivas sucias (e.g. thinning 1h a cada 8h produce 08:00, no limpio).
         my $cadence_px = ($cad / $tf_minutes) * $bar_w;
@@ -4790,7 +4763,7 @@ sub _choose_time_axis_plan {
         }
     }
 
-    # Fallback: solo días (incompleto, no aceptación final de spec 0000g).
+    # Fallback: solo días (incompleto, no aceptación final de ).
     my @daily = $self->_build_time_axis_plan($candidates, 1440, $min_indices);
     return \@daily;
 }
@@ -4799,8 +4772,8 @@ sub _choose_time_axis_plan {
 # Usa solo anchors de fecha reales: mes + días seleccionados. No muestra horas.
 # Generalista: separación por ancho estimado de label (box-based), no umbral fijo.
 # Los anchors de mes (Apr, May) siempre ganan frente a días cercanos.
-# spec 0000i: densidad tipo TradingView — permite días consecutivos si caben.
-# spec 0000j: filtra días de sesión parcial nocturna (primera vela >= 17:00)
+# densidad tipo TradingView — permite días consecutivos si caben.
+# filtra días de sesión parcial nocturna (primera vela >= 17:00)
 # que TradingView no muestra como labels principales en modo calendario mensual.
 sub _build_calendar_time_axis_plan {
     my ($self, $candidates, $bar_w) = @_;
@@ -4810,7 +4783,7 @@ sub _build_calendar_time_axis_plan {
 
     my @months = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
-    # spec 0000j: umbral de sesión parcial nocturna. Un día cuya primera vela
+    # umbral de sesión parcial nocturna. Un día cuya primera vela
     # sea >= 17:00 (1020 min) y no tenga velas antes del mediodía es un anchor
     # débil: TradingView no lo usa como label principal en calendario mensual.
     my $NOCTURNAL_THRESHOLD_MINS = 1020;
@@ -4820,7 +4793,7 @@ sub _build_calendar_time_axis_plan {
     my $month_label_px = 40;
     my $min_gap_px = 6;
 
-    # spec 0000j: separación mínima entre días basada en calendario, no solo
+    # separación mínima entre días basada en calendario, no solo
     # en ancho de texto. Cuando se omiten días parciales (domingos nocturnos),
     # los días vecinos pueden quedar comprimidos por el gap de sesión. Exigir
     # que la separación x entre días sea >= 80% de un día calendario normal.
@@ -4840,7 +4813,7 @@ sub _build_calendar_time_axis_plan {
         }
         else {
             $cand{label_half_width} = $day_label_px / 2;
-            # spec 0000j: detectar sesión parcial nocturna.
+            # detectar sesión parcial nocturna.
             my $first_mins = $cand{intraday_mins} // 0;
             $cand{weak_partial_session} = ($first_mins >= $NOCTURNAL_THRESHOLD_MINS) ? 1 : 0;
         }
@@ -4861,7 +4834,7 @@ sub _build_calendar_time_axis_plan {
             next;
         }
 
-        # spec 0000j: omitir días de sesión parcial nocturna en modo calendario.
+        # omitir días de sesión parcial nocturna en modo calendario.
         next if $cand->{weak_partial_session};
 
         # Día normal: aceptar si no colisiona con el último aceptado.
@@ -4883,11 +4856,10 @@ sub _build_calendar_time_axis_plan {
     return @accepted;
 }
 
-# _build_time_axis_plan($candidates, $cadence, $min_indices) — spec 0000g
+# _build_time_axis_plan($candidates, $cadence, $min_indices)
 # Construye un plan con una sola cadencia: todos los anchors de día/mes/año
 # + horas que satisfagan minutes % cadence == 0.
-#
-# Importante: dentro de UNA cadencia, las horas se aceptan cronológicamente.
+# dentro de UNA cadencia, las horas se aceptan cronológicamente.
 # No se ordenan por peso porque eso degrada 90m a una cadencia visual de 3h
 # (18:00/21:00 desplazan 19:30/22:30), distinto a TradingView en NQ1! 15m.
 # Los anchors de día/mes/año siguen reemplazando el timestamp de su propia vela.
@@ -5024,7 +4996,7 @@ sub _adjust_sparse_time_axis_plan {
     return sort { $a->{index} <=> $b->{index} } (@out, @extra);
 }
 
-# _densify_sparse_gaps_in_time_axis_plan() — spec 0000h.
+# _densify_sparse_gaps_in_time_axis_plan() —.
 # Después de construir un plan intradía válido, mide los huecos visuales entre
 # labels consecutivos. Si un hueco es demasiado grande (> 1.5x la cadencia
 # natural), intenta insertar un candidato real existente que reduzca el hueco
@@ -5084,7 +5056,7 @@ sub _densify_sparse_gaps_in_time_axis_plan {
     return sort { $a->{index} <=> $b->{index} } (@out, @extra);
 }
 
-# _plan_min_gap_px($plan) — spec 0000g
+# _plan_min_gap_px($plan)
 # Retorna el menor gap en píxeles entre labels consecutivos del plan.
 sub _plan_min_gap_px {
     my ($self, $plan, $cadence, $tf_minutes) = @_;
@@ -5108,7 +5080,7 @@ sub _plan_min_gap_px {
     return $min;
 }
 
-# _plan_is_consistent($plan) — spec 0000g
+# _plan_is_consistent($plan)
 # Verifica que no haya patrón DAY|HOUR|DAY|DAY|HOUR en segmentos internos.
 # Los gaps de sesión (días consecutivos sin horas entre ellos) son excepciones
 # aceptables solo en bordes. La inconsistencia se detecta cuando un segmento
@@ -5132,7 +5104,7 @@ sub _plan_is_consistent {
     my $has_hours = grep { $_ > 0 } @hour_counts;
     my $has_zero  = grep { $_ == 0 } @hour_counts;
 
-    # spec 0000g: si hay horas pero son muy pocas frente a muchos días, no es Modo A.
+    # si hay horas pero son muy pocas frente a muchos días, no es Modo A.
     # En zooms más alejados TradingView sí acepta ~1 hora por día (p.ej. 12:00),
     # así que solo rechazamos planes realmente pobres: menos de media hora visible
     # por anchor de día.
@@ -5181,7 +5153,7 @@ sub debug_time_axis_snapshot {
     return Market::Debug::TimeAxisSnapshot->capture($self, %opts);
 }
 
-# _time_axis_weight_for_point($tm, $prev_tm) — spec 0000f
+# _time_axis_weight_for_point($tm, $prev_tm)
 # Asigna un peso temporal comparando el timestamp actual con el anterior real.
 # Inspirado en lightweight-charts/time-scale-point-weight-generator.ts.
 # Pesos: YEAR=70, MONTH=60, DAY=50, HOUR12=33, HOUR6=32, HOUR3=31,
@@ -5210,7 +5182,7 @@ sub _time_axis_weight_for_point {
     return 20;
 }
 
-# _time_axis_label_for_weight($tm, $weight) — spec 0000f
+# _time_axis_label_for_weight($tm, $weight)
 # Formatea el texto del label del eje inferior según el peso temporal.
 # YEAR => "2026", MONTH => "Apr", DAY => "15", intradía => "HH:MM".
 sub _time_axis_label_for_weight {
@@ -5233,18 +5205,15 @@ sub _time_axis_label_for_weight {
 
 # _time_label_for_index($tm, $is_date) — formatea el texto de UNA etiqueta del eje
 # de tiempo (Req. 5.2, 5.8, 6.4).
-#
 # Firma elegida: recibe el objeto Time::Moment YA PARSEADO ($tm) y el flag $is_date.
 # Se opta por el objeto (en vez del string ISO o el índice) porque
 # compute_intraday_labels ya dispone de los Time::Moment construidos por
 # get_all_timestamps; así se evita re-parsear y se centraliza la validación.
-#
-# Formato de salida:
-#   * $is_date verdadero => fecha corta "DD Mon": día con dos dígitos (cero a la
-#     izquierda) y abreviatura de mes en inglés de 3 letras, p.ej. "18 May".
-#   * $is_date falso     => hora "HH:MM" en 24h con cero a la izquierda, rango
-#     "00:00".."23:59", p.ej. "09:05".
-#
+# Formato de salida
+# * $is_date verdadero => fecha corta "DD Mon": día con dos dígitos (cero a la
+# izquierda) y abreviatura de mes en inglés de 3 letras, p.ej. "18 May".
+# * $is_date falso => hora "HH:MM" en 24h con cero a la izquierda, rango
+# "00:00".."23:59", p.ej. "09:05".
 # Devuelve undef si $tm no es un Time::Moment utilizable (timestamp no parseable),
 # para que el llamador omita esa etiqueta y continúe con las demás (Req. 5.8).
 sub _is_time_axis_boundary {
@@ -5264,11 +5233,11 @@ sub _is_time_axis_boundary {
 sub _time_axis_interval_minutes {
     my ($self, $tf_minutes, $bar_w) = @_;
 
-    # Escaleras por fronteras reales tipo TradingView (spec 0000b). Cada candidato
+    # Escaleras por fronteras reales tipo TradingView. Cada candidato
     # es >= tf_minutes y divisible por tf_minutes (salvo 90m que es multiple de
     # 1/5/15). 5m omite 720/12h: el usuario observó que de 6h pasa a dias. 15m
     # añade 2880/4320 (2D/3D) en zoom muy lejano. Las ramas 1h/2h/4h/D/W quedan
-    # preparadas para Fase 2 (no se invocan hoy porque _timeframe_minutes solo
+    # preparadas para fase actual (no se invocan hoy porque _timeframe_minutes solo
     # devuelve 1/5/15).
     my @ladder;
     if    ($tf_minutes == 1)     { @ladder = (1, 5, 15, 30, 60, 90, 180, 360, 720, 1440, 10080, 43200, 525600); }
@@ -5307,7 +5276,7 @@ sub _time_label_for_index {
 
 # _local_abs_minutes($tm) — minutos absolutos en zona horaria local del timestamp.
 # Usado por compute_intraday_labels para detectar fronteras de reloj entre dos
-# timestamps cuando hay un gap de datos (spec 0000c). Es monótono en tiempo local
+# timestamps cuando hay un gap de datos. Es monótono en tiempo local
 # y alineado a medianoche local: como 1440 es divisible por todos los intervalos
 # intradía usados, los múltiplos de interval_minutes caen en fronteras de reloj.
 sub _local_abs_minutes {
@@ -5316,8 +5285,8 @@ sub _local_abs_minutes {
 }
 
 # _crosshair_date_label($tm) — etiqueta inferior del crosshair estilo TradingView
-# (spec 0000): 'Dow DD Mon 'YY', p.ej. "Thu 23 Apr '26".
-# Time::Moment->day_of_week es ISO 8601 (1=Lun .. 7=Dom), verificado con prueba
+# 'Dow DD Mon 'YY', p.ej. "Thu 23 Apr '26".
+# Time::Moment->day_of_week es ISO 8601 (1=Lun.. 7=Dom), verificado con prueba
 # mínima sobre 2026-04-23 (dow=4 => Thu).
 sub _crosshair_date_label {
     my ($self, $tm) = @_;
@@ -5397,9 +5366,7 @@ sub _timeframe_minutes {
     return 1;
 }
 
-# ---------------------------------------------------------------------------
 # Parallel Channel (drawing tool TV) — Fase actual
-# ---------------------------------------------------------------------------
 sub start_parallel_channel_tool {
     my ($self) = @_;
     return $self unless $self->{pchan_drawing};
@@ -5515,9 +5482,7 @@ sub _pchan_click {
     return $status;
 }
 
-# ---------------------------------------------------------------------------
 # Fib Retracement (drawing tool TV) — 2 clics, pick ZZ, bandas, handles
-# ---------------------------------------------------------------------------
 sub start_fib_retracement_tool {
     my ($self) = @_;
     return $self unless $self->{fib_drawing};
@@ -5544,9 +5509,7 @@ sub cancel_fib_retracement_tool {
     return $self;
 }
 
-# ---------------------------------------------------------------------------
 # TrendLine (drawing tool TV) — varias líneas de 2 puntos, extremos arrastrables
-# ---------------------------------------------------------------------------
 sub start_trendline_tool {
     my ($self) = @_;
     return $self unless $self->{trend_drawing};

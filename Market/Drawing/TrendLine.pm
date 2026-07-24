@@ -2,19 +2,15 @@ package Market::Drawing::TrendLine;
 use strict;
 use warnings;
 
-# =============================================================================
 # TrendLine — herramienta de línea de tendencia (drawing tool TV).
 # 2 clics = una línea (p1 → p2). A diferencia del canal, se pueden colocar
 # VARIAS líneas a la vez. Cada línea es independiente y sus 2 extremos son
 # arrastrables (patrón idéntico a los handles del Fib).
-#
-# Estado:
-#   lines       => [ { p1 => {index,price}, p2 => {index,price} }, ... ]
-#   draft       => [ 0..1 puntos mientras se dibuja la línea actual ]
-#   tool_active => 1 mientras el usuario está colocando líneas
-#
+# Estado
+# lines => [ { p1 => {index,price}, p2 => {index,price} },... ]
+# draft => [ 0..1 puntos mientras se dibuja la línea actual ]
+# tool_active => 1 mientras el usuario está colocando líneas
 # El índice de línea + nombre de extremo ('0:p1', '2:p2'...) sirve de handle.
-# =============================================================================
 
 sub new {
     my ( $class, %args ) = @_;

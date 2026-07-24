@@ -128,14 +128,14 @@ sub build_tf_candles {
 
 # _bucket_timestamp($ts, $tf) — frontera de reloj/sesión para el TF dado.
 # $tf puede ser un nombre ('5m','15m','1h','2h','4h','D','W') o un entero de minutos.
-# - 5m/15m: truncar al múltiplo de minutos de la hora local (comportamiento Fase 1).
-# - >=1h: anclar a sesión CME/NQ UTC-5 que inicia 17:00, como TradingView.
-#   Esto hace que 2h use horas impares (...23:00,01:00,03:00...), 3h vía entero
-#   180 use ...23:00,02:00,05:00..., y 4h use ...21:00,01:00,05:00...
-# - 'D': día de trading CME. Desde 17:00 pertenece al día de trading siguiente,
-#   pero se conserva timestamp YYYY-MM-DDT00:00:00 para etiquetas diarias limpias.
-# - 'W': semana ISO del día de trading (lunes). Time::Moment->day_of_week es
-#   ISO 8601 (1=Lun .. 7=Dom).
+# 5m/15m: truncar al múltiplo de minutos de la hora local (comportamiento Fase 1).
+# >=1h: anclar a sesión CME/NQ UTC-5 que inicia 17:00, como TradingView.
+# Esto hace que 2h use horas impares (...23:00,01:00,03:00...), 3h vía entero
+# 180 use...23:00,02:00,05:00..., y 4h use...21:00,01:00,05:00...
+# 'D': día de trading CME. Desde 17:00 pertenece al día de trading siguiente,
+# pero se conserva timestamp YYYY-MM-DDT00:00:00 para etiquetas diarias limpias.
+# 'W': semana ISO del día de trading (lunes). Time::Moment->day_of_week es
+# ISO 8601 (1=Lun.. 7=Dom).
 sub _parse_tm_cached {
     my ($self, $ts) = @_;
     return undef unless defined $ts;
@@ -196,7 +196,7 @@ sub _bucket_timestamp {
     if ($tf eq 'W') {
         return $ts unless $tm && defined $suffix;
         my $trading_day = $self->_trading_day_tm($tm);
-        my $dow = $trading_day->day_of_week;  # 1=Lun .. 7=Dom
+        my $dow = $trading_day->day_of_week;  # 1=Lun.. 7=Dom
         my $monday = $trading_day->minus_days($dow - 1);
         return $self->_format_bucket_timestamp($monday, 0, 0, $suffix);
     }
@@ -369,24 +369,21 @@ sub merge_delta_row {
 }
 
 # compute_time_anchors — puntos clave de tiempo para el eje/etiquetas (capa de datos).
-#
-# Detecta dos tipos de ancla temporal recorriendo el array de velas activo:
-#   * Cambio de HORA dentro del mismo día (etiqueta de tiempo regular).
-#   * Cambio de DÍA calendario (marcador de fecha) usando Time::Moment
-#     (->year, ->month, ->day_of_month). Un cambio de día es ancla aunque la
-#     hora coincida con la de la vela anterior (p.ej. gaps de datos entre jornadas).
-#
-# CAMBIO DE CONTRATO (tradingview-parity, tarea 4.1):
-#   Antes devolvía un arrayref de ENTEROS (índices donde cambiaba la hora).
-#   Ahora devuelve un arrayref de HASHES enriquecidos:
-#       [ { index => N, is_date => 0|1 }, ... ]
-#   donde is_date == 1 marca un cambio de DÍA (cambio de fecha) e is_date == 0
-#   marca un cambio de HORA dentro del mismo día. La primera vela del array no
-#   se considera cambio de fecha (no tiene vela anterior con la cual comparar),
-#   por lo que se marca como ancla de hora (is_date => 0).
-#   No hay consumidores previos que dependan del formato antiguo; ChartEngine
-#   usará la marca is_date para resaltar los cambios de fecha en el eje de tiempo.
-#
+# Detecta dos tipos de ancla temporal recorriendo el array de velas activo
+# * Cambio de HORA dentro del mismo día (etiqueta de tiempo regular).
+# * Cambio de DÍA calendario (marcador de fecha) usando Time::Moment
+# (->year, ->month, ->day_of_month). Un cambio de día es ancla aunque la
+# hora coincida con la de la vela anterior (p.ej. gaps de datos entre jornadas).
+# CAMBIO DE CONTRATO (tradingview-parity, tarea 4.1)
+# Antes devolvía un arrayref de ENTEROS (índices donde cambiaba la hora).
+# Ahora devuelve un arrayref de HASHES enriquecidos
+# [ { index => N, is_date => 0|1 },... ]
+# donde is_date == 1 marca un cambio de DÍA (cambio de fecha) e is_date == 0
+# marca un cambio de HORA dentro del mismo día. La primera vela del array no
+# se considera cambio de fecha (no tiene vela anterior con la cual comparar),
+# por lo que se marca como ancla de hora (is_date => 0).
+# No hay consumidores previos que dependan del formato antiguo; ChartEngine
+# usará la marca is_date para resaltar los cambios de fecha en el eje de tiempo.
 # Responsabilidad: SOLO capa de datos. No conoce render ni coordenadas; usa
 # exclusivamente Time::Moment (ya importado). Las velas con timestamp no
 # parseable se omiten sin abortar.

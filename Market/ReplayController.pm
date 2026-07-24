@@ -2,13 +2,12 @@ package Market::ReplayController;
 use strict;
 use warnings;
 
-# Market::ReplayController — control del índice-tope de Replay (spec 0002).
-#
+# Market::ReplayController — control del índice-tope de Replay.
 # Mantiene un replay_idx que ninguna capa (render, indicadores, overlays) puede
 # superar. Cuando está activo, compute_window y todo el pipeline ven el dataset
-# como si terminara en replay_idx. Sin UI aquí (task 0004).
+# como si terminara en replay_idx. Sin UI aquí.
 
-# Tabla de velocidades TradingView (task 0041): etiqueta → ms por tick de autoplay.
+# Tabla de velocidades TradingView: etiqueta → ms por tick de autoplay.
 my @SPEED_OPTIONS = (
     { label => '10x',  ms => 100 },
     { label => '7x',   ms => 143 },
@@ -191,7 +190,7 @@ sub set_replay_interval {
     return $self;
 }
 
-# auto_replay_interval — 1 = intervalo sigue al TF; 0 = manual (task 0045).
+# auto_replay_interval — 1 = intervalo sigue al TF; 0 = manual.
 sub auto_replay_interval {
     my ($self) = @_;
     return $self->{auto_replay_interval} // 1;
@@ -228,7 +227,7 @@ sub advance_one_tick {
     return $idx;
 }
 
-# --- internals ---
+# internals
 
 sub _last_index {
     my ($self) = @_;
@@ -241,7 +240,7 @@ sub _schedule_timer {
     my ($self) = @_;
     return unless $self->{playing} && $self->{_timer_cb};
     my $canvas = $self->{market_data};  # placeholder; el timer real se cablea en 0004
-    # El temporizador Tk se cablea en task 0004 con after().
+    # El temporizador Tk se cablea en con after().
     # Aquí dejamos la infraestructura; el callback se invoca manualmente en tests.
 }
 

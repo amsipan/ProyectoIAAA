@@ -2,10 +2,8 @@ package Market::Overlays::FibRetracement;
 use strict;
 use warnings;
 
-# =============================================================================
-# Render Fib Retracement estilo TradingView:
+# Render Fib Retracement estilo TradingView
 # bandas + líneas + labels FUERA a la izquierda (misma altura) + handles
-# =============================================================================
 
 # Espacio a la izquierda de las cajas para las etiquetas (px)
 my $LABEL_OUTSIDE_PX = 110;

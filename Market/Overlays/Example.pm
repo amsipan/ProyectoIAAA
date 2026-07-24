@@ -2,8 +2,7 @@ package Market::Overlays::Example;
 use strict;
 use warnings;
 
-# Market::Overlays::Example — overlay trivial de prueba (spec 0003).
-#
+# Market::Overlays::Example — overlay trivial de prueba.
 # Dibuja una línea horizontal punteada en el precio del último close visible.
 # Solo procesa la ventana visible (no recorre todo el historial).
 # Se elimina o se deja como referencia; valida el patrón base de overlays.

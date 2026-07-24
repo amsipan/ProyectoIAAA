@@ -3,18 +3,15 @@ use strict;
 use warnings;
 
 # Render capa SMC Pro [Neon] — config captura del profesor.
-#
 # Anclaje X: centro de vela (index_to_center_x).
 # EQH/EQL: diagonal prev → new (Pine drawEqualHighLow).
 # OB: borde izquierdo de la caja = centro de la vela del bloque (paridad TV
-#     bar_time / chart.point), NO el borde izquierdo de la barra.
-#
-# Extremos:
-#   BOS/CHoCH → solo vela de rotura (event.index). NUNCA data_end.
-#   Strong/Weak, MTF, OB → hasta última vela con OHLC (data_end).
-#
-# Orden de dibujo (crítico):
-#   OB → MTF → Strong/Weak → EQ → BOS/CHoCH → pivots
+# bar_time / chart.point), NO el borde izquierdo de la barra.
+# Extremos
+# BOS/CHoCH → solo vela de rotura (event.index). NUNCA data_end.
+# Strong/Weak, MTF, OB → hasta última vela con OHLC (data_end).
+# Orden de dibujo (crítico)
+# OB → MTF → Strong/Weak → EQ → BOS/CHoCH → pivots
 # Si PDH comparte precio con un BOS (high del día = pivote de estructura),
 # MTF debajo + estilo acento/dotted evita que la extensión a data_end
 # parezca un BOS que “no corta” en la rotura.
@@ -235,11 +232,11 @@ sub draw {
     my $data_end     = $self->_data_end;
     my $x_data_right = $self->_x_data_right($scales);
 
-    # 1) Order blocks (fondo) — escalón de mitigación (capturas profe):
-    #    Izquierda (ya comido): zona RESTANTE hi/lo → "delgado".
-    #    Derecha (proyección): zona ORIGINAL orig_hi/orig_lo → "grueso".
-    #    Corte en last_mitig_index. Sin mitigar: un solo rectángulo original.
-    #    Labels: "OB i" / "OB" (mismo criterio que BOS/CHoCH).
+    # 1) Order blocks (fondo) — escalón de mitigación (capturas profe)
+    # Izquierda (ya comido): zona RESTANTE hi/lo → "delgado".
+    # Derecha (proyección): zona ORIGINAL orig_hi/orig_lo → "grueso".
+    # Corte en last_mitig_index. Sin mitigar: un solo rectángulo original.
+    # Labels: "OB i" / "OB" (mismo criterio que BOS/CHoCH).
     for my $ob (@{ $self->{_obs} }) {
         next if ($ob->{index} // 0) > $data_end;
         my $fill = ($ob->{bias} // '') eq 'bull' ? $ob_bull : $ob_bear;

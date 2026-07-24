@@ -2,35 +2,17 @@ package Market::Indicators::AutoTrendChannel;
 use strict;
 use warnings;
 
-# =============================================================================
-# Market::Indicators::AutoTrendChannel
-#   Canal + Trendline automáticos (cálculo puro, sin Tk).
-#   NO reemplaza Drawing::* ni ZigZag CHANNEL.
-#
-#   HARD (oral Lumina 20–21-jul / REQUISITOS §1.5):
-#     * Canal: ≥3 toques en línea INFERIOR (lows); superior = paralela variable.
-#     * Span formación canal ≥ 60 min. Trendline ≥ ~120 min (~2h oral).
-#     * UN canal activo; UNA trendline activa (no cruces / no ensuciar).
-#     * Extender a última vela causal mientras viva.
-#     * Perforación menor con retorno → no mata; ruptura con fuerza → desaparece.
-#     * Replay: solo la estructura viva en esa punta causal.
-#
-#   Heurísticas técnicas (anti mega-canal / anti cluster; NO oral):
-#     * Gap inter-toque ≥ 20 min.
-#     * Span formación ≤ max(8h, 48×minutos_barra)  — en 1h no asfixiar.
-#     * Span en BARRAS ≤ 80 (estructura local).
-#     * Ancho ≤ 6×ATR (evita “cortina” que cubre el chart).
-#     * Score = recencia − ancho (preferir canal reciente y ESTRECHO).
-#     * Dump ≥ reclaim_bars cierres bajo base entre toques → no nace.
-#     * Post-muerte: blacklist firma de toques.
-# =============================================================================
+# Canal y trendline automáticos (cálculo puro, sin Tk).
+# Un canal y una trendline activos; se extienden a la última vela causal.
+# Canal: ≥3 toques en la base (≥60 min). Trendline: span mínimo ~2h.
+# Perforación menor con retorno no mata; ruptura fuerte sí.
 
 sub new {
     my ( $class, %opts ) = @_;
     my $self = {
         trendline_min_touches      => $opts{trendline_min_touches} // 3,
         trendline_min_span_minutes => $opts{trendline_min_span_minutes} // 120,
-        # Oral 21-jul: ~2h mín.; <1h se desarma. UN solo activo (no cruces).
+        # ~2h mín.; <1h se desarma. UN solo activo (no cruces).
         max_active_tl              => $opts{max_active_tl} // 1,
         # TL puede durar varias horas: techo de barras más holgado que el canal.
         trendline_max_span_bars    => $opts{trendline_max_span_bars} // 240,
@@ -158,7 +140,7 @@ sub update_last {
         $self->{_need_tl_birth}      = 1;
     }
 
-    # Trendline: UNA sola (oral: no ensuciar / no cruces). ≥2h, tip respetando.
+    # Trendline: UNA sola (no ensuciar / no cruces). ≥2h, tip respetando.
     if ( $self->{enable_trendline} && !$has_tl ) {
         my $periodic = ( ( $index % 4 ) == 0 ) ? 1 : 0;
         if ( $self->{_need_tl_birth} || $periodic ) {
@@ -200,7 +182,7 @@ sub get_active_channels {
     return [ grep { $_->{active} } @{ $self->{_channels} } ];
 }
 
-# ---- helpers ---------------------------------------------------------------
+# helpers
 
 sub _tf_to_minutes {
     my ($tf) = @_;
@@ -473,9 +455,9 @@ sub _pick_three_touches {
     return [ $first, $best_mid, $last ];
 }
 
-# ---- birth -----------------------------------------------------------------
+# birth
 
-# Oral Lumina 21-jul + jun: UNA trendline diagonal que el precio respeta;
+# + jun: UNA trendline diagonal que el precio respeta;
 # ≥3 toques; span ≥ ~2h; no apilar líneas que se crucen / ensucien.
 sub _try_birth_trendline {
     my ( $self, $tol, $i ) = @_;
@@ -677,7 +659,7 @@ sub _try_birth_channel_bottom {
             my $consec = $self->_max_consec_below_base( $i0, $i1, $s2, $b2, $tol );
             next if $consec >= $self->{reclaim_bars};
 
-            # HARD (Replay): no nacer si el precio ACTUAL (punta causal) ya está
+            # no nacer si el precio ACTUAL (punta causal) ya está
             # fuera del rango. Evita que el canal “aparezca” tras un dump/escape.
             my $close_now = $self->{_c}[$i];
             next unless defined $close_now;
@@ -730,7 +712,7 @@ sub _try_birth_channel_bottom {
     };
 }
 
-# ---- life / death ----------------------------------------------------------
+# life / death
 
 sub _extend_active {
     my ( $self, $i ) = @_;
@@ -794,7 +776,7 @@ sub _mitigate {
                 $broke = 0;
                 $tl->{break_streak} = 0;
             }
-            # Ruptura fuerte (oral: “con fuerza”)
+            # Ruptura fuerte (“con fuerza”)
             if ( $close < $lp - 2 * $ctol ) {
                 $broke       = 1;
                 $reason_hint = 'force_break';
@@ -815,7 +797,7 @@ sub _mitigate {
         $tl->{break_streak} = $broke ? ( ( $tl->{break_streak} // 0 ) + 1 ) : 0;
 
         # Retest / cercanía: si el precio se aleja mucho sin volver a la línea,
-        # la TL deja de ser relevante (ensucia; oral jun: no cruzar el chart).
+        # la TL deja de ser relevante (ensucia; jun: no cruzar el chart).
         my $atr = $self->{_atr}[$i] // $self->{_atr}[ $i - 1 ];
         my $far_lim =
           ( defined $atr && $atr > 0 )
@@ -855,12 +837,12 @@ sub _mitigate {
         my $half_w = abs( $base - $par ) * 0.25;
         $ctol = $half_w if $half_w > 0 && $ctol > $half_w;
 
-        # Muerte por:
-        #  (A) ruptura de BASE (soporte) sin retorno
-        #  (B) ESCAPE FUERTE por el riel SUPERIOR (cierres claros fuera).
-        #     Oral: superior "variable" ante roce/mecha; pero "escapa con fuerza
-        #     → se desarma". Sin (B) un canal temprano bloquea todo el dataset
-        #     (max_active_ch=1) porque el precio queda arriba de la base para siempre.
+        # Muerte por
+        # (A) ruptura de BASE (soporte) sin retorno
+        # (B) ESCAPE FUERTE por el riel SUPERIOR (cierres claros fuera).
+        # superior "variable" ante roce/mecha; pero "escapa con fuerza
+        # → se desarma". Sin (B) un canal temprano bloquea todo el dataset
+        # (max_active_ch=1) porque el precio queda arriba de la base para siempre.
         my $broke = 0;
         my $reason_hint = 'liquidity_or_break';
 
