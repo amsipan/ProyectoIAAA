@@ -122,6 +122,7 @@ sub new {
         _vwap_select_mode   => 0,
         _vp_select_mode     => 0,
         show_grid           => 0,
+        show_last_price_line => 0,   # línea entrecortada del precio actual (off x defecto)
 
         %args,
     };
@@ -134,6 +135,7 @@ sub new {
     $self->{price_panel} = Market::Panels::PricePanel->new(
         canvas => $self->{price_canvas},
         theme  => $self->{theme},
+        show_last_price_line => $self->{show_last_price_line} ? 1 : 0,
     );
     $self->{atr_panel}   = Market::Panels::ATRPanel->new(
         canvas => $self->{atr_canvas},
@@ -1091,8 +1093,12 @@ sub render {
     # Bar, ni pestaña Replay activa), purgar cualquier artefacto visual de Replay
     # que haya podido quedar colgado (marca de agua, velo/tijeras). Así, cambiar
     # de indicador o de pestaña tras salir de Replay nunca deja restos mezclados.
-    if (!$self->_replay_session_active()) {
+    my $replay_session_on = $self->_replay_session_active() ? 1 : 0;
+    if (!$replay_session_on) {
         $self->_purge_replay_visuals();
+    }
+    if ( ref( $self->{replay_session_badge_sync} ) eq 'CODE' ) {
+        $self->{replay_session_badge_sync}->($replay_session_on);
     }
 
     # 1. Obtener la porción temporal de la ventana visible
@@ -3830,6 +3836,27 @@ sub show_grid {
 sub toggle_grid {
     my ($self) = @_;
     return $self->set_show_grid(!$self->{show_grid});
+}
+
+# Línea horizontal entrecortada al precio actual (última vela causal).
+sub set_show_last_price_line {
+    my ($self, $bool) = @_;
+    $self->{show_last_price_line} = $bool ? 1 : 0;
+    if ( $self->{price_panel} ) {
+        $self->{price_panel}{show_last_price_line} = $self->{show_last_price_line};
+    }
+    $self->request_render();
+    return $self->{show_last_price_line};
+}
+
+sub show_last_price_line {
+    my ($self) = @_;
+    return $self->{show_last_price_line} ? 1 : 0;
+}
+
+sub toggle_last_price_line {
+    my ($self) = @_;
+    return $self->set_show_last_price_line( !$self->{show_last_price_line} );
 }
 
 # --- Panel ATR ocultable/desplegable (deja más espacio al gráfico) ---

@@ -27,8 +27,11 @@ de aproximadamente **1080 px** (descontando bordes de ventana y márgenes Tk).
 
 ### Pestañas actuales (2026-07-22)
 
-`Estructura · Liquidez · ZigZag · Dibujo · Volumen · Vista` (fila 1: selector TF
-+ estas 6 pestañas + botón ↻).
+`Estructura · Liquidez · ZigZag · Dibujo · Volumen · Vista · Replay` (fila 1: selector TF
++ estas 7 pestañas + botón ↻). Al abrir **Replay** se preselecciona Select bar
+(`make_replay_activate`: un clic desde cualquier pestaña para elegir vela).
+Vista: escala ATR / Grid / Linea precio (off x defecto) / Panel ATR.
+**Reset Vista** siempre visible abajo-derecha (fila de paneles, bajo el ↻).
 
 - **ZigZag**: solo ZZ interno (+ res 15/30/60) y ZZ externo.
 - **Dibujo**: herramientas de trazado — Parallel Channel, TrendLine y Fib

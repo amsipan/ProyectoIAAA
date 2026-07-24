@@ -99,7 +99,7 @@ print "[*] Listo — abriendo UI en $base_tf\n";
 # 2. VENTANA PRINCIPAL
 # ==========================================
 my $mw = MainWindow->new;
-$mw->title("Plataforma de Gráficos Financieros - Motor de Charting Tk");
+$mw->title("IAAA — Motor de Charting (EPN 2026A)");
 $mw->minsize(900, 600);
 
 my $sw = eval { $mw->screenwidth }  || 1280;
@@ -217,8 +217,8 @@ $chart_engine->{atr_frame} = $atr_frame;
 $chart_engine->init_plot_cursors();
 
 # --- Toggle A/M del modo de escala de PRECIO (esquina inf. derecha, estilo TV) ---
-# A = automático, M = manual. El botón activo se resalta. Estos botones y los de
-# la pestaña Vista comparten los mismos callbacks para no desincronizarse.
+# A = automático, M = manual. El botón activo se resalta. Estos botones y el
+# modo de escala comparten los mismos callbacks para no desincronizarse.
 my $PMODE_ON_BG   = '#2962ff';   # activo
 my $PMODE_ON_FG   = '#ffffff';
 my $PMODE_OFF_BG  = '#e9edf3';   # inactivo
@@ -374,6 +374,15 @@ my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, 
 my $tab_row   = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 my $panel_row = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 
+# Reset Vista: siempre visible (cualquier pestaña), abajo-derecha bajo el ↻.
+$panel_row->Button(
+    -text    => 'Reset Vista',
+    -padx    => 5,
+    -pady    => 0,
+    -relief  => 'groove',
+    -command => sub { $chart_engine->reset_view() },
+)->pack( -side => 'right', -padx => 3 );
+
 # --- Selector de temporalidad: SIEMPRE visible (lo más usado) ---
 my $tf_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
 $tf_box->Label(-text => 'TF:')->pack(-side => 'left', -padx => 3);
@@ -386,9 +395,11 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
     )->pack(-side => 'left', -padx => 1);
 }
 
-# Opción A: TF siempre visible y cinco pestañas compactas por dominio.
+# Opción A: TF siempre visible y pestañas compactas por dominio.
+# Replay es pestaña propia (no mezclada con Vista): un clic → Select bar listo.
 my %panel;
-$panel{$_} = $panel_row->Frame() for qw(Estructura Liquidez ZigZag Dibujo Volumen Vista);
+$panel{$_} = $panel_row->Frame()
+  for qw(Estructura Liquidez ZigZag Dibujo Volumen Vista Replay);
 
 my $active_tab = 'Estructura';
 my $show_panel = sub {
@@ -400,8 +411,8 @@ my $show_panel = sub {
 
 my $cb_replay_activate = Market::UI::Callbacks->make_replay_activate($chart_engine, \%ui_vars);
 $ui_vars{show_replay_tab} = sub {
-    $active_tab = 'Vista';
-    $show_panel->('Vista');
+    $active_tab = 'Replay';
+    $show_panel->('Replay');
 };
 $ui_vars{show_default_tab} = sub {
     $active_tab = 'Estructura';
@@ -415,15 +426,41 @@ my %tab_label = (
     Dibujo     => 'Dibujo',
     Volumen    => 'Volumen',
     Vista      => 'Vista',
+    Replay     => 'Replay',
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(Estructura Liquidez ZigZag Dibujo Volumen Vista)) {
+for my $name (qw(Estructura Liquidez ZigZag Dibujo Volumen Vista Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
-        -command => sub { $show_panel->($name); },
+        -command => sub {
+            # Replay: mostrar controles + preseleccionar Select bar (1 clic desde cualquier pestaña).
+            if ( $name eq 'Replay' ) {
+                $cb_replay_activate->();
+            }
+            else {
+                $show_panel->($name);
+            }
+        },
     )->pack(-side => 'left', -padx => 1);
 }
+
+# Indicador sutil de sesión Replay (fuera del gráfico: no tapa velas).
+# Visible con Select bar o replay truncado; distinto del watermark grande (Mark).
+my $replay_badge = $tab_row->Label(
+    -text   => '',
+    -font   => [ 'Helvetica', 7 ],
+    -fg     => '#8a93a0',
+    -padx   => 6,
+)->pack( -side => 'left', -padx => 2 );
+my $replay_badge_was_on;
+$chart_engine->{replay_session_badge_sync} = sub {
+    my ($on) = @_;
+    $on = $on ? 1 : 0;
+    return if defined $replay_badge_was_on && $replay_badge_was_on == $on;
+    $replay_badge_was_on = $on;
+    $replay_badge->configure( -text => $on ? 'Replay' : '' );
+};
 
 # Recargar app: reinicio TOTAL del proceso (código nuevo 100%).
 # En Windows+Tk, exec() a menudo NO reemplaza el proceso GUI y parece que
@@ -871,11 +908,12 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
 }
 
-# ---- Pestaña "Vista": Escala + Grid + Reset + Replay completo ----
+# ---- Pestaña "Vista": Escala ATR + Grid + Linea precio + Panel ATR ----
 {
     my $p = $panel{Vista};
     # Modo de escala de PRECIO: se controla con los botones A/M de la esquina
     # inferior derecha del gráfico (estilo TradingView). Aquí ya no va.
+    # Reset Vista vive siempre visible abajo-derecha (bajo ↻), fuera de esta pestaña.
 
     my $atr_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $atr_box->Label(-text => 'ATR:')->pack(-side => 'left', -padx => 3);
@@ -883,9 +921,6 @@ if ($ENV{MARKET_RELOAD}) {
         -indicatoron => 0, -padx => 5, -command => sub { $chart_engine->set_atr_scale_mode('auto') })->pack(-side => 'left', -padx => 1);
     $atr_box->Radiobutton(-text => 'Manual', -value => 'manual', -variable => \$atr_scale_mode,
         -indicatoron => 0, -padx => 5, -command => sub { $chart_engine->set_atr_scale_mode('manual') })->pack(-side => 'left', -padx => 1);
-
-    $p->Button(-text => 'Reset Vista', -command => sub { $chart_engine->reset_view() })
-        ->pack(-side => 'left', -padx => 6);
 
     my $grid_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $grid_box->Label(-text => 'Grid:')->pack(-side => 'left', -padx => 3);
@@ -899,8 +934,17 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack(-side => 'left', -padx => 1);
 
+    # Línea entrecortada del precio actual (off por defecto).
+    my $show_last_price_line = 0;
+    $p->Checkbutton(
+        -text     => 'Linea precio',
+        -variable => \$show_last_price_line,
+        -command  => sub {
+            $chart_engine->set_show_last_price_line($show_last_price_line);
+        },
+    )->pack( -side => 'left', -padx => 4 );
+
     # Panel ATR desplegable: ocultarlo da más espacio vertical al gráfico.
-    # (a futuro este panel inferior puede alojar un dibujador de volumen)
     my $atr_toggle_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $atr_toggle_box->Label(-text => 'Panel ATR:')->pack(-side => 'left', -padx => 3);
     my $atr_btn;
@@ -912,8 +956,11 @@ if ($ENV{MARKET_RELOAD}) {
             $atr_btn->configure(-text => $shown ? 'Ocultar' : 'Mostrar');
         },
     )->pack(-side => 'left', -padx => 1);
+}
 
-    # Barra de controles Replay inline (módulo completo, sin perder botones)
+# ---- Pestaña "Replay": controles inline; al abrir se preselecciona Select bar ----
+{
+    my $p = $panel{Replay};
     my $replay_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
     $replay_box->Label(-text => 'Replay:', -fg => '#555')->pack(-side => 'left', -padx => 2);
     $replay_panel = Market::UI::ReplayPanel->new(

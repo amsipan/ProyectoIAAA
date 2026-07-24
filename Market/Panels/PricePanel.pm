@@ -6,6 +6,9 @@ sub new {
     my ($class, %args) = @_;
     my $self = {
         %args,
+        show_last_price_line => exists $args{show_last_price_line}
+          ? ( $args{show_last_price_line} ? 1 : 0 )
+          : 0,
     };
     # El tema (paleta clara) se inyecta vía `theme => \%theme` desde ChartEngine.
     # Garantizar robustez: si no llega, dejar un hashref vacío para que las lecturas
@@ -273,13 +276,16 @@ sub render_last_visible_price {
     my $label_fg   = $self->{theme}{last_price_fg} // '#ffffff';
 
     # 1. Línea horizontal entrecortada full-width al nivel del precio actual.
-    $canvas->createLine(
-        0, $y, $w, $y,
-        -fill  => $line_color,
-        -dash  => $self->{theme}{last_price_dash} // [ 2, 3 ],
-        -width => 1,
-        -tags  => 'price_label',
-    );
+    #    Toggle UI (Vista): show_last_price_line; off por defecto.
+    if ( $self->{show_last_price_line} ) {
+        $canvas->createLine(
+            0, $y, $w, $y,
+            -fill  => $line_color,
+            -dash  => $self->{theme}{last_price_dash} // [ 2, 3 ],
+            -width => 1,
+            -tags  => 'price_label',
+        );
+    }
 
     # 2. Eje de precios separado: la cajita vive ahí; el plot solo lleva la hline.
     return if exists $scale->{draw_last_label} && !$scale->{draw_last_label};
