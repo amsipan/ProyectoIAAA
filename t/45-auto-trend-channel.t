@@ -73,6 +73,7 @@ sub build_support_series {
     my $ind = Market::Indicators::AutoTrendChannel->new();
     is( $ind->{trendline_min_touches},       3,   'TL min_touches=3' );
     is( $ind->{trendline_min_span_minutes},  120, 'TL min_span=120' );
+    is( $ind->{max_active_tl},               1,   'TL max_active=1 (sin cruces)' );
     is( $ind->{canal_min_touches},           3,   'Canal min_touches=3' );
     is( $ind->{canal_min_span_minutes},      60,  'Canal min_span=60' );
     is( $ind->{canal_min_touch_gap_minutes}, 20,  'Canal gap técnico=20' );
@@ -94,11 +95,10 @@ sub build_support_series {
         enable_channel             => 0,
         enable_trendline           => 1,
         trendline_min_span_minutes => 120,
-        max_active_tl              => 2,
     );
     feed_all( $ind, $md );
     my $tls = $ind->get_active_trendlines();
-    ok( @$tls >= 1, 'trendline nace con 3 toques y span≥120' )
+    ok( @$tls == 1, 'exactamente UNA trendline activa' )
       or diag explain $ind->get_values();
     if (@$tls) {
         is( $tls->[0]{side}, 'support', 'TL lado support' );
@@ -611,6 +611,70 @@ sub build_support_series {
         $born_in_dump = 1 if $b >= $n0;
     }
     ok( !$born_in_dump, 'no nace canal nuevo durante el dump (tip fuera)' );
+}
+
+# ---------------------------------------------------------------------------
+# 16. Trendline: nunca 2 activas (no cruces support+resistance)
+# ---------------------------------------------------------------------------
+{
+    my $md = Market::MarketData->new();
+    $md->set_base_timeframe('1m') if $md->can('set_base_timeframe');
+    # Lows (support) + highs (resistance) alineados → antes nacían 2 y se cruzaban
+    my %low  = ( 20 => 100, 90 => 102, 160 => 104 );
+    my %high = ( 40 => 130, 110 => 128, 180 => 126 );
+    for my $i ( 0 .. 220 ) {
+        if ( exists $low{$i} ) {
+            my $p = $low{$i};
+            add_bar( $md, $i, $p + 1, $p + 4, $p, $p + 2 );
+        }
+        elsif ( exists $high{$i} ) {
+            my $p = $high{$i};
+            add_bar( $md, $i, $p - 2, $p, $p - 5, $p - 1 );
+        }
+        else {
+            add_bar( $md, $i, 112, 118, 108, 114 );
+        }
+    }
+    my $ind = Market::Indicators::AutoTrendChannel->new(
+        pivot_strength             => 1,
+        atr_len                    => 5,
+        atr_k                      => 0.5,
+        enable_channel             => 0,
+        enable_trendline           => 1,
+        trendline_min_span_minutes => 120,
+    );
+    my $max_act = 0;
+    for my $i ( 0 .. $md->size() - 1 ) {
+        $ind->update_last( $md, $i );
+        my $n = scalar @{ $ind->get_active_trendlines() };
+        $max_act = $n if $n > $max_act;
+    }
+    ok( $max_act <= 1, "máximo 1 TL activa a la vez (vio $max_act)" );
+    ok( @{ $ind->get_active_trendlines() } <= 1, 'get_values ≤1 TL' );
+}
+
+# ---------------------------------------------------------------------------
+# 17. Trendline no nace si tip ya rompió la línea
+# ---------------------------------------------------------------------------
+{
+    my ($md) = build_support_series( gap_minutes => 70, after => 5, break_bars => 0 );
+    my $n0 = $md->size();
+    for my $k ( 0 .. 20 ) {
+        my $i = $n0 + $k;
+        $md->add_candle( [ ts($i), 50, 55, 40, 45, 100 ] );    # tip bajo la TL
+    }
+    my $ind = Market::Indicators::AutoTrendChannel->new(
+        pivot_strength             => 1,
+        atr_len                    => 5,
+        atr_k                      => 0.5,
+        enable_channel             => 0,
+        enable_trendline           => 1,
+        trendline_min_span_minutes => 120,
+        canal_lookback_bars        => 200,
+    );
+    feed_all( $ind, $md );
+    is( scalar( @{ $ind->get_active_trendlines() } ), 0,
+        'TL no activa con tip ya bajo la línea' );
 }
 
 done_testing();

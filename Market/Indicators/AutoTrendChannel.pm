@@ -7,13 +7,13 @@ use warnings;
 #   Canal + Trendline automáticos (cálculo puro, sin Tk).
 #   NO reemplaza Drawing::* ni ZigZag CHANNEL.
 #
-#   HARD (oral Lumina 20-jul / REQUISITOS §1.5):
+#   HARD (oral Lumina 20–21-jul / REQUISITOS §1.5):
 #     * Canal: ≥3 toques en línea INFERIOR (lows); superior = paralela variable.
-#     * Span formación ≥ 60 min (wall-clock). Trendline ≥ ~120 min.
-#     * Un canal activo; extender a última vela causal mientras viva.
-#     * Perforación menor con retorno → no mata.
-#     * Toma de liquidez / ruptura → DESAPARECE (no apilar históricos).
-#     * Replay: solo el canal vivo en esa punta causal.
+#     * Span formación canal ≥ 60 min. Trendline ≥ ~120 min (~2h oral).
+#     * UN canal activo; UNA trendline activa (no cruces / no ensuciar).
+#     * Extender a última vela causal mientras viva.
+#     * Perforación menor con retorno → no mata; ruptura con fuerza → desaparece.
+#     * Replay: solo la estructura viva en esa punta causal.
 #
 #   Heurísticas técnicas (anti mega-canal / anti cluster; NO oral):
 #     * Gap inter-toque ≥ 20 min.
@@ -30,6 +30,10 @@ sub new {
     my $self = {
         trendline_min_touches      => $opts{trendline_min_touches} // 3,
         trendline_min_span_minutes => $opts{trendline_min_span_minutes} // 120,
+        # Oral 21-jul: ~2h mín.; <1h se desarma. UN solo activo (no cruces).
+        max_active_tl              => $opts{max_active_tl} // 1,
+        # TL puede durar varias horas: techo de barras más holgado que el canal.
+        trendline_max_span_bars    => $opts{trendline_max_span_bars} // 240,
         canal_min_touches          => $opts{canal_min_touches} // 3,
         canal_min_span_minutes     => $opts{canal_min_span_minutes} // 60,
 
@@ -46,7 +50,6 @@ sub new {
         atr_len          => $opts{atr_len} // 14,
         atr_k            => defined $opts{atr_k} ? $opts{atr_k} : 0.20,
         reclaim_bars     => $opts{reclaim_bars} // 3,
-        max_active_tl    => $opts{max_active_tl} // 2,
         max_active_ch    => $opts{max_active_ch} // 1,
         max_outside_frac => defined $opts{max_outside_frac} ? $opts{max_outside_frac} : 0.12,
 
@@ -78,8 +81,11 @@ sub reset {
     $self->{_channels}   = [];
     $self->{_next_id}    = 1;
     $self->{_channel_dead_after} = { support => -1 };
+    $self->{_tl_dead_after}      = -1;
     $self->{_dead_touch_sigs}    = {};
+    $self->{_dead_tl_sigs}       = {};
     $self->{_need_channel_birth} = 1;
+    $self->{_need_tl_birth}      = 1;
     $self->{_tl_lows_seen}  = 0;
     $self->{_tl_highs_seen} = 0;
     return $self;
@@ -134,29 +140,36 @@ sub update_last {
 
     $self->_extend_active($index);
     $self->_expand_outer_rail($index);    # solo superior (variable); slope locked
-    my $had_active = scalar grep { $_->{active} } @{ $self->{_channels} };
+
+    my $had_ch = scalar grep { $_->{active} } @{ $self->{_channels} };
+    my $had_tl = scalar grep { $_->{active} } @{ $self->{_trendlines} };
     $self->_mitigate($index);
-    my $has_active = scalar grep { $_->{active} } @{ $self->{_channels} };
-    if ( $had_active && !$has_active ) {
-        $self->{_need_channel_birth} = 1;    # reintentar tras muerte
-    }
-    # Nuevo low (toques) o high (ancla superior): reevaluar nacimiento.
-    if ( $new_low_pivot || $new_high_pivot ) {
+    my $has_ch = scalar grep { $_->{active} } @{ $self->{_channels} };
+    my $has_tl = scalar grep { $_->{active} } @{ $self->{_trendlines} };
+
+    if ( $had_ch && !$has_ch ) {
         $self->{_need_channel_birth} = 1;
     }
+    if ( $had_tl && !$has_tl ) {
+        $self->{_need_tl_birth} = 1;
+    }
+    if ( $new_low_pivot || $new_high_pivot ) {
+        $self->{_need_channel_birth} = 1;
+        $self->{_need_tl_birth}      = 1;
+    }
 
-    # Trendline: solo cuando aparece pivote nuevo (barato vs cada barra).
-    if ( $self->{enable_trendline} && ( $new_low_pivot || $new_high_pivot ) ) {
-        my $tol = $self->_tol($index);
-        $self->_try_birth_tl( 'support',    $self->{_swing_lows},  $tol, $index )
-          if $new_low_pivot;
-        $self->_try_birth_tl( 'resistance', $self->{_swing_highs}, $tol, $index )
-          if $new_high_pivot;
+    # Trendline: UNA sola (oral: no ensuciar / no cruces). ≥2h, tip respetando.
+    if ( $self->{enable_trendline} && !$has_tl ) {
+        my $periodic = ( ( $index % 4 ) == 0 ) ? 1 : 0;
+        if ( $self->{_need_tl_birth} || $periodic ) {
+            $self->_try_birth_trendline( $self->_tol($index), $index );
+            $self->{_need_tl_birth} = 0;
+        }
     }
 
     # Canal: UN activo. Mientras no hay activo, reintentar en pivote/muerte
     # y también cada pocas barras (el ancla high puede confirmarse después).
-    if ( $self->{enable_channel} && !$has_active ) {
+    if ( $self->{enable_channel} && !$has_ch ) {
         my $periodic = ( ( $index % 4 ) == 0 ) ? 1 : 0;
         if ( $self->{_need_channel_birth} || $periodic ) {
             $self->_try_birth_channel_bottom( $self->_tol($index), $index );
@@ -462,77 +475,28 @@ sub _pick_three_touches {
 
 # ---- birth -----------------------------------------------------------------
 
-sub _try_birth {
-    my ( $self, $i ) = @_;
-    my $tol = $self->_tol($i);
-    if ( $self->{enable_trendline} ) {
-        $self->_try_birth_tl( 'support',    $self->{_swing_lows},  $tol, $i );
-        $self->_try_birth_tl( 'resistance', $self->{_swing_highs}, $tol, $i );
-    }
-    if ( $self->{enable_channel} ) {
-        # SIEMPRE riel inferior (lows). Nunca highs como base.
-        $self->_try_birth_channel_bottom( $tol, $i );
-    }
-}
+# Oral Lumina 21-jul + jun: UNA trendline diagonal que el precio respeta;
+# ≥3 toques; span ≥ ~2h; no apilar líneas que se crucen / ensucien.
+sub _try_birth_trendline {
+    my ( $self, $tol, $i ) = @_;
+    return
+      if ( scalar grep { $_->{active} } @{ $self->{_trendlines} } )
+      >= ( $self->{max_active_tl} // 1 );
 
-sub _already_similar_tl {
-    my ( $self, $side, $slope, $intercept, $tol ) = @_;
-    for my $tl ( @{ $self->{_trendlines} } ) {
-        next unless $tl->{active} && ( $tl->{side} // '' ) eq $side;
-        next if abs( ( $tl->{slope} // 0 ) - $slope ) > 1e-6;
-        my $mid = int( ( ( $tl->{from_index} // 0 ) + ( $tl->{to_index} // 0 ) ) / 2 );
-        my $y0  = _line_price( $tl->{slope}, $tl->{intercept}, $mid );
-        my $y1  = _line_price( $slope, $intercept, $mid );
-        return 1 if abs( $y0 - $y1 ) <= $tol * 2;
-    }
-    return 0;
-}
-
-sub _try_birth_tl {
-    my ( $self, $side, $swings, $tol, $i ) = @_;
-    my $need  = $self->{trendline_min_touches};
-    my $spanm = $self->{trendline_min_span_minutes};
-    my $n     = scalar @$swings;
-    return if $n < $need;
+    my $cand_sup = $self->_best_tl_candidate( 'support',    $self->{_swing_lows},  $tol, $i );
+    my $cand_res = $self->_best_tl_candidate( 'resistance', $self->{_swing_highs}, $tol, $i );
 
     my $best;
-    my $start = $n > 12 ? $n - 12 : 0;
-    for my $a ( $start .. $n - $need ) {
-        for my $b ( $a + $need - 1 .. $n - 1 ) {
-            my ( $slope, $intercept ) = _fit_line( $swings->[$a], $swings->[$b] );
-            next unless defined $slope;
-            next if $side eq 'support'    && $slope < -0.05;
-            next if $side eq 'resistance' && $slope > 0.05;
-            my $touches = $self->_count_touches( $swings, $a, $b, $slope, $intercept, $tol );
-            next if @$touches < $need;
-            my $span = _span_minutes( $touches->[0], $touches->[-1] );
-            next unless defined $span && $span >= $spanm;
-            my $score = $touches->[-1]{index} * 1e3 + scalar(@$touches);
-            if ( !defined $best || $score > $best->{score} ) {
-                $best = {
-                    score      => $score,
-                    slope      => $slope,
-                    intercept  => $intercept,
-                    touches    => $touches,
-                    from_index => $touches->[0]{index},
-                    side       => $side,
-                };
-            }
-        }
+    if ( $cand_sup && $cand_res ) {
+        $best = ( $cand_sup->{score} >= $cand_res->{score} ) ? $cand_sup : $cand_res;
+    }
+    else {
+        $best = $cand_sup // $cand_res;
     }
     return unless $best;
-    return if $self->_already_similar_tl( $side, $best->{slope}, $best->{intercept}, $tol );
 
-    my $n_act = scalar grep { $_->{active} && $_->{side} eq $side } @{ $self->{_trendlines} };
-    if ( $n_act >= $self->{max_active_tl} ) {
-        for my $tl ( @{ $self->{_trendlines} } ) {
-            if ( $tl->{active} && $tl->{side} eq $side ) {
-                $tl->{active} = 0;
-                $tl->{reason} = 'replaced';
-                last;
-            }
-        }
-    }
+    my $sig = _touch_sig( $best->{touches} );
+    return if $self->{_dead_tl_sigs}{$sig};
 
     push @{ $self->{_trendlines} }, {
         id         => $self->{_next_id}++,
@@ -542,10 +506,94 @@ sub _try_birth_tl {
         from_index => $best->{from_index},
         to_index   => $i,
         born_index => $i,
+        touch_sig  => $sig,
+        last_near  => $best->{touches}[-1]{index},
         touches    => [ map { +{ index => $_->{index}, price => $_->{price} } } @{ $best->{touches} } ],
-        active     => 1,
-        kind       => 'trendline',
+        geometry_locked => 1,
+        break_tol       => $tol,
+        active          => 1,
+        kind            => 'trendline',
     };
+}
+
+sub _best_tl_candidate {
+    my ( $self, $side, $swings, $tol, $i ) = @_;
+    my $need  = $self->{trendline_min_touches};
+    my $spanm = $self->{trendline_min_span_minutes};
+    my $gapm  = $self->{canal_min_touch_gap_minutes} // 20;
+    my $max_b = $self->{trendline_max_span_bars} // 240;
+    my $look  = $self->{canal_lookback_bars} // 120;
+    my $n     = scalar @$swings;
+    return if $n < $need;
+
+    my $dead_after = $self->{_tl_dead_after} // -1;
+    my $best;
+    my $start = $n > 14 ? $n - 14 : 0;
+
+    for my $a ( $start .. $n - $need ) {
+        for my $b ( $a + $need - 1 .. $n - 1 ) {
+            my ( $slope0, $int0 ) = _fit_line( $swings->[$a], $swings->[$b] );
+            next unless defined $slope0;
+
+            # Soporte: no exigir pendiente positiva estricta (puede ser lateral-bajista
+            # suave); resistencia análogo. Evitar pendientes absurdas.
+            next if abs($slope0) > 50;
+
+            my $touches = $self->_count_touches( $swings, $a, $b, $slope0, $int0, $tol );
+            next if @$touches < $need;
+
+            my $locked = _pick_three_touches( $touches, $slope0, $int0 );
+            next unless _touches_gap_ok( $locked, $gapm );
+
+            my $span = _span_minutes( $locked->[0], $locked->[-1] );
+            next unless defined $span && $span >= $spanm;
+
+            my $i0 = $locked->[0]{index};
+            my $i1 = $locked->[-1]{index};
+            next if ( $i1 - $i0 ) > $max_b;
+            next if ( $i - $i1 ) > $look;
+            next if $i0 <= $dead_after;
+
+            my ( $slope, $intercept ) = _fit_line_ls($locked);
+            next unless defined $slope;
+            next unless _touches_on_wicks_ok( $locked, $slope, $intercept, $tol );
+
+            # Tip debe RESPETAR la línea (aún no rota).
+            my $close_now = $self->{_c}[$i];
+            next unless defined $close_now;
+            my $lp_now = _line_price( $slope, $intercept, $i );
+            if ( $side eq 'support' ) {
+                next if $close_now < $lp_now - $tol;
+            }
+            else {
+                next if $close_now > $lp_now + $tol;
+            }
+
+            # Ya rota con fuerza entre último toque y tip → no nacer.
+            my $N = $self->{reclaim_bars} // 3;
+            if ( $side eq 'support' ) {
+                next if $self->_max_consec_below_base( $i1, $i, $slope, $intercept, $tol ) >= $N;
+            }
+            else {
+                next if $self->_max_consec_above_par( $i1, $i, $slope, $intercept, $tol ) >= $N;
+            }
+
+            # Recencia − desviación tip (preferir línea que el tip aún toca de cerca)
+            my $tip_err = abs( $close_now - $lp_now );
+            my $score   = $i1 * 1e6 - $tip_err * 10;
+            next if defined $best && $score <= $best->{score};
+
+            $best = {
+                score      => $score,
+                side       => $side,
+                slope      => $slope,
+                intercept  => $intercept,
+                touches    => $locked,
+                from_index => $i0,
+            };
+        }
+    }
+    return $best;
 }
 
 sub _try_birth_channel_bottom {
@@ -733,26 +781,68 @@ sub _mitigate {
 
     for my $tl ( @{ $self->{_trendlines} } ) {
         next unless $tl->{active};
-        my $lp = _line_price( $tl->{slope}, $tl->{intercept}, $i );
-        my $broke = 0;
+        my $lp   = _line_price( $tl->{slope}, $tl->{intercept}, $i );
+        my $ctol = $tl->{break_tol} // $tol;
+        $ctol = $tol if $tol < $ctol;
+        my $broke       = 0;
+        my $reason_hint = 'break';
+
         if ( ( $tl->{side} // '' ) eq 'support' ) {
-            $broke = ( $close < $lp - $tol ) ? 1 : 0;
-            if ( $low < $lp - $tol && $close >= $lp - $tol * 0.5 ) {
+            $broke = ( $close < $lp - $ctol ) ? 1 : 0;
+            # Perforación menor (mecha) con close que vuelve → no mata
+            if ( $low < $lp - $ctol && $close >= $lp - $ctol * 0.5 ) {
                 $broke = 0;
                 $tl->{break_streak} = 0;
+            }
+            # Ruptura fuerte (oral: “con fuerza”)
+            if ( $close < $lp - 2 * $ctol ) {
+                $broke       = 1;
+                $reason_hint = 'force_break';
             }
         }
         else {
-            $broke = ( $close > $lp + $tol ) ? 1 : 0;
-            if ( $high > $lp + $tol && $close <= $lp + $tol * 0.5 ) {
+            $broke = ( $close > $lp + $ctol ) ? 1 : 0;
+            if ( $high > $lp + $ctol && $close <= $lp + $ctol * 0.5 ) {
                 $broke = 0;
                 $tl->{break_streak} = 0;
             }
+            if ( $close > $lp + 2 * $ctol ) {
+                $broke       = 1;
+                $reason_hint = 'force_break';
+            }
         }
+
         $tl->{break_streak} = $broke ? ( ( $tl->{break_streak} // 0 ) + 1 ) : 0;
+
+        # Retest / cercanía: si el precio se aleja mucho sin volver a la línea,
+        # la TL deja de ser relevante (ensucia; oral jun: no cruzar el chart).
+        my $atr = $self->{_atr}[$i] // $self->{_atr}[ $i - 1 ];
+        my $far_lim =
+          ( defined $atr && $atr > 0 )
+          ? ( 4 * $atr )
+          : ( 4 * $ctol );
+        if ( abs( $close - $lp ) <= 2 * $ctol ) {
+            $tl->{last_near} = $i;
+        }
+        my $look = $self->{canal_lookback_bars} // 120;
+        my $last_near = $tl->{last_near} // $tl->{from_index} // $i;
+        if ( !$broke
+            && ( $i - $last_near ) >= $look
+            && abs( $close - $lp ) > $far_lim )
+        {
+            $broke       = 1;
+            $reason_hint = 'no_retest';
+            $tl->{break_streak} = $N;    # muerte inmediata por irrelevancia
+        }
+
         if ( ( $tl->{break_streak} // 0 ) >= $N ) {
-            $tl->{active} = 0;
-            $tl->{reason} = 'break';
+            $tl->{active}   = 0;
+            $tl->{reason}   = $reason_hint;
+            $tl->{to_index} = $i;
+            my $prev = $self->{_tl_dead_after} // -1;
+            $self->{_tl_dead_after} = $i if $i > $prev;
+            my $sig = $tl->{touch_sig} // _touch_sig( $tl->{touches} || [] );
+            $self->{_dead_tl_sigs}{$sig} = 1 if defined $sig && length $sig;
         }
     }
 
