@@ -789,6 +789,30 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
     $fib_hint->pack( -side => 'left', -padx => 4 );
+
+    # Auto (profe): ciclo nacer/vivir/morir — aparte de tools manuales y ZZ Canal.
+    # Canal auto: ≥3 toques / ≥60 min. Trendline auto: ≥3 toques / ≥120 min.
+    my $vis_auto_tl = 0;
+    my $vis_auto_ch = 0;
+    my $apply_auto_tc = sub {
+        $chart_engine->set_auto_tc_layers(
+            trendline => $vis_auto_tl ? 1 : 0,
+            channel   => $vis_auto_ch ? 1 : 0,
+        );
+    };
+    my $auto_box = $p->Frame( -relief => 'groove', -bd => 2 )
+      ->pack( -side => 'left', -padx => 6 );
+    $auto_box->Label( -text => 'Auto:', -fg => '#555' )->pack( -side => 'left', -padx => 2 );
+    $auto_box->Checkbutton(
+        -text     => 'Trendline auto',
+        -variable => \$vis_auto_tl,
+        -command  => $apply_auto_tc,
+    )->pack( -side => 'left' );
+    $auto_box->Checkbutton(
+        -text     => 'Canal auto',
+        -variable => \$vis_auto_ch,
+        -command  => $apply_auto_tc,
+    )->pack( -side => 'left' );
 }
 
 # ---- Pestaña "Volumen": AVP / AVWAP / Pivots-Fantasmas / DIY ----

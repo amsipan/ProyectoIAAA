@@ -16,6 +16,8 @@ use_ok('Market::Indicators::HLD');
 use_ok('Market::Indicators::ZigZag');
 use_ok('Market::Indicators::Liquidity');
 use_ok('Market::Overlays::Liquidity');
+use_ok('Market::Indicators::AutoTrendChannel');
+use_ok('Market::Overlays::AutoTrendChannel');
 use_ok('Market::Drawing::ParallelChannel');
 use_ok('Market::Drawing::FibRetracement');
 use_ok('Market::Panels::Scales');
@@ -34,11 +36,13 @@ my @syntax_files = qw(
     Market/Indicators/HLD.pm
     Market/Indicators/ZigZag.pm
     Market/Indicators/Liquidity.pm
+    Market/Indicators/AutoTrendChannel.pm
     Market/Overlays/SMC_Pro.pm
     Market/Overlays/SMC_Structures_FVG.pm
     Market/Overlays/HLD.pm
     Market/Overlays/ZigZag.pm
     Market/Overlays/Liquidity.pm
+    Market/Overlays/AutoTrendChannel.pm
     Market/Overlays/ParallelChannel.pm
     Market/Overlays/FibRetracement.pm
     Market/Drawing/ParallelChannel.pm

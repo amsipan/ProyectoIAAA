@@ -27,6 +27,8 @@ use Market::Indicators::AnchoredVWAP;
 use Market::Overlays::AnchoredVWAP;
 use Market::Indicators::PivotPointsHL;
 use Market::Overlays::PivotPointsHL;
+use Market::Indicators::AutoTrendChannel;
+use Market::Overlays::AutoTrendChannel;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 #   RIGHT_MARGIN     => margen interno derecho del área de ploteo. Los ejes ahora
 #                       son canvases separados, así que debe ser 0.
@@ -338,6 +340,19 @@ sub new {
         $self->{indicator_manager}->register('PivotPointsHL', $self->{pph_indicator});
     }
 
+    # Trendline auto + Canal auto (ciclo de vida tipo OB; aparte de Drawing/ZZ)
+    $self->{auto_tc_indicator} = Market::Indicators::AutoTrendChannel->new();
+    $self->{auto_tc_overlay}   = Market::Overlays::AutoTrendChannel->new(
+        indicator => $self->{auto_tc_indicator},
+        theme     => $self->{theme},
+        visible   => 0,
+    );
+    $self->{overlay_manager}->register( 'auto_tc', $self->{auto_tc_overlay} );
+    $self->{_auto_tc_fed_up_to} = -1;
+    if ( $self->{indicator_manager} ) {
+        $self->{indicator_manager}->register( 'AutoTrendChannel', $self->{auto_tc_indicator} );
+    }
+
     $self->bind_events();
 
     return $self;
@@ -555,6 +570,16 @@ sub sync_overlay_indicators {
       && $self->{pph_indicator} )
     {
         $self->_feed_indicator_to($self->{pph_indicator}, '_pph_fed_up_to', $feed_to);
+    }
+
+    if ( $self->_overlay_wants_feed('auto_tc') && $self->{auto_tc_indicator} ) {
+        # Chunked: el nacimiento combina pivotes + barridos O(span); no bloquear
+        # el primer frame al prender Canal auto (mismo patrón que SMC).
+        my $done = $self->_feed_indicator_chunk(
+            $self->{auto_tc_indicator}, '_auto_tc_fed_up_to', $feed_to,
+            $self->{_auto_tc_feed_chunk_size} // 250
+        );
+        $self->_schedule_auto_tc_background_feed($feed_to) unless $done;
     }
 
     if ($avwap_auto_on) {
@@ -943,6 +968,50 @@ sub _schedule_smc_background_feed {
             eval { $self->request_render() };
         }
     });
+    return $self;
+}
+
+# Feed diferido AutoTrendChannel (mismo patrón que SMC; chunk más chico).
+sub _schedule_auto_tc_background_feed {
+    my ( $self, $target ) = @_;
+    return if $self->{_auto_tc_background_feed_pending};
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+    return unless $canvas;
+    $self->{_auto_tc_background_feed_pending} = 1;
+    my $delay = $self->{_auto_tc_feed_after_ms} // 16;
+    $canvas->after(
+        $delay,
+        sub {
+            $self->{_auto_tc_background_feed_pending} = 0;
+            my $ok = eval {
+                return 1 unless $self->_overlay_wants_feed('auto_tc') && $self->{auto_tc_indicator};
+                my $md = $self->{market_data};
+                return 1 unless $md;
+                my $last = $md->size() - 1;
+                return 1 if $last < 0;
+                my $replay  = $self->{replay_controller};
+                my $feed_to = $target;
+                if ( $replay && $replay->is_active() && defined $replay->current_index() ) {
+                    $feed_to = $replay->current_index();
+                    $feed_to = $last if $feed_to > $last;
+                }
+                else {
+                    $feed_to = $last if !defined $feed_to || $feed_to > $last;
+                }
+                my $chunk = $self->{_auto_tc_feed_chunk_size} // 250;
+                my $done  = $self->_feed_indicator_chunk(
+                    $self->{auto_tc_indicator}, '_auto_tc_fed_up_to', $feed_to, $chunk
+                );
+                $self->request_render();
+                $self->_schedule_auto_tc_background_feed($feed_to) unless $done;
+                1;
+            };
+            if ( !$ok ) {
+                warn "AutoTC background feed: $@";
+                eval { $self->request_render() };
+            }
+        }
+    );
     return $self;
 }
 
@@ -1939,6 +2008,43 @@ sub begin_vwap_placement {
 
 # Modo AVWAP: off | manual | auto | both
 # Auto ≤2 (pivot consolidado + fantasma); manual adicional opcional.
+# set_auto_tc_layers(trendline => 0|1, channel => 0|1)
+# Checks UI "Trendline auto" / "Canal auto". Activa el overlay si alguno está ON;
+# reset+refeed al cambiar (enable filtra nacimiento).
+sub set_auto_tc_layers {
+    my ( $self, %opts ) = @_;
+    my $ind = $self->{auto_tc_indicator};
+    my $ov  = $self->{auto_tc_overlay};
+    return $self unless $ind && $ov;
+
+    my $show_tl = exists $opts{trendline}
+      ? ( $opts{trendline} ? 1 : 0 )
+      : ( $ov->{show_trendline} ? 1 : 0 );
+    my $show_ch = exists $opts{channel}
+      ? ( $opts{channel} ? 1 : 0 )
+      : ( $ov->{show_channel} ? 1 : 0 );
+
+    $ind->set_enable_trendline($show_tl);
+    $ind->set_enable_channel($show_ch);
+    $ov->set_show_trendline($show_tl);
+    $ov->set_show_channel($show_ch);
+
+    my $any = ( $show_tl || $show_ch ) ? 1 : 0;
+    $ov->set_visible($any);
+    $ind->reset();
+    if ( $self->{market_data} && defined $self->{market_data}{active_tf} ) {
+        my %tfm = (
+            '1m' => 1, '5m' => 5, '15m' => 15, '1h' => 60,
+            '2h' => 120, '4h' => 240, 'D' => 1440, 'W' => 10080,
+        );
+        my $bm = $tfm{ $self->{market_data}{active_tf} } // 1;
+        $ind->set_bar_minutes($bm) if $ind->can('set_bar_minutes');
+    }
+    $self->{_auto_tc_fed_up_to} = -1;
+    $self->request_render();
+    return $self;
+}
+
 sub set_avwap_mode {
     my ( $self, $mode ) = @_;
     $mode = $mode // 'off';
@@ -4328,6 +4434,17 @@ sub set_timeframe {
         }
         $self->{_liq_fed_up_to}  = -1;
         $self->{_liq_pivot_sig} = undef;
+    }
+    if ( $self->{auto_tc_indicator} ) {
+        $self->{auto_tc_indicator}->reset();
+        my %tfm = (
+            '1m' => 1, '5m' => 5, '15m' => 15, '1h' => 60,
+            '2h' => 120, '4h' => 240, 'D' => 1440, 'W' => 10080,
+        );
+        my $bm = $tfm{$tf} // 1;
+        $self->{auto_tc_indicator}->set_bar_minutes($bm)
+          if $self->{auto_tc_indicator}->can('set_bar_minutes');
+        $self->{_auto_tc_fed_up_to} = -1;
     }
     $self->{is_auto_scale} = 1;
     $self->{manual_min_y} = undef;
