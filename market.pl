@@ -277,9 +277,10 @@ $vis_liq_el{HISTORY} = 0;    # niveles archivados (resolved) — demo profe
 my $zigzag_resolution = 30;
 my $fib_extend_to_last = 0;
 # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
-my $vis_pph      = 0;
+my $vis_pph       = 0;
 my $pph_show_reg  = 1;   # pivots regulares ▼▲
 my $pph_show_miss = 1;   # pivots perdidos 👻
+my $pph_show_rastro = 1; # rastro "1" (Josafa)
 
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
@@ -745,66 +746,86 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
 
-    # Anchored VWAP (AVWAP)
-    my $vis_avwap = 0;
+    # Anchored VWAP (AVWAP): Manual | Auto | Manual+Auto
+    # Auto ≤2 (pivot consolidado + fantasma); manual opcional adicional (hasta 3).
+    my $avwap_mode_ui = 'off';    # off | manual | auto | both
     my %vis_avwap_sub = ( band1 => 1, band2 => 1, band3 => 0, fill => 1 );
-    $p->Checkbutton(
-        -text     => 'Anchored VWAP (AVWAP)',
-        -variable => \$vis_avwap,
-        -command  => sub {
-            if ($vis_avwap) { $chart_engine->begin_vwap_placement(); }
-            else            { $chart_engine->end_vwap_overlay(); }
-        },
+    my $avwap_box = $p->Frame( -relief => 'groove', -bd => 2 )
+      ->pack( -side => 'left', -padx => 4 );
+    $avwap_box->Label( -text => 'AVWAP' )->pack( -side => 'left' );
+
+    my $apply_avwap_mode = sub {
+        my ($mode) = @_;
+        $avwap_mode_ui = $mode;
+        $chart_engine->set_avwap_mode($mode);
+        $chart_engine->set_avwap_bands_all(
+            band1 => $vis_avwap_sub{band1},
+            band2 => $vis_avwap_sub{band2},
+            band3 => $vis_avwap_sub{band3},
+            fill  => $vis_avwap_sub{fill},
+        );
+    };
+    $avwap_box->Radiobutton(
+        -text     => 'Off',
+        -value    => 'off',
+        -variable => \$avwap_mode_ui,
+        -command  => sub { $apply_avwap_mode->('off'); },
     )->pack( -side => 'left' );
-    my $avwap_sub_frame = $p->Frame()->pack( -side => 'left', -padx => 2 );
+    $avwap_box->Radiobutton(
+        -text     => 'Manual',
+        -value    => 'manual',
+        -variable => \$avwap_mode_ui,
+        -command  => sub { $apply_avwap_mode->('manual'); },
+    )->pack( -side => 'left' );
+    $avwap_box->Radiobutton(
+        -text     => 'Auto',
+        -value    => 'auto',
+        -variable => \$avwap_mode_ui,
+        -command  => sub { $apply_avwap_mode->('auto'); },
+    )->pack( -side => 'left' );
+    $avwap_box->Radiobutton(
+        -text     => 'Manual+Auto',
+        -value    => 'both',
+        -variable => \$avwap_mode_ui,
+        -command  => sub { $apply_avwap_mode->('both'); },
+    )->pack( -side => 'left' );
+
+    my $avwap_sub_frame = $avwap_box->Frame()->pack( -side => 'left', -padx => 2 );
+    my $apply_bands = sub {
+        $chart_engine->set_avwap_bands_all(
+            band1 => $vis_avwap_sub{band1},
+            band2 => $vis_avwap_sub{band2},
+            band3 => $vis_avwap_sub{band3},
+            fill  => $vis_avwap_sub{fill},
+        );
+    };
     $avwap_sub_frame->Checkbutton(
         -text     => 'σ1',
         -variable => \$vis_avwap_sub{band1},
-        -command  => sub {
-            $chart_engine->{avwap_indicator}->set_band(1, on => $vis_avwap_sub{band1})
-                if $chart_engine->{avwap_indicator};
-            $chart_engine->{avwap_overlay}->set_element_visible('BAND_1', $vis_avwap_sub{band1})
-                if $chart_engine->{avwap_overlay};
-            $chart_engine->request_render();
-        },
+        -command  => $apply_bands,
     )->pack( -side => 'left' );
     $avwap_sub_frame->Checkbutton(
         -text     => 'σ2',
         -variable => \$vis_avwap_sub{band2},
-        -command  => sub {
-            $chart_engine->{avwap_indicator}->set_band(2, on => $vis_avwap_sub{band2})
-                if $chart_engine->{avwap_indicator};
-            $chart_engine->{avwap_overlay}->set_element_visible('BAND_2', $vis_avwap_sub{band2})
-                if $chart_engine->{avwap_overlay};
-            $chart_engine->request_render();
-        },
+        -command  => $apply_bands,
     )->pack( -side => 'left' );
     $avwap_sub_frame->Checkbutton(
         -text     => 'σ3',
         -variable => \$vis_avwap_sub{band3},
-        -command  => sub {
-            $chart_engine->{avwap_indicator}->set_band(3, on => $vis_avwap_sub{band3})
-                if $chart_engine->{avwap_indicator};
-            $chart_engine->{avwap_overlay}->set_element_visible('BAND_3', $vis_avwap_sub{band3})
-                if $chart_engine->{avwap_overlay};
-            $chart_engine->request_render();
-        },
+        -command  => $apply_bands,
     )->pack( -side => 'left' );
     $avwap_sub_frame->Checkbutton(
         -text     => 'Relleno',
         -variable => \$vis_avwap_sub{fill},
-        -command  => sub {
-            $chart_engine->{avwap_overlay}->set_element_visible('BAND_FILL', $vis_avwap_sub{fill})
-                if $chart_engine->{avwap_overlay};
-            $chart_engine->request_render();
-        },
+        -command  => $apply_bands,
     )->pack( -side => 'left' );
-    $p->Button(
-        -text    => 'Eliminar AVWAP',
+    $avwap_box->Button(
+        -text    => 'Eliminar manual',
         -padx    => 3,
         -command => sub {
-            $vis_avwap = 0;
             $chart_engine->remove_vwap_overlay();
+            my $m = $chart_engine->{avwap_mode} // 'off';
+            $avwap_mode_ui = $m;
         },
     )->pack( -side => 'left', -padx => 2 );
 
@@ -816,6 +837,7 @@ if ($ENV{MARKET_RELOAD}) {
         $ind->{show_miss} = $pph_show_miss ? 1 : 0;
         $ind->reset() if $ind->can('reset');
         $chart_engine->{_pph_fed_up_to} = -1;   # forzar re-feed causal (Replay-safe)
+        $chart_engine->set_pph_show_rastro($pph_show_rastro);
         $chart_engine->request_render();
     };
     $pph_box->Checkbutton(
@@ -832,6 +854,13 @@ if ($ENV{MARKET_RELOAD}) {
         -text     => 'Missed',
         -variable => \$pph_show_miss,
         -command  => $apply_pph,
+    )->pack( -side => 'left' );
+    $pph_box->Checkbutton(
+        -text     => 'Rastro',
+        -variable => \$pph_show_rastro,
+        -command  => sub {
+            $chart_engine->set_pph_show_rastro($pph_show_rastro);
+        },
     )->pack( -side => 'left' );
 
     # DIY Custom Strategy Builder (Supply/Demand Zones)
@@ -862,7 +891,7 @@ if ($ENV{MARKET_RELOAD}) {
     $grid_box->Label(-text => 'Grid:')->pack(-side => 'left', -padx => 3);
     my $grid_btn;
     $grid_btn = $grid_box->Button(
-        -text        => 'Ocultar',
+        -text        => 'Mostrar',
         -padx        => 5,
         -command     => sub {
             my $on = $chart_engine->toggle_grid();

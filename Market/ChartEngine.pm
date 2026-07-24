@@ -121,7 +121,7 @@ sub new {
         _selected_bar       => undef,
         _vwap_select_mode   => 0,
         _vp_select_mode     => 0,
-        show_grid           => 1,
+        show_grid           => 0,
 
         %args,
     };
@@ -280,18 +280,48 @@ sub new {
         $self->{indicator_manager}->register('VolumeProfile', $self->{vp_indicator});
     }
 
-    # Anchored VWAP (AVWAP)
+    # Anchored VWAP (AVWAP) — manual + hasta 2 automáticos (pivot / fantasma)
     $self->{avwap_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_overlay}   = Market::Overlays::AnchoredVWAP->new(
         indicator => $self->{avwap_indicator},
         theme     => $self->{theme},
         visible   => 0,
+        show_handle => 1,
     );
     $self->{overlay_manager}->register( 'anchoredvwap', $self->{avwap_overlay} );
     $self->{_avwap_fed_up_to} = -1;
     if ($self->{indicator_manager}) {
         $self->{indicator_manager}->register('AnchoredVWAP', $self->{avwap_indicator});
     }
+
+    # Auto-1: último pivot regular consolidado (high o low)
+    $self->{avwap_auto1_indicator} = Market::Indicators::AnchoredVWAP->new();
+    $self->{avwap_auto1_overlay}   = Market::Overlays::AnchoredVWAP->new(
+        indicator   => $self->{avwap_auto1_indicator},
+        theme       => { %{ $self->{theme} || {} }, vwap_line => '#26A69A' },
+        tag         => 'ov_avwap_auto1',
+        show_handle => 0,
+        visible     => 0,
+        color_vwap  => '#26A69A',
+    );
+    $self->{overlay_manager}->register( 'avwap_auto1', $self->{avwap_auto1_overlay} );
+    $self->{_avwap_auto1_fed_up_to} = -1;
+
+    # Auto-2: fantasma provisional (sigue x_last)
+    $self->{avwap_auto2_indicator} = Market::Indicators::AnchoredVWAP->new();
+    $self->{avwap_auto2_overlay}   = Market::Overlays::AnchoredVWAP->new(
+        indicator   => $self->{avwap_auto2_indicator},
+        theme       => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
+        tag         => 'ov_avwap_auto2',
+        show_handle => 0,
+        visible     => 0,
+        color_vwap  => '#9C27B0',
+    );
+    $self->{overlay_manager}->register( 'avwap_auto2', $self->{avwap_auto2_overlay} );
+    $self->{_avwap_auto2_fed_up_to} = -1;
+
+    # off | manual | auto | both
+    $self->{avwap_mode} = 'off';
 
     # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
     $self->{pph_indicator} = Market::Indicators::PivotPointsHL->new();
@@ -517,8 +547,16 @@ sub sync_overlay_indicators {
     }
 
     # Pivot Points High Low & Missed (fantasmas)
-    if ( $self->_overlay_wants_feed('pivotpointshl') && $self->{pph_indicator} ) {
+    my $avwap_auto_on = ( ( $self->{avwap_mode} // '' ) eq 'auto'
+      || ( $self->{avwap_mode} // '' ) eq 'both' ) ? 1 : 0;
+    if ( ( $self->_overlay_wants_feed('pivotpointshl') || $avwap_auto_on )
+      && $self->{pph_indicator} )
+    {
         $self->_feed_indicator_to($self->{pph_indicator}, '_pph_fed_up_to', $feed_to);
+    }
+
+    if ($avwap_auto_on) {
+        $self->_sync_avwap_auto_anchors($feed_to);
     }
 
     return $feed_to;
@@ -1893,11 +1931,148 @@ sub begin_vwap_placement {
     return $self;
 }
 
+# Modo AVWAP: off | manual | auto | both
+# Auto ≤2 (pivot consolidado + fantasma); manual adicional opcional.
+sub set_avwap_mode {
+    my ( $self, $mode ) = @_;
+    $mode = $mode // 'off';
+    $mode = 'off' unless $mode =~ /^(?:off|manual|auto|both)$/;
+    $self->{avwap_mode} = $mode;
+
+    my $want_manual = ( $mode eq 'manual' || $mode eq 'both' ) ? 1 : 0;
+    my $want_auto   = ( $mode eq 'auto'   || $mode eq 'both' ) ? 1 : 0;
+
+    if ( $self->{avwap_overlay} ) {
+        $self->{avwap_overlay}->set_visible($want_manual);
+    }
+    if ( !$want_manual ) {
+        $self->set_vwap_select_mode(0);
+    }
+    elsif ( $self->{avwap_indicator} && !$self->{avwap_indicator}->has_anchor() ) {
+        $self->set_vwap_select_mode(1);
+    }
+
+    for my $ov ( $self->{avwap_auto1_overlay}, $self->{avwap_auto2_overlay} ) {
+        $ov->set_visible($want_auto) if $ov;
+    }
+    if ( !$want_auto ) {
+        for my $ind ( $self->{avwap_auto1_indicator}, $self->{avwap_auto2_indicator} ) {
+            $ind->clear_anchor() if $ind && $ind->can('clear_anchor');
+        }
+    }
+    else {
+        my $feed = $self->_causal_end();
+        $self->_sync_avwap_auto_anchors($feed) if defined $feed && $feed >= 0;
+    }
+
+    $self->request_render();
+    return $self;
+}
+
+sub _sync_avwap_auto_anchors {
+    my ( $self, $feed_to ) = @_;
+    return $self unless $self->{pph_indicator};
+    return $self unless defined $feed_to && $feed_to >= 0;
+
+    # Asegurar PPH alimentado (Auto lee pivots/fantasma).
+    $self->_feed_indicator_to( $self->{pph_indicator}, '_pph_fed_up_to', $feed_to );
+
+    my $vals = $self->{pph_indicator}->get_values() || {};
+
+    # Auto-1: último pivot REGULAR consolidado (high o low).
+    my $reg = $vals->{last_regular};
+    if ( $reg && defined $reg->{index} && $self->{avwap_auto1_indicator} ) {
+        my $a1 = $self->{avwap_auto1_indicator};
+        my $cur = $a1->anchor_index();
+        if ( !defined $cur || $cur != $reg->{index} ) {
+            $a1->set_anchor( $reg->{index} );
+            $self->{_avwap_auto1_fed_up_to} = -1;
+        }
+        $self->_feed_indicator_to( $a1, '_avwap_auto1_fed_up_to', $feed_to );
+        $self->{avwap_auto1_overlay}->set_visible(1) if $self->{avwap_auto1_overlay};
+    }
+    elsif ( $self->{avwap_auto1_indicator} ) {
+        $self->{avwap_auto1_indicator}->clear_anchor();
+        $self->{avwap_auto1_overlay}->set_visible(0) if $self->{avwap_auto1_overlay};
+    }
+
+    # Auto-2: punta actual del fantasma provisional (rebuild desde x_last).
+    my $prov = $vals->{provisional};
+    if ( $prov && defined $prov->{index} && $self->{avwap_auto2_indicator} ) {
+        my $a2 = $self->{avwap_auto2_indicator};
+        my $cur = $a2->anchor_index();
+        if ( !defined $cur || $cur != $prov->{index} ) {
+            $a2->set_anchor( $prov->{index} );
+            $self->{_avwap_auto2_fed_up_to} = -1;
+        }
+        $self->_feed_indicator_to( $a2, '_avwap_auto2_fed_up_to', $feed_to );
+        $self->{avwap_auto2_overlay}->set_visible(1) if $self->{avwap_auto2_overlay};
+    }
+    elsif ( $self->{avwap_auto2_indicator} ) {
+        $self->{avwap_auto2_indicator}->clear_anchor();
+        $self->{avwap_auto2_overlay}->set_visible(0) if $self->{avwap_auto2_overlay};
+    }
+
+    return $self;
+}
+
+# Toggle rastro "1" del fantasma (Josafa). Solo render; el cálculo se conserva.
+sub set_pph_show_rastro {
+    my ( $self, $on ) = @_;
+    $self->{pph_overlay}->set_show_rastro($on) if $self->{pph_overlay};
+    $self->request_render();
+    return $self;
+}
+
+# Aplica toggles de bandas σ a manual + autos.
+sub set_avwap_bands_all {
+    my ( $self, %bands ) = @_;
+    for my $ind (
+        $self->{avwap_indicator},
+        $self->{avwap_auto1_indicator},
+        $self->{avwap_auto2_indicator},
+      )
+    {
+        next unless $ind;
+        for my $n ( 1, 2, 3 ) {
+            next unless exists $bands{"band$n"};
+            $ind->set_band( $n, on => $bands{"band$n"} ? 1 : 0 );
+        }
+    }
+    for my $ov (
+        $self->{avwap_overlay},
+        $self->{avwap_auto1_overlay},
+        $self->{avwap_auto2_overlay},
+      )
+    {
+        next unless $ov;
+        for my $n ( 1, 2, 3 ) {
+            next unless exists $bands{"band$n"};
+            $ov->set_element_visible( "BAND_$n", $bands{"band$n"} ? 1 : 0 );
+        }
+        if ( exists $bands{fill} ) {
+            $ov->set_element_visible( 'BAND_FILL', $bands{fill} ? 1 : 0 );
+        }
+    }
+    $self->request_render();
+    return $self;
+}
+
 sub confirm_vwap_anchor {
     my ($self, $idx) = @_;
     return unless defined $idx;
     if ($self->{avwap_indicator}) {
         $self->{avwap_indicator}->set_anchor($idx);
+    }
+    if ($self->{avwap_overlay}) {
+        $self->{avwap_overlay}->set_visible(1);
+    }
+    my $mode = $self->{avwap_mode} // 'off';
+    if ( $mode eq 'off' ) {
+        $self->{avwap_mode} = 'manual';
+    }
+    elsif ( $mode eq 'auto' ) {
+        $self->{avwap_mode} = 'both';
     }
     $self->set_vwap_select_mode(0);
     $self->request_render();
@@ -1916,6 +2091,14 @@ sub end_vwap_overlay {
     if ($self->{avwap_overlay}) {
         $self->{avwap_overlay}->set_visible(0);
     }
+    # Apagar solo el manual; Auto permanece si estaba en both.
+    my $mode = $self->{avwap_mode} // 'off';
+    if ( $mode eq 'manual' ) {
+        $self->{avwap_mode} = 'off';
+    }
+    elsif ( $mode eq 'both' ) {
+        $self->{avwap_mode} = 'auto';
+    }
     $self->request_render();
     return $self;
 }
@@ -1932,6 +2115,14 @@ sub remove_vwap_overlay {
     if ($self->{avwap_overlay}) {
         $self->{avwap_overlay}->clear($self->{price_canvas}) if $self->{price_canvas};
         $self->{avwap_overlay}->set_visible(0);
+    }
+    # No apaga Auto aquí: solo limpia el manual. Usar set_avwap_mode('off'|'auto').
+    my $mode = $self->{avwap_mode} // 'off';
+    if ( $mode eq 'manual' ) {
+        $self->{avwap_mode} = 'off';
+    }
+    elsif ( $mode eq 'both' ) {
+        $self->{avwap_mode} = 'auto';
     }
     $self->request_render();
     return $self;

@@ -14,18 +14,22 @@ use warnings;
 #   - Fantasma provisional (barstate.islast en Pine): el pivote en formación del
 #     último índice causal. "Mientras el fantasma se mueve no operar; cuando se
 #     queda quieto, sí" (profe). Se recalcula en cada vela → se ve moverse en Replay.
+#   - Rastro "1" (Josafa Ghosts_in_swings): al cambiar de punta el fantasma
+#     provisional, deja marcador en la posición previa (conteo visual de saltos).
 #
 #   Cálculo PURO (sin Tk). Contrato: new / reset / update_last($md,$i) / get_values.
 #   Totalmente causal: solo mira velas <= índice actual, así el feed incremental y
 #   el rewind de Replay (reset + refeed) lo reconstruyen sin fuga de futuro.
+#   Source rastro/AVWAP auto: docs/reference_indicators/ghosts_in_swings_josafa.txt
 # =============================================================================
 
 sub new {
     my ($class, %args) = @_;
     my $self = {
-        length    => $args{length}    // 50,
-        show_reg  => exists $args{show_reg}  ? ($args{show_reg}  ? 1 : 0) : 1,
-        show_miss => exists $args{show_miss} ? ($args{show_miss} ? 1 : 0) : 1,
+        length     => $args{length}    // 50,
+        show_reg   => exists $args{show_reg}   ? ($args{show_reg}   ? 1 : 0) : 1,
+        show_miss  => exists $args{show_miss}  ? ($args{show_miss}  ? 1 : 0) : 1,
+        show_rastro => exists $args{show_rastro} ? ($args{show_rastro} ? 1 : 0) : 1,
     };
     bless $self, $class;
     $self->reset();
@@ -51,6 +55,8 @@ sub reset {
     $self->{_labels}       = [];   # {index, price, glyph, dir, color_key, missed}
     $self->{_zigzag}       = [];   # {from_index, from_price, to_index, to_price, color_key, style}
     $self->{_ghost_levels} = [];   # {index, price, color_key}
+    $self->{_trails}       = [];   # rastro "1": {index, price, dir, color_key}
+    $self->{_prev_prov}    = undef; # punta previa del fantasma provisional
     return $self;
 }
 
@@ -106,6 +112,8 @@ sub update_last {
 
     $self->_on_pivot_high($Lh, $ph, $os_prev) if defined $ph;
     $self->_on_pivot_low($Lh, $pl, $os_prev)  if defined $pl;
+
+    $self->_update_rastro_from_provisional();
 
     return $self;
 }
@@ -292,6 +300,58 @@ sub _provisional {
     };
 }
 
+# Rastro Josafa: si la punta provisional cambió, deja "1" en la posición previa.
+sub _update_rastro_from_provisional {
+    my ($self) = @_;
+    return unless $self->{show_miss};
+    my $prov = $self->_provisional();
+    my $prev = $self->{_prev_prov};
+
+    if ( $prov && $prev
+      && ( ( $prev->{index} // -1 ) != ( $prov->{index} // -2 )
+        || abs( ( $prev->{price} // 0 ) - ( $prov->{price} // 0 ) ) > 1e-9 ) )
+    {
+        push @{ $self->{_trails} }, {
+            index     => $prev->{index},
+            price     => $prev->{price},
+            dir       => $prev->{dir},
+            color_key => $prev->{ghost_key} // 'miss_pl',
+            glyph     => '1',
+        };
+    }
+
+    $self->{_prev_prov} = $prov
+      ? {
+        index     => $prov->{index},
+        price     => $prov->{price},
+        dir       => $prov->{dir},
+        ghost_key => $prov->{ghost_key},
+      }
+      : undef;
+    return $self;
+}
+
+# Último pivot REGULAR consolidado (high o low) — ancla Auto-1 AVWAP.
+sub last_regular_pivot {
+    my ($self) = @_;
+    my $labels = $self->{_labels} || [];
+    for ( my $i = $#$labels ; $i >= 0 ; $i-- ) {
+        my $lb = $labels->[$i];
+        next unless $lb;
+        next if $lb->{missed};
+        my $g = $lb->{glyph} // '';
+        next unless $g eq 'reg_high' || $g eq 'reg_low';
+        return {
+            index => $lb->{index},
+            price => $lb->{price},
+            dir   => $lb->{dir},
+            glyph => $g,
+            side  => ( $g eq 'reg_high' ) ? 'high' : 'low',
+        };
+    }
+    return undef;
+}
+
 # Ghost levels con to_index encadenado (Pine: cada nivel se congela donde nace
 # el siguiente vía set_x2; el último se extiende a n). Sin esto, todas las líneas
 # llegarían hasta el final del gráfico, cuando en TV se cortan en el próximo pivote.
@@ -318,6 +378,8 @@ sub get_values {
         zigzag        => $self->{_zigzag},
         ghost_levels  => $self->_ghost_levels_chained(),
         provisional   => $self->_provisional(),
+        trails        => [ @{ $self->{_trails} || [] } ],
+        last_regular  => $self->last_regular_pivot(),
         last_index    => $self->{_last},
     };
 }

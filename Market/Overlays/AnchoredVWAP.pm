@@ -22,6 +22,8 @@ sub new {
         indicator => $args{indicator},
         theme     => $theme,
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
+        _tag      => $args{tag} // 'ov_avwap',
+        show_handle => exists $args{show_handle} ? ($args{show_handle} ? 1 : 0) : 1,
         _elements => {
             VWAP_LINE => 1,
             BAND_1    => 1,
@@ -29,14 +31,14 @@ sub new {
             BAND_3    => 1,
             BAND_FILL => 1,
         },
-        color_vwap   => $theme->{vwap_line}   // '#2962FF',
+        color_vwap   => $theme->{vwap_line}   // $args{color_vwap} // '#2962FF',
         color_band1  => $theme->{vwap_band1}  // '#26A69A',
         color_band2  => $theme->{vwap_band2}  // '#9E9D24',
         color_band3  => $theme->{vwap_band3}  // '#827717',
         color_fill   => $theme->{vwap_fill}   // '#B2DFDB',
         line_width   => $theme->{vwap_width}  // 1,
         fill_stipple => $theme->{vwap_fill_stipple} // 'gray12',
-        color_handle => '#2962FF',
+        color_handle => $args{color_handle} // $theme->{vwap_line} // '#2962FF',
         _start       => 0,
         _end         => 0,
     };
@@ -55,7 +57,8 @@ sub is_visible {
 }
 
 sub tag {
-    return 'ov_avwap';
+    my ($self) = @_;
+    return $self->{_tag} // 'ov_avwap';
 }
 
 sub clear {
@@ -204,8 +207,12 @@ sub draw {
         );
     }
 
-    # 4) Handle deslicable de ancla sobre la vela ancla
-    if (defined $anchor && $anchor >= ($self->{_start} // 0) && $anchor <= ($self->{_end} // 0)) {
+    # 4) Handle deslicable de ancla sobre la vela ancla (solo modo manual)
+    if ( $self->{show_handle}
+      && defined $anchor
+      && $anchor >= ( $self->{_start} // 0 )
+      && $anchor <= ( $self->{_end}   // 0 ) )
+    {
         my $local_idx = $self->_local_index($anchor);
         my $x = $scales->index_to_center_x($local_idx);
         my $pt = $series->[$anchor];

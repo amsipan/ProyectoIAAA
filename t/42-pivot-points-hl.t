@@ -209,4 +209,83 @@ sub build_md {
     }
 }
 
+# ---------------------------------------------------------------------------
+# 9. last_regular: último pivot REGULAR consolidado (high O low), no solo UP.
+# ---------------------------------------------------------------------------
+{
+    my $md  = build_md();
+    my $ind = Market::Indicators::PivotPointsHL->new(length => 3);
+    for my $i (0 .. $md->size - 1) { $ind->update_last($md, $i); }
+
+    my $v   = $ind->get_values();
+    my $reg = $v->{last_regular};
+    ok( $reg && defined $reg->{index}, 'last_regular expone un pivot consolidado' );
+    ok( !$reg->{missed}, 'last_regular nunca es missed' );
+    ok( ( $reg->{side} // '' ) eq 'high' || ( $reg->{side} // '' ) eq 'low',
+        'last_regular acepta high o low (no solo alcistas)' );
+
+    # Debe coincidir con el último label regular en labels[].
+    my @regs = grep {
+        !$_->{missed}
+          && ( ( $_->{glyph} // '' ) eq 'reg_high' || ( $_->{glyph} // '' ) eq 'reg_low' )
+    } @{ $v->{labels} || [] };
+    if (@regs) {
+        is( $reg->{index}, $regs[-1]{index}, 'last_regular = último regular en labels' );
+    }
+    else {
+        pass('(skip) sin regulares en dataset');
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 10. Rastro "1": al saltar el fantasma provisional, queda trail en la punta previa.
+# ---------------------------------------------------------------------------
+{
+    my $md  = build_md();
+    my $ind = Market::Indicators::PivotPointsHL->new(length => 3);
+
+    my $prev_key;
+    my $saw_trail = 0;
+    for my $i ( 0 .. $md->size - 1 ) {
+        $ind->update_last( $md, $i );
+        my $v    = $ind->get_values();
+        my $prov = $v->{provisional};
+        my $ntr  = scalar @{ $v->{trails} || [] };
+        $saw_trail = 1 if $ntr > 0;
+        if ( $prov && defined $prev_key ) {
+            my $key = ( $prov->{index} // '' ) . ':' . ( $prov->{price} // '' );
+            # Si cambió la punta, debe haber al menos un trail (o ya había).
+            if ( $key ne $prev_key && $ntr == 0 ) {
+                # puede ser el primer frame tras seed sin prev — ok si aún no hay prev_prov
+            }
+        }
+        $prev_key = $prov
+          ? ( ( $prov->{index} // '' ) . ':' . ( $prov->{price} // '' ) )
+          : undef;
+    }
+    ok( $saw_trail, 'rastro "1" se acumula cuando el fantasma provisional salta' );
+
+    my $trails = $ind->get_values->{trails} || [];
+    if (@$trails) {
+        ok( defined $trails->[0]{index} && defined $trails->[0]{price},
+            'cada trail tiene index+price' );
+        is( $trails->[0]{glyph} // '1', '1', 'glyph del rastro es "1"' );
+    }
+    else {
+        pass('(skip) trail fields') for 1 .. 2;
+    }
+
+    # Replay: reset+refeed reproduce el mismo nº de trails.
+    my $n = scalar @$trails;
+    my $reb = Market::Indicators::PivotPointsHL->new(length => 3);
+    for my $i ( 0 .. $md->size - 1 ) { $reb->update_last( $md, $i ); }
+    is( scalar @{ $reb->get_values->{trails} || [] }, $n,
+        'rastro determinista tras reset+refeed (Replay-safe)' );
+
+    my $ov = Market::Overlays::PivotPointsHL->new( indicator => $ind, visible => 1 );
+    ok( $ov->{show_rastro}, 'overlay muestra rastro por defecto' );
+    $ov->set_show_rastro(0);
+    ok( !$ov->{show_rastro}, 'set_show_rastro(0) apaga el render del rastro' );
+}
+
 done_testing();

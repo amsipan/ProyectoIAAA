@@ -38,9 +38,11 @@ sub new {
         theme     => $theme,
         visible   => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
         use_emoji => exists $args{use_emoji} ? ($args{use_emoji} ? 1 : 0) : $DEFAULT_USE_EMOJI,
+        show_rastro => exists $args{show_rastro} ? ($args{show_rastro} ? 1 : 0) : 1,
         col_ph    => $theme->{pph_high}  // '#ef5350',
         col_pl    => $theme->{pph_low}   // '#26a69a',
         col_label => $theme->{pph_label} // '#ffffff',
+        col_rastro => $theme->{pph_rastro} // '#9598a1',
         _start    => 0,
         _end      => 0,
     };
@@ -57,6 +59,12 @@ sub set_visible {
 }
 
 sub is_visible { $_[0]->{visible} ? 1 : 0 }
+
+sub set_show_rastro {
+    my ( $self, $on ) = @_;
+    $self->{show_rastro} = $on ? 1 : 0;
+    return $self;
+}
 
 sub compute_visible {
     my ($self, $market_data, $indicator, $start, $end) = @_;
@@ -163,6 +171,26 @@ sub draw {
         next unless $self->_idx_visible($lb->{index});
         $self->_draw_label($canvas, $x_of->($lb->{index}), $y_of->($lb->{price}),
             $lb->{glyph}, $lb->{dir}, $self->_color_for($lb->{color_key}));
+    }
+
+    # 3b) Rastro "1" (Josafa): saltos previos del fantasma provisional.
+    if ( $self->{show_rastro} ) {
+        for my $tr ( @{ $vals->{trails} || [] } ) {
+            next unless $self->_idx_visible( $tr->{index} );
+            my $col = $self->{col_rastro} // $self->_color_for( $tr->{color_key} // 'miss_pl' );
+            my $dy  = ( ( $tr->{dir} // 'up' ) eq 'down' ) ? -12 : 12;
+            eval {
+                $canvas->createText(
+                    $x_of->( $tr->{index} ),
+                    $y_of->( $tr->{price} ) + $dy,
+                    -text => '1',
+                    -fill => $col,
+                    -font => [ 'TkDefaultFont', 8 ],
+                    -tags => $tag,
+                );
+                1;
+            };
+        }
     }
 
     # 4) Fantasma provisional (barstate.islast, source l.121-152):
