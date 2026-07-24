@@ -824,20 +824,42 @@ if ($ENV{MARKET_RELOAD}) {
 # ---- Pestaña "Volumen": AVP / AVWAP / Pivots-Fantasmas / DIY ----
 {
     my $p = $panel{Volumen};
-    # Anchored Volume Profile (AVP)
-    $p->Checkbutton(
-        -text     => 'Volume Profile (AVP)',
-        -variable => \$vis_vp,
-        -command  => sub {
-            if ($vis_vp) { $chart_engine->begin_vp_placement(); }
-            else         { $chart_engine->end_vp_overlay(); }
-        },
+    # Anchored Volume Profile (AVP): Off | Manual | Auto (ZZ ext)
+    my $vp_mode_ui = 'off';    # off | manual | auto
+    my $vp_box = $p->Frame( -relief => 'groove', -bd => 2 )
+      ->pack( -side => 'left', -padx => 4 );
+    $vp_box->Label( -text => 'AVP' )->pack( -side => 'left' );
+
+    my $apply_vp_mode = sub {
+        my ($mode) = @_;
+        $vp_mode_ui = $mode;
+        $vis_vp = ( $mode eq 'off' ) ? 0 : 1;
+        $chart_engine->set_vp_mode($mode);
+    };
+    $vp_box->Radiobutton(
+        -text     => 'Off',
+        -value    => 'off',
+        -variable => \$vp_mode_ui,
+        -command  => sub { $apply_vp_mode->('off'); },
     )->pack( -side => 'left' );
-    $p->Button(
-        -text    => 'Eliminar AVP',
+    $vp_box->Radiobutton(
+        -text     => 'Manual',
+        -value    => 'manual',
+        -variable => \$vp_mode_ui,
+        -command  => sub { $apply_vp_mode->('manual'); },
+    )->pack( -side => 'left' );
+    $vp_box->Radiobutton(
+        -text     => 'Auto (ZZ ext)',
+        -value    => 'auto',
+        -variable => \$vp_mode_ui,
+        -command  => sub { $apply_vp_mode->('auto'); },
+    )->pack( -side => 'left' );
+    $vp_box->Button(
+        -text    => 'Eliminar',
         -padx    => 3,
         -command => sub {
-            $vis_vp = 0;
+            $vp_mode_ui = 'off';
+            $vis_vp     = 0;
             $chart_engine->remove_vp_overlay();
         },
     )->pack( -side => 'left', -padx => 2 );

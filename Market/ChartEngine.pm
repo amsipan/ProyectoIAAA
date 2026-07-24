@@ -23,6 +23,7 @@ use Market::Indicators::DIY;
 use Market::Overlays::DIY;
 use Market::Indicators::VolumeProfile2;
 use Market::Overlays::VolumeProfile;
+use Market::Drawing::FibRetracement;
 use Market::Indicators::AnchoredVWAP;
 use Market::Overlays::AnchoredVWAP;
 use Market::Indicators::PivotPointsHL;
@@ -280,6 +281,7 @@ sub new {
     );
     $self->{overlay_manager}->register( 'volumeprofile', $self->{vp_overlay} );
     $self->{_vp_fed_up_to} = -1;
+    $self->{vp_mode}       = 'off';    # off | manual | auto
     if ($self->{indicator_manager}) {
         $self->{indicator_manager}->register('VolumeProfile', $self->{vp_indicator});
     }
@@ -553,9 +555,13 @@ sub sync_overlay_indicators {
         $self->_feed_indicator_to($self->{diy_indicator}, '_diy_fed_up_to', $feed_to);
     }
 
-    # Anchored Volume Profile (AVP)
-    if ( $self->_overlay_wants_feed('volumeprofile') && $self->{vp_indicator} ) {
-        $self->_feed_indicator_to($self->{vp_indicator}, '_vp_fed_up_to', $feed_to);
+    # Anchored Volume Profile (AVP) — manual o auto (ZZ ext)
+    my $vp_auto_on = ( ( $self->{vp_mode} // '' ) eq 'auto' ) ? 1 : 0;
+    if ( $vp_auto_on ) {
+        $self->_sync_vp_auto_anchor($feed_to);
+    }
+    elsif ( $self->_overlay_wants_feed('volumeprofile') && $self->{vp_indicator} ) {
+        $self->_feed_indicator_to( $self->{vp_indicator}, '_vp_fed_up_to', $feed_to );
     }
 
     # Anchored VWAP (AVWAP)
@@ -2339,8 +2345,11 @@ sub set_vp_select_mode {
 
 sub begin_vp_placement {
     my ($self) = @_;
+    # Compat UI antigua / modo manual
+    $self->{vp_mode} = 'manual' if ( $self->{vp_mode} // 'off' ) eq 'off';
     if ($self->{vp_overlay}) {
         $self->{vp_overlay}->set_visible(1);
+        $self->{vp_overlay}{show_handle} = 1;
     }
     if ($self->{vp_indicator} && !$self->{vp_indicator}->has_anchor()) {
         $self->set_vp_select_mode(1);
@@ -2352,8 +2361,11 @@ sub begin_vp_placement {
 sub confirm_vp_anchor {
     my ($self, $idx) = @_;
     return unless defined $idx;
+    # En Auto el ancla la fija el ZZ; el clic manual no debe pisarla.
+    return $self if ( $self->{vp_mode} // '' ) eq 'auto';
     if ($self->{vp_indicator}) {
         $self->{vp_indicator}->set_anchor($idx);
+        $self->{_vp_fed_up_to} = -1;
     }
     $self->set_vp_select_mode(0);
     $self->request_render();
@@ -2362,6 +2374,7 @@ sub confirm_vp_anchor {
 
 sub reanchor_vp {
     my ($self) = @_;
+    return $self if ( $self->{vp_mode} // '' ) eq 'auto';
     $self->set_vp_select_mode(1);
     return $self;
 }
@@ -2372,6 +2385,8 @@ sub end_vp_overlay {
     if ($self->{vp_overlay}) {
         $self->{vp_overlay}->set_visible(0);
     }
+    # Si se apaga vía checkbox legacy, modo Off
+    $self->{vp_mode} = 'off' if ( $self->{vp_mode} // '' ) ne 'auto';
     $self->request_render();
     return $self;
 }
@@ -2382,6 +2397,7 @@ sub remove_vp_overlay {
     my ($self) = @_;
     $self->set_vp_select_mode(0);
     $self->{_vp_drag_active} = undef;
+    delete $self->{_vp_zz_leg_sig};
     if ($self->{vp_indicator} && $self->{vp_indicator}->can('clear_anchor')) {
         $self->{vp_indicator}->clear_anchor();
     }
@@ -2389,7 +2405,103 @@ sub remove_vp_overlay {
         $self->{vp_overlay}->clear($self->{price_canvas}) if $self->{price_canvas};
         $self->{vp_overlay}->set_visible(0);
     }
+    $self->{vp_mode} = 'off';
     $self->request_render();
+    return $self;
+}
+
+# set_vp_mode(off|manual|auto) — espejo AVWAP.
+# Auto: ancla al from_index del último swing ZZ externo consolidado.
+sub set_vp_mode {
+    my ( $self, $mode ) = @_;
+    $mode = $mode // 'off';
+    $mode = 'off' unless $mode =~ /^(?:off|manual|auto)$/;
+    $self->{vp_mode} = $mode;
+
+    if ( $mode eq 'off' ) {
+        $self->set_vp_select_mode(0);
+        $self->{_vp_drag_active} = undef;
+        delete $self->{_vp_zz_leg_sig};
+        if ( $self->{vp_indicator} && $self->{vp_indicator}->can('clear_anchor') ) {
+            $self->{vp_indicator}->clear_anchor();
+        }
+        if ( $self->{vp_overlay} ) {
+            $self->{vp_overlay}->clear( $self->{price_canvas} ) if $self->{price_canvas};
+            $self->{vp_overlay}->set_visible(0);
+            $self->{vp_overlay}{show_handle} = 1;
+        }
+        $self->{_vp_fed_up_to} = -1;
+    }
+    elsif ( $mode eq 'manual' ) {
+        if ( $self->{vp_overlay} ) {
+            $self->{vp_overlay}->set_visible(1);
+            $self->{vp_overlay}{show_handle} = 1;
+        }
+        if ( $self->{vp_indicator} && !$self->{vp_indicator}->has_anchor() ) {
+            $self->set_vp_select_mode(1);
+        }
+        else {
+            $self->set_vp_select_mode(0);
+        }
+    }
+    else {    # auto
+        $self->set_vp_select_mode(0);
+        $self->{_vp_drag_active} = undef;
+        if ( $self->{vp_overlay} ) {
+            $self->{vp_overlay}->set_visible(1);
+            $self->{vp_overlay}{show_handle} = 0;    # no arrastrable en Auto
+        }
+        my $feed = $self->_causal_end();
+        $self->_sync_vp_auto_anchor($feed) if defined $feed && $feed >= 0;
+    }
+
+    $self->request_render();
+    return $self;
+}
+
+# Ancla AVP al inicio (from_index) del último swing ZZ ext consolidado.
+sub _sync_vp_auto_anchor {
+    my ( $self, $feed_to ) = @_;
+    return $self unless ( $self->{vp_mode} // '' ) eq 'auto';
+    return $self unless $self->{vp_indicator} && $self->{zigzag_indicator};
+    return $self unless defined $feed_to && $feed_to >= 0;
+
+    my $zz = $self->{zigzag_indicator};
+    $zz->set_compute_external(1) if $zz->can('set_compute_external');
+    $self->_feed_indicator_to( $zz, '_zigzag_fed_up_to', $feed_to );
+
+    my $vals = $zz->get_values() || {};
+    my $leg  = Market::Drawing::FibRetracement->last_consolidated_zz_segment(
+        $vals->{external_segments} || []
+    );
+
+    if ( !$leg || !defined $leg->{from_index} ) {
+        # Sin pierna consolidada: no inventar ancla
+        if ( $self->{vp_indicator}->can('clear_anchor') ) {
+            $self->{vp_indicator}->clear_anchor();
+        }
+        delete $self->{_vp_zz_leg_sig};
+        $self->{_vp_fed_up_to} = -1;
+        return $self;
+    }
+
+    my $sig = Market::Drawing::FibRetracement->zz_leg_signature($leg);
+    my $idx = 0 + $leg->{from_index};
+    my $cur = $self->{vp_indicator}->can('anchor_index')
+      ? $self->{vp_indicator}->anchor_index()
+      : undef;
+
+    if ( !defined $self->{_vp_zz_leg_sig}
+        || $self->{_vp_zz_leg_sig} ne $sig
+        || !defined $cur
+        || $cur != $idx )
+    {
+        $self->{vp_indicator}->set_anchor($idx);
+        $self->{_vp_zz_leg_sig} = $sig;
+        $self->{_vp_fed_up_to}  = -1;
+    }
+
+    $self->_feed_indicator_to( $self->{vp_indicator}, '_vp_fed_up_to', $feed_to );
     return $self;
 }
 
@@ -3506,11 +3618,16 @@ sub _on_horizontal_drag {
 
     $self->_on_mouse_move($widget, $x, $y);
 
-    # Drag de ancla del Perfil de Volumen (AVP)
-    if ($self->{_vp_drag_active}) {
+    # Drag de ancla del Perfil de Volumen (AVP) — solo Manual
+    if ( $self->{_vp_drag_active} ) {
+        if ( ( $self->{vp_mode} // '' ) eq 'auto' ) {
+            $self->{_vp_drag_active} = undef;
+            return;
+        }
         my $idx = $self->_global_index_from_x($x);
         if (defined $idx) {
             $self->{vp_indicator}->set_anchor($idx);
+            $self->{_vp_fed_up_to} = -1;
             $self->request_render();
         }
         return;

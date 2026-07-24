@@ -39,6 +39,7 @@ sub new {
         color_line      => $theme->{vp_line}      // '#000000', # Negro sólido para VAH/VAL/POC
         color_handle    => $theme->{vp_handle}    // '#00897B', # Círculo deslicable de ancla
         hist_width_frac => $theme->{vp_hist_frac} // 0.30,      # 30% en la captura de TV
+        show_handle     => exists $args{show_handle} ? ( $args{show_handle} ? 1 : 0 ) : 1,
         _start => 0,
         _end   => 0,
     };
@@ -285,7 +286,12 @@ sub draw {
     # 4) Handle deslicable de ancla (círculo sobre la línea del POC en el centro exacto de la vela)
     my $x_anchor_center = $x_of_global->($anchor, 'center');
     my $y_anchor_handle = defined $prof->{poc} ? $scales->value_to_y($prof->{poc}) : ($y_top + $y_bot) / 2;
-    if (defined $x_anchor_center && defined $y_anchor_handle && $x_anchor_center >= 0 && $x_anchor_center <= $plot_right) {
+    if ( ( $self->{show_handle} // 1 )
+        && defined $x_anchor_center
+        && defined $y_anchor_handle
+        && $x_anchor_center >= 0
+        && $x_anchor_center <= $plot_right )
+    {
         eval {
             $canvas->createOval(
                 $x_anchor_center - 4, $y_anchor_handle - 4,
