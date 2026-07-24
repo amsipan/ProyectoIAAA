@@ -552,6 +552,35 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
     $box->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
         -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
+
+    # Order Blocks: interno / externo (swing). Defaults ambos ON (demo profe).
+    # Neon: Int ON / Swing OFF — volver vía args del indicador.
+    # Toggle exige reset+refeed porque _store_order_block filtra al crear.
+    my $smc_ob_int = 1;
+    my $smc_ob_ext = 1;
+    my $apply_smc_ob = sub {
+        my $ind = $chart_engine->{smc_pro_indicator} // $chart_engine->{smc_indicator};
+        return unless $ind;
+        $ind->{show_internal_ob} = $smc_ob_int ? 1 : 0;
+        $ind->{show_swing_ob}    = $smc_ob_ext ? 1 : 0;
+        $ind->reset() if $ind->can('reset');
+        $chart_engine->{_smc_fed_up_to}     = -1;
+        $chart_engine->{_smc_pro_fed_up_to} = -1;
+        $chart_engine->request_render();
+    };
+    my $ob_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
+    $ob_box->Label(-text => 'OB:', -fg => '#555')->pack(-side => 'left', -padx => 2);
+    $ob_box->Checkbutton(
+        -text     => 'OB int',
+        -variable => \$smc_ob_int,
+        -command  => $apply_smc_ob,
+    )->pack(-side => 'left');
+    $ob_box->Checkbutton(
+        -text     => 'OB ext',
+        -variable => \$smc_ob_ext,
+        -command  => $apply_smc_ob,
+    )->pack(-side => 'left');
+
     my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $info_box->Label(
         -text => 'HLD solo en TF 4h o D. R/S de vela HTF más cercana al precio.',

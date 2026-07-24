@@ -161,9 +161,99 @@ sub make_scales {
     ok(!$ob_rect || abs(($ob_rect->[1] // 0) - $left_2) > 1,
        'OB no usa borde izquierdo de barra (index_to_x)');
 
+    # Label de scope: swing → "OB" (sin " i"), alineado con BOS/CHoCH.
+    my @ob_texts;
+    for my $op (@{ $canvas->{ops} }) {
+        next unless $op->[0] eq 'createText';
+        for ( my $i = 1 ; $i < @$op ; $i++ ) {
+            if ( $op->[$i] eq '-text' ) {
+                push @ob_texts, $op->[ $i + 1 ];
+                last;
+            }
+        }
+    }
+    ok( ( grep { $_ eq 'OB' } @ob_texts ), 'OB swing emite texto "OB"' );
+    ok( !( grep { $_ eq 'OB i' } @ob_texts ),
+        'OB swing no emite "OB i" (solo internos)' );
+
     $ov->clear($canvas);
     my $has_del = grep { $_->[0] eq 'delete' } @{ $canvas->{ops} };
     ok($has_del, 'clear emite delete');
+}
+
+# OB labels: interno "OB i" vs swing "OB" + stipple distinto
+{
+    my $ind = TestSMCProInd->new(
+        obs => [
+            { index => 2, hi => 19, lo => 17, bias => 'bull', active => 1, scope => 'swing' },
+            { index => 4, hi => 16, lo => 14, bias => 'bear', active => 1, scope => 'internal' },
+        ],
+    );
+    my $ov = Market::Overlays::SMC_Pro->new( indicator => $ind, theme => {}, visible => 1 );
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales( 5, 25, 12 );
+    $ov->compute_visible( undef, $ind, 0, 10 );
+    $ov->draw( $canvas, $scales );
+
+    my %texts;
+    for my $op (@{ $canvas->{ops} }) {
+        next unless $op->[0] eq 'createText';
+        for ( my $i = 1 ; $i < @$op ; $i++ ) {
+            if ( $op->[$i] eq '-text' ) {
+                $texts{ $op->[ $i + 1 ] // '' } = 1;
+                last;
+            }
+        }
+    }
+    ok( $texts{'OB'},   'coexisten: label "OB" para swing' );
+    ok( $texts{'OB i'}, 'coexisten: label "OB i" para internal' );
+
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    my %stipples;
+    for my $op (@rects) {
+        for ( my $i = 1 ; $i < @$op ; $i++ ) {
+            if ( $op->[$i] eq '-stipple' ) {
+                $stipples{ $op->[ $i + 1 ] // '' } = 1;
+                last;
+            }
+        }
+    }
+    ok( $stipples{gray25}, 'swing OB usa stipple gray25' );
+    ok( $stipples{gray50}, 'internal OB usa stipple gray50 (mas tenue)' );
+}
+
+# OB escalón: tras mitigar parcial → 2 rectángulos (restante + original).
+{
+    my $ind = TestSMCProInd->new(
+        obs => [
+            {
+                index => 1, hi => 16, lo => 12, bias => 'bull', active => 1,
+                scope => 'swing', orig_hi => 18, orig_lo => 12,
+                mitig => 1, last_mitig_index => 4,
+            },
+        ],
+    );
+    my $ov = Market::Overlays::SMC_Pro->new( indicator => $ind, theme => {}, visible => 1 );
+    my $canvas = TestCanvas->new();
+    my $scales = make_scales( 5, 25, 12 );
+    $ov->compute_visible( undef, $ind, 0, 10 );
+    $ov->draw( $canvas, $scales );
+
+    my @rects = grep { $_->[0] eq 'createRectangle' } @{ $canvas->{ops} };
+    is( scalar(@rects), 2, 'OB mitigado dibuja 2 tramos (escalón delgado/grueso)' );
+
+    my $bar_w = 900 / 12;
+    my $x_step = 4 * $bar_w + $bar_w / 2;
+    # Rect izquierdo termina cerca del corte; derecho empieza ahí.
+    my $left_ends_at_step = 0;
+    my $right_starts_at_step = 0;
+    for my $op (@rects) {
+        my ( $x1, $x2 ) = ( $op->[1], $op->[3] );
+        $left_ends_at_step++   if abs( ( $x2 // 0 ) - $x_step ) < 0.5;
+        $right_starts_at_step++ if abs( ( $x1 // 0 ) - $x_step ) < 0.5;
+    }
+    ok( $left_ends_at_step,   'tramo delgado termina en last_mitig_index' );
+    ok( $right_starts_at_step, 'tramo grueso empieza en last_mitig_index' );
 }
 
 # Strong/Weak y MTF no cruzan más allá de la última vela de datos

@@ -235,30 +235,84 @@ sub draw {
     my $data_end     = $self->_data_end;
     my $x_data_right = $self->_x_data_right($scales);
 
-    # 1) Order blocks (fondo) — izq. en centro de vela (TV bar_time)
+    # 1) Order blocks (fondo) — escalón de mitigación (capturas profe):
+    #    Izquierda (ya comido): zona RESTANTE hi/lo → "delgado".
+    #    Derecha (proyección): zona ORIGINAL orig_hi/orig_lo → "grueso".
+    #    Corte en last_mitig_index. Sin mitigar: un solo rectángulo original.
+    #    Labels: "OB i" / "OB" (mismo criterio que BOS/CHoCH).
     for my $ob (@{ $self->{_obs} }) {
         next if ($ob->{index} // 0) > $data_end;
-        my $x1 = $self->_center_x($scales, $ob->{index});
-        my $x2 = $x_data_right;
-        my @cx = $self->_clip_seg_x($scales, $x1, $x2);
-        next unless @cx;
-        ($x1, $x2) = @cx;
-        next if $x2 < $x1;
-        my $y1 = $y_of->($ob->{hi});
-        my $y2 = $y_of->($ob->{lo});
-        ($y1, $y2) = ($y2, $y1) if $y1 > $y2;
         my $fill = ($ob->{bias} // '') eq 'bull' ? $ob_bull : $ob_bear;
-        eval {
-            $canvas->createRectangle(
-                $x1, $y1, $x2, $y2,
-                -outline => $fill,
-                -fill    => $fill,
-                -stipple => 'gray25',
-                -width   => 1,
-                -tags    => [$tag, 'smc_ob'],
-            );
-            1;
+        my $scope = $ob->{scope} // 'swing';
+        my $stipple = ($scope eq 'internal') ? 'gray50' : 'gray25';
+        my $lbl = ($scope eq 'internal') ? 'OB i' : 'OB';
+
+        my $orig_hi = $ob->{orig_hi} // $ob->{hi};
+        my $orig_lo = $ob->{orig_lo} // $ob->{lo};
+        my $hi      = $ob->{hi};
+        my $lo      = $ob->{lo};
+        next unless defined $hi && defined $lo;
+
+        my $x_left = $self->_center_x($scales, $ob->{index});
+        my $x_right = $x_data_right;
+        my $mit_i = $ob->{last_mitig_index};
+        my $stepped = $ob->{mitig}
+          && defined $mit_i
+          && defined $orig_hi
+          && defined $orig_lo
+          && ( abs( $hi - $orig_hi ) > 1e-9 || abs( $lo - $orig_lo ) > 1e-9 );
+
+        my $draw_rect = sub {
+            my ( $xa, $xb, $price_hi, $price_lo ) = @_;
+            return unless defined $xa && defined $xb && defined $price_hi && defined $price_lo;
+            my @cx = $self->_clip_seg_x( $scales, $xa, $xb );
+            return unless @cx;
+            ( $xa, $xb ) = @cx;
+            return if $xb < $xa;
+            my $ya = $y_of->($price_hi);
+            my $yb = $y_of->($price_lo);
+            ( $ya, $yb ) = ( $yb, $ya ) if $ya > $yb;
+            eval {
+                $canvas->createRectangle(
+                    $xa, $ya, $xb, $yb,
+                    -outline => $fill,
+                    -fill    => $fill,
+                    -stipple => $stipple,
+                    -width   => 1,
+                    -tags    => [ $tag, 'smc_ob' ],
+                );
+                1;
+            };
+            return ( $xa, $ya );
         };
+
+        my ( $lbl_x, $lbl_y );
+        if ($stepped) {
+            my $x_step = $self->_center_x( $scales, $mit_i );
+            # Tramo izquierdo: restante (delgado).
+            my @left = $draw_rect->( $x_left, $x_step, $hi, $lo );
+            ( $lbl_x, $lbl_y ) = @left if @left;
+            # Tramo derecho: original (grueso), desde el corte hasta ahora.
+            $draw_rect->( $x_step, $x_right, $orig_hi, $orig_lo );
+        }
+        else {
+            my @one = $draw_rect->( $x_left, $x_right, $orig_hi // $hi, $orig_lo // $lo );
+            ( $lbl_x, $lbl_y ) = @one if @one;
+        }
+
+        if ( defined $lbl_x && defined $lbl_y ) {
+            eval {
+                $canvas->createText(
+                    $lbl_x + 2, $lbl_y + 1,
+                    -text   => $lbl,
+                    -fill   => $fill,
+                    -anchor => 'nw',
+                    -font   => [ 'TkDefaultFont', 7 ],
+                    -tags   => [ $tag, 'smc_ob_lbl' ],
+                );
+                1;
+            };
+        }
     }
 
     # 2) MTF (PDH/PDL/…) — acento + dotted, DEBAJO de estructura

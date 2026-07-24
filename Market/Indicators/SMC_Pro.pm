@@ -11,7 +11,8 @@ use warnings;
 # Defaults captura + TV Bryan:
 #   internal size=5, swing length=50, swing labels ON, strong/weak ON
 #   internal structure ON, swing structure ON
-#   internal OB OFF, swing OB ON count=5, ATR filter (parsed HVOL), mit High/Low
+#   internal OB ON + swing OB ON count=5 (demo profe; Neon Int ON/Swing OFF),
+#   ATR filter (parsed HVOL), mit High/Low con reducción gradual (no solo binario Neon)
 #   EQH/EQL ON bars=3 thr=0.1*ATR(200)
 #   FVG Pro OFF; MTF Daily/Weekly/Monthly OFF (TV Bryan; profe viejo ON)
 # Pine indicator(): max_labels_count=500, max_lines_count=500, max_boxes_count=500
@@ -38,7 +39,10 @@ sub new {
         show_swing          => exists $opts{show_swing} ? ($opts{show_swing} ? 1 : 0) : 1,
         internal_size       => $opts{internal_size} // 5,
         swing_length        => $opts{swing_length} // 50,
-        show_internal_ob    => exists $opts{show_internal_ob} ? ($opts{show_internal_ob} ? 1 : 0) : 0,
+        # Order Blocks: demo profe = ambos ON (internos + swing/externos).
+        # Neon source: Show Internal OB = true, Show Swing OB = false.
+        # Para volver al default Neon: show_internal_ob=>1, show_swing_ob=>0.
+        show_internal_ob    => exists $opts{show_internal_ob} ? ($opts{show_internal_ob} ? 1 : 0) : 1,
         show_swing_ob       => exists $opts{show_swing_ob} ? ($opts{show_swing_ob} ? 1 : 0) : 1,
         int_ob_count        => $opts{int_ob_count} // 5,
         sw_ob_count         => $opts{sw_ob_count} // 5,
@@ -529,7 +533,7 @@ sub _display_structure {
 
 sub _store_order_block {
     my ($self, $i, $pivot, $bias, $internal) = @_;
-    # Captura: Internal OB OFF — no crear internos aunque se llame por error
+    # Captura: flags show_*_ob controlan creación; UI puede togglear con refeed.
     return if $internal && !$self->{show_internal_ob};
     return if !$internal && !$self->{show_swing_ob};
 
@@ -575,10 +579,15 @@ sub _store_order_block {
         index  => $best_i,
         hi     => $best_ph,
         lo     => $best_pl,
+        # Rango original (para escalón visual: derecha "gruesa" = original).
+        orig_hi => $best_ph,
+        orig_lo => $best_pl,
         bias   => $bias == BULLISH ? 'bull' : 'bear',
         scope  => $internal ? 'internal' : 'swing',
         active => 1,
         created_at => $i,
+        last_mitig_index => undef,
+        mitig  => 0,
     };
     # Buffer acotado; get_order_blocks aplica count de captura (5)
     if (@{ $self->{_obs} } > 80) {
@@ -591,19 +600,51 @@ sub _mitigate_order_blocks {
     my $h = $self->{_h}[$i];
     my $l = $self->{_l}[$i];
     return unless defined $h && defined $l;
-    # Mitigation source High/Low (captura Neon)
+    # Mitigación gradual + escalón (pedido profe / capturas TV):
+    #   - hi/lo = zona RESTANTE (tramo izquierdo, "delgado").
+    #   - orig_hi/orig_lo = zona ORIGINAL (tramo derecho, "grueso").
+    #   - last_mitig_index = donde se corta el escalón.
+    # Neon source es binario; aquí la geometría sigue las capturas del curso.
+    my @keep;
     for my $ob (@{ $self->{_obs} }) {
         next unless $ob->{active};
-        # No mitigar en la misma vela de creación
-        next if defined $ob->{created_at} && $ob->{created_at} >= $i;
-        if ($ob->{bias} eq 'bear' && $h > $ob->{hi}) {
-            $ob->{active} = 0;
-        } elsif ($ob->{bias} eq 'bull' && $l < $ob->{lo}) {
-            $ob->{active} = 0;
+        if ( defined $ob->{created_at} && $ob->{created_at} >= $i ) {
+            push @keep, $ob;
+            next;
         }
+        # Asegurar originales (OBs creados antes del campo).
+        $ob->{orig_hi} = $ob->{hi} unless defined $ob->{orig_hi};
+        $ob->{orig_lo} = $ob->{lo} unless defined $ob->{orig_lo};
+
+        my $hi = $ob->{hi};
+        my $lo = $ob->{lo};
+        next unless defined $hi && defined $lo;
+
+        if ( ( $ob->{bias} // '' ) eq 'bear' ) {
+            if ( $h >= $hi ) {
+                next;    # consumo total
+            }
+            if ( $h > $lo ) {
+                $ob->{lo}               = $h;
+                $ob->{mitig}            = 1;
+                $ob->{last_mitig_index} = $i;
+            }
+        }
+        else {
+            if ( $l <= $lo ) {
+                next;    # consumo total
+            }
+            if ( $l < $hi ) {
+                $ob->{hi}               = $l;
+                $ob->{mitig}            = 1;
+                $ob->{last_mitig_index} = $i;
+            }
+        }
+        next if !defined $ob->{hi} || !defined $ob->{lo} || $ob->{hi} <= $ob->{lo};
+
+        push @keep, $ob;
     }
-    # Podar inactivos para no crecer sin límite
-    $self->{_obs} = [ grep { $_->{active} } @{ $self->{_obs} } ];
+    $self->{_obs} = \@keep;
 }
 
 sub _update_trailing {
