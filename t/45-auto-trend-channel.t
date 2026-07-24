@@ -580,4 +580,37 @@ sub build_support_series {
     ok( $ok_seq, 'ningún canal nuevo solapa toques con el mitigado anterior' );
 }
 
+# ---------------------------------------------------------------------------
+# 15. No nacer si el tip causal ya está fuera del rango (Replay)
+# ---------------------------------------------------------------------------
+{
+    my ($md) = build_support_series( gap_minutes => 40, after => 5, break_bars => 0 );
+    my $n0 = $md->size();
+    # Dump fuerte: precio actual muy por debajo de la base potencial
+    for my $k ( 0 .. 50 ) {
+        my $i = $n0 + $k;
+        $md->add_candle( [ ts($i), 50, 55, 40, 45, 100 ] );
+    }
+    my $ind = Market::Indicators::AutoTrendChannel->new(
+        pivot_strength         => 1,
+        atr_len                => 5,
+        atr_k                  => 0.5,
+        enable_trendline       => 0,
+        enable_channel         => 1,
+        canal_min_span_minutes => 60,
+        reclaim_bars           => 3,
+        max_width_atr_mult     => 0,
+        canal_lookback_bars    => 200,
+    );
+    feed_all( $ind, $md );
+    is( scalar( @{ $ind->get_active_channels() } ), 0,
+        'sin canal activo con tip fuera del rango' );
+    my $born_in_dump = 0;
+    for my $ch ( @{ $ind->{_channels} || [] } ) {
+        my $b = $ch->{born_index} // -1;
+        $born_in_dump = 1 if $b >= $n0;
+    }
+    ok( !$born_in_dump, 'no nace canal nuevo durante el dump (tip fuera)' );
+}
+
 done_testing();

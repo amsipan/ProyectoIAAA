@@ -399,7 +399,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 # Replay es pestaña propia (no mezclada con Vista): un clic → Select bar listo.
 my %panel;
 $panel{$_} = $panel_row->Frame()
-  for qw(Estructura Liquidez ZigZag Dibujo Volumen Vista Replay);
+  for qw(Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay);
 
 my $active_tab = 'Estructura';
 my $show_panel = sub {
@@ -424,12 +424,13 @@ my %tab_label = (
     Liquidez   => 'Liquidez',
     ZigZag     => 'ZigZag',
     Dibujo     => 'Dibujo',
+    Auto       => 'Auto',
     Volumen    => 'Volumen',
     Vista      => 'Vista',
     Replay     => 'Replay',
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(Estructura Liquidez ZigZag Dibujo Volumen Vista Replay)) {
+for my $name (qw(Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -789,8 +790,13 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
     $fib_hint->pack( -side => 'left', -padx => 4 );
+}
 
-    # Auto (profe): ciclo nacer/vivir/morir — aparte de tools manuales y ZZ Canal.
+# ---- Pestaña "Auto": Trendline auto + Canal auto (ciclo nacer/vivir/morir) ----
+# Separada de Dibujo por ancho en laptop 14" (manuales quedan en Dibujo).
+{
+    my $p = $panel{Auto};
+
     # Canal auto: ≥3 toques / ≥60 min. Trendline auto: ≥3 toques / ≥120 min.
     my $vis_auto_tl = 0;
     my $vis_auto_ch = 0;

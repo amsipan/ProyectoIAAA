@@ -405,6 +405,26 @@ sub _max_consec_below_base {
     return $max;
 }
 
+sub _max_consec_above_par {
+    my ( $self, $i0, $i1, $slope, $par_int, $tol ) = @_;
+    my $run = 0;
+    my $max = 0;
+    return 0 if $i1 < $i0;
+    for my $j ( $i0 .. $i1 ) {
+        my $cl = $self->{_c}[$j];
+        next unless defined $cl;
+        my $p = _line_price( $slope, $par_int, $j );
+        if ( $cl > $p + $tol ) {
+            $run++;
+            $max = $run if $run > $max;
+        }
+        else {
+            $run = 0;
+        }
+    }
+    return $max;
+}
+
 sub _touches_gap_ok {
     my ( $touches, $min_gap ) = @_;
     return 0 unless $touches && @$touches >= 2;
@@ -608,6 +628,22 @@ sub _try_birth_channel_bottom {
 
             my $consec = $self->_max_consec_below_base( $i0, $i1, $s2, $b2, $tol );
             next if $consec >= $self->{reclaim_bars};
+
+            # HARD (Replay): no nacer si el precio ACTUAL (punta causal) ya está
+            # fuera del rango. Evita que el canal “aparezca” tras un dump/escape.
+            my $close_now = $self->{_c}[$i];
+            next unless defined $close_now;
+            my $base_now = _line_price( $s2, $b2, $i );
+            my $par_now  = _line_price( $s2, $par_int, $i );
+            my ( $bot_n, $top_n ) =
+              $base_now < $par_now ? ( $base_now, $par_now ) : ( $par_now, $base_now );
+            next if $close_now < $bot_n - $tol || $close_now > $top_n + $tol;
+
+            # Tampoco si entre el último toque y la punta ya hubo dump/escape claro.
+            my $post_dump = $self->_max_consec_below_base( $i1, $i, $s2, $b2, $tol );
+            next if $post_dump >= $self->{reclaim_bars};
+            my $post_up = $self->_max_consec_above_par( $i1, $i, $s2, $par_int, $tol );
+            next if $post_up >= $self->{reclaim_bars};
 
             $best = {
                 score      => $score,
