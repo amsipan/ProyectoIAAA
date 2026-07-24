@@ -469,13 +469,12 @@ sub _update_external {
     my $at_high = defined $swing_high && $high >= $swing_high - 1e-9;
     my $at_low  = defined $swing_low  && $low  <= $swing_low  + 1e-9;
 
-    # ChartPrime (zigzag_volumeprofile_chartprime.txt):
-    #   priceHigh := low[1]  en el swing high  → vértice en la PARTE INFERIOR de la vela del máximo
-    #   priceLow  := low[1]  en el swing low   → vértice en el low de la vela del mínimo
-    # No usar high del extremo superior (eso es lo que veía el usuario en la app).
+    # ChartPrime (zigzag_volumeprofile_chartprime.txt) asigna priceHigh := low[1]
+    # (bug del Pine: el swing high queda en la mecha inferior). Corregimos solo el
+    # pivote alto: usar high (tope real de la vela). Los mínimos siguen en low.
     if ($at_high) {
         $self->{_ext_pivot_high_idx}   = $index;
-        $self->{_ext_pivot_high_price} = $low;
+        $self->{_ext_pivot_high_price} = $high;
     }
     if ($at_low) {
         $self->{_ext_pivot_low_idx}    = $index;
@@ -510,9 +509,8 @@ sub _update_external {
         }
         $self->{_ext_trend} = $new_trend;
     } elsif (defined $new_trend) {
-        # Actualizar extremo del tramo activo: siempre con low (paridad ChartPrime)
         if ($new_trend > 0 && $at_high) {
-            $self->_ext_update_last( $index, $low );
+            $self->_ext_update_last( $index, $high );
         } elsif ($new_trend < 0 && $at_low) {
             $self->_ext_update_last( $index, $low );
         }

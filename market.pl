@@ -345,7 +345,7 @@ my $set_zz_layer = sub {
         $cb_zzelem{$elem}->($on);
     }
 };
-# Fib "Desde ZZ ext" activa el overlay externo → marcar checkbox en la UI
+# Fib "Fib ZZ ext" activa el overlay externo → marcar checkbox en la UI
 $chart_engine->{zz_external_ui_sync} = sub {
     my ($on) = @_;
     $on = $on ? 1 : 0;
@@ -671,7 +671,7 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left', -padx => 2 );
     $trend_hint->pack( -side => 'left', -padx => 4 );
 
-    # Fib Retracement (clone TV: 2 clics / pick pierna ZZ / hasta última vela)
+    # Fib Retracement (clone TV: 2 clics / último impulso ZZ ext / hasta última vela)
     my $fib_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 6 );
     $fib_box->Label( -text => 'Fib:' )->pack( -side => 'left', -padx => 2 );
     my $fib_hint = $fib_box->Label(
@@ -681,20 +681,11 @@ if ($ENV{MARKET_RELOAD}) {
     );
     $chart_engine->{fib_mode_callback} = sub {
         my ( $active, $n ) = @_;
-        if ( defined $active && $active == 2 ) {
-            # Modo elegir pierna azul del ZZ externo
-            if ( defined $n && $n == -1 ) {
-                $fib_hint->configure(
-                    -text => 'Clic más cerca de una línea azul…',
-                    -fg   => '#c62828',
-                );
-            }
-            else {
-                $fib_hint->configure(
-                    -text => 'Clic en la pierna azul del ZZ… (Esc cancela)',
-                    -fg   => '#0D47A1',
-                );
-            }
+        if ( defined $active && $active == 3 && defined $n && $n == -1 ) {
+            $fib_hint->configure(
+                -text => 'Sin impulso ZZ ext consolidado aún',
+                -fg   => '#c62828',
+            );
         }
         elsif ($active) {
             my $step = ( $n // 0 ) + 1;
@@ -713,8 +704,11 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $chart_engine->start_fib_retracement_tool(); },
     )->pack( -side => 'left', -padx => 2 );
     $fib_box->Button(
-        -text    => 'Desde ZZ ext',
-        -command => sub { $chart_engine->start_fib_pick_zz(); },
+        -text    => 'Fib ZZ ext',
+        -command => sub {
+            $fib_extend_to_last = 1;
+            $chart_engine->apply_fib_last_zz_impulse();
+        },
     )->pack( -side => 'left', -padx => 2 );
     $fib_box->Button(
         -text    => 'Borrar Fib',

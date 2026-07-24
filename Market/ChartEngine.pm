@@ -1214,6 +1214,7 @@ sub render {
     # Los indicadores ya se sincronizaron antes de pintar los paneles para que
     # velas semánticas (RUN) y overlays compartan el mismo estado causal.
     if ($self->{overlay_manager}) {
+        $self->_sync_fib_follow_zz_ext();
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
         # feed_to en sync_overlay_indicators.
@@ -1601,10 +1602,7 @@ sub _replay_session_active {
 sub _replay_escape_key {
     my ($self) = @_;
     # Precedencia: cancelar herramientas de dibujo antes que Replay.
-    if ( $self->{fib_drawing}
-        && ( $self->{fib_drawing}->is_tool_active()
-            || $self->{fib_drawing}->is_pick_zz_active() ) )
-    {
+    if ( $self->{fib_drawing} && $self->{fib_drawing}->is_tool_active() ) {
         $self->cancel_fib_retracement_tool();
         return $self;
     }
@@ -3027,11 +3025,7 @@ sub _horizontal_zoom {
 sub _start_horizontal_drag {
     my ($self, $widget, $x, $y) = @_;
 
-    # Fib Retracement: 2 clics, pick pierna ZZ, o drag de handles
-    if ( $self->{fib_drawing} && $self->{fib_drawing}->is_pick_zz_active() ) {
-        $self->_fib_pick_zz_click( $x, $y );
-        return;
-    }
+    # Fib Retracement: 2 clics o drag de handles
     if ( $self->{fib_drawing} && $self->{fib_drawing}->is_tool_active() ) {
         $self->_fib_click( $x, $y );
         return;
@@ -5075,6 +5069,7 @@ sub _pchan_click {
 sub start_fib_retracement_tool {
     my ($self) = @_;
     return $self unless $self->{fib_drawing};
+    $self->_clear_fib_follow_zz_ext();
     $self->cancel_parallel_channel_tool()
       if $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active();
     $self->{fib_drawing}->start_tool();
@@ -5226,6 +5221,7 @@ sub _trend_drag_to {
 sub clear_fib_retracement {
     my ($self) = @_;
     return $self unless $self->{fib_drawing};
+    $self->_clear_fib_follow_zz_ext();
     $self->{fib_drawing}->clear_fib();
     $self->{fib_drawing}->cancel_tool();
     $self->{_fib_drag} = undef;
@@ -5236,14 +5232,49 @@ sub clear_fib_retracement {
     return $self;
 }
 
-# Inicia modo "elige la pierna azul del ZZ externo" (1 clic en el tramo)
-sub start_fib_pick_zz {
+# Fib ZZ ext: re-ancla al último impulso consolidado mientras fib_follow_zz_ext=1
+sub _clear_fib_follow_zz_ext {
+    my ($self) = @_;
+    delete $self->{fib_follow_zz_ext};
+    delete $self->{_fib_zz_leg_sig};
+    return $self;
+}
+
+sub _sync_fib_follow_zz_ext {
+    my ($self) = @_;
+    return $self unless $self->{fib_follow_zz_ext};
+    return $self unless $self->{fib_drawing} && $self->{zigzag_indicator};
+
+    my $zz = $self->{zigzag_indicator};
+    $zz->set_compute_external(1) if $zz->can('set_compute_external');
+
+    my $feed_to = $self->_causal_end();
+    return $self unless defined $feed_to && $feed_to >= 0;
+    $self->_feed_indicator_to( $zz, '_zigzag_fed_up_to', $feed_to );
+
+    my $vals = $zz->get_values() || {};
+    my $leg  = Market::Drawing::FibRetracement->last_impulse_zz_segment_for_fib(
+        $vals->{external_segments} || []
+    );
+    return $self unless $leg;
+
+    my $sig = Market::Drawing::FibRetracement->zz_leg_signature($leg);
+    return $self if defined $self->{_fib_zz_leg_sig} && $self->{_fib_zz_leg_sig} eq $sig;
+
+    $self->{fib_drawing}->set_from_zz_leg($leg);
+    $self->{_fib_zz_leg_sig} = $sig;
+    return $self;
+}
+
+# Fib desde el último impulso consolidado del ZZ externo (1 clic en botón UI)
+sub apply_fib_last_zz_impulse {
     my ($self) = @_;
     return $self unless $self->{fib_drawing};
     $self->cancel_parallel_channel_tool()
       if $self->{pchan_drawing} && $self->{pchan_drawing}->is_tool_active();
+    $self->cancel_fib_retracement_tool()
+      if $self->{fib_drawing}->is_tool_active();
 
-    # Activar ZZ externo (cálculo + overlay) y sincronizar checkbox UI
     if ( $self->{zigzag_indicator} && $self->{zigzag_indicator}->can('set_compute_external') ) {
         $self->set_zigzag_layer( 'EXTERNAL', 1 );
     }
@@ -5251,9 +5282,22 @@ sub start_fib_pick_zz {
         $self->{zz_external_ui_sync}->(1);
     }
 
-    $self->{fib_drawing}->start_pick_zz();
+    $self->set_fib_extend_to_last(1);
+    $self->{fib_follow_zz_ext} = 1;
+    delete $self->{_fib_zz_leg_sig};
+    $self->_sync_fib_follow_zz_ext();
+
+    if ( !$self->{fib_drawing}->get_fib() ) {
+        $self->_clear_fib_follow_zz_ext();
+        if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
+            $self->{fib_mode_callback}->( 3, -1 );
+        }
+        $self->request_render();
+        return $self;
+    }
+
     if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
-        $self->{fib_mode_callback}->( 2, 0 );    # modo pick ZZ (código 2)
+        $self->{fib_mode_callback}->( 0, 0 );
     }
     $self->request_render();
     return $self;
@@ -5296,46 +5340,6 @@ sub _fib_click {
     return $status;
 }
 
-# Clic en modo pick ZZ: ancla fib a la pierna azul más cercana (from=1, to=0)
-sub _fib_pick_zz_click {
-    my ( $self, $x, $y ) = @_;
-    my $draw = $self->{fib_drawing};
-    return unless $draw && $draw->is_pick_zz_active();
-    return unless $self->{zigzag_indicator};
-
-    my $idx = $self->_global_index_from_x($x);
-    if ( !defined $idx ) {
-        my $last_valid = $self->_causal_end();
-        $idx = $last_valid if defined $last_valid && $last_valid >= 0;
-    }
-    return unless defined $idx;
-
-    my $scale = $self->{_last_price_scale}
-      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
-    return unless $scale && $scale->can('y_to_value');
-    my $price = $scale->y_to_value($y);
-    return unless defined $price;
-
-    my $vals = $self->{zigzag_indicator}->get_values();
-    # Todas las piernas externas visibles (consolidadas y la viva): el usuario elige
-    my $segs = $vals->{external_segments} || [];
-    my $leg  = Market::Drawing::FibRetracement->nearest_zz_segment( $segs, $idx, $price );
-    if ( !$leg ) {
-        if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
-            $self->{fib_mode_callback}->( 2, -1 );    # sin pierna cercana
-        }
-        return;
-    }
-
-    $draw->set_from_zz_leg($leg);
-    $draw->cancel_tool();    # sale de pick
-    if ( ref( $self->{fib_mode_callback} ) eq 'CODE' ) {
-        $self->{fib_mode_callback}->( 0, 2 );
-    }
-    $self->request_render();
-    return $leg;
-}
-
 sub _fib_hit_test {
     my ( $self, $x, $y ) = @_;
     my $ov = $self->{fib_overlay};
@@ -5352,6 +5356,8 @@ sub _fib_drag_to {
     my $handle = $self->{_fib_drag}{handle} or return;
     my $draw   = $self->{fib_drawing} or return;
     my $fib    = $draw->get_fib() or return;
+
+    $self->_clear_fib_follow_zz_ext();
 
     my $idx = $self->_global_index_from_x($x);
     if ( !defined $idx ) {

@@ -29,7 +29,6 @@ sub new {
         fib            => undef,
         draft          => [],
         tool_active    => 0,
-        pick_zz_active => 0,    # modo: clic en pierna azul del ZZ externo
         extend_to_last => exists $args{extend_to_last}
         ? ( $args{extend_to_last} ? 1 : 0 )
         : 0,
@@ -42,31 +41,19 @@ sub new {
     return $self;
 }
 
-sub is_tool_active    { $_[0]->{tool_active}    ? 1 : 0 }
-sub is_pick_zz_active { $_[0]->{pick_zz_active} ? 1 : 0 }
+sub is_tool_active { $_[0]->{tool_active} ? 1 : 0 }
 
 sub start_tool {
     my ($self) = @_;
-    $self->{pick_zz_active} = 0;
-    $self->{tool_active}    = 1;
-    $self->{draft}          = [];
-    return $self;
-}
-
-# Modo: usuario elige una pierna del ZZ externo con un clic
-sub start_pick_zz {
-    my ($self) = @_;
-    $self->{tool_active}    = 0;
-    $self->{draft}          = [];
-    $self->{pick_zz_active} = 1;
+    $self->{tool_active} = 1;
+    $self->{draft}       = [];
     return $self;
 }
 
 sub cancel_tool {
     my ($self) = @_;
-    $self->{tool_active}    = 0;
-    $self->{pick_zz_active} = 0;
-    $self->{draft}          = [];
+    $self->{tool_active} = 0;
+    $self->{draft}       = [];
     return $self;
 }
 
@@ -178,6 +165,19 @@ sub set_from_zz_leg {
     return $self->set_from_points( $a, $b );
 }
 
+# zz_leg_signature($leg) — firma estable para detectar cambio de impulso consolidado
+sub zz_leg_signature {
+    my ( $class_or_self, $leg ) = @_;
+    return undef unless ref($leg) eq 'HASH';
+    return undef
+      unless defined $leg->{from_index}
+      && defined $leg->{to_index}
+      && defined $leg->{from_price}
+      && defined $leg->{to_price};
+    return join ':',
+      map { 0 + $leg->{$_} } qw(from_index to_index from_price to_price);
+}
+
 sub set_extend_to_last {
     my ( $self, $on ) = @_;
     $self->{extend_to_last} = $on ? 1 : 0;
@@ -254,6 +254,45 @@ sub geometry_for {
         opacity        => $fib->{opacity} // 0.28,
         extend_to_last => $fib->{extend_to_last} ? 1 : 0,
     };
+}
+
+# last_consolidated_zz_segment(\@segs) — última pierna cerrada del ZZ externo
+# (ignora el tramo vivo aún en ajuste).
+sub last_consolidated_zz_segment {
+    my ( $class_or_self, $segs ) = @_;
+    return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;
+    for ( my $i = $#$segs ; $i >= 0 ; $i-- ) {
+        my $seg = $segs->[$i];
+        next unless defined $seg->{from_index} && defined $seg->{to_index};
+        next unless defined $seg->{from_price} && defined $seg->{to_price};
+        next unless $seg->{consolidated};
+        return $seg;
+    }
+    return undef;
+}
+
+# last_impulse_zz_segment_for_fib(\@segs) — impulso para Fib ZZ ext.
+# Regla simple (producto):
+#   - Última pierna consolidada UP → anclar ahí.
+#   - Si la última cerrada es DOWN → devolver la UP consolidada previa
+#     (el follow no cambia de firma → se mantiene el Fib anterior).
+#   - Nunca el tramo vivo. Sin Fib en bajadas (el retroceso no ancla).
+sub last_impulse_zz_segment_for_fib {
+    my ( $class_or_self, $segs ) = @_;
+    return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;
+
+    for ( my $i = $#$segs ; $i >= 0 ; $i-- ) {
+        my $seg = $segs->[$i];
+        next unless defined $seg->{from_index} && defined $seg->{to_index};
+        next unless defined $seg->{from_price} && defined $seg->{to_price};
+        next unless $seg->{consolidated};
+        my $dir = $seg->{dir};
+        if ( !defined $dir || $dir eq '' ) {
+            $dir = ( $seg->{to_price} >= $seg->{from_price} ) ? 'up' : 'down';
+        }
+        return $seg if $dir eq 'up';
+    }
+    return undef;
 }
 
 # nearest_zz_segment(\@segs, $index, $price) — pierna externa más cercana al clic

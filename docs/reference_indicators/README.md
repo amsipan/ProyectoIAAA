@@ -19,6 +19,9 @@ referencia para portar a Perl (`Market/Indicators/`, `Market/Overlays/`).
 | `zigzag_mtf_fibonacci_lonesometheblue.txt` | LonesomeTheBlue ZigZag MTF + Fib | `ZigZag` | (fase posterior) |
 | `zigzag_volumeprofile_chartprime.txt` | ChartPrime ZigZag Volume Profile | `VolumeProfile` / `ZigZag` | (fase posterior) |
 
+| `pivot_points_hl_missed_reversal_luxalgo.txt` | LuxAlgo Pivot Points HL & Missed Reversal | `PivotPointsHL` | (base fantasmas) |
+| `ghosts_in_swings_josafa.txt` | Dynamic Swing Anchored VWAP by Josafa (LuxAlgo-derived, jul-2026) | `PivotPointsHL` + `AnchoredVWAP` | Rastro "1" + ghost VWAP; fuente de verdad visual del profe |
+
 ## Regla de configuración
 
 Los **defaults del Pine no mandan**. Mandan las **capturas del profesor**.

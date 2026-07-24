@@ -71,7 +71,104 @@ use Market::Overlays::FibRetracement;
     is( $zero->{price}, 28408, 'ratio 0 en low' );
 }
 
-# 3. nearest_zz_segment elige la pierna correcta
+# 3. last_consolidated_zz_segment elige la última pierna cerrada
+{
+    my @segs = (
+        {
+            from_index => 0,  to_index => 20,
+            from_price => 100, to_price => 200, dir => 'up', consolidated => 1,
+        },
+        {
+            from_index => 20, to_index => 80,
+            from_price => 30000, to_price => 28408, dir => 'down', consolidated => 1,
+        },
+        {
+            from_index => 80, to_index => 95,
+            from_price => 28408, to_price => 29100, dir => 'up', consolidated => 0,
+        },
+    );
+    my $hit = Market::Drawing::FibRetracement->last_consolidated_zz_segment( \@segs );
+    ok( $hit, 'last_consolidated encuentra pierna' );
+    is( $hit->{from_price}, 30000, 'elige última cerrada, no el vivo' );
+}
+
+# 3b. last_impulse: solo última UP consolidada; si la última cerrada es DOWN, se queda en la UP previa
+{
+    # Caso captura: UP grande, DOWN, rebote UP chico vivo → Fib en UP grande
+    my @segs = (
+        {
+            from_index => 16843, to_index => 17050,
+            from_price => 28408.25, to_price => 29050.25, dir => 'up', consolidated => 1,
+        },
+        {
+            from_index => 17050, to_index => 17293,
+            from_price => 29050.25, to_price => 28709.75, dir => 'down', consolidated => 1,
+        },
+        {
+            from_index => 17293, to_index => 17415,
+            from_price => 28709.75, to_price => 28963.50, dir => 'up', consolidated => 0,
+        },
+    );
+    my $hit = Market::Drawing::FibRetracement->last_impulse_zz_segment_for_fib( \@segs );
+    ok( $hit, 'impulse encuentra UP' );
+    is( $hit->{to_price}, 29050.25, 'con DOWN cerrada + vivo: mantiene UP previa (no la bajada)' );
+}
+
+{
+    # Tras consolidar rebote chico, última cerrada UP → salta a esa UP (no a la bajada)
+    my @segs = (
+        {
+            from_index => 16843, to_index => 17050,
+            from_price => 28408.25, to_price => 29050.25, dir => 'up', consolidated => 1,
+        },
+        {
+            from_index => 17050, to_index => 17293,
+            from_price => 29050.25, to_price => 28709.75, dir => 'down', consolidated => 1,
+        },
+        {
+            from_index => 17293, to_index => 17415,
+            from_price => 28709.75, to_price => 28963.50, dir => 'up', consolidated => 1,
+        },
+        {
+            from_index => 17415, to_index => 17500,
+            from_price => 28963.50, to_price => 28850.00, dir => 'down', consolidated => 0,
+        },
+    );
+    my $hit = Market::Drawing::FibRetracement->last_impulse_zz_segment_for_fib( \@segs );
+    is( $hit->{to_price}, 28963.50, 'última cerrada UP: ancla en esa subida' );
+}
+
+{
+    my @segs = (
+        {
+            from_index => 0, to_index => 40,
+            from_price => 28000, to_price => 30000, dir => 'up', consolidated => 1,
+        },
+        {
+            from_index => 40, to_index => 60,
+            from_price => 30000, to_price => 29000, dir => 'down', consolidated => 0,
+        },
+    );
+    my $hit = Market::Drawing::FibRetracement->last_impulse_zz_segment_for_fib( \@segs );
+    is( $hit->{dir}, 'up', 'una sola UP cerrada' );
+}
+
+{
+    my @segs = (
+        {
+            from_index => 0, to_index => 20,
+            from_price => 30000, to_price => 28000, dir => 'down', consolidated => 1,
+        },
+        {
+            from_index => 20, to_index => 30,
+            from_price => 28000, to_price => 28500, dir => 'up', consolidated => 0,
+        },
+    );
+    my $hit = Market::Drawing::FibRetracement->last_impulse_zz_segment_for_fib( \@segs );
+    ok( !defined $hit, 'solo DOWN cerrada: sin ancla (esperar)' );
+}
+
+# 4. nearest_zz_segment elige la pierna correcta
 {
     my @segs = (
         {
@@ -88,7 +185,20 @@ use Market::Overlays::FibRetracement;
     is( $hit->{from_price}, 30000, 'elige pierna bajista cercana' );
 }
 
-# 4. Ancho = p1/p2; al mover p1 se mueve el borde de la caja
+# 4b. zz_leg_signature estable para detectar cambio de impulso
+{
+    my $leg = {
+        from_index => 20, to_index => 80,
+        from_price => 30000, to_price => 28408,
+    };
+    is(
+        Market::Drawing::FibRetracement->zz_leg_signature($leg),
+        '20:80:30000:28408',
+        'zz_leg_signature codifica extremos del impulso'
+    );
+}
+
+# 5. Ancho = p1/p2; al mover p1 se mueve el borde de la caja
 {
     my $d = Market::Drawing::FibRetracement->new();
     $d->set_from_points(
@@ -115,7 +225,7 @@ use Market::Overlays::FibRetracement;
     is( $geo3->{left_index},  5,   'left sigue en anclas' );
 }
 
-# 5. Labels fuera: createText con anchor e (lado izquierdo)
+# 6. Labels fuera: createText con anchor e (lado izquierdo)
 {
     my $d = Market::Drawing::FibRetracement->new();
     $d->set_from_points(
