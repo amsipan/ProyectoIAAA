@@ -150,5 +150,5 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 1. ~~Optimizar `MarketData` (TF en memoria, `add_candle` O(1), `$base_index`).~~ **hecho**
 2. ~~HLD 4h / HLD D (toggles) visibles en TF ≤ fuente, vectores prearmados.~~ **hecho**
 3. ~~Margen derecho Replay + zoom-out live estable.~~ **hecho**
-4. Toggles SMC Pro / Structures+FVG; quitar EQH/EQL de Liquidez. ← **siguiente: §4 FVG independiente**
+4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho** — siguiente: toggles SMC Pro (§5) + quitar EQH/EQL de Liquidez (§6).
 5. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
