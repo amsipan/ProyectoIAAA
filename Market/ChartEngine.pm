@@ -55,8 +55,12 @@ use constant {
     REPLAY_MIN_TRAIL_SLOTS => 1,
     # Zoom-out live: si bar_w aprox < este umbral, aire a la derecha de la
     # última vela (evita que al adelgazar el centro se coma el borde).
-    ZOOM_OUT_RIGHT_PAD_BAR_W => 4,
-    ZOOM_OUT_RIGHT_PAD_MIN_PX => 8,
+    # Live zoom-out: rampa continua de margen derecho (evita cliff 0→N px).
+    # START_BW: por encima, margen 0 (zoom normal/medio).
+    # FULL_BW: por debajo, margen pleno (wing + ≥1 slot o MIN_PX).
+    ZOOM_OUT_RIGHT_PAD_START_BW => 12,
+    ZOOM_OUT_RIGHT_PAD_FULL_BW  => 3,
+    ZOOM_OUT_RIGHT_PAD_MIN_PX   => 8,
     # tijera Select Bar (glyph unicode; linea/velo siguen azules).
     REPLAY_SELECT_SCISSOR_FONT => 'Helvetica 22',
     REPLAY_SELECT_SCISSOR_FILL => 'black',
@@ -425,8 +429,9 @@ sub _replay_plot_right_margin_px {
     return $px;
 }
 
-# Live: 0 en zoom normal. Replay siempre, o live si bar_w es fino (zoom-out):
-# aire a la derecha para que la última vela no se desplace/coma el borde.
+# Live: 0 en zoom normal/medio. Replay siempre. En live, rampa continua según
+# bar_w (esté o no al final del dataset): la última vela VISIBLE no debe
+# aplastarse contra el borde al zoom-out (mismo síntoma en medio y al final).
 sub _current_right_margin {
     my ( $self, $bars ) = @_;
     my $w = 0;
@@ -443,19 +448,30 @@ sub _current_right_margin {
 
     if ( !$replay_on ) {
         my $approx_bw = $w / $bars;
-        return 0 if $approx_bw >= ZOOM_OUT_RIGHT_PAD_BAR_W;
+        my $start_bw  = ZOOM_OUT_RIGHT_PAD_START_BW;
+        my $full_bw   = ZOOM_OUT_RIGHT_PAD_FULL_BW;
+        return 0 if $approx_bw >= $start_bw;
+
+        my $wing = $self->_replay_plot_right_margin_px( $w, $bars );
+        my $one_slot = int( $w / ( $bars + 1 ) + 0.999999 );
+        my $target = $wing;
+        $target = $one_slot if $one_slot > $target;
+        my $min_px = ZOOM_OUT_RIGHT_PAD_MIN_PX;
+        $target = $min_px if $target < $min_px;
+
+        my $t = 1.0;
+        if ( $approx_bw > $full_bw ) {
+            $t = ( $start_bw - $approx_bw ) / ( $start_bw - $full_bw );
+            $t = 0 if $t < 0;
+            $t = 1 if $t > 1;
+        }
+        my $rm = int( $target * $t + 0.999999 );    # ceil
+        $rm = 0 if $rm < 1;
+        $rm = $w - 1 if $rm >= $w;
+        return $rm;
     }
 
     my $rm = $self->_replay_plot_right_margin_px( $w, $bars );
-
-    # Zoom-out extremo (live): al menos ~1 slot de aire o MIN_PX (modo pixel).
-    if ( !$replay_on ) {
-        my $one_slot = int( $w / ( $bars + 1 ) + 0.999999 );
-        $rm = $one_slot if $one_slot > $rm;
-        my $min_px = ZOOM_OUT_RIGHT_PAD_MIN_PX;
-        $rm = $min_px if $rm < $min_px;
-        $rm = $w - 1 if $rm >= $w;
-    }
     return $rm;
 }
 
@@ -3452,15 +3468,19 @@ sub _horizontal_zoom {
     my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
 
     if ( !$use_cursor_anchor && !$in_replay_abs ) {
-        # Rueda sin Ctrl: ancla = última vela del dataset → pegar al borde
-        # derecho (offset 0). Si offset era negativo (hueco “futuro” a la
-        # derecha), conservarlo hacía que la última vela se fuera del borde
-        # al zoom-out y pareciera cortada/fuera de vista.
+        # Rueda sin Ctrl: el borde DERECHO de la ventana se conserva.
+        # - Al final del dataset (offset<=0): pegar offset=0.
+        # - En medio: conservar offset (misma `end`); el zoom solo añade/quita
+        #   velas a la izquierda. Evita ±1 vela por redondeo float + margen.
         if ( ( $old_offset // 0 ) <= 0 ) {
             $self->{offset} = 0;
-            $self->request_render();
-            return;
         }
+        else {
+            $self->{offset} = $old_offset;
+        }
+        $self->{ctrl_zoom_x_shift} = 0;
+        $self->request_render();
+        return;
     }
 
     # 4. Nueva escala con el nuevo nº de barras. bar_w' = plot_width / new_visible se

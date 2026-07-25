@@ -192,6 +192,9 @@ sub render {
         $body_w = 1 if $body_w < 1;
         $body_w = $bar_w if $body_w > $bar_w;
         my $half   = $body_w / 2;
+        # El canvas incluye right_margin; el overscan derecho cae en esa franja
+        # y se veía como “vela extra” al zoom-out. Solo dibujar dentro del plot.
+        my $plot_w = $scale->plot_width();
 
         for (my $i = 0; $i < $total; $i++) {
             next if defined $replay_max && ($slice_base + $i) > $replay_max;
@@ -201,6 +204,9 @@ sub render {
             my ($ts, $open, $high, $low, $close, $vol) = @$candle;
 
             my $cx  = $scale->index_to_center_x($i + $draw_offset);
+            # Fuera del plot (overscan derecho en el margen, o pan extremo).
+            next if $cx >= $plot_w || $cx < 0;
+
             my $y_o = $scale->value_to_y($open);
             my $y_h = $scale->value_to_y($high);
             my $y_l = $scale->value_to_y($low);
@@ -220,9 +226,15 @@ sub render {
             my $bottom = ($y_o > $y_c) ? $y_o : $y_c;
             $bottom = $top + 1 if ($bottom - $top) < 1;
 
+            my $left  = $cx - $half;
+            my $right = $cx + $half;
+            $left  = 0 if $left < 0;
+            $right = $plot_w if $right > $plot_w;
+            next if $right <= $left;
+
             $canvas->createRectangle(
-                $cx - $half, $top,
-                $cx + $half, $bottom,
+                $left, $top,
+                $right, $bottom,
                 -fill    => $body_color,
                 -outline => $body_color,
                 -tags    => 'candle',

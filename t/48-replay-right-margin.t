@@ -44,10 +44,10 @@ sub assert_last_candle_criterion {
 
     is( $eng->_current_right_margin(60), 0, 'sin Replay zoom normal: margen 0' );
 
-    # Live zoom-out extremo: bar_w aprox < 4 → aire a la derecha
+    # Live zoom-out extremo: bar_w aprox < FULL_BW → aire a la derecha
     {
         my $w    = 800;
-        my $bars = 400;    # 800/400 = 2px < umbral 4
+        my $bars = 400;    # 800/400 = 2px < FULL_BW 3
         my $rm   = $eng->_current_right_margin($bars);
         ok( $rm >= 8, "live zoom-out: margen >= MIN_PX (got $rm)" );
         my $scale = Market::Panels::Scales->new(
@@ -58,6 +58,28 @@ sub assert_last_candle_criterion {
         my $center = $scale->index_to_center_x( $bars - 1 );
         cmp_ok( $center + 0.5, '<', $w, 'live zoom-out: centro última vela antes del borde' );
         cmp_ok( $w - $center, '>=', 4, 'live zoom-out: aire a la derecha del centro' );
+    }
+
+    # Rampa continua: sin cliff 0→N al cruzar el antiguo umbral bar_w=4.
+    # En w=800, bars=180 → bw≈4.44; bars=220 → bw≈3.64. Ambos en la rampa.
+    {
+        my $w = 800;
+        $eng->{_last_price_canvas_w} = $w;
+        my $rm_hi = $eng->_current_right_margin(180);    # bw≈4.44
+        my $rm_lo = $eng->_current_right_margin(220);    # bw≈3.64
+        ok( $rm_hi > 0, "rampa mid: margen > 0 en bw≈4.4 (got $rm_hi)" );
+        ok( $rm_lo >= $rm_hi,
+            "rampa: margen no baja al alejar (hi=$rm_hi lo=$rm_lo)" );
+        my $rm_mid = $eng->_current_right_margin(100);    # bw=8
+        ok( $rm_mid > 0 && $rm_mid <= $rm_hi,
+            "rampa suave en bw=8 (got $rm_mid, hi=$rm_hi)" );
+        # Paneado (offset>0) + zoom fino: misma necesidad de aire a la derecha
+        $eng->{offset} = 10;
+        ok( $eng->_current_right_margin(400) >= 8,
+            'live paneado + zoom fino: margen >= MIN_PX' );
+        is( $eng->_current_right_margin(60), 0,
+            'live paneado + zoom normal: margen 0' );
+        $eng->{offset} = 0;
     }
 
     my $rc = bless { active => 1, replay_idx => 100 }, 'Market::ReplayController';

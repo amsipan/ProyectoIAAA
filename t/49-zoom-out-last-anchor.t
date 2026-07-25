@@ -63,4 +63,27 @@ use Market::ChartEngine;
     is( $eng->{offset}, 0, 'zoom-out desde offset 0: sigue en 0' );
 }
 
+# En medio del historial: rueda sin Ctrl conserva offset (misma end).
+{
+    my $md = ZoomAnchorMD->new(500);
+    my $eng = bless {
+        market_data       => $md,
+        replay_controller => undef,
+        visible_bars      => 60,
+        offset            => 120,
+        ctrl_zoom_x_shift => 3,
+        price_canvas      => undef,
+        render_pending    => 0,
+    }, 'Market::ChartEngine';
+
+    no warnings 'redefine';
+    local *Market::ChartEngine::request_render = sub { $_[0] };
+    local *Market::ChartEngine::_canvas_width = sub { 800 };
+
+    $eng->_horizontal_zoom( 40, undef );
+    is( $eng->{offset}, 120, 'zoom-out en medio: offset (end) se conserva' );
+    is( $eng->{visible_bars}, 100, 'zoom-out en medio: visible_bars aumenta' );
+    is( $eng->{ctrl_zoom_x_shift}, 0, 'zoom-out en medio: limpia x_shift' );
+}
+
 done_testing();
