@@ -30,6 +30,7 @@ use Market::Indicators::PivotPointsHL;
 use Market::Overlays::PivotPointsHL;
 use Market::Indicators::AutoTrendChannel;
 use Market::Overlays::AutoTrendChannel;
+use Market::Indicators::ATR;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
 # RIGHT_MARGIN => margen interno derecho del área de ploteo. Los ejes ahora
 # son canvases separados, así que debe ser 0.
@@ -351,6 +352,12 @@ sub new {
     if ( $self->{indicator_manager} ) {
         $self->{indicator_manager}->register( 'AutoTrendChannel', $self->{auto_tc_indicator} );
     }
+
+    $self->{_atr_cache}      = {};
+    $self->{_atr_job_id}     = 0;
+    $self->{_atr_pending_tf} = undef;
+    $self->{_atr_chunk}      = 2500;
+    $self->_atr_seed_cache_from_live();
 
     $self->bind_events();
 
@@ -4486,8 +4493,7 @@ sub set_timeframe {
     }
     $self->clear_replay_select_state();
 
-    # Lazy: construir el TF solo al elegirlo (cacheado en MarketData).
-    # Con base_tf=15m, ensure no construye 1m/5m (más finos que la base).
+    # TF ya precargado en MarketData (add_candle O(1)); ensure es no-op si lleno.
     my $base_tf = '1m';
     if ($self->{market_data}->can('base_timeframe')) {
         $base_tf = $self->{market_data}->base_timeframe() // '1m';
@@ -4500,12 +4506,38 @@ sub set_timeframe {
     }
     $self->{market_data}->set_timeframe($tf);
     $self->_sync_fibonacci_levels_for_timeframe($tf);
-    $self->{indicator_manager}->reset_all();
-    my $n_bars = $self->{market_data}->size() || 0;
-    for (my $i = 0; $i < $n_bars; $i++) {
-        $self->{indicator_manager}->update_last($self->{market_data}, $i);
+
+    # ATR por TF: hit de cache = O(1); miss = UI inmediata + calculo diferido.
+    # Ya no hay reset_all + bucle O(n) sincrono (congelaba al volver a 1m).
+    $self->_atr_apply_for_timeframe($tf);
+    $self->_reset_indicators_for_timeframe_change($tf);
+
+    $self->{is_auto_scale} = 1;
+    $self->{manual_min_y} = undef;
+    $self->{manual_max_y} = undef;
+    $self->{is_atr_auto_scale} = 1;
+    $self->{atr_manual_min_y} = undef;
+    $self->{atr_manual_max_y} = undef;
+    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
+        $self->{atr_scale_mode_callback}->('auto');
     }
-    # reset SMC Pro + Structures/FVG al cambiar timeframe.
+    $self->_clear_ctrl_zoom_state();
+    $self->reset_view();
+}
+
+# Reinicia overlays/indicadores al cambiar TF (sin recalcular ATR aqui).
+sub _reset_indicators_for_timeframe_change {
+    my ( $self, $tf ) = @_;
+
+    my $im = $self->{indicator_manager};
+    if ($im) {
+        for my $name ( keys %{ $im->{indicators} || {} } ) {
+            next if $name eq 'ATR';
+            my $ind = $im->{indicators}{$name};
+            $ind->reset() if $ind && $ind->can('reset');
+        }
+    }
+
     if ($self->{smc_pro_indicator} || $self->{smc_indicator}) {
         my $ind = $self->{smc_pro_indicator} // $self->{smc_indicator};
         $ind->reset() if $ind;
@@ -4541,17 +4573,120 @@ sub set_timeframe {
           if $self->{auto_tc_indicator}->can('set_bar_minutes');
         $self->{_auto_tc_fed_up_to} = -1;
     }
-    $self->{is_auto_scale} = 1;
-    $self->{manual_min_y} = undef;
-    $self->{manual_max_y} = undef;
-    $self->{is_atr_auto_scale} = 1;
-    $self->{atr_manual_min_y} = undef;
-    $self->{atr_manual_max_y} = undef;
-    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
-        $self->{atr_scale_mode_callback}->('auto');
+
+    $self->{_diy_fed_up_to}         = -1;
+    $self->{_vp_fed_up_to}          = -1;
+    $self->{_avwap_fed_up_to}       = -1;
+    $self->{_avwap_auto1_fed_up_to} = -1;
+    $self->{_avwap_auto2_fed_up_to} = -1;
+    $self->{_pph_fed_up_to}         = -1;
+    return $self;
+}
+
+sub _atr_indicator {
+    my ($self) = @_;
+    my $im = $self->{indicator_manager} or return;
+    return $im->get_indicator('ATR') if $im->can('get_indicator');
+    return $im->{indicators}{ATR};
+}
+
+sub _atr_seed_cache_from_live {
+    my ($self) = @_;
+    my $atr = $self->_atr_indicator() or return;
+    my $vals = $atr->get_values() || [];
+    return unless @$vals;
+    my $tf = '1m';
+    if ( $self->{market_data} ) {
+        $tf = $self->{market_data}{active_tf}
+          // ( $self->{market_data}->can('base_timeframe')
+            ? $self->{market_data}->base_timeframe()
+            : '1m' );
     }
-    $self->_clear_ctrl_zoom_state();
-    $self->reset_view();
+    $self->{_atr_cache}{$tf} = $atr->export_state() if $atr->can('export_state');
+    return $self;
+}
+
+# Aplica ATR del TF: cache hit O(1); miss vacia panel y agenda build diferido.
+sub _atr_apply_for_timeframe {
+    my ( $self, $tf ) = @_;
+    my $atr = $self->_atr_indicator() or return 0;
+    $self->{_atr_cache} ||= {};
+
+    if ( my $st = $self->{_atr_cache}{$tf} ) {
+        $self->{_atr_job_id}++;    # cancela build en curso
+        $atr->import_state($st) if $atr->can('import_state');
+        $self->{_atr_pending_tf} = undef;
+        return 1;
+    }
+
+    $self->{_atr_job_id}++;
+    $atr->reset() if $atr->can('reset');
+    $self->_atr_schedule_build($tf);
+    return 0;
+}
+
+# Calcula ATR del TF en chunks via after(), sin bloquear el click de TF.
+sub _atr_schedule_build {
+    my ( $self, $tf ) = @_;
+    my $atr_live = $self->_atr_indicator() or return;
+    my $period   = $atr_live->{period} // 14;
+    my $md       = $self->{market_data} or return;
+    my $series   = $md->{data}{$tf} || [];
+    my $n        = scalar @$series;
+    my $job      = ++$self->{_atr_job_id};
+    $self->{_atr_pending_tf} = $tf;
+
+    my $worker = Market::Indicators::ATR->new($period);
+    my $i      = 0;
+    my $chunk  = $self->{_atr_chunk} // 2500;
+
+    my $step;
+    $step = sub {
+        return if ( $self->{_atr_job_id} // 0 ) != $job;
+
+        if ( $n <= 0 ) {
+            $self->{_atr_cache}{$tf} = $worker->export_state();
+            $self->{_atr_pending_tf} = undef
+              if ( $self->{_atr_pending_tf} // '' ) eq $tf;
+            return;
+        }
+
+        my $to = $i + $chunk - 1;
+        $to = $n - 1 if $to > $n - 1;
+        while ( $i <= $to ) {
+            my $c = $series->[$i];
+            $worker->update_ohlc( $c->[2], $c->[3], $c->[4] ) if $c;
+            $i++;
+        }
+
+        if ( $i < $n ) {
+            my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+            if ($canvas) {
+                $canvas->after( 1, $step );
+            }
+            else {
+                $step->();
+            }
+            return;
+        }
+
+        my $st = $worker->export_state();
+        $self->{_atr_cache}{$tf} = $st;
+        if ( ( $md->{active_tf} // '' ) eq $tf ) {
+            $atr_live->import_state($st);
+            $self->{_atr_pending_tf} = undef;
+            $self->request_render();
+        }
+    };
+
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas};
+    if ($canvas) {
+        $canvas->after( 1, $step );
+    }
+    else {
+        $step->();
+    }
+    return $self;
 }
 
 sub reset_view {

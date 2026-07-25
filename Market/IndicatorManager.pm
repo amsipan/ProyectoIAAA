@@ -43,6 +43,11 @@ sub get {
     return $indicator->get_values();
 }
 
+sub get_indicator {
+    my ( $self, $name ) = @_;
+    return $self->{indicators}->{$name};
+}
+
 sub slice_array {
     my ($self, $name, $start, $end) = @_;
     my $values = $self->get($name);
