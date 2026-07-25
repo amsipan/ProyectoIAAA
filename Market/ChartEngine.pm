@@ -3427,9 +3427,13 @@ sub _horizontal_zoom {
     my $rc = $self->{replay_controller};
     my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
 
-    if (!$use_cursor_anchor && !$in_replay_abs) {
-        if ($old_offset <= 0) {
-            $self->{offset} = $self->_clamp_offset($old_offset);
+    if ( !$use_cursor_anchor && !$in_replay_abs ) {
+        # Rueda sin Ctrl: ancla = última vela del dataset → pegar al borde
+        # derecho (offset 0). Si offset era negativo (hueco “futuro” a la
+        # derecha), conservarlo hacía que la última vela se fuera del borde
+        # al zoom-out y pareciera cortada/fuera de vista.
+        if ( ( $old_offset // 0 ) <= 0 ) {
+            $self->{offset} = 0;
             $self->request_render();
             return;
         }
