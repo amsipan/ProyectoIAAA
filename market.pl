@@ -529,8 +529,38 @@ if ($ENV{MARKET_RELOAD}) {
     $box->Label(-text => 'SMC:')->pack(-side => 'left', -padx => 3);
     $box->Checkbutton(-text => 'SMC Pro', -variable => \$vis_smc_pro,
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
-    $box->Checkbutton(-text => 'SMC Structures+FVG', -variable => \$vis_smc_fvg,
-        -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
+
+    # Structures+FVG: capa maestra + FVG / BOS-CHoCH independientes (feedback §4).
+    my $smc_fvg_show_fvg    = 1;
+    my $smc_fvg_show_struct = 0;    # OFF por defecto (anti-solape con SMC Pro)
+    my $apply_smc_fvg_parts = sub {
+        my $ov = $chart_engine->{smc_fvg_overlay};
+        return unless $ov;
+        $ov->set_show_fvg($smc_fvg_show_fvg)         if $ov->can('set_show_fvg');
+        $ov->set_show_structure($smc_fvg_show_struct) if $ov->can('set_show_structure');
+        $chart_engine->request_render();
+    };
+    my $sfvg_box = $box->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
+    $sfvg_box->Checkbutton(
+        -text     => 'SMC Structures+FVG',
+        -variable => \$vis_smc_fvg,
+        -command  => sub {
+            $set_overlay_visible->( 'smc_fvg', $vis_smc_fvg ? 1 : 0 );
+            $apply_smc_fvg_parts->();
+        },
+    )->pack( -side => 'left' );
+    $sfvg_box->Checkbutton(
+        -text     => 'FVG',
+        -variable => \$smc_fvg_show_fvg,
+        -command  => $apply_smc_fvg_parts,
+    )->pack( -side => 'left' );
+    $sfvg_box->Checkbutton(
+        -text     => 'BOS/CHoCH',
+        -variable => \$smc_fvg_show_struct,
+        -command  => $apply_smc_fvg_parts,
+    )->pack( -side => 'left' );
+    $apply_smc_fvg_parts->();    # sincronizar defaults UI → overlay al arrancar
+
     $box->Checkbutton(-text => 'HLD 4h', -variable => \$vis_hld_4h,
         -command => sub { $set_overlay_visible->('hld_4h', $vis_hld_4h ? 1 : 0); })->pack(-side => 'left');
     $box->Checkbutton(-text => 'HLD D', -variable => \$vis_hld_d,

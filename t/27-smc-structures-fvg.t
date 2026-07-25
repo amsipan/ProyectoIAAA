@@ -265,4 +265,48 @@ use Market::Overlays::Base;
         'FVG x2 = centro vela right' );
 }
 
+# -----------------------------------------------------------------------------
+# Toggle independiente FVG vs BOS/CHoCH (feedback profe §4)
+# -----------------------------------------------------------------------------
+{
+    package main;
+    my $ind = Market::Indicators::SMC_Structures_FVG->new();
+    push @{ $ind->{_fvgs} }, {
+        type => 'bull', left => 1, right => 3, hi => 105, lo => 101,
+        active => 1, mitig => 0,
+    };
+    push @{ $ind->{_events} }, {
+        index => 4, start_index => 2, type => 'BOS', price => 100,
+        color_role => 'bos_bull',
+    };
+    my $ov = Market::Overlays::SMC_Structures_FVG->new( indicator => $ind, visible => 1 );
+    ok( $ov->show_fvg,        'default show_fvg ON' );
+    ok( !$ov->show_structure, 'default show_structure OFF (anti-solape SMC Pro)' );
+
+    $ov->compute_visible( undef, $ind, 0, 9 );
+    my $scales = MockScalesFVG->new( plot_width => 400, bars => 10 );
+
+    $ov->set_show_fvg(1);
+    $ov->set_show_structure(0);
+    my $c1 = MockCanvasFVG->new();
+    $ov->draw( $c1, $scales );
+    ok( ( grep { $_->[0] eq 'createRectangle' } @{ $c1->{ops} } ),
+        'solo FVG: dibuja cajas' );
+    ok( !( grep { $_->[0] eq 'createLine' } @{ $c1->{ops} } ),
+        'solo FVG: no dibuja lineas BOS/CHoCH' );
+
+    $ov->set_show_fvg(0);
+    $ov->set_show_structure(1);
+    my $c2 = MockCanvasFVG->new();
+    $ov->draw( $c2, $scales );
+    ok( !( grep { $_->[0] eq 'createRectangle' } @{ $c2->{ops} } ),
+        'solo struct: no dibuja FVG' );
+    ok( ( grep { $_->[0] eq 'createLine' } @{ $c2->{ops} } ),
+        'solo struct: dibuja lineas BOS/CHoCH' );
+    ok( ( grep { $_->[0] eq 'createText' && ( $_->[6] // '' ) eq 'BOS' }
+              @{ $c2->{ops} } )
+          || ( grep { $_->[0] eq 'createText' } @{ $c2->{ops} } ),
+        'solo struct: emite etiqueta texto' );
+}
+
 done_testing();

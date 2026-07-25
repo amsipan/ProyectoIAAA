@@ -12,12 +12,18 @@ sub new {
     die "Overlays::SMC_Structures_FVG->new: requiere 'indicator'"
         unless defined $args{indicator};
     my $self = {
-        indicator      => $args{indicator},
-        theme          => $args{theme} || {},
-        visible        => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
-        _events        => [],
-        _fvgs          => [],
-        _compute_range => undef,
+        indicator       => $args{indicator},
+        theme           => $args{theme} || {},
+        visible         => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
+        # Independientes (feedback profe §4): FVG vs etiquetas BOS/CHoCH.
+        show_fvg        => exists $args{show_fvg} ? ( $args{show_fvg} ? 1 : 0 ) : 1,
+        # OFF por defecto: evita solape con BOS/CHoCH de SMC Pro (feedback §4).
+        show_structure  => exists $args{show_structure}
+          ? ( $args{show_structure} ? 1 : 0 )
+          : 0,
+        _events         => [],
+        _fvgs           => [],
+        _compute_range  => undef,
     };
     bless $self, $class;
     return $self;
@@ -32,6 +38,21 @@ sub set_visible {
 }
 
 sub is_visible { $_[0]->{visible} }
+
+sub set_show_fvg {
+    my ( $self, $bool ) = @_;
+    $self->{show_fvg} = $bool ? 1 : 0;
+    return $self;
+}
+
+sub set_show_structure {
+    my ( $self, $bool ) = @_;
+    $self->{show_structure} = $bool ? 1 : 0;
+    return $self;
+}
+
+sub show_fvg       { $_[0]->{show_fvg}       ? 1 : 0 }
+sub show_structure { $_[0]->{show_structure} ? 1 : 0 }
 
 sub _segment_overlaps {
     my ($a, $b, $vs, $ve) = @_;
@@ -127,6 +148,7 @@ sub draw {
     };
 
     # 1) FVG boxes — left/right en centro de vela (Pine left=bar-2, right=bar_index)
+    if ( $self->{show_fvg} ) {
     for my $f ( @{ $self->{_fvgs} } ) {
         my $li = $f->{left}  // $f->{index} // 0;
         my $ri = $f->{right} // $f->{index} // $li;
@@ -169,8 +191,10 @@ sub draw {
             1;
         };
     }
+    }
 
     # 2) Structure breaks — centro de vela, width 1
+    if ( $self->{show_structure} ) {
     for my $e ( @{ $self->{_events} } ) {
         my $role = $e->{color_role} // '';
         my $col  = $bos_c;
@@ -201,6 +225,7 @@ sub draw {
             );
             1;
         };
+    }
     }
 
     return $self;
