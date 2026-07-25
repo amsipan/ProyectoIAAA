@@ -25,19 +25,21 @@ sub build_md {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Overlay auto: tag distinto, sin handle.
+# 1. Overlay: tag configurable; handle TV blanco/azul; Auto también con handle
 # ---------------------------------------------------------------------------
 {
     my $ind = Market::Indicators::AnchoredVWAP->new();
     my $ov  = Market::Overlays::AnchoredVWAP->new(
         indicator   => $ind,
         tag         => 'ov_avwap_auto1',
-        show_handle => 0,
+        show_handle => 1,
         visible     => 0,
         color_vwap  => '#26A69A',
     );
     is( $ov->tag(), 'ov_avwap_auto1', 'tag configurable para Auto-1' );
-    ok( !$ov->{show_handle}, 'Auto sin handle de drag' );
+    ok( $ov->{show_handle}, 'Auto muestra handle (estilo TV §8)' );
+    is( $ov->{color_handle_fill}    // '', '#FFFFFF', 'handle fill blanco TV' );
+    is( $ov->{color_handle_outline} // '', '#2962FF', 'handle outline azul TV' );
 }
 
 # ---------------------------------------------------------------------------
@@ -100,6 +102,116 @@ sub build_md {
     $n++ if $auto1->has_anchor();
     $n++ if $auto2->has_anchor();
     is( $n, 3, 'Manual+Auto puede mantener 3 anclas AVWAP simultáneas' );
+}
+
+# ---------------------------------------------------------------------------
+# 4. Promoción Auto→Manual + sync UI; sync auto no-op tras promoción
+# ---------------------------------------------------------------------------
+{
+    use Market::ChartEngine;
+    use Market::ReplayController;
+
+    package AvwapAutoCanvas;
+    sub new { bless {}, shift }
+    sub after { return }
+    sub delete { return }
+    sub configure { return }
+    sub Width  { 800 }
+    sub Height { 400 }
+    sub width  { 800 }
+    sub height { 400 }
+
+    package main;
+
+    my $md  = build_md();
+    my $pph = Market::Indicators::PivotPointsHL->new( length => 3 );
+    my $manual = Market::Indicators::AnchoredVWAP->new();
+    my $a1     = Market::Indicators::AnchoredVWAP->new();
+    my $a2     = Market::Indicators::AnchoredVWAP->new();
+    my $ov_m = Market::Overlays::AnchoredVWAP->new(
+        indicator => $manual, show_handle => 1, visible => 0
+    );
+    my $ov1 = Market::Overlays::AnchoredVWAP->new(
+        indicator => $a1, tag => 'ov_avwap_auto1', show_handle => 1, visible => 0
+    );
+    my $ov2 = Market::Overlays::AnchoredVWAP->new(
+        indicator => $a2, tag => 'ov_avwap_auto2', show_handle => 1, visible => 0
+    );
+    my $rc = Market::ReplayController->new( market_data => $md );
+    my $chart = bless {
+        market_data            => $md,
+        replay_controller      => $rc,
+        price_canvas           => AvwapAutoCanvas->new(),
+        pph_indicator          => $pph,
+        avwap_indicator        => $manual,
+        avwap_overlay          => $ov_m,
+        avwap_auto1_indicator  => $a1,
+        avwap_auto1_overlay    => $ov1,
+        avwap_auto2_indicator  => $a2,
+        avwap_auto2_overlay    => $ov2,
+        avwap_mode             => 'off',
+        _avwap_fed_up_to       => -1,
+        _avwap_auto1_fed_up_to => -1,
+        _avwap_auto2_fed_up_to => -1,
+        _pph_fed_up_to         => -1,
+        render_pending         => 0,
+        _vwap_select_mode      => 0,
+    }, 'Market::ChartEngine';
+
+    no warnings 'redefine';
+    *Market::ChartEngine::request_render = sub {
+        my ($self) = @_;
+        $self->{render_pending} = 0;
+        return $self;
+    };
+    *Market::ChartEngine::set_vwap_select_mode = sub {
+        my ( $self, $on ) = @_;
+        $self->{_vwap_select_mode} = $on ? 1 : 0;
+        return $self;
+    };
+    *Market::ChartEngine::_feed_indicator_to = sub {
+        my ( $self, $ind, $key, $to ) = @_;
+        return $self unless $ind && defined $to;
+        my $from = ( $self->{$key} // -1 ) + 1;
+        $from = 0 if $from < 0;
+        for my $i ( $from .. $to ) {
+            $ind->update_last( $md, $i ) if $ind->can('update_last');
+        }
+        $self->{$key} = $to;
+        return $self;
+    };
+
+    my $ui_mode;
+    $chart->{avwap_mode_ui_sync} = sub { $ui_mode = $_[0] };
+
+    $chart->set_avwap_mode('auto');
+    is( $chart->{avwap_mode}, 'auto', 'set_avwap_mode auto' );
+    ok( $ov1->{show_handle} && $ov2->{show_handle}, 'autos con show_handle ON' );
+
+    $chart->_sync_avwap_auto_anchors( $md->size - 1 );
+    ok( $a1->has_anchor() || $a2->has_anchor(), 'auto tenía alguna ancla' );
+    my $from_idx = $a1->has_anchor() ? $a1->anchor_index() : $a2->anchor_index();
+
+    $chart->_promote_avwap_auto_to_manual($from_idx);
+    is( $chart->{avwap_mode}, 'manual', 'promoción: modo Manual' );
+    is( $ui_mode, 'manual', 'avwap_mode_ui_sync notifica Manual' );
+    is( $manual->anchor_index(), $from_idx, 'manual hereda ancla auto' );
+    ok( !$a1->has_anchor() && !$a2->has_anchor(), 'autos limpios tras promoción' );
+
+    my $frozen = $manual->anchor_index();
+    $chart->_sync_avwap_auto_anchors( $md->size - 1 );
+    is( $manual->anchor_index(), $frozen, 'sync auto no-op en modo manual' );
+}
+
+# ---------------------------------------------------------------------------
+# 5. UI: market.pl registra avwap_mode_ui_sync
+# ---------------------------------------------------------------------------
+{
+    open my $fh, '<', 'market.pl' or die "market.pl: $!";
+    local $/;
+    my $src = <$fh>;
+    close $fh;
+    like( $src, qr/avwap_mode_ui_sync/, 'market.pl registra avwap_mode_ui_sync' );
 }
 
 done_testing();

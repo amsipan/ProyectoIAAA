@@ -327,7 +327,7 @@ sub new {
         indicator   => $self->{avwap_auto1_indicator},
         theme       => { %{ $self->{theme} || {} }, vwap_line => '#26A69A' },
         tag         => 'ov_avwap_auto1',
-        show_handle => 0,
+        show_handle => 1,
         visible     => 0,
         color_vwap  => '#26A69A',
     );
@@ -340,7 +340,7 @@ sub new {
         indicator   => $self->{avwap_auto2_indicator},
         theme       => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
         tag         => 'ov_avwap_auto2',
-        show_handle => 0,
+        show_handle => 1,
         visible     => 0,
         color_vwap  => '#9C27B0',
     );
@@ -1495,8 +1495,9 @@ sub render {
         # Velas por encima de líneas de indicadores (BOS/CHoCH/EQ/OB/HLD lines…).
         eval { $self->{price_canvas}->raise('candle'); 1 };
         eval { $self->{price_canvas}->raise('price_label'); 1 };
-        # Handle AVP encima de velas (feedback §7 / estilo TV).
+        # Handle AVP/AVWAP encima de velas (feedback §7–§8 / estilo TV).
         eval { $self->{price_canvas}->raise('vp_anchor_handle'); 1 };
+        eval { $self->{price_canvas}->raise('avwap_anchor_handle'); 1 };
         # Etiquetas HLD siempre encima de las velas (chip + texto legible).
         eval { $self->{price_canvas}->raise('hld_lbl_bg'); 1 };
         eval { $self->{price_canvas}->raise('hld_lbl'); 1 };
@@ -2219,6 +2220,8 @@ sub set_avwap_mode {
 
 sub _sync_avwap_auto_anchors {
     my ( $self, $feed_to ) = @_;
+    my $mode = $self->{avwap_mode} // '';
+    return $self unless $mode eq 'auto' || $mode eq 'both';
     return $self unless $self->{pph_indicator};
     return $self unless defined $feed_to && $feed_to >= 0;
 
@@ -2261,6 +2264,22 @@ sub _sync_avwap_auto_anchors {
         $self->{avwap_auto2_overlay}->set_visible(0) if $self->{avwap_auto2_overlay};
     }
 
+    return $self;
+}
+
+# Promueve un AVWAP Auto (1|2) a Manual: ancla fija, apaga sync auto, UI → Manual.
+sub _promote_avwap_auto_to_manual {
+    my ( $self, $anchor_idx ) = @_;
+    return $self unless defined $anchor_idx && $anchor_idx >= 0;
+    if ( $self->{avwap_indicator} ) {
+        $self->{avwap_indicator}->set_anchor($anchor_idx);
+        $self->{_avwap_fed_up_to} = -1;
+    }
+    # set_avwap_mode('manual') limpia autos y deja solo el manual.
+    $self->set_avwap_mode('manual');
+    if ( my $cb = $self->{avwap_mode_ui_sync} ) {
+        eval { $cb->('manual'); 1 };
+    }
     return $self;
 }
 
@@ -3701,20 +3720,50 @@ sub _start_horizontal_drag {
         }
     }
 
-    # Drag del ancla del Anchored VWAP (AVWAP)
-    if ($self->{avwap_overlay} && $self->{avwap_overlay}->is_visible() && $self->{avwap_indicator} && $self->{avwap_indicator}->has_anchor()) {
-        my $anchor_idx = $self->{avwap_indicator}->anchor_index();
-        my ($view_start, $view_end) = eval { $self->compute_window() };
-        if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
-            my $local = $anchor_idx - $view_start;
-            my $bars  = $view_end - $view_start + 1;
-            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => $self->_current_right_margin());
-            $scale->{width} = $self->_canvas_width($self->{price_canvas});
-            my $x_anchor = $scale->index_to_center_x($local);
-            if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
-                $self->{_avwap_drag_active} = 1;
-                return;
-            }
+    # Drag del ancla del Anchored VWAP (AVWAP) — manual o auto (auto→manual)
+    my $_avwap_hit = sub {
+        my ( $ov, $ind ) = @_;
+        return unless $ov && $ov->is_visible() && $ind && $ind->has_anchor();
+        my $anchor_idx = $ind->anchor_index();
+        my ( $view_start, $view_end ) = eval { $self->compute_window() };
+        return
+          unless defined $view_start
+          && defined $anchor_idx
+          && $anchor_idx >= $view_start
+          && $anchor_idx <= $view_end;
+        my $local = $anchor_idx - $view_start;
+        my $bars  = $view_end - $view_start + 1;
+        my $scale = Market::Panels::Scales->new(
+            bars         => $bars,
+            right_margin => $self->_current_right_margin()
+        );
+        $scale->{width} = $self->_canvas_width( $self->{price_canvas} );
+        my $x_anchor = $scale->index_to_center_x($local);
+        return
+          if !defined $x_anchor || abs( $x - $x_anchor ) > 25;
+        return $anchor_idx;
+    };
+
+    {
+        my $idx = $_avwap_hit->( $self->{avwap_overlay}, $self->{avwap_indicator} );
+        if ( defined $idx ) {
+            $self->{_avwap_drag_active} = 1;
+            return;
+        }
+    }
+    my $mode = $self->{avwap_mode} // '';
+    if ( $mode eq 'auto' || $mode eq 'both' ) {
+        my $idx1 = $_avwap_hit->( $self->{avwap_auto1_overlay}, $self->{avwap_auto1_indicator} );
+        if ( defined $idx1 ) {
+            $self->_promote_avwap_auto_to_manual($idx1);
+            $self->{_avwap_drag_active} = 1;
+            return;
+        }
+        my $idx2 = $_avwap_hit->( $self->{avwap_auto2_overlay}, $self->{avwap_auto2_indicator} );
+        if ( defined $idx2 ) {
+            $self->_promote_avwap_auto_to_manual($idx2);
+            $self->{_avwap_drag_active} = 1;
+            return;
         }
     }
 
