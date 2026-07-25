@@ -14,7 +14,7 @@ sub new {
         tool_active  => 0,
         extend_right => exists $args{extend_right} ? ( $args{extend_right} ? 1 : 0 ) : 0,
         extend_left  => exists $args{extend_left}  ? ( $args{extend_left}  ? 1 : 0 ) : 0,
-        show_mid     => $args{show_mid} ? 1 : 0,
+        show_mid     => exists $args{show_mid} ? ( $args{show_mid} ? 1 : 0 ) : 1,
         line_color   => $args{line_color} // '#42a5f5',
         fill_color   => $args{fill_color} // '#2196f3',
     };

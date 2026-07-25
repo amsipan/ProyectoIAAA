@@ -219,6 +219,7 @@ sub new {
     $self->{pchan_drawing} = Market::Drawing::ParallelChannel->new(
         extend_right => 0,
         extend_left  => 0,
+        show_mid     => 1,    # mediana punteada estilo TV (feedback §10)
     );
     $self->{pchan_overlay} = Market::Overlays::ParallelChannel->new(
         drawing => $self->{pchan_drawing},
@@ -322,6 +323,7 @@ sub new {
     }
 
     # Auto-1: último pivot regular consolidado (high o low)
+    # Principal teal; bandas σ en naranja (no repetir el verde del principal — §9).
     $self->{avwap_auto1_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto1_overlay}   = Market::Overlays::AnchoredVWAP->new(
         indicator   => $self->{avwap_auto1_indicator},
@@ -330,11 +332,15 @@ sub new {
         show_handle => 1,
         visible     => 0,
         color_vwap  => '#26A69A',
+        color_band1 => '#FF9800',
+        color_band2 => '#F9A825',
+        color_band3 => '#EF6C00',
+        color_fill  => '#FFE0B2',
     );
     $self->{overlay_manager}->register( 'avwap_auto1', $self->{avwap_auto1_overlay} );
     $self->{_avwap_auto1_fed_up_to} = -1;
 
-    # Auto-2: fantasma provisional (sigue x_last)
+    # Auto-2: fantasma provisional — principal morado + trazo con guiones (§9).
     $self->{avwap_auto2_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto2_overlay}   = Market::Overlays::AnchoredVWAP->new(
         indicator   => $self->{avwap_auto2_indicator},
@@ -343,6 +349,11 @@ sub new {
         show_handle => 1,
         visible     => 0,
         color_vwap  => '#9C27B0',
+        color_band1 => '#CE93D8',
+        color_band2 => '#AB47BC',
+        color_band3 => '#7B1FA2',
+        color_fill  => '#E1BEE7',
+        line_dash   => '-',
     );
     $self->{overlay_manager}->register( 'avwap_auto2', $self->{avwap_auto2_overlay} );
     $self->{_avwap_auto2_fed_up_to} = -1;
