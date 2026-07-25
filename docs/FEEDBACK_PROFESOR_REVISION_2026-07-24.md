@@ -93,6 +93,8 @@ Botones propios para habilitar/deshabilitar por separado:
 2. Etiquetado BOS/CHoCH **externo**
 3. Etiquetado **EQH/EQL**
 
+**Estado:** siguiente (rama `feature/smc-pro-label-toggles`). Flags ya existen en indicador (`show_internal`, `show_swing`, `show_eqhl`); falta UI + overlay que los respete al dibujar.
+
 ---
 
 ## 6. Liquidez — quitar EQH/EQL de esa capa
