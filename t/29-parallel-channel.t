@@ -160,4 +160,27 @@ use Market::Drawing::ParallelChannel;
     is( $ov->hit_test( 20, 400, $sc, 0 ), 'body', 'hit_test cuerpo del canal' );
 }
 
+# --- §10: mediana punteada ON por defecto (estilo TradingView) ---
+{
+    my $d = Market::Drawing::ParallelChannel->new();
+    ok( $d->{show_mid}, 'show_mid ON por defecto' );
+    $d->start_tool();
+    $d->add_point( { index => 0,  price => 100 } );
+    $d->add_point( { index => 10, price => 110 } );
+    $d->add_point( { index => 5,  price => 90 } );
+    my $ch = $d->get_channel();
+    ok( $ch->{show_mid}, 'canal committed conserva show_mid' );
+    my $geo = $d->geometry_for( $ch, data_end => 20 );
+    ok( $geo->{mid}, 'geometry_for incluye segmento mid' );
+    my ( $ia, $pa, $ib, $pb ) = @{ $geo->{mid} };
+    # Mid = promedio de line0 y line1 en los extremos
+    my ( undef, $y0l, undef, $y0r ) = @{ $geo->{line0} };
+    my ( undef, $y1l, undef, $y1r ) = @{ $geo->{line1} };
+    ok( abs( $pa - ( $y0l + $y1l ) / 2 ) < 1e-9, 'mid precio izquierdo = promedio bordes' );
+    ok( abs( $pb - ( $y0r + $y1r ) / 2 ) < 1e-9, 'mid precio derecho = promedio bordes' );
+
+    my $d_off = Market::Drawing::ParallelChannel->new( show_mid => 0 );
+    ok( !$d_off->{show_mid}, 'show_mid se puede apagar explícitamente' );
+}
+
 done_testing();

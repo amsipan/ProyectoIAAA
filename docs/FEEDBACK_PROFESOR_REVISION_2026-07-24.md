@@ -152,11 +152,15 @@ Aplicar al AVWAP manual y automático las mismas mejoras de claridad de ancla qu
 - Diferenciar origen de cada curva (p. ej. el segundo VWAP / sus bandas en **línea discontinua**).
 - No repetir el mismo color verde entre principal y primera desviación.
 
+**Estado:** hecho — terna Manual cian `#00BCD4` / Auto-1 tomate `#FF9800` / Auto-2 morado `#9C27B0` + `line_dash`; (`feature/avwap-styles-pc-median`).
+
 ---
 
 ## 10. Canal paralelo manual — mediana
 
 Poner una **línea punteada en el medio** del canal, como en TradingView.
+
+**Estado:** hecho — `show_mid` ON por defecto; `geometry_for` + overlay `pchan_mid` con `-dash => '.'` (`feature/avwap-styles-pc-median`).
 
 ---
 
@@ -169,4 +173,5 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho**
 6. ~~Quitar EQH/EQL de Liquidez.~~ **hecho**
 7. ~~Anclas AVP (§7).~~ **hecho**
-8. ~~Anclas AVWAP (§8).~~ **hecho** — siguiente: §9 estilos AVWAP auto + §10 mediana canal.
+8. ~~Anclas AVWAP (§8).~~ **hecho**
+9. ~~Estilos AVWAP auto (§9) + mediana canal (§10).~~ **hecho**

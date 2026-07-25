@@ -25,7 +25,7 @@ sub build_md {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Overlay: tag configurable; handle TV blanco/azul; Auto también con handle
+# 1. Overlay: tag configurable; handle TV blanco + outline del principal
 # ---------------------------------------------------------------------------
 {
     my $ind = Market::Indicators::AnchoredVWAP->new();
@@ -34,12 +34,13 @@ sub build_md {
         tag         => 'ov_avwap_auto1',
         show_handle => 1,
         visible     => 0,
-        color_vwap  => '#26A69A',
+        color_vwap  => '#FF9800',
     );
     is( $ov->tag(), 'ov_avwap_auto1', 'tag configurable para Auto-1' );
     ok( $ov->{show_handle}, 'Auto muestra handle (estilo TV §8)' );
     is( $ov->{color_handle_fill}    // '', '#FFFFFF', 'handle fill blanco TV' );
-    is( $ov->{color_handle_outline} // '', '#2962FF', 'handle outline azul TV' );
+    is( $ov->{color_handle_outline} // '', '#FF9800',
+        'handle outline sigue al color_vwap del slot' );
 }
 
 # ---------------------------------------------------------------------------
@@ -212,6 +213,55 @@ sub build_md {
     my $src = <$fh>;
     close $fh;
     like( $src, qr/avwap_mode_ui_sync/, 'market.pl registra avwap_mode_ui_sync' );
+}
+
+# ---------------------------------------------------------------------------
+# 6. Terna §9: Manual cian / Auto-1 tomate / Auto-2 morado+dash
+# ---------------------------------------------------------------------------
+{
+    my $manual = Market::Overlays::AnchoredVWAP->new(
+        indicator   => Market::Indicators::AnchoredVWAP->new(),
+        color_vwap  => '#00BCD4',
+        color_band1 => '#4DD0E1',
+        color_band2 => '#26C6DA',
+        color_band3 => '#0097A7',
+    );
+    my $a1 = Market::Overlays::AnchoredVWAP->new(
+        indicator   => Market::Indicators::AnchoredVWAP->new(),
+        tag         => 'ov_avwap_auto1',
+        color_vwap  => '#FF9800',
+        color_band1 => '#FFB74D',
+        color_band2 => '#FFA726',
+        color_band3 => '#F57C00',
+    );
+    my $a2 = Market::Overlays::AnchoredVWAP->new(
+        indicator   => Market::Indicators::AnchoredVWAP->new(),
+        tag         => 'ov_avwap_auto2',
+        color_vwap  => '#9C27B0',
+        color_band1 => '#CE93D8',
+        line_dash   => '-',
+    );
+
+    is( $manual->{color_vwap}, '#00BCD4', 'Manual principal cian' );
+    is( $a1->{color_vwap},     '#FF9800', 'Auto-1 principal tomate' );
+    is( $a2->{color_vwap},     '#9C27B0', 'Auto-2 principal morado' );
+    isnt( $manual->{color_vwap}, $a1->{color_vwap}, 'Manual ≠ Auto-1' );
+    isnt( $a1->{color_vwap},     $a2->{color_vwap}, 'Auto-1 ≠ Auto-2' );
+    isnt( $manual->{color_vwap}, $a2->{color_vwap}, 'Manual ≠ Auto-2' );
+    isnt( $a1->{color_band1}, $manual->{color_vwap},
+        'Auto-1 σ distinta del principal Manual' );
+    is( $a2->{line_dash}, '-', 'Auto-2 usa líneas con guiones' );
+
+    open my $fh, '<', 'Market/ChartEngine.pm' or die $!;
+    local $/;
+    my $src = <$fh>;
+    close $fh;
+    like( $src, qr/color_vwap\s*=>\s*'#00BCD4'/,
+        'ChartEngine: Manual cian' );
+    like( $src, qr/ov_avwap_auto1[\s\S]{0,500}color_vwap\s*=>\s*'#FF9800'/,
+        'ChartEngine: Auto-1 tomate' );
+    like( $src, qr/ov_avwap_auto2[\s\S]{0,500}line_dash\s*=>\s*'-'/,
+        'ChartEngine: Auto-2 con line_dash' );
 }
 
 done_testing();

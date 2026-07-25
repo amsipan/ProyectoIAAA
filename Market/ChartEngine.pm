@@ -219,6 +219,7 @@ sub new {
     $self->{pchan_drawing} = Market::Drawing::ParallelChannel->new(
         extend_right => 0,
         extend_left  => 0,
+        show_mid     => 1,    # mediana punteada estilo TV (feedback §10)
     );
     $self->{pchan_overlay} = Market::Overlays::ParallelChannel->new(
         drawing => $self->{pchan_drawing},
@@ -307,13 +308,19 @@ sub new {
         $self->{indicator_manager}->register('VolumeProfile', $self->{vp_indicator});
     }
 
-    # Anchored VWAP (AVWAP) — manual + hasta 2 automáticos (pivot / fantasma)
+    # Anchored VWAP (AVWAP) — terna fija §9: Manual cian / Auto-1 tomate / Auto-2 morado+dash
     $self->{avwap_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator => $self->{avwap_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
-        show_handle => 1,
+        indicator            => $self->{avwap_indicator},
+        theme                => $self->{theme},
+        visible              => 0,
+        show_handle          => 1,
+        color_vwap           => '#00BCD4',
+        color_band1          => '#4DD0E1',
+        color_band2          => '#26C6DA',
+        color_band3          => '#0097A7',
+        color_fill           => '#B2EBF2',
+        color_handle_outline => '#00BCD4',
     );
     $self->{overlay_manager}->register( 'anchoredvwap', $self->{avwap_overlay} );
     $self->{_avwap_fed_up_to} = -1;
@@ -321,28 +328,39 @@ sub new {
         $self->{indicator_manager}->register('AnchoredVWAP', $self->{avwap_indicator});
     }
 
-    # Auto-1: último pivot regular consolidado (high o low)
+    # Auto-1: último pivot regular consolidado — principal tomate + σ misma familia
     $self->{avwap_auto1_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto1_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator   => $self->{avwap_auto1_indicator},
-        theme       => { %{ $self->{theme} || {} }, vwap_line => '#26A69A' },
-        tag         => 'ov_avwap_auto1',
-        show_handle => 1,
-        visible     => 0,
-        color_vwap  => '#26A69A',
+        indicator            => $self->{avwap_auto1_indicator},
+        theme                => { %{ $self->{theme} || {} }, vwap_line => '#FF9800' },
+        tag                  => 'ov_avwap_auto1',
+        show_handle          => 1,
+        visible              => 0,
+        color_vwap           => '#FF9800',
+        color_band1          => '#FFB74D',
+        color_band2          => '#FFA726',
+        color_band3          => '#F57C00',
+        color_fill           => '#FFE0B2',
+        color_handle_outline => '#FF9800',
     );
     $self->{overlay_manager}->register( 'avwap_auto1', $self->{avwap_auto1_overlay} );
     $self->{_avwap_auto1_fed_up_to} = -1;
 
-    # Auto-2: fantasma provisional (sigue x_last)
+    # Auto-2: fantasma provisional — principal morado + trazo con guiones
     $self->{avwap_auto2_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto2_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator   => $self->{avwap_auto2_indicator},
-        theme       => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
-        tag         => 'ov_avwap_auto2',
-        show_handle => 1,
-        visible     => 0,
-        color_vwap  => '#9C27B0',
+        indicator            => $self->{avwap_auto2_indicator},
+        theme                => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
+        tag                  => 'ov_avwap_auto2',
+        show_handle          => 1,
+        visible              => 0,
+        color_vwap           => '#9C27B0',
+        color_band1          => '#CE93D8',
+        color_band2          => '#AB47BC',
+        color_band3          => '#7B1FA2',
+        color_fill           => '#E1BEE7',
+        color_handle_outline => '#9C27B0',
+        line_dash            => '-',
     );
     $self->{overlay_manager}->register( 'avwap_auto2', $self->{avwap_auto2_overlay} );
     $self->{_avwap_auto2_fed_up_to} = -1;
@@ -2823,6 +2841,44 @@ sub replay_start_index {
     return $start_idx < 0 ? 0 : $start_idx;
 }
 
+# Hit-test del handle de ancla (AVP/AVWAP): solo el círculo (±5 dibujado),
+# no toda la columna vertical en X. Radio ~8 px en distancia euclídea.
+sub _anchor_handle_hit {
+    my ( $self, $x, $y, $anchor_idx, $price ) = @_;
+    return 0
+      unless defined $x
+      && defined $y
+      && defined $anchor_idx
+      && defined $price;
+
+    my ( $view_start, $view_end ) = eval { $self->compute_window() };
+    return 0
+      unless defined $view_start
+      && $anchor_idx >= $view_start
+      && $anchor_idx <= $view_end;
+
+    my $bars    = $view_end - $view_start + 1;
+    my $x_scale = Market::Panels::Scales->new(
+        bars         => $bars,
+        right_margin => $self->_current_right_margin(),
+    );
+    $x_scale->{width}   = $self->_canvas_width( $self->{price_canvas} );
+    $x_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
+    my $x_anchor = $x_scale->index_to_center_x( $anchor_idx - $view_start );
+    return 0 unless defined $x_anchor;
+
+    my $y_scale = $self->{_last_price_scale}
+      // ( $self->{price_panel} ? $self->{price_panel}{scale} : undef );
+    return 0 unless $y_scale && $y_scale->can('value_to_y');
+    my $y_anchor = $y_scale->value_to_y($price);
+    return 0 unless defined $y_anchor;
+
+    my $r  = 8;
+    my $dx = $x - $x_anchor;
+    my $dy = $y - $y_anchor;
+    return ( $dx * $dx + $dy * $dy ) <= ( $r * $r ) ? 1 : 0;
+}
+
 # _global_index_from_x($x) — índice GLOBAL bajo la coordenada X del canvas.
 sub _global_index_from_x {
     my ($self, $x) = @_;
@@ -3697,26 +3753,20 @@ sub _start_horizontal_drag {
     # Drag del ancla del Perfil de Volumen (AVP)
     if ($self->{vp_overlay} && $self->{vp_overlay}->is_visible() && $self->{vp_indicator} && $self->{vp_indicator}->has_anchor()) {
         my $anchor_idx = $self->{vp_indicator}->anchor_index();
-        my ($view_start, $view_end) = eval { $self->compute_window() };
-        if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
-            my $local = $anchor_idx - $view_start;
-            my $bars  = $view_end - $view_start + 1;
-            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => $self->_current_right_margin());
-            $scale->{width} = $self->_canvas_width($self->{price_canvas});
-            my $x_anchor = $scale->index_to_center_x($local);
-            if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
-                # Arrastrar en Auto → Manual (ancla fija; UI sincroniza radio).
-                if ( ( $self->{vp_mode} // '' ) eq 'auto' ) {
-                    $self->{vp_mode} = 'manual';
-                    $self->{vp_overlay}{show_handle} = 1 if $self->{vp_overlay};
-                    delete $self->{_vp_zz_leg_sig};
-                    if ( my $cb = $self->{vp_mode_ui_sync} ) {
-                        eval { $cb->('manual'); 1 };
-                    }
+        my $prof = eval { $self->{vp_indicator}->get_values() };
+        my $poc  = $prof && defined $prof->{poc} ? $prof->{poc} : undef;
+        if ( defined $poc && $self->_anchor_handle_hit( $x, $y, $anchor_idx, $poc ) ) {
+            # Arrastrar en Auto → Manual (ancla fija; UI sincroniza radio).
+            if ( ( $self->{vp_mode} // '' ) eq 'auto' ) {
+                $self->{vp_mode} = 'manual';
+                $self->{vp_overlay}{show_handle} = 1 if $self->{vp_overlay};
+                delete $self->{_vp_zz_leg_sig};
+                if ( my $cb = $self->{vp_mode_ui_sync} ) {
+                    eval { $cb->('manual'); 1 };
                 }
-                $self->{_vp_drag_active} = 1;
-                return;
             }
+            $self->{_vp_drag_active} = 1;
+            return;
         }
     }
 
@@ -3725,22 +3775,11 @@ sub _start_horizontal_drag {
         my ( $ov, $ind ) = @_;
         return unless $ov && $ov->is_visible() && $ind && $ind->has_anchor();
         my $anchor_idx = $ind->anchor_index();
-        my ( $view_start, $view_end ) = eval { $self->compute_window() };
-        return
-          unless defined $view_start
-          && defined $anchor_idx
-          && $anchor_idx >= $view_start
-          && $anchor_idx <= $view_end;
-        my $local = $anchor_idx - $view_start;
-        my $bars  = $view_end - $view_start + 1;
-        my $scale = Market::Panels::Scales->new(
-            bars         => $bars,
-            right_margin => $self->_current_right_margin()
-        );
-        $scale->{width} = $self->_canvas_width( $self->{price_canvas} );
-        my $x_anchor = $scale->index_to_center_x($local);
-        return
-          if !defined $x_anchor || abs( $x - $x_anchor ) > 25;
+        my $series     = eval { $ind->get_values() };
+        my $pt         = $series && defined $anchor_idx ? $series->[$anchor_idx] : undef;
+        my $price      = $pt && defined $pt->{value} ? $pt->{value} : undef;
+        return unless defined $price;
+        return unless $self->_anchor_handle_hit( $x, $y, $anchor_idx, $price );
         return $anchor_idx;
     };
 
