@@ -53,6 +53,10 @@ use constant {
     # PricePanel: body_w = 0.6*bar_w → inter-vela = 0.4*bar_w; margen min = 0.2*bar_w.
     CANDLE_BODY_FRAC       => 0.6,
     REPLAY_MIN_TRAIL_SLOTS => 1,
+    # Zoom-out live: si bar_w aprox < este umbral, aire a la derecha de la
+    # última vela (evita que al adelgazar el centro se coma el borde).
+    ZOOM_OUT_RIGHT_PAD_BAR_W => 4,
+    ZOOM_OUT_RIGHT_PAD_MIN_PX => 8,
     # tijera Select Bar (glyph unicode; linea/velo siguen azules).
     REPLAY_SELECT_SCISSOR_FONT => 'Helvetica 22',
     REPLAY_SELECT_SCISSOR_FILL => 'black',
@@ -421,18 +425,38 @@ sub _replay_plot_right_margin_px {
     return $px;
 }
 
-# Live: 0. Replay activo: padding dinámico (todas las TF / fases).
+# Live: 0 en zoom normal. Replay siempre, o live si bar_w es fino (zoom-out):
+# aire a la derecha para que la última vela no se desplace/coma el borde.
 sub _current_right_margin {
     my ( $self, $bars ) = @_;
-    my $rc = $self->{replay_controller};
-    return 0 unless $rc && $rc->can('is_active') && $rc->is_active();
     my $w = 0;
     if ( $self->{price_canvas} && $self->can('_canvas_size') ) {
         ($w) = $self->_canvas_size( $self->{price_canvas} );
     }
     $w = $self->{_last_price_canvas_w} if !$w && defined $self->{_last_price_canvas_w};
     $bars //= $self->{visible_bars} || 1;
-    return $self->_replay_plot_right_margin_px( $w, $bars );
+    $bars = 1 if $bars < 1;
+    return 0 if $w <= 1;
+
+    my $rc = $self->{replay_controller};
+    my $replay_on = ( $rc && $rc->can('is_active') && $rc->is_active() ) ? 1 : 0;
+
+    if ( !$replay_on ) {
+        my $approx_bw = $w / $bars;
+        return 0 if $approx_bw >= ZOOM_OUT_RIGHT_PAD_BAR_W;
+    }
+
+    my $rm = $self->_replay_plot_right_margin_px( $w, $bars );
+
+    # Zoom-out extremo (live): al menos ~1 slot de aire o MIN_PX (modo pixel).
+    if ( !$replay_on ) {
+        my $one_slot = int( $w / ( $bars + 1 ) + 0.999999 );
+        $rm = $one_slot if $one_slot > $rm;
+        my $min_px = ZOOM_OUT_RIGHT_PAD_MIN_PX;
+        $rm = $min_px if $rm < $min_px;
+        $rm = $w - 1 if $rm >= $w;
+    }
+    return $rm;
 }
 
 # Ventana LOGICA del viewport. Puede incluir indices negativos a la izquierda o

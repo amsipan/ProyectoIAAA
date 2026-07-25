@@ -42,7 +42,23 @@ sub assert_last_candle_criterion {
         visible_bars         => 60,
     }, 'Market::ChartEngine';
 
-    is( $eng->_current_right_margin(60), 0, 'sin Replay: margen 0' );
+    is( $eng->_current_right_margin(60), 0, 'sin Replay zoom normal: margen 0' );
+
+    # Live zoom-out extremo: bar_w aprox < 4 → aire a la derecha
+    {
+        my $w    = 800;
+        my $bars = 400;    # 800/400 = 2px < umbral 4
+        my $rm   = $eng->_current_right_margin($bars);
+        ok( $rm >= 8, "live zoom-out: margen >= MIN_PX (got $rm)" );
+        my $scale = Market::Panels::Scales->new(
+            bars => $bars, right_margin => $rm, min_y => 0, max_y => 1
+        );
+        $scale->{width} = $w;
+        my $bar_w  = $scale->plot_width / $bars;
+        my $center = $scale->index_to_center_x( $bars - 1 );
+        cmp_ok( $center + 0.5, '<', $w, 'live zoom-out: centro última vela antes del borde' );
+        cmp_ok( $w - $center, '>=', 4, 'live zoom-out: aire a la derecha del centro' );
+    }
 
     my $rc = bless { active => 1, replay_idx => 100 }, 'Market::ReplayController';
     $eng->{replay_controller} = $rc;
@@ -57,7 +73,7 @@ sub assert_last_candle_criterion {
     }
 
     $rc->{active} = 0;
-    is( $eng->_current_right_margin(60), 0, 'Replay exit: margen 0' );
+    is( $eng->_current_right_margin(60), 0, 'Replay exit + zoom normal: margen 0' );
 }
 
 # ---------------------------------------------------------------------------
