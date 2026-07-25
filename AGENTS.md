@@ -1,26 +1,45 @@
 # AGENTS.md — Proyecto Motor de Charting Financiero (Tk/Perl)
 
-> **ESTAMOS EN FASE 2 (indicadores); los modelos se conservan como meta posterior.**
+> **ESTAMOS EN FASE 2 (indicadores).** Meta ML (t-SNE/GMM/HMM) diferida; plan archivado.
 > Antes de escribir código, lee en este orden:
-> 1. **`docs/BRUJULA_CONTINUIDAD.md`** — prioridad operativa, checkpoint vivo y prompt de rescate.
-> 2. **`docs/MEMORIA_RECUPERADA_019f6e8d.md`** — historia reconstruida de la sesión principal; consultar cuando falte contexto.
-> 3. **`docs/PLAN_DEFINITIVO.md`** — meta de dataset/modelos y restricciones causales para la fase posterior.
-> 4. `docs/PRODUCTO_OFICIAL.md` — capas que cargan en runtime **hoy**.
-> 5. `docs/CONSTITUTION.md` — principios no negociables (cálculo ≠ render, Replay, etc.).
-> 6. `docs/AI_CONTEXT.md` / `docs/ARCHITECTURE.md` — contexto y capas técnicas; pueden contener historia desactualizada.
-> 7. `docs/material_profesor/Especificacion_Proyeto_2a_Fase.pdf` — requisitos contractuales de Fase 2.
-> 8. Spec/task en `specs/` / `tasks/` si aplica (`tasks/README.md`).
+> 1. **`docs/FEEDBACK_PROFESOR_REVISION_2026-07-24.md`** — cola vigente (revisión del profe).
+> 2. `docs/PRODUCTO_OFICIAL.md` — capas que cargan en runtime **hoy**.
+> 3. `docs/CONSTITUTION.md` — principios no negociables (cálculo ≠ render, Replay, etc.).
+> 4. `docs/material_profesor/` — PDFs/material contractual del curso.
+> 5. `docs/reference_indicators/` — Pine/TV de referencia al portar.
+> 6. Código + `git status` / diff. Si docs viejos (en el archivo externo) chocan con el
+>    feedback 2026-07-24, **manda el feedback** y pregunta a Bryan.
 >
-> **Estado actual (2026-07-19):** Fase 1 cerrada. Producto oficial en
-> **`docs/PRODUCTO_OFICIAL.md`**: SMC Pro, Structures+FVG, HLD, Parallel Channel, ZigZag
-> ext/int, Fib Retracement y **Liquidity v2 MVP**. Legacy fuera del repo (`docs/LEGACY.md`).
-> **Prioridad confirmada por Bryan:** terminar indicadores antes de modelos. Orden actual:
-> cerrar Liquidity §4 → concurrencia §5 → DIY §6 → Volume Profile §7 → Anchored VWAP §8 → modelos.
-> Si documentación y código divergen, inspecciona Git/código, consulta la brújula, señala la
-> contradicción y pregunta; no la resuelvas silenciosamente.
+> **Estado actual (2026-07-24):** Entrega subida; feedback del profe documentado.
+> Workspace limpio en `feature/limpieza-workspace-post-entrega`. Comentarios = estilo
+> entrega (`feature/limpieza-comentarios-entrega`). Prioridad = ítems del feedback
+> (§1 MarketData → HLD → Replay margen → toggles SMC → Liquidez EQH/EQL → AVP/AVWAP → canal).
 >
-> **Flujo de trabajo (SDD):** toma una task de `tasks/` → implementa solo eso → verifica con
-> `perl -I. -c` de los archivos tocados + `prove -l t` → no toques nada fuera de "Archivos relevantes"/"Qué no tocar" de la task.
+> **Archivo fuera del working tree (no borrar):**  
+> `C:\Users\bryan\ia\proyecto_iaaa\Proyecto\_archive_ProyectoIAAA_post_entrega\`  
+> Contiene: `tasks/`, `specs/`, `scratch/`, `mcps/`, `docs_proceso/` (brújula, planes,
+> handoffs, feedback julio temprano, etc.), smokes/diags, `Example.pm`, …  
+> No reintroducir salvo petición explícita de Bryan.
+
+## Estilo de comentarios (REGLA PERMANENTE — no olvidar)
+
+Aplica a **todo** código nuevo o editado en este proyecto (`market.pl`, `Market/**`, tests
+si se tocan). Referencia viva: commit `518448a` / rama `feature/limpieza-comentarios-entrega`.
+
+1. **Priorizar comentarios de una línea**, simples y útiles. Evitar bloques multilínea densos.
+2. **Prohibido** en comentarios: banners con `====` / `----` / cadenas de `---` o `===`;
+   emojis; tono de agente IA; refs a `task 00xx` / `spec 00xx` / “HARD” / “oral Lumina” /
+   “PRODUCTO_OFICIAL.md” como narrativa de proceso; frases tipo “NO TOCAR” de handoff interno.
+3. **Sí permitido:** 1–4 líneas de encabezado de módulo si explican *qué hace* el archivo;
+   comentarios cortos junto a reglas de negocio no obvias (Replay causal, anclas ZZ, etc.).
+4. **Nunca** documentar el proceso productivo del agente (prompts, checklists internos, “pasada
+   de limpieza”, nombres de ramas) dentro del código fuente.
+5. Al tocar un archivo con comentarios viejos al estilo anterior, **dejarlos alineados** a
+   esta regla en el mismo cambio (no reintroducir banners).
+
+> **Flujo de trabajo (post-entrega):** ya no hay cola `tasks/` en el árbol. Trabajar contra
+> el feedback del profesor y el código actual; verificar con `perl -I. -c` + `prove -l t`
+> (salvo tests que dependan de piezas archivadas, p. ej. `t/13` → `Example.pm`).
 >
 > **Entregas Fase 2 (PDF oficial):** 1ª = **29/06**, 2ª = **13/07**. Vale 20/100.
 
@@ -72,38 +91,24 @@ las velas visibles + una ventana de contexto indexada**, nunca todo el historial
 
 ```
 ProyectoIAAA/
-  market.pl                  # Entrada, UI Tk por pestañas, controles
-  Market/
-    MarketData.pm            # Datos: OHLCV, timeframes, slicing
-    ChartEngine.pm           # Orquestador: render, zoom, crosshair, drag, replay, overlays
-    IndicatorManager.pm      # Gestor de indicadores base
-    ReplayController.pm      # Índice-tope Replay, velocidades, intervalos
-    OverlayManager.pm        # Registro de overlays
-    Indicators/              # CÁLCULO (sin Tk) — solo producto oficial
-      ATR.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm  Liquidity.pm
-    Overlays/                # RENDER
-      Base.pm  SMC_Pro.pm  SMC_Structures_FVG.pm  HLD.pm  ZigZag.pm
-      ParallelChannel.pm  FibRetracement.pm  Liquidity.pm
-    Drawing/
-      ParallelChannel.pm  FibRetracement.pm
-    Panels/
-      PricePanel.pm  ATRPanel.pm  Scales.pm
-    UI/
-      Callbacks.pm
-      ReplayPanel.pm  ReplayDropdown.pm
-      ReplayGotoMenu.pm  ReplaySpeedMenu.pm  ReplayIntervalMenu.pm
-    Debug/                   # Arquitecto only
-      TimeAxisSnapshot.pm  IndicatorSnapshot.pm
-  Data/
-    2026_07_20.csv  # default; demás CSV = históricos/fallback
-  assets/                    # blank_cursor XBM (Select Bar)
-  docs/                      # SDD (LEER PRIMERO)
-    reference_indicators/    # Pine/TV source code canónico (consultar para portar)
-  specs/  tasks/  t/  scratch/
-  Rubrica_Proyecto_GUI.xlsx  # NO BORRAR
-  PDF_BASE_EXTRACTED.txt     # NO BORRAR
-  AGENTS.md                  # Este archivo
+  market.pl
+  Market/          # motor, indicadores, overlays, paneles, UI, Debug
+  Data/            # CSV (default 2026_07_20 + LTF y históricos)
+  assets/
+  docs/
+    FEEDBACK_PROFESOR_REVISION_2026-07-24.md   # cola vigente
+    PRODUCTO_OFICIAL.md
+    CONSTITUTION.md
+    material_profesor/
+    reference_indicators/
+  t/               # suite Test::More (sin smokes/diags)
+  dist/            # pack entrega (local)
+  AGENTS.md
+  Rubrica_Proyecto_GUI.xlsx
+  PDF_BASE_EXTRACTED.txt
 ```
+
+Archivo externo: `..\ _archive_ProyectoIAAA_post_entrega\` (tasks, specs, scratch, mcps, docs_proceso, …).
 
 ## Cómo ejecutar y validar
 
