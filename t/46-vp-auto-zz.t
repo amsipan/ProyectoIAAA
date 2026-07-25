@@ -132,7 +132,7 @@ sub make_chart {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Overlay: show_handle apagable (modo Auto)
+# 1. Overlay: show_handle configurable; Auto lo deja ON (estilo TV)
 # ---------------------------------------------------------------------------
 {
     my $ind = Market::Indicators::VolumeProfile2->new();
@@ -141,7 +141,10 @@ sub make_chart {
         show_handle => 0,
         visible     => 1,
     );
-    ok( !$ov->{show_handle}, 'Auto: overlay sin handle de drag' );
+    ok( !$ov->{show_handle}, 'overlay acepta show_handle=0' );
+
+    is( $ov->{color_handle_fill}    // '', '#FFFFFF', 'handle fill blanco TV' );
+    is( $ov->{color_handle_outline} // '', '#2962FF', 'handle outline azul TV' );
 }
 
 # ---------------------------------------------------------------------------
@@ -179,7 +182,7 @@ sub enable_vp_auto {
     $chart->{_vp_drag_active} = undef;
     if ( $chart->{vp_overlay} ) {
         $chart->{vp_overlay}->set_visible(1);
-        $chart->{vp_overlay}{show_handle} = 0;
+        $chart->{vp_overlay}{show_handle} = 1;
     }
     return $chart;
 }
@@ -265,6 +268,51 @@ sub enable_vp_auto {
     $chart->set_vp_mode('off');
     ok( !$chart->{vp_indicator}->has_anchor(), 'Off limpia ancla' );
     is( $chart->{vp_mode}, 'off', 'modo Off' );
+}
+
+# ---------------------------------------------------------------------------
+# 8. set_vp_mode(auto): show_handle ON; promoción Auto→Manual + sync UI
+# ---------------------------------------------------------------------------
+{
+    my $md    = build_md(90);
+    my $chart = make_chart($md);
+    my $ui_mode;
+    $chart->{vp_mode_ui_sync} = sub { $ui_mode = $_[0] };
+
+    $chart->set_vp_mode('auto');
+    is( $chart->{vp_mode}, 'auto', 'set_vp_mode auto' );
+    ok( $chart->{vp_overlay}{show_handle}, 'Auto muestra handle (estilo TV)' );
+
+    $chart->{replay_controller}->start(50);
+    $chart->_sync_vp_auto_anchor(50);
+    is( $chart->{vp_indicator}->anchor_index(), 10, 'auto ancla ZZ en 10' );
+
+    # Misma promoción que el hit-test Button-1 en ChartEngine.
+    $chart->{vp_mode} = 'manual';
+    $chart->{vp_overlay}{show_handle} = 1;
+    delete $chart->{_vp_zz_leg_sig};
+    $chart->{vp_mode_ui_sync}->('manual');
+    $chart->{vp_indicator}->set_anchor(25);
+
+    is( $chart->{vp_mode}, 'manual', 'promoción: modo Manual' );
+    is( $ui_mode, 'manual', 'vp_mode_ui_sync notifica Manual' );
+    is( $chart->{vp_indicator}->anchor_index(), 25, 'ancla fija donde se movió' );
+
+    $chart->{replay_controller}->start(80);
+    $chart->_sync_vp_auto_anchor(80);
+    is( $chart->{vp_indicator}->anchor_index(), 25,
+        'tras promoción sync Auto es no-op (no salta a ZZ)' );
+}
+
+# ---------------------------------------------------------------------------
+# 9. UI: market.pl registra vp_mode_ui_sync
+# ---------------------------------------------------------------------------
+{
+    open my $fh, '<', 'market.pl' or die "market.pl: $!";
+    local $/;
+    my $src = <$fh>;
+    close $fh;
+    like( $src, qr/vp_mode_ui_sync/, 'market.pl registra vp_mode_ui_sync' );
 }
 
 done_testing();

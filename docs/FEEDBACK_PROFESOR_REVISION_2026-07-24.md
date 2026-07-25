@@ -127,7 +127,7 @@ El EQH/EQL del menú Liquidez dibuja una línea punteada entre extremidades leja
 - También debe mostrar dónde está la ancla de la misma forma.
 - Si el usuario **mueve** la ancla auto, deja de ser automático y pasa a **manual** (reutilizar el comportamiento manual ya hecho).
 
-**Estado:** siguiente (rama `feature/avp-anchor-visibility`).
+**Estado:** hecho — handle blanco/`#2962FF`, `raise` sobre velas; Auto con handle visible; drag Auto→Manual + `vp_mode_ui_sync` (`feature/avp-anchor-visibility`).
 
 ---
 
@@ -165,5 +165,6 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 3. ~~Margen derecho Replay + zoom-out live estable.~~ **hecho**
 4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho**
 5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho**
-6. ~~Quitar EQH/EQL de Liquidez.~~ **hecho** — siguiente: anclas AVP/AVWAP (§7–§8) + estilos AVWAP auto + mediana canal.
-7. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
+6. ~~Quitar EQH/EQL de Liquidez.~~ **hecho**
+7. ~~Anclas AVP (§7).~~ **hecho** — siguiente: AVWAP ancla (§8) + estilos AVWAP auto (§9) + mediana canal (§10).
+8. Anclas AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
