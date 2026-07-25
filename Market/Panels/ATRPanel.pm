@@ -146,6 +146,8 @@ sub render {
             next if !defined $val;
 
             my $x = $scale->index_to_center_x($i + $draw_offset);
+            my $plot_w = $scale->plot_width();
+            next if $x >= $plot_w || $x < 0;
             my $y = $scale->value_to_y($val);
 
             push @points, ($x, $y);

@@ -32,8 +32,8 @@ use Market::Indicators::AutoTrendChannel;
 use Market::Overlays::AutoTrendChannel;
 use Market::Indicators::ATR;
 # Constantes del módulo (valores fijos del paquete, no estado global mutable).
-# RIGHT_MARGIN => margen interno derecho del área de ploteo. Los ejes ahora
-# son canvases separados, así que debe ser 0.
+# RIGHT_MARGIN => margen base live (0). En Replay se añade padding dinámico
+# vía _current_right_margin (vela completa + hueco inter-vela).
 # MIN_VISIBLE_BARS => mínimo de velas visibles en la ventana (Req. 8, 10)
 # ZOOM_STEP => barras por paso de rueda en el zoom horizontal
 # TIME_AXIS_DRAG_PX_PER_BAR => sensibilidad del drag horizontal del eje temporal
@@ -50,6 +50,17 @@ use constant {
     # hueco fijo 20% del ancho (px), independiente del zoom en barras.
     REPLAY_BAR_ANCHOR_FRAC => 0.80,
     REPLAY_RIGHT_GAP_FRAC  => 0.20,
+    # PricePanel: body_w = 0.6*bar_w → inter-vela = 0.4*bar_w; margen min = 0.2*bar_w.
+    CANDLE_BODY_FRAC       => 0.6,
+    REPLAY_MIN_TRAIL_SLOTS => 1,
+    # Zoom-out live: si bar_w aprox < este umbral, aire a la derecha de la
+    # última vela (evita que al adelgazar el centro se coma el borde).
+    # Live zoom-out: rampa continua de margen derecho (evita cliff 0→N px).
+    # START_BW: por encima, margen 0 (zoom normal/medio).
+    # FULL_BW: por debajo, margen pleno (wing + ≥1 slot o MIN_PX).
+    ZOOM_OUT_RIGHT_PAD_START_BW => 12,
+    ZOOM_OUT_RIGHT_PAD_FULL_BW  => 3,
+    ZOOM_OUT_RIGHT_PAD_MIN_PX   => 8,
     # tijera Select Bar (glyph unicode; linea/velo siguen azules).
     REPLAY_SELECT_SCISSOR_FONT => 'Helvetica 22',
     REPLAY_SELECT_SCISSOR_FILL => 'black',
@@ -398,6 +409,72 @@ sub _replay_blank_slots {
     return $n > 0 ? $n : 0;
 }
 
+# Margen px en Replay: body completo + inter_gap (0.4*bar_w) tras la última vela.
+# margin >= 0.2 * bar_w con bar_w = (width - margin)/bars
+# => margin >= 0.2 * width / (bars + 0.2)
+sub _replay_plot_right_margin_px {
+    my ( $self, $width, $bars ) = @_;
+    $width = int( $width // 0 );
+    $bars  = int( $bars  // 1 );
+    $bars  = 1 if $bars < 1;
+    return 0 if $width <= 1;
+
+    my $body = CANDLE_BODY_FRAC;
+    $body = 0.6 if $body <= 0 || $body >= 1;
+    my $need = ( 1 - $body ) / 2;    # 0.2 cuando body=0.6
+    my $m    = $need * $width / ( $bars + $need );
+    my $px   = int( $m + 0.999999 ); # ceil
+    $px = 1 if $px < 1;
+    $px = $width - 1 if $px >= $width;
+    return $px;
+}
+
+# Live: 0 en zoom normal/medio. Replay siempre. En live, rampa continua según
+# bar_w (esté o no al final del dataset): la última vela VISIBLE no debe
+# aplastarse contra el borde al zoom-out (mismo síntoma en medio y al final).
+sub _current_right_margin {
+    my ( $self, $bars ) = @_;
+    my $w = 0;
+    if ( $self->{price_canvas} && $self->can('_canvas_size') ) {
+        ($w) = $self->_canvas_size( $self->{price_canvas} );
+    }
+    $w = $self->{_last_price_canvas_w} if !$w && defined $self->{_last_price_canvas_w};
+    $bars //= $self->{visible_bars} || 1;
+    $bars = 1 if $bars < 1;
+    return 0 if $w <= 1;
+
+    my $rc = $self->{replay_controller};
+    my $replay_on = ( $rc && $rc->can('is_active') && $rc->is_active() ) ? 1 : 0;
+
+    if ( !$replay_on ) {
+        my $approx_bw = $w / $bars;
+        my $start_bw  = ZOOM_OUT_RIGHT_PAD_START_BW;
+        my $full_bw   = ZOOM_OUT_RIGHT_PAD_FULL_BW;
+        return 0 if $approx_bw >= $start_bw;
+
+        my $wing = $self->_replay_plot_right_margin_px( $w, $bars );
+        my $one_slot = int( $w / ( $bars + 1 ) + 0.999999 );
+        my $target = $wing;
+        $target = $one_slot if $one_slot > $target;
+        my $min_px = ZOOM_OUT_RIGHT_PAD_MIN_PX;
+        $target = $min_px if $target < $min_px;
+
+        my $t = 1.0;
+        if ( $approx_bw > $full_bw ) {
+            $t = ( $start_bw - $approx_bw ) / ( $start_bw - $full_bw );
+            $t = 0 if $t < 0;
+            $t = 1 if $t > 1;
+        }
+        my $rm = int( $target * $t + 0.999999 );    # ceil
+        $rm = 0 if $rm < 1;
+        $rm = $w - 1 if $rm >= $w;
+        return $rm;
+    }
+
+    my $rm = $self->_replay_plot_right_margin_px( $w, $bars );
+    return $rm;
+}
+
 # Ventana LOGICA del viewport. Puede incluir indices negativos a la izquierda o
 # slots vacios posteriores al replay_idx. Los consumidores de datos usan
 # _causal_slice(), de modo que esos slots nunca revelan velas futuras.
@@ -455,25 +532,26 @@ sub _replay_window {
     if (defined $self->{replay_view_end}) {
         my $view_end = $self->{replay_view_end};
 
-        # AUTO-SCROLL POR DETECCION DE BORDE (sin flags fragiles): la vista solo
-        # se desplaza cuando el head estaba EXACTAMENTE en el borde derecho y
-        # avanzo. Asi, tras panear (view_end deja de coincidir con el borde) o
-        # tras pausar/interactuar, un nuevo Play NO arrastra todo el grafico
-        # las velas quedan estaticas y las nuevas rellenan el hueco. El head solo
-        # "empuja" el borde cuando ya lo habia alcanzado (fase de scroll continuo).
-        my $prev = $self->{replay_prev_causal_end};
-        if (defined $prev && $causal_end > $prev && $view_end == $prev) {
-            $view_end = $causal_end;
-        }
-
-        # CLAMP MIN-VISIBLE derecha (siempre): conservar >= MIN_VISIBLE_BARS velas
-        # reales en pantalla. Al retroceder (step_backward) esto arrastra la vista
-        # con el head en lugar de dejarlo escapar del marco; tambien acota el hueco
-        # a la derecha para que no se pueda desplazar a puro blanco.
         my $min_real = MIN_VISIBLE_BARS;
         $min_real = $causal_end + 1 if $min_real > $causal_end + 1;
         my $max_blank = $visible - $min_real;
         $max_blank = 0 if $max_blank < 0;
+        my $min_trail =
+          ( $max_blank >= REPLAY_MIN_TRAIL_SLOTS ) ? REPLAY_MIN_TRAIL_SLOTS : 0;
+
+        # AUTO-SCROLL: head en el borde derecho (con o sin trail mínimo) y avanzó.
+        my $prev = $self->{replay_prev_causal_end};
+        if ( defined $prev && $causal_end > $prev ) {
+            my $at_edge =
+                 ( $view_end == $prev )
+              || ( $min_trail && $view_end == $prev + $min_trail );
+            if ($at_edge) {
+                # Mantener >=1 slot vacío tras el head (no pegar al eje en Play).
+                $view_end = $causal_end + $min_trail;
+            }
+        }
+
+        # CLAMP MIN-VISIBLE derecha (siempre).
         my $max_end = $causal_end + $max_blank;
         $view_end = $max_end if $view_end > $max_end;
 
@@ -1264,6 +1342,7 @@ sub render {
     my ($price_w, $price_h) = $self->_canvas_size($self->{price_canvas});
     my ($atr_w, $atr_h)     = $self->_canvas_size($self->{atr_canvas});
     my $shared_w = $price_w;
+    $self->{_last_price_canvas_w} = $shared_w;
 
     $self->_reset_canvas_view($self->{price_canvas});
     $self->_reset_canvas_view($self->{atr_canvas});
@@ -1282,9 +1361,10 @@ sub render {
 
     # Replay ya reserva slots vacios a la derecha en compute_window(). Nunca
     # mutar x_shift desde render: queda reservado al pan fraccional.
+    my $rm = $self->_current_right_margin($x_bars);
 
-    my $price_scale = Market::Panels::Scales->new(min_y => $min_p, max_y => $max_p, bars => $x_bars, right_margin => RIGHT_MARGIN);
-    my $atr_scale   = Market::Panels::Scales->new(min_y => $min_a, max_y => $max_a, bars => $x_bars, right_margin => RIGHT_MARGIN);
+    my $price_scale = Market::Panels::Scales->new(min_y => $min_p, max_y => $max_p, bars => $x_bars, right_margin => $rm);
+    my $atr_scale   = Market::Panels::Scales->new(min_y => $min_a, max_y => $max_a, bars => $x_bars, right_margin => $rm);
     $price_scale->{width}  = $shared_w;
     $price_scale->{height} = $price_h;
     $price_scale->{draw_labels} = $self->{price_axis_canvas} ? 0 : 1;
@@ -1516,7 +1596,7 @@ sub _render_time_axis {
     my $old_scale = $self->{price_panel}->{scale};
     my $axis_scale = Market::Panels::Scales->new(
         bars         => $source_scale->{bars},
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $axis_scale->{width}  = $source_scale->{width} || $w;
     $axis_scale->{height} = $h;
@@ -1641,7 +1721,7 @@ sub _seed_replay_select_hover {
     my $bars  = $end - $start + 1;
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width}   = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
@@ -2695,7 +2775,7 @@ sub _global_index_from_x {
 
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
@@ -3125,7 +3205,7 @@ sub bind_events {
 # Toda conversión X<->índice vive EXCLUSIVAMENTE en Scales (regla de oro de
 # coordenadas): se instancia un Market::Panels::Scales con los mismos parámetros que
 # usa render() —bars = nº de velas visibles (end - start + 1 de compute_window),
-# right_margin => RIGHT_MARGIN y el ancho real del canvas de precios—.
+# right_margin => $self->_current_right_margin() y el ancho real del canvas de precios—.
 # * $anchor_x DEFINIDO (cursor sobre una barra del área de ploteo)
 # local = Scales->x_to_index($anchor_x) # índice LOCAL acotado a [0, bars-1]
 # global = start + local # índice GLOBAL del dato
@@ -3145,7 +3225,7 @@ sub _anchor_index_and_x {
     # Escala SOLO para convertir X <-> índice; mismos parámetros que render().
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
@@ -3194,7 +3274,7 @@ sub _zoom_anchor_x {
 
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $w;
     my $plot_w = $scale->plot_width();
@@ -3285,7 +3365,7 @@ sub _ctrl_horizontal_zoom {
 
     my $rc = $self->{replay_controller};
 
-    my $old_scale = Market::Panels::Scales->new(bars => $old_visible, right_margin => RIGHT_MARGIN);
+    my $old_scale = Market::Panels::Scales->new(bars => $old_visible, right_margin => $self->_current_right_margin());
     $old_scale->{width} = $canvas_w;
     $old_scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
     my $anchor_global = $start + $old_scale->x_to_index_float($anchor_x) - 0.5;
@@ -3295,7 +3375,7 @@ sub _ctrl_horizontal_zoom {
     $anchor_global = 0 if $anchor_global < 0;
     $anchor_global = $anchor_limit if $anchor_global > $anchor_limit;
 
-    my $new_scale = Market::Panels::Scales->new(bars => $new_visible, right_margin => RIGHT_MARGIN);
+    my $new_scale = Market::Panels::Scales->new(bars => $new_visible, right_margin => $self->_current_right_margin());
     $new_scale->{width} = $canvas_w;
     my $new_bar_w = $new_scale->plot_width() / $new_visible;
     return if $new_bar_w <= 0;
@@ -3387,12 +3467,20 @@ sub _horizontal_zoom {
     my $rc = $self->{replay_controller};
     my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
 
-    if (!$use_cursor_anchor && !$in_replay_abs) {
-        if ($old_offset <= 0) {
-            $self->{offset} = $self->_clamp_offset($old_offset);
-            $self->request_render();
-            return;
+    if ( !$use_cursor_anchor && !$in_replay_abs ) {
+        # Rueda sin Ctrl: el borde DERECHO de la ventana se conserva.
+        # - Al final del dataset (offset<=0): pegar offset=0.
+        # - En medio: conservar offset (misma `end`); el zoom solo añade/quita
+        #   velas a la izquierda. Evita ±1 vela por redondeo float + margen.
+        if ( ( $old_offset // 0 ) <= 0 ) {
+            $self->{offset} = 0;
         }
+        else {
+            $self->{offset} = $old_offset;
+        }
+        $self->{ctrl_zoom_x_shift} = 0;
+        $self->request_render();
+        return;
     }
 
     # 4. Nueva escala con el nuevo nº de barras. bar_w' = plot_width / new_visible se
@@ -3400,7 +3488,7 @@ sub _horizontal_zoom {
     my $scale = Market::Panels::Scales->new(
         bars         => $new_visible,
 
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
 
@@ -3554,7 +3642,7 @@ sub _start_horizontal_drag {
         if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
             my $local = $anchor_idx - $view_start;
             my $bars  = $view_end - $view_start + 1;
-            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => RIGHT_MARGIN);
+            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => $self->_current_right_margin());
             $scale->{width} = $self->_canvas_width($self->{price_canvas});
             my $x_anchor = $scale->index_to_center_x($local);
             if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
@@ -3571,7 +3659,7 @@ sub _start_horizontal_drag {
         if (defined $view_start && defined $anchor_idx && $anchor_idx >= $view_start && $anchor_idx <= $view_end) {
             my $local = $anchor_idx - $view_start;
             my $bars  = $view_end - $view_start + 1;
-            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => RIGHT_MARGIN);
+            my $scale = Market::Panels::Scales->new(bars => $bars, right_margin => $self->_current_right_margin());
             $scale->{width} = $self->_canvas_width($self->{price_canvas});
             my $x_anchor = $scale->index_to_center_x($local);
             if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
@@ -3674,7 +3762,7 @@ sub _on_horizontal_drag {
     my $width = $self->_canvas_width($canvas);
     my $scale = Market::Panels::Scales->new(
         bars         => $self->{visible_bars} || 1,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $width;
     my $bar_w = $scale->plot_width() / ($self->{visible_bars} || 1);
@@ -4288,7 +4376,7 @@ sub _snap_crosshair_x {
     if (!$scale || ($scale->{bars} || 0) != $bars) {
         $scale = Market::Panels::Scales->new(
             bars         => $bars,
-            right_margin => RIGHT_MARGIN,
+            right_margin => $self->_current_right_margin(),
         );
         $scale->{width} = $self->_canvas_width($self->{price_canvas});
         $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
@@ -4361,7 +4449,7 @@ sub _on_mouse_move {
 # almacenada en $self->{last_mouse_x}. Toda conversión X->índice vive en Scales
 # (regla de oro de coordenadas): se instancia un Market::Panels::Scales con los
 # mismos parámetros que usan render()/compute_intraday_labels —bars = nº de velas
-# visibles (end - start + 1 de compute_window), right_margin => RIGHT_MARGIN y el
+# visibles (end - start + 1 de compute_window), right_margin => $self->_current_right_margin() y el
 # ancho real del canvas de precios— y se usa x_to_index para obtener el índice
 # LOCAL dentro de la ventana visible.
 # El índice LOCAL se convierte a GLOBAL sumando 'start' (inicio de la ventana)
@@ -4391,7 +4479,7 @@ sub _crosshair_time_label {
     # y el ancho real del canvas de precios (bar_w = plot_width / bars).
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
@@ -4772,7 +4860,7 @@ sub compute_intraday_labels {
     # y se le inyecta el ancho real del canvas de precios (bar_w = plot_width/bars).
     my $scale = Market::Panels::Scales->new(
         bars         => $bars,
-        right_margin => RIGHT_MARGIN,
+        right_margin => $self->_current_right_margin(),
     );
     $scale->{width} = $self->_canvas_width($self->{price_canvas});
     $scale->{x_shift} = $self->{ctrl_zoom_x_shift} || 0;
