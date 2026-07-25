@@ -174,7 +174,7 @@ sub _paint_channel {
         1;
     };
 
-    # Mediana punteada (profe); estilo dash del mid manual ('.')
+    # Mediana entrecortada (profe / TV); guiones visibles, no puntos '.'
     my $mid_int = $ch->{mid_int};
     $mid_int = ( $ch->{base_int} + $ch->{par_int} ) / 2 unless defined $mid_int;
     my $ym0 = _line_at( $slope, $mid_int, $i0 );
@@ -185,7 +185,7 @@ sub _paint_channel {
             $x_of->($i1), $y_of->($ym1),
             -fill  => $line_c,
             -width => 1,
-            -dash  => '.',
+            -dash  => [ 10, 6 ],
             -tags  => [ $tag, 'auto_median' ],
         );
         1;

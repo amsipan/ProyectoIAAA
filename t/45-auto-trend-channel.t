@@ -255,10 +255,15 @@ sub build_support_series {
     my $has_mid = 0;
     for my $op (@lines) {
         for ( my $k = 1 ; $k < @$op ; $k += 2 ) {
-            $has_mid = 1 if ( $op->[$k] // '' ) eq '-dash' && ( $op->[ $k + 1 ] // '' ) eq '.';
+            next unless ( $op->[$k] // '' ) eq '-dash';
+            my $d = $op->[ $k + 1 ];
+            # Guiones visibles [10,6]; ya no el patrón '.' (puntos)
+            if ( ref($d) eq 'ARRAY' && @$d >= 2 && $d->[0] >= 8 ) {
+                $has_mid = 1;
+            }
         }
     }
-    ok( $has_mid, 'mediana dash .' );
+    ok( $has_mid, 'mediana con guiones visibles [10,6]' );
     my @ovals = grep { $_->[0] eq 'createOval' } @{ $canvas->{ops} };
     ok( @ovals >= 3, '3 puntos de toque en base' );
     my $act = $ind->get_active_channels();

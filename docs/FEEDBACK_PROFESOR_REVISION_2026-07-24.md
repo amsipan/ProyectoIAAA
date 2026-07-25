@@ -160,7 +160,7 @@ Aplicar al AVWAP manual y automático las mismas mejoras de claridad de ancla qu
 
 Poner una **línea punteada en el medio** del canal, como en TradingView.
 
-**Estado:** hecho — `show_mid` ON por defecto; `geometry_for` + overlay `pchan_mid` con `-dash => '.'` (`feature/avwap-styles-pc-median`).
+**Estado:** hecho — `show_mid` ON por defecto; mediana con guiones visibles `-dash => [10,6]` (no puntos).
 
 ---
 

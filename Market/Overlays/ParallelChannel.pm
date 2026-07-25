@@ -159,7 +159,8 @@ sub _paint_channel {
                 $x_of->($ia), $y_of->($pa), $x_of->($ib), $y_of->($pb),
                 -fill  => $line_c,
                 -width => 1,
-                -dash  => '.',
+                # Guiones visibles (no '.' = puntos); patrón px on/off estilo TV
+                -dash  => [ 10, 6 ],
                 -tags  => [ $tag, 'pchan_mid' ],
             );
             1;
