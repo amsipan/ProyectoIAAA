@@ -127,6 +127,8 @@ El EQH/EQL del menú Liquidez dibuja una línea punteada entre extremidades leja
 - También debe mostrar dónde está la ancla de la misma forma.
 - Si el usuario **mueve** la ancla auto, deja de ser automático y pasa a **manual** (reutilizar el comportamiento manual ya hecho).
 
+**Estado:** siguiente (rama `feature/avp-anchor-visibility`).
+
 ---
 
 ## 8. AVWAP — mismas optimizaciones visuales de ancla
