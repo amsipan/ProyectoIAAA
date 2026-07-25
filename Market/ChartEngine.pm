@@ -1495,6 +1495,8 @@ sub render {
         # Velas por encima de líneas de indicadores (BOS/CHoCH/EQ/OB/HLD lines…).
         eval { $self->{price_canvas}->raise('candle'); 1 };
         eval { $self->{price_canvas}->raise('price_label'); 1 };
+        # Handle AVP encima de velas (feedback §7 / estilo TV).
+        eval { $self->{price_canvas}->raise('vp_anchor_handle'); 1 };
         # Etiquetas HLD siempre encima de las velas (chip + texto legible).
         eval { $self->{price_canvas}->raise('hld_lbl_bg'); 1 };
         eval { $self->{price_canvas}->raise('hld_lbl'); 1 };
@@ -2577,7 +2579,8 @@ sub set_vp_mode {
         $self->{_vp_drag_active} = undef;
         if ( $self->{vp_overlay} ) {
             $self->{vp_overlay}->set_visible(1);
-            $self->{vp_overlay}{show_handle} = 0;    # no arrastrable en Auto
+            # Handle visible estilo TV también en Auto; arrastrarlo promueve a Manual.
+            $self->{vp_overlay}{show_handle} = 1;
         }
         my $feed = $self->_causal_end();
         $self->_sync_vp_auto_anchor($feed) if defined $feed && $feed >= 0;
@@ -3683,6 +3686,15 @@ sub _start_horizontal_drag {
             $scale->{width} = $self->_canvas_width($self->{price_canvas});
             my $x_anchor = $scale->index_to_center_x($local);
             if (defined $x_anchor && abs($x - $x_anchor) <= 25) {
+                # Arrastrar en Auto → Manual (ancla fija; UI sincroniza radio).
+                if ( ( $self->{vp_mode} // '' ) eq 'auto' ) {
+                    $self->{vp_mode} = 'manual';
+                    $self->{vp_overlay}{show_handle} = 1 if $self->{vp_overlay};
+                    delete $self->{_vp_zz_leg_sig};
+                    if ( my $cb = $self->{vp_mode_ui_sync} ) {
+                        eval { $cb->('manual'); 1 };
+                    }
+                }
                 $self->{_vp_drag_active} = 1;
                 return;
             }
@@ -3745,12 +3757,8 @@ sub _on_horizontal_drag {
 
     $self->_on_mouse_move($widget, $x, $y);
 
-    # Drag de ancla del Perfil de Volumen (AVP) — solo Manual
+    # Drag de ancla del Perfil de Volumen (AVP)
     if ( $self->{_vp_drag_active} ) {
-        if ( ( $self->{vp_mode} // '' ) eq 'auto' ) {
-            $self->{_vp_drag_active} = undef;
-            return;
-        }
         my $idx = $self->_global_index_from_x($x);
         if (defined $idx) {
             $self->{vp_indicator}->set_anchor($idx);

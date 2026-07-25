@@ -34,7 +34,9 @@ sub new {
         color_down      => $theme->{vp_down}      // '#E57373', # Rosa/Rojo suave TradingView
         color_box       => $theme->{vp_box}       // '#E0F7FA', # Verde/Cyan pastel sutil transparente
         color_line      => $theme->{vp_line}      // '#000000', # Negro sólido para VAH/VAL/POC
-        color_handle    => $theme->{vp_handle}    // '#00897B', # Círculo deslicable de ancla
+        # Handle TV: fill blanco + outline azul (feedback §7 / captura usuario)
+        color_handle_fill    => $theme->{vp_handle_fill}    // '#FFFFFF',
+        color_handle_outline => $theme->{vp_handle_outline} // '#2962FF',
         hist_width_frac => $theme->{vp_hist_frac} // 0.30,      # 30% en la captura de TV
         show_handle     => exists $args{show_handle} ? ( $args{show_handle} ? 1 : 0 ) : 1,
         _start => 0,
@@ -280,30 +282,35 @@ sub draw {
         $draw_h_line->($prof->{poc});
     }
 
-    # 4) Handle deslicable de ancla (círculo sobre la línea del POC en el centro exacto de la vela)
+    # 4) Handle ancla estilo TradingView (blanco + borde azul, encima de velas)
     my $x_anchor_center = $x_of_global->($anchor, 'center');
     my $y_anchor_handle = defined $prof->{poc} ? $scales->value_to_y($prof->{poc}) : ($y_top + $y_bot) / 2;
+    my $drew_handle = 0;
     if ( ( $self->{show_handle} // 1 )
         && defined $x_anchor_center
         && defined $y_anchor_handle
         && $x_anchor_center >= 0
         && $x_anchor_center <= $plot_right )
     {
+        my $fill = $self->{color_handle_fill}    // '#FFFFFF';
+        my $outl = $self->{color_handle_outline} // '#2962FF';
         eval {
             $canvas->createOval(
-                $x_anchor_center - 4, $y_anchor_handle - 4,
-                $x_anchor_center + 4, $y_anchor_handle + 4,
-                -fill    => $self->{color_handle},
-                -outline => '#FFFFFF',
-                -width   => 1.5,
-                -tags    => [$tag, 'vp_anchor_handle'],
+                $x_anchor_center - 5, $y_anchor_handle - 5,
+                $x_anchor_center + 5, $y_anchor_handle + 5,
+                -fill    => $fill,
+                -outline => $outl,
+                -width   => 2,
+                -tags    => [ $tag, 'vp_anchor_handle' ],
             );
+            $drew_handle = 1;
             1;
         };
     }
 
-    # Detrás de las velas
-    eval { $canvas->lower($tag, 'candle') };
+    # Perfil detrás de velas; handle encima (feedback §7).
+    eval { $canvas->lower( $tag, 'candle' ) };
+    eval { $canvas->raise('vp_anchor_handle') } if $drew_handle;
 
     return $self;
 }

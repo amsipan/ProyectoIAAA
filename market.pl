@@ -884,6 +884,13 @@ if ($ENV{MARKET_RELOAD}) {
         $vis_vp = ( $mode eq 'off' ) ? 0 : 1;
         $chart_engine->set_vp_mode($mode);
     };
+    # ChartEngine promueve Auto→Manual al arrastrar el handle; sincronizar radio UI.
+    $chart_engine->{vp_mode_ui_sync} = sub {
+        my ($mode) = @_;
+        $mode = $mode // 'manual';
+        $vp_mode_ui = $mode;
+        $vis_vp = ( $mode eq 'off' ) ? 0 : 1;
+    };
     $vp_box->Radiobutton(
         -text     => 'Off',
         -value    => 'off',
