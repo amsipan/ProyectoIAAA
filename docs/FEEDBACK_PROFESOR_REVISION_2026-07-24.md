@@ -175,3 +175,10 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 7. ~~Anclas AVP (§7).~~ **hecho**
 8. ~~Anclas AVWAP (§8).~~ **hecho**
 9. ~~Estilos AVWAP auto (§9) + mediana canal (§10).~~ **hecho**
+
+---
+
+## Cierre feedback profesor (2026-07-25)
+
+**Todos los puntos §1–§10 están hechos y en `main`** (`a6081f6` y anteriores).
+Sin pendientes de esta revisión.
