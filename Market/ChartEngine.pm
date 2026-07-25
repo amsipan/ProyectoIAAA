@@ -308,13 +308,19 @@ sub new {
         $self->{indicator_manager}->register('VolumeProfile', $self->{vp_indicator});
     }
 
-    # Anchored VWAP (AVWAP) — manual + hasta 2 automáticos (pivot / fantasma)
+    # Anchored VWAP (AVWAP) — terna fija §9: Manual cian / Auto-1 tomate / Auto-2 morado+dash
     $self->{avwap_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator => $self->{avwap_indicator},
-        theme     => $self->{theme},
-        visible   => 0,
-        show_handle => 1,
+        indicator            => $self->{avwap_indicator},
+        theme                => $self->{theme},
+        visible              => 0,
+        show_handle          => 1,
+        color_vwap           => '#00BCD4',
+        color_band1          => '#4DD0E1',
+        color_band2          => '#26C6DA',
+        color_band3          => '#0097A7',
+        color_fill           => '#B2EBF2',
+        color_handle_outline => '#00BCD4',
     );
     $self->{overlay_manager}->register( 'anchoredvwap', $self->{avwap_overlay} );
     $self->{_avwap_fed_up_to} = -1;
@@ -322,38 +328,39 @@ sub new {
         $self->{indicator_manager}->register('AnchoredVWAP', $self->{avwap_indicator});
     }
 
-    # Auto-1: último pivot regular consolidado (high o low)
-    # Principal teal; bandas σ en naranja (no repetir el verde del principal — §9).
+    # Auto-1: último pivot regular consolidado — principal tomate + σ misma familia
     $self->{avwap_auto1_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto1_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator   => $self->{avwap_auto1_indicator},
-        theme       => { %{ $self->{theme} || {} }, vwap_line => '#26A69A' },
-        tag         => 'ov_avwap_auto1',
-        show_handle => 1,
-        visible     => 0,
-        color_vwap  => '#26A69A',
-        color_band1 => '#FF9800',
-        color_band2 => '#F9A825',
-        color_band3 => '#EF6C00',
-        color_fill  => '#FFE0B2',
+        indicator            => $self->{avwap_auto1_indicator},
+        theme                => { %{ $self->{theme} || {} }, vwap_line => '#FF9800' },
+        tag                  => 'ov_avwap_auto1',
+        show_handle          => 1,
+        visible              => 0,
+        color_vwap           => '#FF9800',
+        color_band1          => '#FFB74D',
+        color_band2          => '#FFA726',
+        color_band3          => '#F57C00',
+        color_fill           => '#FFE0B2',
+        color_handle_outline => '#FF9800',
     );
     $self->{overlay_manager}->register( 'avwap_auto1', $self->{avwap_auto1_overlay} );
     $self->{_avwap_auto1_fed_up_to} = -1;
 
-    # Auto-2: fantasma provisional — principal morado + trazo con guiones (§9).
+    # Auto-2: fantasma provisional — principal morado + trazo con guiones
     $self->{avwap_auto2_indicator} = Market::Indicators::AnchoredVWAP->new();
     $self->{avwap_auto2_overlay}   = Market::Overlays::AnchoredVWAP->new(
-        indicator   => $self->{avwap_auto2_indicator},
-        theme       => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
-        tag         => 'ov_avwap_auto2',
-        show_handle => 1,
-        visible     => 0,
-        color_vwap  => '#9C27B0',
-        color_band1 => '#CE93D8',
-        color_band2 => '#AB47BC',
-        color_band3 => '#7B1FA2',
-        color_fill  => '#E1BEE7',
-        line_dash   => '-',
+        indicator            => $self->{avwap_auto2_indicator},
+        theme                => { %{ $self->{theme} || {} }, vwap_line => '#9C27B0' },
+        tag                  => 'ov_avwap_auto2',
+        show_handle          => 1,
+        visible              => 0,
+        color_vwap           => '#9C27B0',
+        color_band1          => '#CE93D8',
+        color_band2          => '#AB47BC',
+        color_band3          => '#7B1FA2',
+        color_fill           => '#E1BEE7',
+        color_handle_outline => '#9C27B0',
+        line_dash            => '-',
     );
     $self->{overlay_manager}->register( 'avwap_auto2', $self->{avwap_auto2_overlay} );
     $self->{_avwap_auto2_fed_up_to} = -1;

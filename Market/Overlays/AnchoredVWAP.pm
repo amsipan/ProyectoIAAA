@@ -6,7 +6,8 @@ use warnings;
 # Render visual (no cambia la fórmula del indicador)
 # Polilínea única por serie (mismos puntos centro-de-vela).
 # Grosor uniforme (estilo TV).
-# Centro azul; banda ±1σ verde; bandas ±2/±3σ verde oliva/amarillento.
+# Terna runtime (ChartEngine): Manual cian / Auto-1 tomate / Auto-2 morado+dash.
+# Fallbacks genéricos abajo solo si el caller no pasa colores.
 # Relleno semitransparente entre upper1 y lower1 (stipple Tk).
 # Círculo handle deslicable en la vela ancla.
 
@@ -35,11 +36,11 @@ sub new {
         color_fill   => $args{color_fill}  // $theme->{vwap_fill}   // '#B2DFDB',
         line_width   => $args{line_width}  // $theme->{vwap_width}  // 1,
         fill_stipple => $args{fill_stipple} // $theme->{vwap_fill_stipple} // 'gray12',
-        # Handle TV: fill blanco + outline azul (feedback §8 / mismo que AVP §7)
+        # Handle TV: fill blanco + outline (caller suele igualar al color_vwap del slot)
         color_handle_fill    => $args{color_handle_fill}
           // $theme->{vwap_handle_fill}    // '#FFFFFF',
         color_handle_outline => $args{color_handle_outline}
-          // $theme->{vwap_handle_outline} // '#2962FF',
+          // $theme->{vwap_handle_outline} // ( $args{color_vwap} // $theme->{vwap_line} // '#00BCD4' ),
         # Estilo de trazo: undef/'' = continuo; '-' = guiones (AVWAP Auto-2 §9)
         line_dash => exists $args{line_dash} ? $args{line_dash}
           : ( $theme->{vwap_dash} // undef ),

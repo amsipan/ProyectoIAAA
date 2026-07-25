@@ -152,7 +152,7 @@ Aplicar al AVWAP manual y automático las mismas mejoras de claridad de ancla qu
 - Diferenciar origen de cada curva (p. ej. el segundo VWAP / sus bandas en **línea discontinua**).
 - No repetir el mismo color verde entre principal y primera desviación.
 
-**Estado:** hecho — Auto-1 principal teal + σ naranjas; Auto-2 principal/σ morados con `line_dash => '-'`; (`feature/avwap-styles-pc-median`).
+**Estado:** hecho — terna Manual cian `#00BCD4` / Auto-1 tomate `#FF9800` / Auto-2 morado `#9C27B0` + `line_dash`; (`feature/avwap-styles-pc-median`).
 
 ---
 
