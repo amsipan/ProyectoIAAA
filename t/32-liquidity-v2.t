@@ -234,43 +234,49 @@ sub feed_all {
 }
 
 # ---------------------------------------------------------------------------
-# EQH: dos swing highs dentro de tolerancia ATR
+# EQH: desactivado por defecto (§6); con show_eqhl=1 aún puede detectarse
 # ---------------------------------------------------------------------------
 {
     my $md = Market::MarketData->new();
-    # Create two similar highs
     for my $i ( 0 .. 5 ) {
         $md->add_candle( [ "e$i", 100, 102, 98, 100, 50 ] );
     }
-    $md->add_candle( [ 'e6', 100, 110, 99, 105, 80 ] );      # SH ~110
+    $md->add_candle( [ 'e6', 100, 110, 99, 105, 80 ] );
     $md->add_candle( [ 'e7', 105, 108, 100, 104, 60 ] );
     $md->add_candle( [ 'e8', 104, 107, 101, 103, 60 ] );
     for my $i ( 9 .. 14 ) {
         $md->add_candle( [ "e$i", 103, 106, 100, 103, 50 ] );
     }
-    $md->add_candle( [ 'e15', 103, 110.5, 100, 105, 80 ] );  # second SH ~110.5
+    $md->add_candle( [ 'e15', 103, 110.5, 100, 105, 80 ] );
     $md->add_candle( [ 'e16', 105, 108, 101, 104, 60 ] );
     $md->add_candle( [ 'e17', 104, 107, 100, 103, 60 ] );
     for my $i ( 18 .. 25 ) {
         $md->add_candle( [ "e$i", 103, 106, 100, 103, 50 ] );
     }
 
-    my $ind = Market::Indicators::Liquidity->new(
+    my $ind_off = Market::Indicators::Liquidity->new(
         k           => 2,
         atr_period  => 5,
-        eq_atr_mult => 0.5,    # loose for synthetic
+        eq_atr_mult => 0.5,
     );
-    feed_all( $ind, $md );
-    my $levels = $ind->get_levels();
-    my @eqh = grep { ( $_->{kind} // '' ) eq 'EQH' } @$levels;
-    my $events = $ind->get_events();
-    # EQH may still be live or already swept — either levels history or swings
-    my $sh = $ind->get_values()->{swings_high};
-    ok( @$sh >= 2, 'al menos 2 swing highs para EQH' )
-      or diag explain $ind->get_values();
-    # Soft: EQH created if tolerance allows
-    if ( @eqh || grep { ( $_->{level_kind} // '' ) eq 'EQH' } @$events ) {
-        pass('EQH detectado');
+    ok( !$ind_off->{show_eqhl}, '§6: show_eqhl=0 por defecto' );
+    feed_all( $ind_off, $md );
+    my @eqh_off = grep { ( $_->{kind} // '' ) eq 'EQH' } @{ $ind_off->get_levels() };
+    is( scalar(@eqh_off), 0, '§6: sin EQH cuando show_eqhl=0' );
+
+    my $ind_on = Market::Indicators::Liquidity->new(
+        k           => 2,
+        atr_period  => 5,
+        eq_atr_mult => 0.5,
+        show_eqhl   => 1,
+    );
+    feed_all( $ind_on, $md );
+    my $sh = $ind_on->get_values()->{swings_high};
+    ok( @$sh >= 2, 'con show_eqhl=1: al menos 2 swing highs' );
+    my @eqh = grep { ( $_->{kind} // '' ) eq 'EQH' } @{ $ind_on->get_levels() };
+    my @ev  = grep { ( $_->{level_kind} // '' ) eq 'EQH' } @{ $ind_on->get_events() };
+    if ( @eqh || @ev ) {
+        pass('EQH detectable con show_eqhl=1');
     }
     else {
         pass('EQH no forzado (tolerancia); swings OK');

@@ -2,8 +2,8 @@ package Market::Indicators::Liquidity;
 use strict;
 use warnings;
 
-# Liquidity v2: BSL/SSL/EQH/EQL y FSM Detected→Swept→Acceptance|Reclaimed→Resolved.
-# Sweep / Grab / Run. Sin Tk.
+# Liquidity v2: BSL/SSL + FSM Sweep/Grab/Run.
+# EQH/EQL de esta capa: desactivados (feedback §6); usar SMC Pro.
 
 use constant {
     DEFAULT_K              => 3,
@@ -27,6 +27,8 @@ sub new {
         grab_max_bars  => $opts{grab_max_bars}  // DEFAULT_GRAB_MAX,
         max_live       => $opts{max_live}       // 12,    # menos ruido (QA profe)
         max_events     => $opts{max_events}     // DEFAULT_MAX_EVENTS,
+        # §6: no crear EQH/EQL en Liquidez (línea entre extremos lejanos).
+        show_eqhl      => exists $opts{show_eqhl} ? ( $opts{show_eqhl} ? 1 : 0 ) : 0,
         # Prefer ZZ/SMC pivots. History buffer survives ZZ trim (15 segs visual).
         # k-swing solo si no hay ningún pivote externo acumulado.
         _external_pivots => undef,
@@ -362,7 +364,7 @@ sub _register_swing_high {
         pivot_index => $idx,
         side        => 'bear',    # stops above highs → buy-side liquidity
     );
-    $self->_try_equal_highs( $idx, $price );
+    $self->_try_equal_highs( $idx, $price ) if $self->{show_eqhl};
     return;
 }
 
@@ -379,7 +381,7 @@ sub _register_swing_low {
         pivot_index => $idx,
         side        => 'bull',
     );
-    $self->_try_equal_lows( $idx, $price );
+    $self->_try_equal_lows( $idx, $price ) if $self->{show_eqhl};
     return;
 }
 

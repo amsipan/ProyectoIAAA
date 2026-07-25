@@ -4,7 +4,8 @@ use warnings;
 
 # Overlay Liquidity v2 — estilos PDF tabla 2 (BSL rojo, SSL verde, …).
 # Labels ASCII (Tk-safe). HISTORY = dibujar niveles resolved (demo profe).
-# Elementos: BSL SSL EQH EQL SWEEP GRAB RUN HISTORY
+# Elementos: BSL SSL SWEEP GRAB RUN HISTORY
+# EQH/EQL: retirados del producto Liquidez (feedback §6); quedan en SMC Pro.
 
 use constant {
     MAX_EVENT_MARKERS => 40,
@@ -22,8 +23,8 @@ sub new {
         elements  => {
             BSL     => 1,
             SSL     => 1,
-            EQH     => 1,
-            EQL     => 1,
+            EQH     => 0,    # §6: off permanente (sin UI)
+            EQL     => 0,
             SWEEP   => 1,
             GRAB    => 1,
             RUN     => 1,
@@ -35,6 +36,9 @@ sub new {
         _md       => undef,
         _feed_end => undef,
     };
+    # Forzar EQH/EQL off aunque args intenten ON (capa retirada del producto).
+    $self->{elements}{EQH} = 0;
+    $self->{elements}{EQL} = 0;
     bless $self, $class;
     return $self;
 }
@@ -53,6 +57,11 @@ sub set_element_visible {
     my ( $self, $elem, $bool ) = @_;
     $elem = uc( $elem // '' );
     return $self unless exists $self->{elements}{$elem};
+    # §6: EQH/EQL retirados — no reactivar por callback legacy.
+    if ( $elem eq 'EQH' || $elem eq 'EQL' ) {
+        $self->{elements}{$elem} = 0;
+        return $self;
+    }
     $self->{elements}{$elem} = $bool ? 1 : 0;
     return $self;
 }

@@ -263,7 +263,8 @@ if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set
     $chart_engine->{zigzag_overlay}->set_density_pct(100);
 }
 my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
-my %vis_liq_el = map { $_ => 1 } qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+my %vis_liq_el = map { $_ => 1 } qw(BSL SSL SWEEP GRAB RUN);
+# EQH/EQL quitados de Liquidez (feedback §6): viven en SMC Pro.
 $vis_liq_el{HISTORY} = 0;    # niveles archivados (resolved) — demo profe
 my $zigzag_resolution = 30;
 my $fib_extend_to_last = 0;
@@ -286,7 +287,7 @@ my %cb_zzelem = map { $_ => Market::UI::Callbacks->make_zigzag_element_toggle($c
                 qw(INTERNAL EXTERNAL CHANNEL);
 my %cb_liq_el = map {
     $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_)
-} qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY);
+} qw(BSL SSL SWEEP GRAB RUN HISTORY);
 my %overlay_state_ref = (
     smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg,
     hld_4h => \$vis_hld_4h, hld_d => \$vis_hld_d,
@@ -646,7 +647,8 @@ if ($ENV{MARKET_RELOAD}) {
 
     my $niveles_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $niveles_box->Label(-text => 'Niveles:', -fg => '#555')->pack(-side => 'left', -padx => 2);
-    for my $el (qw(BSL SSL EQH EQL)) {
+    # Solo BSL/SSL — EQH/EQL removidos (feedback §6; usar SMC Pro).
+    for my $el (qw(BSL SSL)) {
         $niveles_box->Checkbutton(
             -text     => $el,
             -variable => \$vis_liq_el{$el},

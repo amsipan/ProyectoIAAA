@@ -7,6 +7,8 @@ use Market::UI::Callbacks;
 use Market::UI::ReplayPanel;
 use Market::UI::ReplayGotoMenu;
 use Market::ReplayController;
+use Market::Indicators::Liquidity;
+use Market::Overlays::Liquidity;
 
 # =============================================================================
 # Task 0004: cableado de la barra de controles de Fase 2 (spec 0010).
@@ -430,14 +432,13 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
 }
 
 # =============================================================================
-# Test 11: cada toggle de elemento de liquidez invoca
-# liq_overlay->set_element_visible($elem,$on) para los 7 elementos.
+# Test 11: toggles de elemento de liquidez (BSL/SSL/SWEEP/GRAB/RUN; sin EQH/EQL §6).
 # =============================================================================
 {
     my $liq   = MockLiqOverlay->new();
     my $chart = MockChart->new(liq_overlay => $liq, market_data => MockMarketData->new(50));
 
-    my @elems = qw(BSL SSL EQH EQL SWEEP GRAB RUN);
+    my @elems = qw(BSL SSL SWEEP GRAB RUN);
     for my $elem (@elems) {
         my $cb = Market::UI::Callbacks->make_liq_element_toggle($chart, $elem);
         $cb->(1);
@@ -1150,6 +1151,33 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         qr/HLD 4h en TF<=4h; HLD D en TF<=D/,
         '§5: label largo HLD quitado (presupuesto ancho)'
     );
+}
+
+# Feedback §6: EQH/EQL fuera de Liquidez (viven en SMC Pro).
+{
+    open my $fh, '<', 'market.pl' or die "market.pl: $!";
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    like( $src, qr/for my \$el \(qw\(BSL SSL\)\)/, '§6: Niveles Liquidez solo BSL/SSL' );
+    unlike(
+        $src,
+        qr/for my \$el \(qw\(BSL SSL EQH EQL\)\)/,
+        '§6: sin EQH/EQL en loop de Niveles'
+    );
+    like(
+        $src,
+        qr/qw\(BSL SSL SWEEP GRAB RUN HISTORY\)/,
+        '§6: callbacks liq sin EQH/EQL'
+    );
+
+    my $ov = Market::Overlays::Liquidity->new(
+        indicator => Market::Indicators::Liquidity->new(),
+        elements  => { EQH => 1, EQL => 1 },
+    );
+    ok( !$ov->is_element_visible('EQH'), '§6: overlay fuerza EQH off' );
+    ok( !$ov->is_element_visible('EQL'), '§6: overlay fuerza EQL off' );
+    $ov->set_element_visible( 'EQH', 1 );
+    ok( !$ov->is_element_visible('EQH'), '§6: set_element_visible no reactiva EQH' );
 }
 
 done_testing();

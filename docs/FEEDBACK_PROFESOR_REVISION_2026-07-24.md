@@ -111,6 +111,10 @@ El EQH/EQL del menú Liquidez dibuja una línea punteada entre extremidades leja
 - **Quitarla por completo** de Liquidez.
 - EQH/EQL ya está bien en **SMC Pro**.
 
+**Estado:** hecho (2026-07-24, rama `feature/liq-remove-eqhl`).
+- UI Liquidez: solo BSL/SSL en Niveles (sin botones EQH/EQL).
+- Overlay: EQH/EQL forzados OFF; indicador `show_eqhl=0` (no crea niveles EQ).
+
 ---
 
 ## 7. AVP (Volume Profile) — ancla visible
@@ -158,5 +162,6 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 2. ~~HLD 4h / HLD D (toggles) visibles en TF ≤ fuente, vectores prearmados.~~ **hecho**
 3. ~~Margen derecho Replay + zoom-out live estable.~~ **hecho**
 4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho**
-5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho** — siguiente: quitar EQH/EQL de Liquidez (§6).
-6. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
+5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho**
+6. ~~Quitar EQH/EQL de Liquidez.~~ **hecho** — siguiente: anclas AVP/AVWAP (§7–§8) + estilos AVWAP auto + mediana canal.
+7. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
