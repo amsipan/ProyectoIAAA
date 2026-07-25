@@ -269,7 +269,7 @@ sub new {
     );
     $self->{overlay_manager}->register( 'fib', $self->{fib_overlay} );
 
-    # Liquidity v2 — BSL/SSL/EQH/EQL + FSM Sweep/Grab/Run (desde cero)
+    # Liquidity v2 — BSL/SSL + FSM Sweep/Grab/Run (EQH/EQL → SMC Pro, §6)
     $self->{liq_indicator} = Market::Indicators::Liquidity->new();
     $self->{liq_overlay}   = Market::Overlays::Liquidity->new(
         indicator => $self->{liq_indicator},

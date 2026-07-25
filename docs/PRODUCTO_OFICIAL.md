@@ -8,13 +8,13 @@
 | Pieza | Notas |
 |--------|--------|
 | Chart OHLC + TF + Replay + Escala + ATR | Optimizar precarga TF (`MarketData`) según feedback §1 |
-| SMC Pro | Añadir toggles BOS/CHoCH int/ext y EQH/EQL (feedback §5) |
-| Structures + FVG | Toggle FVG independiente del BOS/CHoCH interno (feedback §4) |
+| SMC Pro | Toggles BOS/CHoCH int/ext + EQH/EQL (feedback §5, hecho) |
+| Structures + FVG | Toggle FVG independiente del BOS/CHoCH interno (feedback §4, hecho) |
 | HLD 4h / HLD D | MTF: R/S desde vectores 4h|D; visible si chart TF ≤ fuente (feedback §2) |
 | Parallel Channel / Trendline manual | Mediana punteada en canal (feedback §10) |
 | Trendline auto / Canal auto | Pestaña Auto |
 | ZigZag ext + int + Fib | — |
-| Liquidity | Quitar EQH/EQL de esta capa (feedback §6); EQH/EQL vive en SMC Pro |
+| Liquidity | BSL/SSL + Sweep/Grab/Run; **sin** EQH/EQL (feedback §6, hecho; EQ en SMC Pro) |
 | DIY, AVP, AVWAP, Pivots/Fantasmas | Anclas más visibles; AVWAP auto estilos/colores (feedback §7–§9) |
 
 Dataset predeterminado: `Data/2026_07_20.csv` (NQ1! 1m, UTC-5).
