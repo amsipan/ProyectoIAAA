@@ -29,8 +29,17 @@ $md->build_tf_candles('5m');
 $md->set_timeframe('5m');
 
 is($md->size, 2, '5m aggregation creates expected number of buckets');
-is_deeply($md->get_candle(0), [ '2026-04-01T00:00:00-05:00', 10, 16, 9, 15, 1000 ], 'first 5m OHLCV bucket is correct');
-is_deeply($md->get_candle(1), [ '2026-04-01T00:05:00-05:00', 15, 17, 14, 16, 350 ], 'partial 5m bucket is preserved');
+{
+    my $c0 = $md->get_candle(0);
+    my $c1 = $md->get_candle(1);
+    is_deeply( [ @{$c0}[ 0 .. 5 ] ],
+        [ '2026-04-01T00:00:00-05:00', 10, 16, 9, 15, 1000 ],
+        'first 5m OHLCV bucket is correct' );
+    is_deeply( [ @{$c1}[ 0 .. 5 ] ],
+        [ '2026-04-01T00:05:00-05:00', 15, 17, 14, 16, 350 ],
+        'partial 5m bucket is preserved' );
+    ok( defined $c0->[6], '5m candle includes base_index' );
+}
 
 my $atr_md = Market::MarketData->new();
 add_rows(

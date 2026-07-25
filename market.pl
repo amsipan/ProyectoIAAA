@@ -79,9 +79,14 @@ print "[*]   base_tf : $base_tf\n";
 print "[*]   velas   : $n_file\n";
 print "[*]   first   : ", ($ts_first // '?'), "\n";
 print "[*]   last    : ", ($ts_last  // '?'), "\n";
-$market_data->build_timeframes();  # lazy no-op; eager=>1 solo si se necesita todo
+$market_data->build_timeframes();  # HTF ya se llenan en add_candle O(1)
 $market_data->set_timeframe($base_tf);
-print "[*] Velas en memoria ($base_tf): ", $market_data->size(), " (TF altos se construyen al usarlos)\n";
+print "[*] Velas en memoria ($base_tf): ", $market_data->size(), "\n";
+for my $tf (qw(5m 15m 1h 2h 4h D W)) {
+    next if $tf eq $base_tf;
+    my $n = scalar @{ $market_data->{data}{$tf} || [] };
+    print "[*]   TF $tf precargado: $n velas\n" if $n > 0;
+}
 print "[*] Calculando ATR $base_tf...\n";
 for (my $i = 0; $i < $market_data->size(); $i++) {
     $indicator_manager->update_last($market_data, $i);   # ATR es O(1)/vela
@@ -246,7 +251,8 @@ $mw->Tk::bind('<Configure>', sub { $chart_engine->request_render(); });
 # Capas Producto (OFF por defecto). Ver
 my $vis_smc_pro = 0;
 my $vis_smc_fvg = 0;
-my $vis_hld     = 0;
+my $vis_hld_4h  = 0;
+my $vis_hld_d   = 0;
 my $vis_liq     = 0;
 my $vis_diy     = 0;
 my $vis_vp      = 0;
@@ -269,7 +275,8 @@ my $pph_show_rastro = 1; # rastro "1" (Josafa)
 
 my $cb_smc_pro = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_pro');
 my $cb_smc_fvg = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'smc_fvg');
-my $cb_hld     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld');
+my $cb_hld_4h  = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld_4h');
+my $cb_hld_d   = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'hld_d');
 my $cb_liq     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'liq');
 my $cb_diy     = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'diy');
 my $cb_vp      = Market::UI::Callbacks->make_overlay_toggle($chart_engine, 'volumeprofile');
@@ -281,11 +288,13 @@ my %cb_liq_el = map {
     $_ => Market::UI::Callbacks->make_liq_element_toggle($chart_engine, $_)
 } qw(BSL SSL EQH EQL SWEEP GRAB RUN HISTORY);
 my %overlay_state_ref = (
-    smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg, hld => \$vis_hld,
+    smc_pro => \$vis_smc_pro, smc_fvg => \$vis_smc_fvg,
+    hld_4h => \$vis_hld_4h, hld_d => \$vis_hld_d,
     liq => \$vis_liq, diy => \$vis_diy, volumeprofile => \$vis_vp, zigzag => \$vis_zigzag,
 );
 my %overlay_cb = (
-    smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg, hld => $cb_hld,
+    smc_pro => $cb_smc_pro, smc_fvg => $cb_smc_fvg,
+    hld_4h => $cb_hld_4h, hld_d => $cb_hld_d,
     liq => $cb_liq, diy => $cb_diy, volumeprofile => $cb_vp, zigzag => $cb_zigzag,
 );
 my %overlay_button;
@@ -522,8 +531,10 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
     $box->Checkbutton(-text => 'SMC Structures+FVG', -variable => \$vis_smc_fvg,
         -command => sub { $set_overlay_visible->('smc_fvg', $vis_smc_fvg ? 1 : 0); })->pack(-side => 'left');
-    $box->Checkbutton(-text => 'HLD (4h/D)', -variable => \$vis_hld,
-        -command => sub { $set_overlay_visible->('hld', $vis_hld ? 1 : 0); })->pack(-side => 'left');
+    $box->Checkbutton(-text => 'HLD 4h', -variable => \$vis_hld_4h,
+        -command => sub { $set_overlay_visible->('hld_4h', $vis_hld_4h ? 1 : 0); })->pack(-side => 'left');
+    $box->Checkbutton(-text => 'HLD D', -variable => \$vis_hld_d,
+        -command => sub { $set_overlay_visible->('hld_d', $vis_hld_d ? 1 : 0); })->pack(-side => 'left');
 
     # Order Blocks: interno / externo (swing). Defaults ambos ON (demo profe).
     # Neon: Int ON / Swing OFF — volver vía args del indicador.
@@ -555,7 +566,7 @@ if ($ENV{MARKET_RELOAD}) {
 
     my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $info_box->Label(
-        -text => 'HLD solo en TF 4h o D. R/S de vela HTF más cercana al precio.',
+        -text => 'HLD 4h en TF<=4h; HLD D en TF<=D. R/S de vectores HTF (sin cambiar velas).',
         -font => ['Helvetica', 8],
     )->pack(-side => 'left', -padx => 3);
 }

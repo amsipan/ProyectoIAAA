@@ -22,7 +22,7 @@ sub new {
         active_tf => '1m',
         # Serie nativa cargada desde CSV (1m por defecto; 15m si export TV 15m).
         base_tf   => '1m',
-        # TFs ya agregados (lazy). La base siempre está "lista".
+        # TFs ya agregados. Con add_candle incremental, los HTF se llenan al cargar.
         _tf_built => { '1m' => 1 },
         # Cache Time::Moment por string de timestamp (evita re-parse en agregación).
         _tm_cache => {},
@@ -64,19 +64,115 @@ sub get_data {
     return $self->_active_array();
 }
 
+# TFs agregables desde la base (orden fijo; O(1) por vela).
+sub _aggregate_tf_names {
+    return qw(5m 15m 1h 2h 4h D W);
+}
+
+# add_candle: push base O(1) + actualizar HTF abiertos O(1) por TF fijo.
+# Devuelve base_index (índice en la serie nativa).
 sub add_candle {
-    my ($self, $candle) = @_;
+    my ( $self, $candle ) = @_;
+    return undef unless $candle && ref($candle) eq 'ARRAY';
+
     my $base = $self->base_timeframe();
-    push @{ $self->{data}->{$base} }, $candle;
-    # Invalidar agregados (no la base) al crecer la serie nativa.
-    if ($self->{_tf_built}) {
-        for my $tf (keys %{ $self->{_tf_built} }) {
-            next if $tf eq $base;
-            delete $self->{_tf_built}{$tf};
-            $self->{data}{$tf} = [] if exists $self->{data}{$tf};
-        }
+    my $arr  = $self->{data}{$base} ||= [];
+    push @$arr, $candle;
+    my $base_index = $#$arr;
+    $arr->[$base_index][6] = $base_index;
+
+    $self->_update_higher_tfs( $arr->[$base_index], $base_index );
+
+    if ( $self->{_tm_cache} && keys %{ $self->{_tm_cache} } > 200_000 ) {
+        $self->{_tm_cache} = {};
     }
-    $self->{_tm_cache} = {} if $self->{_tm_cache} && keys %{ $self->{_tm_cache} } > 200_000;
+    return $base_index;
+}
+
+# Actualiza todos los TF de rango mayor que la base (patrón del profesor).
+sub _update_higher_tfs {
+    my ( $self, $candle, $base_index ) = @_;
+    my $base      = $self->base_timeframe();
+    my $rank_base = $self->_tf_rank($base);
+
+    for my $tf ( $self->_aggregate_tf_names() ) {
+        next unless exists $self->{data}{$tf};
+        my $rank_tf = $self->_tf_rank($tf);
+        next if $rank_tf > 0 && $rank_base > 0 && $rank_tf < $rank_base;
+        $self->_update_tf_incremental( $tf, $candle, $base_index );
+        $self->{_tf_built}{$tf} = 1;
+    }
+    return $self;
+}
+
+# Un tick de la base → bucket HTF: nuevo push o merge in-place + base_index.
+sub _update_tf_incremental {
+    my ( $self, $tf, $candle, $base_index ) = @_;
+    my $arr = $self->{data}{$tf} ||= [];
+    my $bucket = $self->_bucket_timestamp( $candle->[0], $tf );
+    return unless defined $bucket;
+
+    if ( !@$arr || ( $arr->[-1][0] // '' ) ne $bucket ) {
+        push @$arr, [
+            $bucket,
+            $candle->[1],
+            $candle->[2],
+            $candle->[3],
+            $candle->[4],
+            $candle->[5] // 0,
+            $base_index,
+        ];
+        return;
+    }
+
+    my $c = $arr->[-1];
+    $c->[2] = $candle->[2] if $candle->[2] > $c->[2];
+    $c->[3] = $candle->[3] if $candle->[3] < $c->[3];
+    $c->[4] = $candle->[4];
+    $c->[5] = ( $c->[5] // 0 ) + ( $candle->[5] // 0 );
+    $c->[6] = $base_index;
+    return;
+}
+
+# Parche HTF cuando la última vela base se actualiza in-place (merge_delta_row).
+# $vol_delta es el volumen añadido en este tick (no el total de la vela base).
+sub _patch_open_htf_from_base {
+    my ( $self, $base_candle, $base_index, $vol_delta ) = @_;
+    my $base      = $self->base_timeframe();
+    my $rank_base = $self->_tf_rank($base);
+    $vol_delta = 0 unless defined $vol_delta;
+
+    for my $tf ( $self->_aggregate_tf_names() ) {
+        next unless exists $self->{data}{$tf};
+        my $rank_tf = $self->_tf_rank($tf);
+        next if $rank_tf > 0 && $rank_base > 0 && $rank_tf < $rank_base;
+
+        my $arr = $self->{data}{$tf} ||= [];
+        my $bucket = $self->_bucket_timestamp( $base_candle->[0], $tf );
+        next unless defined $bucket;
+
+        if ( !@$arr || ( $arr->[-1][0] // '' ) ne $bucket ) {
+            push @$arr, [
+                $bucket,
+                $base_candle->[1],
+                $base_candle->[2],
+                $base_candle->[3],
+                $base_candle->[4],
+                $vol_delta,
+                $base_index,
+            ];
+        }
+        else {
+            my $c = $arr->[-1];
+            $c->[2] = $base_candle->[2] if $base_candle->[2] > $c->[2];
+            $c->[3] = $base_candle->[3] if $base_candle->[3] < $c->[3];
+            $c->[4] = $base_candle->[4];
+            $c->[5] = ( $c->[5] // 0 ) + $vol_delta;
+            $c->[6] = $base_index;
+        }
+        $self->{_tf_built}{$tf} = 1;
+    }
+    return $self;
 }
 
 sub build_tf_candles {
@@ -104,14 +200,15 @@ sub build_tf_candles {
     my @aggregated;
     my ($current_key, $current);
 
-    for my $c (@$base_data) {
+    for my $i ( 0 .. $#$base_data ) {
+        my $c = $base_data->[$i];
         my $bucket_ts = $self->_bucket_timestamp($c->[0], $tf);
         next unless defined $bucket_ts;
 
         if (!defined $current_key || $bucket_ts ne $current_key) {
             push @aggregated, $current if defined $current;
             $current_key = $bucket_ts;
-            $current = [$bucket_ts, $c->[1], $c->[2], $c->[3], $c->[4], $c->[5] // 0];
+            $current = [$bucket_ts, $c->[1], $c->[2], $c->[3], $c->[4], $c->[5] // 0, $i];
             next;
         }
 
@@ -119,6 +216,7 @@ sub build_tf_candles {
         $current->[3] = $c->[3] if $c->[3] < $current->[3];
         $current->[4] = $c->[4];
         $current->[5] = ($current->[5] // 0) + ($c->[5] // 0);
+        $current->[6] = $i;
     }
 
     push @aggregated, $current if defined $current;
@@ -273,18 +371,21 @@ sub _session_bucket_timestamp {
     return $self->_format_bucket_timestamp($bucket_date, $bucket_hour, $bucket_min, $suffix);
 }
 
-# build_timeframes — por defecto LAZY: no agrega todos los TF al boot.
-# Pasa eager => 1 para forzar construcción de todos (tests / herramientas).
+# build_timeframes — incremental ya llena HTF en add_candle.
+# eager => 1 completa solo TF faltantes (red de seguridad al boot).
 sub build_timeframes {
     my ($self, %opts) = @_;
     if ($opts{eager}) {
         my $base = $self->base_timeframe();
-        for my $tf ('1m', '5m', '15m', '1h', '2h', '4h', 'D', 'W') {
+        for my $tf ( '1m', $self->_aggregate_tf_names() ) {
             next if $tf eq $base;
+            next unless exists $self->{data}{$tf};
+            if ( $self->{_tf_built}{$tf} && @{ $self->{data}{$tf} || [] } ) {
+                next;
+            }
             $self->build_tf_candles($tf);
         }
     }
-    # Lazy: no-op; set_timeframe / ensure_timeframe construyen bajo demanda.
     return $self;
 }
 
@@ -298,14 +399,19 @@ sub ensure_timeframe {
     return $self;
 }
 
+# set_timeframe — O(1) si el TF ya está precargado; fallback rebuild si falta.
 sub set_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf;
-    # Aceptar TFs conocidos aunque el array aún esté vacío (lazy).
-    if (exists $self->{data}->{$tf}) {
+    return unless exists $self->{data}->{$tf};
+
+    my $base = $self->base_timeframe();
+    if ( $tf ne $base
+        && ( !$self->{_tf_built}{$tf} || !@{ $self->{data}{$tf} || [] } ) )
+    {
         $self->ensure_timeframe($tf);
-        $self->{active_tf} = $tf;
     }
+    $self->{active_tf} = $tf;
 }
 
 sub _active_array {
@@ -358,12 +464,17 @@ sub merge_delta_row {
     my $arr  = $self->{data}->{$base};
 
     if (@$arr && $arr->[-1]->[0] eq $row->[0]) {
-        my $last = $arr->[-1];
+        my $last       = $arr->[-1];
+        my $base_index = $#$arr;
+        my $vol_delta  = $row->[5] // 0;
         $last->[2] = $row->[2] if $row->[2] > $last->[2];
         $last->[3] = $row->[3] if $row->[3] < $last->[3];
         $last->[4] = $row->[4];
-        $last->[5] = ($last->[5] // 0) + ($row->[5] // 0);
-    } else {
+        $last->[5] = ( $last->[5] // 0 ) + $vol_delta;
+        $last->[6] = $base_index;
+        $self->_patch_open_htf_from_base( $last, $base_index, $vol_delta );
+    }
+    else {
         $self->add_candle($row);
     }
 }
