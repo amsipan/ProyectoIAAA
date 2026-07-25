@@ -35,7 +35,11 @@ sub new {
         color_fill   => $theme->{vwap_fill}   // '#B2DFDB',
         line_width   => $theme->{vwap_width}  // 1,
         fill_stipple => $theme->{vwap_fill_stipple} // 'gray12',
-        color_handle => $args{color_handle} // $theme->{vwap_line} // '#2962FF',
+        # Handle TV: fill blanco + outline azul (feedback §8 / mismo que AVP §7)
+        color_handle_fill    => $args{color_handle_fill}
+          // $theme->{vwap_handle_fill}    // '#FFFFFF',
+        color_handle_outline => $args{color_handle_outline}
+          // $theme->{vwap_handle_outline} // '#2962FF',
         _start       => 0,
         _end         => 0,
     };
@@ -204,7 +208,8 @@ sub draw {
         );
     }
 
-    # 4) Handle deslicable de ancla sobre la vela ancla (solo modo manual)
+    # 4) Handle ancla estilo TradingView (blanco + borde azul, encima de velas)
+    my $drew_handle = 0;
     if ( $self->{show_handle}
       && defined $anchor
       && $anchor >= ( $self->{_start} // 0 )
@@ -215,18 +220,22 @@ sub draw {
         my $pt = $series->[$anchor];
         if (defined $x && $pt && defined $pt->{value}) {
             my $y = $scales->value_to_y($pt->{value});
+            my $fill = $self->{color_handle_fill}    // '#FFFFFF';
+            my $outl = $self->{color_handle_outline} // '#2962FF';
             eval {
                 $canvas->createOval(
                     $x - 5, $y - 5, $x + 5, $y + 5,
-                    -fill    => $self->{color_handle},
-                    -outline => '#FFFFFF',
-                    -width   => 1.5,
-                    -tags    => [$self->tag(), 'avwap_anchor_handle'],
+                    -fill    => $fill,
+                    -outline => $outl,
+                    -width   => 2,
+                    -tags    => [ $self->tag(), 'avwap_anchor_handle' ],
                 );
+                $drew_handle = 1;
                 1;
             };
         }
     }
+    eval { $canvas->raise('avwap_anchor_handle') } if $drew_handle;
 
     return $self;
 }

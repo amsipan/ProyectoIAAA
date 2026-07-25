@@ -135,6 +135,8 @@ El EQH/EQL del menú Liquidez dibuja una línea punteada entre extremidades leja
 
 Aplicar al AVWAP manual y automático las mismas mejoras de claridad de ancla que al AVP (§7).
 
+**Estado:** hecho — handle blanco/`#2962FF`, `raise` sobre velas; Auto-1/2 con handle; drag Auto→Manual + `avwap_mode_ui_sync` (`feature/avwap-anchor-visibility`).
+
 ---
 
 ## 9. AVWAP automático — diferenciación visual de curvas
@@ -166,5 +168,5 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho**
 5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho**
 6. ~~Quitar EQH/EQL de Liquidez.~~ **hecho**
-7. ~~Anclas AVP (§7).~~ **hecho** — siguiente: AVWAP ancla (§8) + estilos AVWAP auto (§9) + mediana canal (§10).
-8. Anclas AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
+7. ~~Anclas AVP (§7).~~ **hecho**
+8. ~~Anclas AVWAP (§8).~~ **hecho** — siguiente: §9 estilos AVWAP auto + §10 mediana canal.

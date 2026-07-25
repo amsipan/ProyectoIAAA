@@ -938,6 +938,11 @@ if ($ENV{MARKET_RELOAD}) {
             fill  => $vis_avwap_sub{fill},
         );
     };
+    # ChartEngine promueve Auto→Manual al arrastrar handle auto; sincronizar radio UI.
+    $chart_engine->{avwap_mode_ui_sync} = sub {
+        my ($mode) = @_;
+        $avwap_mode_ui = $mode // 'manual';
+    };
     $avwap_box->Radiobutton(
         -text     => 'Off',
         -value    => 'off',
