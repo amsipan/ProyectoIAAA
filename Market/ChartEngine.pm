@@ -609,15 +609,10 @@ sub sync_overlay_indicators {
     my ($self) = @_;
     return unless $self->{overlay_manager};
 
-    my $replay   = $self->{replay_controller};
     my $last_idx = $self->{market_data}->size() - 1;
-    my $feed_to;
-    if ($replay && $replay->is_active() && defined $replay->current_index()) {
-        $feed_to = $replay->current_index();
-        $feed_to = $last_idx if defined $last_idx && $feed_to > $last_idx;
-    } else {
-        $feed_to = $last_idx;
-    }
+    # Mismo tope que render/_causal_end (Replay: effective_end ≡ current_index).
+    my $feed_to  = $self->_causal_end();
+    $feed_to = $last_idx if defined $last_idx && $feed_to > $last_idx;
 
     # Solo Producto.
     my $smc_wants_feed = $self->_any_named_overlay_wants(qw(smc_pro smc)) ? 1 : 0;
@@ -938,6 +933,46 @@ sub _overlay_wants_feed {
     return $ov->is_visible() ? 1 : 0;    # con overlay → solo si visible
 }
 
+# _overlay_feed_caught_up($cursor_key, $feed_to) — feed del indicador al día.
+sub _overlay_feed_caught_up {
+    my ( $self, $cursor_key, $feed_to ) = @_;
+    return 1 if !defined $feed_to || $feed_to < 0;
+    my $fed = $self->{$cursor_key};
+    $fed = -1 unless defined $fed;
+    return ( $fed >= $feed_to ) ? 1 : 0;
+}
+
+# _apply_smc_defer_draw_flags($feed_to) — no pintar SMC/FVG con feed incompleto
+# (evita artefactos OB durante carga chunked). Ready por capa.
+sub _apply_smc_defer_draw_flags {
+    my ( $self, $feed_to ) = @_;
+    my $mgr = $self->{overlay_manager} or return $self;
+    $feed_to = $self->_causal_end() if !defined $feed_to;
+
+    for my $name (qw(smc_pro smc)) {
+        my $ov = $mgr->get($name) or next;
+        if ( $ov->is_visible()
+            && !$self->_overlay_feed_caught_up( '_smc_fed_up_to', $feed_to ) )
+        {
+            $ov->{_defer_draw} = 1;
+        }
+        else {
+            $ov->{_defer_draw} = 0;
+        }
+    }
+    if ( my $fvg = $mgr->get('smc_fvg') ) {
+        if ( $fvg->is_visible()
+            && !$self->_overlay_feed_caught_up( '_smc_fvg_fed_up_to', $feed_to ) )
+        {
+            $fvg->{_defer_draw} = 1;
+        }
+        else {
+            $fvg->{_defer_draw} = 0;
+        }
+    }
+    return $self;
+}
+
 # _any_named_overlay_wants(@names) — true si ALGUNO de los nombres registrados
 # está visible. Si NINGUNO está registrado, true (tests sin capa). Si hay al
 # menos uno registrado y todos OFF, false (arranque on-demand).
@@ -1030,14 +1065,9 @@ sub _schedule_smc_background_feed {
             return 1 unless $md;
             my $last = $md->size() - 1;
             return 1 if $last < 0;
-            my $replay = $self->{replay_controller};
-            my $feed_to = $target;
-            if ($replay && $replay->is_active() && defined $replay->current_index()) {
-                $feed_to = $replay->current_index();
-                $feed_to = $last if $feed_to > $last;
-            } else {
-                $feed_to = $last if !defined $feed_to || $feed_to > $last;
-            }
+            # Mismo tope que sync/render (relee causal cada tick; $target es hint).
+            my $feed_to = $self->_causal_end();
+            $feed_to = $last if !defined $feed_to || $feed_to > $last;
 
             # Solo capas realmente registradas y visibles (mismo criterio on-demand).
             my $need_smc = $self->_any_named_overlay_wants(qw(smc_pro smc));
@@ -1054,15 +1084,19 @@ sub _schedule_smc_background_feed {
                     $self->{smc_fvg_indicator}, '_smc_fvg_fed_up_to', $feed_to, $chunk
                 );
             }
-            # Re-render para ir mostrando estructura (prefijo causal válido).
-            $self->request_render();
-            $self->_schedule_smc_background_feed($feed_to) unless $done;
+            # Solo pintar cuando el feed está completo (evita artefactos OB a medias).
+            if ($done) {
+                $self->request_render();
+            }
+            else {
+                $self->_schedule_smc_background_feed($feed_to);
+            }
             1;
         };
         if (!$ok) {
             warn "SMC background feed: $@";
-            # Intentar pintar lo ya calculado y no dejar la capa muda.
-            eval { $self->request_render() };
+            # Si falló a medias, no forzar paint incompleto; reintentar catch-up.
+            eval { $self->_schedule_smc_background_feed($target) };
         }
     });
     return $self;
@@ -1437,6 +1471,9 @@ sub render {
             my $ov = $self->{overlay_manager}->get($name);
             $ov->{_feed_end} = $feed_end if $ov;
         }
+        # Gate anti-artefactos: sync ya corrió en este frame; no pintar SMC/FVG
+        # hasta que su cursor de feed alcance feed_end.
+        $self->_apply_smc_defer_draw_flags($feed_end);
         if ( my $pov = $self->{overlay_manager}->get('pchan') ) {
             $pov->{_data_end} = $feed_end;
         }

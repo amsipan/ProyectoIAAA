@@ -379,9 +379,10 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 
 # Opción A: TF siempre visible y pestañas compactas por dominio.
 # Replay es pestaña propia (no mezclada con Vista): un clic → Select bar listo.
+# SMC separada de Estructura: presupuesto ~1050 px / fila (laptop 14", ~1080 duro).
 my %panel;
 $panel{$_} = $panel_row->Frame()
-  for qw(Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay);
+  for qw(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay);
 
 my $active_tab = 'Estructura';
 my $show_panel = sub {
@@ -402,6 +403,7 @@ $ui_vars{show_default_tab} = sub {
 };
 
 my %tab_label = (
+    SMC        => 'SMC',
     Estructura => 'Estructura',
     Liquidez   => 'Liquidez',
     ZigZag     => 'ZigZag',
@@ -412,7 +414,7 @@ my %tab_label = (
     Replay     => 'Replay',
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay)) {
+for my $name (qw(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -519,16 +521,76 @@ if ($ENV{MARKET_RELOAD}) {
     print "[*] RELOAD: fresh process started (MARKET_RELOAD=1)\n";
 }
 
-# OPCIÓN A: cinco pestañas por dominio (compactas para 14"). Cada control y
-# callback se conserva; solo se reorganizan por grupo temático.
+# OPCIÓN A: pestañas por dominio (compactas para 14", ~1050 px/fila).
+# SMC Pro y Structures+FVG en pestañas distintas para no desbordar.
 
-# Pestaña Estructura
+# Pestaña SMC — SMC Pro + etiquetas BOS/EQ + OB (feedback §5; ~1050 px / 14")
+{
+    my $p = $panel{SMC};
+    my $box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
+    $box->Checkbutton(
+        -text     => 'SMC Pro',
+        -variable => \$vis_smc_pro,
+        -command  => sub { $set_overlay_visible->( 'smc_pro', $vis_smc_pro ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+
+    # BOS/CHoCH int/ext + EQH/EQL: visibilidad vía getters (sin reset/refeed → sin flicker).
+    my $smc_bos_int = 1;
+    my $smc_bos_ext = 1;
+    my $smc_eqhl    = 1;
+    my $apply_smc_labels = sub {
+        my $ind = $chart_engine->{smc_pro_indicator} // $chart_engine->{smc_indicator};
+        return unless $ind;
+        $ind->{show_internal} = $smc_bos_int ? 1 : 0;
+        $ind->{show_swing}    = $smc_bos_ext ? 1 : 0;
+        $ind->{show_eqhl}     = $smc_eqhl    ? 1 : 0;
+        $chart_engine->request_render();
+    };
+    my $lbl_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
+    $lbl_box->Checkbutton(
+        -text     => 'BOS/CHoCH int',
+        -variable => \$smc_bos_int,
+        -command  => $apply_smc_labels,
+    )->pack( -side => 'left' );
+    $lbl_box->Checkbutton(
+        -text     => 'BOS/CHoCH ext',
+        -variable => \$smc_bos_ext,
+        -command  => $apply_smc_labels,
+    )->pack( -side => 'left' );
+    $lbl_box->Checkbutton(
+        -text     => 'EQH/EQL',
+        -variable => \$smc_eqhl,
+        -command  => $apply_smc_labels,
+    )->pack( -side => 'left' );
+
+    # Order Blocks: interno / externo. Visibilidad vía get_order_blocks (sin reset → sin flicker).
+    my $smc_ob_int = 1;
+    my $smc_ob_ext = 1;
+    my $apply_smc_ob = sub {
+        my $ind = $chart_engine->{smc_pro_indicator} // $chart_engine->{smc_indicator};
+        return unless $ind;
+        $ind->{show_internal_ob} = $smc_ob_int ? 1 : 0;
+        $ind->{show_swing_ob}    = $smc_ob_ext ? 1 : 0;
+        $chart_engine->request_render();
+    };
+    my $ob_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
+    $ob_box->Label( -text => 'OB:', -fg => '#555' )->pack( -side => 'left', -padx => 2 );
+    $ob_box->Checkbutton(
+        -text     => 'OB int',
+        -variable => \$smc_ob_int,
+        -command  => $apply_smc_ob,
+    )->pack( -side => 'left' );
+    $ob_box->Checkbutton(
+        -text     => 'OB ext',
+        -variable => \$smc_ob_ext,
+        -command  => $apply_smc_ob,
+    )->pack( -side => 'left' );
+}
+
+# Pestaña Estructura — Structures+FVG + HLD (sin SMC Pro; presupuesto 14")
 {
     my $p = $panel{Estructura};
-    my $box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $box->Label(-text => 'SMC:')->pack(-side => 'left', -padx => 3);
-    $box->Checkbutton(-text => 'SMC Pro', -variable => \$vis_smc_pro,
-        -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
+    my $box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
 
     # Structures+FVG: capa maestra + FVG / BOS-CHoCH independientes (feedback §4).
     my $smc_fvg_show_fvg    = 1;
@@ -561,44 +623,16 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
     $apply_smc_fvg_parts->();    # sincronizar defaults UI → overlay al arrancar
 
-    $box->Checkbutton(-text => 'HLD 4h', -variable => \$vis_hld_4h,
-        -command => sub { $set_overlay_visible->('hld_4h', $vis_hld_4h ? 1 : 0); })->pack(-side => 'left');
-    $box->Checkbutton(-text => 'HLD D', -variable => \$vis_hld_d,
-        -command => sub { $set_overlay_visible->('hld_d', $vis_hld_d ? 1 : 0); })->pack(-side => 'left');
-
-    # Order Blocks: interno / externo (swing). Defaults ambos ON (demo profe).
-    # Neon: Int ON / Swing OFF — volver vía args del indicador.
-    # Toggle exige reset+refeed porque _store_order_block filtra al crear.
-    my $smc_ob_int = 1;
-    my $smc_ob_ext = 1;
-    my $apply_smc_ob = sub {
-        my $ind = $chart_engine->{smc_pro_indicator} // $chart_engine->{smc_indicator};
-        return unless $ind;
-        $ind->{show_internal_ob} = $smc_ob_int ? 1 : 0;
-        $ind->{show_swing_ob}    = $smc_ob_ext ? 1 : 0;
-        $ind->reset() if $ind->can('reset');
-        $chart_engine->{_smc_fed_up_to}     = -1;
-        $chart_engine->{_smc_pro_fed_up_to} = -1;
-        $chart_engine->request_render();
-    };
-    my $ob_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $ob_box->Label(-text => 'OB:', -fg => '#555')->pack(-side => 'left', -padx => 2);
-    $ob_box->Checkbutton(
-        -text     => 'OB int',
-        -variable => \$smc_ob_int,
-        -command  => $apply_smc_ob,
-    )->pack(-side => 'left');
-    $ob_box->Checkbutton(
-        -text     => 'OB ext',
-        -variable => \$smc_ob_ext,
-        -command  => $apply_smc_ob,
-    )->pack(-side => 'left');
-
-    my $info_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
-    $info_box->Label(
-        -text => 'HLD 4h en TF<=4h; HLD D en TF<=D. R/S de vectores HTF (sin cambiar velas).',
-        -font => ['Helvetica', 8],
-    )->pack(-side => 'left', -padx => 3);
+    $box->Checkbutton(
+        -text     => 'HLD 4h',
+        -variable => \$vis_hld_4h,
+        -command  => sub { $set_overlay_visible->( 'hld_4h', $vis_hld_4h ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+    $box->Checkbutton(
+        -text     => 'HLD D',
+        -variable => \$vis_hld_d,
+        -command  => sub { $set_overlay_visible->( 'hld_d', $vis_hld_d ? 1 : 0 ); },
+    )->pack( -side => 'left' );
 }
 
 # Pestaña Liquidez

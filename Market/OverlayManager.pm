@@ -63,18 +63,22 @@ sub set_visible {
 # compute_all($market_data, $start, $end) — prepara datos SOLO de overlays
 # visibles (capas apagadas no cuestan CPU en cada render).
 # $end ya viene truncado por ChartEngine.compute_window si Replay está activo.
+# _defer_draw: feed chunked incompleto (SMC) — no compute hasta caught-up.
 sub compute_all {
     my ($self, $market_data, $start, $end) = @_;
     for my $ov ($self->each_active()) {
+        next if $ov->{_defer_draw};
         $ov->compute_visible($market_data, undef, $start, $end);
     }
     return $self;
 }
 
 # draw_all($canvas, $scales) — dibuja todos los overlays activos.
+# Respeta _defer_draw (misma política que compute_all).
 sub draw_all {
     my ($self, $canvas, $scales) = @_;
     for my $ov ($self->each_active()) {
+        next if $ov->{_defer_draw};
         $ov->draw($canvas, $scales);
     }
     return $self;

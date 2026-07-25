@@ -93,7 +93,12 @@ Botones propios para habilitar/deshabilitar por separado:
 2. Etiquetado BOS/CHoCH **externo**
 3. Etiquetado **EQH/EQL**
 
-**Estado:** siguiente (rama `feature/smc-pro-label-toggles`). Flags ya existen en indicador (`show_internal`, `show_swing`, `show_eqhl`); falta UI + overlay que los respete al dibujar.
+**Estado:** hecho (2026-07-24, rama `feature/smc-pro-label-toggles`).
+- Pestaña propia **SMC** (presupuesto ~1050 px / 14"): `SMC Pro` · `BOS/CHoCH int` · `BOS/CHoCH ext` · `EQH/EQL` · `OB int` · `OB ext`.
+- **Estructura** queda con Structures+FVG + HLD (sin label largo).
+- Visibilidad BOS/EQ **y** OB int/ext vía flags + getters (`get_events` / `get_eqhl` / `get_order_blocks`); **sin** reset/refeed → sin flicker.
+- El cálculo sigue corriendo siempre (también en Replay); los toggles solo filtran qué se dibuja.
+- Carga chunked: **no** se pinta SMC/FVG hasta feed completo; `request_render` del background solo al terminar (sin artefactos OB a medias).
 
 ---
 
@@ -152,5 +157,6 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 1. ~~Optimizar `MarketData` (TF en memoria, `add_candle` O(1), `$base_index`).~~ **hecho**
 2. ~~HLD 4h / HLD D (toggles) visibles en TF ≤ fuente, vectores prearmados.~~ **hecho**
 3. ~~Margen derecho Replay + zoom-out live estable.~~ **hecho**
-4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho** — siguiente: toggles SMC Pro (§5) + quitar EQH/EQL de Liquidez (§6).
-5. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
+4. ~~Toggles Structures+FVG (FVG vs BOS/CHoCH).~~ **hecho**
+5. ~~Toggles SMC Pro (BOS int/ext + EQH/EQL; pestaña SMC).~~ **hecho** — siguiente: quitar EQH/EQL de Liquidez (§6).
+6. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.

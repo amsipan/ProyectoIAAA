@@ -508,7 +508,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     like($src, qr/my \$zigzag_density_pct = 35;/, '0064: densidad ZigZag inicial baja');
     like($src, qr/qw\(GLOBAL BSL SSL EQH EQL SWEEP GRAB RUN\)/, '0065: selector incluye familias específicas Liq');
     like($src, qr/qw\(GLOBAL INTERNAL EXTERNAL CHANNEL\)/, '0065: selector incluye familias específicas ZigZag');
-    like($src, qr/for my \$name \(qw\(Capas SMC Liq ZigZag Estrategia Escala Replay\)\)/, '0013: UI sin pestaña Mxwll; SMC Pro + FVG');
+    like($src, qr/for my \$name \(qw\(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay\)\)/,
+         '§5: pestañas con SMC separada de Estructura (presupuesto 14")');
     like($src, qr/my \$overlay_button_text = sub \{ \$_\[0\] \? 'Ocultar' : 'Mostrar' \}/, '0066: botones contextuales alternan Mostrar/Ocultar');
     like($src, qr/\$overlay_button\{strategy\}/, '0066: Estrategia tiene boton Mostrar/Ocultar en su pestaña');
     like($src, qr/qw\(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER\)/, '0066: Estrategia expone subcapas tecnicas opcionales');
@@ -1119,6 +1120,36 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         Market::UI::Callbacks->make_replay_toggle_play($chart, $mw2, {});
     $mw->{binds}{'<Shift-Down>'}->();
     ok($rc->{playing}, '0052: Shift+Down via bind ventana arranca play');
+}
+
+# Feedback §5: UI SMC Pro — pestaña propia + toggles BOS/CHoCH + EQH/EQL (sin reset).
+{
+    open my $fh, '<', 'market.pl' or die "market.pl: $!";
+    my $src = do { local $/; <$fh> };
+    close $fh;
+    like( $src, qr/\$panel\{SMC\}/, '§5: panel SMC existe' );
+    like( $src, qr/-text\s*=>\s*'BOS\/CHoCH int'/, '§5: toggle BOS/CHoCH int en UI' );
+    like( $src, qr/-text\s*=>\s*'BOS\/CHoCH ext'/, '§5: toggle BOS/CHoCH ext en UI' );
+    like( $src, qr/-text\s*=>\s*'EQH\/EQL'/, '§5: toggle EQH/EQL en UI' );
+    like( $src, qr/\$ind->\{show_internal\}/, '§5: cablea show_internal' );
+    like( $src, qr/\$ind->\{show_swing\}/,    '§5: cablea show_swing' );
+    like( $src, qr/\$ind->\{show_eqhl\}/,     '§5: cablea show_eqhl' );
+    # Bloque apply_smc_labels: flags + request_render, sin reset/refeed (anti-flicker).
+    my ($lbl_body) = $src =~ /my \$apply_smc_labels = sub \{(.*?)\n    \};/s;
+    ok( defined $lbl_body, '§5: apply_smc_labels definido' );
+    like( $lbl_body // '', qr/request_render/, '§5: apply_smc_labels hace request_render' );
+    unlike( $lbl_body // '', qr/->reset\b/, '§5: apply_smc_labels NO hace reset (anti-flicker)' );
+    unlike( $lbl_body // '', qr/_smc_pro_fed_up_to/, '§5: apply_smc_labels NO toca _smc_pro_fed_up_to' );
+    my ($ob_body) = $src =~ /my \$apply_smc_ob = sub \{(.*?)\n    \};/s;
+    ok( defined $ob_body, '§5: apply_smc_ob definido' );
+    like( $ob_body // '', qr/request_render/, '§5: apply_smc_ob hace request_render' );
+    unlike( $ob_body // '', qr/->reset\b/, '§5: apply_smc_ob NO hace reset (anti-flicker)' );
+    unlike( $ob_body // '', qr/_smc_pro_fed_up_to/, '§5: apply_smc_ob NO toca _smc_pro_fed_up_to' );
+    unlike(
+        $src,
+        qr/HLD 4h en TF<=4h; HLD D en TF<=D/,
+        '§5: label largo HLD quitado (presupuesto ancho)'
+    );
 }
 
 done_testing();

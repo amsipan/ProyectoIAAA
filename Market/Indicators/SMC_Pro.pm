@@ -175,20 +175,15 @@ sub update_last {
     $self->_update_atr($index, $h, $l, $c);
     $self->_update_parsed($index, $h, $l);
 
-    # Structure pivots: swing then internal then EQ
+    # Structure pivots: swing then internal then EQ (EQ siempre; visibilidad en get_eqhl).
     $self->_get_current_structure($index, $self->{swing_length}, 0, 0);
     $self->_get_current_structure($index, $self->{internal_size}, 0, 1);
-    if ($self->{show_eqhl}) {
-        $self->_get_current_structure($index, $self->{eqhl_size}, 1, 0);
-    }
+    $self->_get_current_structure($index, $self->{eqhl_size}, 1, 0);
 
-    # Detect BOS/CHoCH + store OBs
-    if ($self->{show_internal} || $self->{show_internal_ob}) {
-        $self->_display_structure($index, 1);
-    }
-    if ($self->{show_swing} || $self->{show_swing_ob} || $self->{show_strong_weak}) {
-        $self->_display_structure($index, 0);
-    }
+    # Detect BOS/CHoCH siempre (store en _events); OB gated dentro de _display_structure.
+    # Visibilidad BOS/CHoCH: get_events filtra show_internal / show_swing (sin reset UI).
+    $self->_display_structure($index, 1);
+    $self->_display_structure($index, 0);
 
     # Mitigate OBs
     $self->_mitigate_order_blocks($index);
@@ -440,8 +435,6 @@ sub _display_structure {
     my $lo = $internal ? $self->{_in_lo} : $self->{_sw_lo};
     my $trend_key = $internal ? '_in_trend' : '_sw_trend';
     my $scope = $internal ? 'internal' : 'swing';
-    my $show = $internal ? $self->{show_internal} : $self->{show_swing};
-    my $show_ob = $internal ? $self->{show_internal_ob} : $self->{show_swing_ob};
 
     # Pine displayStructure: internal solo si nivel != swing (extraBull/extraBear).
     # Confluence filter del profe = OFF → bullishBar/bearishBar siempre true.
@@ -469,20 +462,17 @@ sub _display_structure {
             my $tag  = ($bias == BEARISH) ? 'CHoCH' : 'BOS';
             $hi->{crossed} = 1;
             $self->{$trend_key} = BULLISH;
-            if ($show) {
-                $self->_push_line_item('_events', {
-                    index       => $end_i,
-                    type        => $tag,
-                    dir         => 'up',
-                    price       => $hi->{level},
-                    start_index => $pivot_bar,
-                    scope       => $scope,
-                    true        => 1,
-                });
-            }
-            if ($show_ob) {
-                $self->_store_order_block($end_i, $hi, BULLISH, $internal);
-            }
+            # Siempre guardar evento y OB; show_* filtran en getters (anti-flicker UI).
+            $self->_push_line_item('_events', {
+                index       => $end_i,
+                type        => $tag,
+                dir         => 'up',
+                price       => $hi->{level},
+                start_index => $pivot_bar,
+                scope       => $scope,
+                true        => 1,
+            });
+            $self->_store_order_block($end_i, $hi, BULLISH, $internal);
         }
     }
 
@@ -499,29 +489,23 @@ sub _display_structure {
             my $tag  = ($bias == BULLISH) ? 'CHoCH' : 'BOS';
             $lo->{crossed} = 1;
             $self->{$trend_key} = BEARISH;
-            if ($show) {
-                $self->_push_line_item('_events', {
-                    index       => $end_i,
-                    type        => $tag,
-                    dir         => 'down',
-                    price       => $lo->{level},
-                    start_index => $pivot_bar,
-                    scope       => $scope,
-                    true        => 1,
-                });
-            }
-            if ($show_ob) {
-                $self->_store_order_block($end_i, $lo, BEARISH, $internal);
-            }
+            $self->_push_line_item('_events', {
+                index       => $end_i,
+                type        => $tag,
+                dir         => 'down',
+                price       => $lo->{level},
+                start_index => $pivot_bar,
+                scope       => $scope,
+                true        => 1,
+            });
+            $self->_store_order_block($end_i, $lo, BEARISH, $internal);
         }
     }
 }
 
 sub _store_order_block {
     my ($self, $i, $pivot, $bias, $internal) = @_;
-    # Captura: flags show_*_ob controlan creación; UI puede togglear con refeed.
-    return if $internal && !$self->{show_internal_ob};
-    return if !$internal && !$self->{show_swing_ob};
+    # Siempre almacenar; show_internal_ob / show_swing_ob filtran en get_order_blocks.
 
     my $from = $pivot->{bar};
     return unless defined $from && defined $i;
@@ -748,12 +732,20 @@ sub get_pivots {
 
 sub get_events {
     my ($self) = @_;
-    # Historical: all; Present would keep last only — captura Historical
-    return [ @{ $self->{_events} } ];
+    # Filtrar por flags (como get_order_blocks): UI puede ocultar sin perder estado
+    # hasta el próximo reset+refeed. Historical: todos los que pasen el flag.
+    return [
+        grep {
+            my $scope = $_->{scope} // '';
+            ( $scope eq 'internal' && $self->{show_internal} )
+              || ( $scope eq 'swing' && $self->{show_swing} )
+        } @{ $self->{_events} }
+    ];
 }
 
 sub get_eqhl {
     my ($self) = @_;
+    return [] unless $self->{show_eqhl};
     return [ @{ $self->{_eqhl} } ];
 }
 
