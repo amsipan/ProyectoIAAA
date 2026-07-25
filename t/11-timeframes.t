@@ -57,13 +57,17 @@ sub build_synthetic_1m {
 my $md = Market::MarketData->new();
 my @candles = build_synthetic_1m();
 $md->add_candle($_) for @candles;
-$md->build_timeframes();
 
-# Verificar tamaño 1m
-is($md->{data}->{'1m'}->@*, 180, '1m size = 180 velas');
+# Precarga incremental: HTF listos SIN rebuild manual
+is($md->{data}{'1m'}->@*, 180, '1m size = 180 velas');
+ok( @{ $md->{data}{'5m'}  || [] } > 0, '5m precargado tras add_candle' );
+ok( @{ $md->{data}{'15m'} || [] } > 0, '15m precargado tras add_candle' );
+ok( @{ $md->{data}{'1h'}  || [] } > 0, '1h precargado tras add_candle' );
+is( scalar @{ $md->{data}{'1h'} }, 3, '1h size = 3 sin build_timeframes' );
 
-# Cambiar a 1h y verificar
+my $n_1h_before = scalar @{ $md->{data}{'1h'} };
 $md->set_timeframe('1h');
+is( scalar @{ $md->{data}{'1h'} }, $n_1h_before, 'set_timeframe no reconstruye 1h' );
 my $h1_size = $md->size();
 is($h1_size, 3, '1h size = 3 velas (2 horas del 06 + 1 hora del 07)');
 
@@ -80,12 +84,17 @@ is($h1_candle->[2], 695,  '1h[0] High = max de sub-velas (695)');
 is($h1_candle->[3], 95,   '1h[0] Low = min de sub-velas (95)');
 is($h1_candle->[4], 692,  '1h[0] Close = última sub-vela close (692)');
 is($h1_candle->[5], 1830, '1h[0] Vol = suma de sub-velas (1830)');
+ok( defined $h1_candle->[6], '1h[0] tiene base_index' );
+is( $h1_candle->[6], 59, '1h[0] base_index = última 1m del bucket (59)' );
+cmp_ok( $h1_candle->[6], '>=', 0, 'base_index >= 0' );
+cmp_ok( $h1_candle->[6], '<', 180, 'base_index < size base' );
 
 # Segunda vela 1h (01:00-01:59 del 06)
 my $h1_candle2 = $md->get_candle(1);
 is($h1_candle2->[0], '2026-04-06T01:00:00-05:00', '1h[1] bucket = 01:00');
 is($h1_candle2->[1], 700,  '1h[1] Open = 700');
 is($h1_candle2->[5], 5430, '1h[1] Vol = suma(61..120) = 7260-1830 = 5430');
+is( $h1_candle2->[6], 119, '1h[1] base_index = 119' );
 
 # ===========================================================================
 # Test 2: size('D') ~= días de trading con datos, size('W') ~= semanas.

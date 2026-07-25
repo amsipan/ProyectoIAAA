@@ -62,48 +62,52 @@ sub new {
 sub update_last {
     my ($self, $market_data, $index) = @_;
     # O(1) por vela: solo lee una vela y actualiza estado incremental (Wilder).
-    # No itera el historial ni toca render/coordenadas (Req. 13.1, 13.2).
     my $candle = defined $index ? $market_data->get_candle($index) : $market_data->last_candle();
     return unless $candle;
+    return $self->update_ohlc( $candle->[2], $candle->[3], $candle->[4] );
+}
 
-    my $high  = $candle->[2];
-    my $low   = $candle->[3];
-    my $close = $candle->[4];
+# update_ohlc($high, $low, $close) — mismo Wilder O(1) sin depender de MarketData.
+# Permite construir ATR de un TF en background sin mutar active_tf.
+sub update_ohlc {
+    my ( $self, $high, $low, $close ) = @_;
+    return unless defined $high && defined $low && defined $close;
 
     my $tr;
-    if (defined $self->{_last_close}) {
+    if ( defined $self->{_last_close} ) {
         my $prev_close = $self->{_last_close};
-        my $hl  = $high - $low;
-        my $hpc = abs($high - $prev_close);
-        my $lpc = abs($low  - $prev_close);
+        my $hl         = $high - $low;
+        my $hpc        = abs( $high - $prev_close );
+        my $lpc        = abs( $low - $prev_close );
         $tr = $hl;
         $tr = $hpc if $hpc > $tr;
         $tr = $lpc if $lpc > $tr;
-    } else {
+    }
+    else {
         $tr = $high - $low;
     }
 
     $self->{_count}++;
     my $period = $self->{period};
 
-    if ($self->{_count} < $period) {
+    if ( $self->{_count} < $period ) {
         $self->{_tr_sum} += $tr;
         push @{ $self->{values} }, undef;
     }
-    elsif ($self->{_count} == $period) {
+    elsif ( $self->{_count} == $period ) {
         $self->{_tr_sum} += $tr;
         my $atr = $self->{_tr_sum} / $period;
         $self->{_last_atr} = $atr;
         push @{ $self->{values} }, $atr;
     }
     else {
-        my $atr = ($self->{_last_atr} * ($period - 1) + $tr) / $period;
+        my $atr = ( $self->{_last_atr} * ( $period - 1 ) + $tr ) / $period;
         $self->{_last_atr} = $atr;
         push @{ $self->{values} }, $atr;
     }
 
     $self->{_last_close} = $close;
-    return;
+    return $self;
 }
 
 sub get_values {
@@ -111,10 +115,36 @@ sub get_values {
     return $self->{values};
 }
 
+# export_state / import_state — cache por temporalidad (switch TF O(1) si hay hit).
+sub export_state {
+    my ($self) = @_;
+    return {
+        period      => $self->{period},
+        values      => [ @{ $self->{values} || [] } ],
+        _tr_sum     => $self->{_tr_sum},
+        _last_close => $self->{_last_close},
+        _last_atr   => $self->{_last_atr},
+        _count      => $self->{_count},
+    };
+}
+
+sub import_state {
+    my ( $self, $st ) = @_;
+    return $self unless $st && ref($st) eq 'HASH';
+    if ( defined $st->{period} && $st->{period} != $self->{period} ) {
+        return $self;
+    }
+    $self->{values}      = [ @{ $st->{values} || [] } ];
+    $self->{_tr_sum}     = $st->{_tr_sum} // 0;
+    $self->{_last_close} = $st->{_last_close};
+    $self->{_last_atr}   = $st->{_last_atr};
+    $self->{_count}      = $st->{_count} // 0;
+    return $self;
+}
+
 sub reset {
     my ($self) = @_;
-    # Reinicia el estado incremental. Lo invoca IndicatorManager::reset_all al
-    # cambiar de timeframe; tras esto se recalcula vela por vela (Req. 13.4).
+    # Reinicia el estado incremental.
     $self->{values}      = [];
     $self->{_tr_sum}     = 0;
     $self->{_last_close} = undef;

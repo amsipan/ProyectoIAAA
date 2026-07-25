@@ -10,7 +10,7 @@
 | Chart OHLC + TF + Replay + Escala + ATR | Optimizar precarga TF (`MarketData`) según feedback §1 |
 | SMC Pro | Añadir toggles BOS/CHoCH int/ext y EQH/EQL (feedback §5) |
 | Structures + FVG | Toggle FVG independiente del BOS/CHoCH interno (feedback §4) |
-| HLD (4h/D) | Debe verse también en TF inferiores (feedback §2) |
+| HLD 4h / HLD D | MTF: R/S desde vectores 4h|D; visible si chart TF ≤ fuente (feedback §2) |
 | Parallel Channel / Trendline manual | Mediana punteada en canal (feedback §10) |
 | Trendline auto / Canal auto | Pestaña Auto |
 | ZigZag ext + int + Fib | — |

@@ -36,6 +36,11 @@ La función HLD del menú Estructura **no plotea** en gráficas de baja temporal
 1. Primero: optimizaciones de `MarketData` (§1).
 2. Luego: mostrar HLD en TF iguales o inferiores, consultando los vectores de TF ya armados en memoria (cálculo barato).
 
+**Implementación (rama `feature/hld-mtf-toggles`)**
+- Dos toggles independientes: **HLD 4h** y **HLD D**.
+- Regla por fuente: HLD 4h si chart ≤ 4h; HLD D si chart ≤ D (en W no plotea).
+- Cálculo sobre `$md->{data}{4h|D}` sin mutar `active_tf` del gráfico.
+
 ---
 
 ## 3. Replay — margen derecho
@@ -123,7 +128,7 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 ## Orden de trabajo sugerido (por dependencias del propio feedback)
 
 1. Optimizar `MarketData` (TF en memoria, `add_candle` O(1), `$base_index`).
-2. HLD visible en TF ≤ 4h/D usando vectores prearmados.
+2. HLD 4h / HLD D (toggles) visibles en TF ≤ fuente, vectores prearmados.
 3. Margen derecho Replay (última vela completa).
 4. Toggles SMC Pro / Structures+FVG; quitar EQH/EQL de Liquidez.
 5. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.

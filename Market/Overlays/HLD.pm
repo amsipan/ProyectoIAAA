@@ -2,26 +2,40 @@ package Market::Overlays::HLD;
 use strict;
 use warnings;
 
-# Overlay HLD: resistencia (high) + soporte (low) de la vela HTF elegida.
-# Etiquetas: chip a la DERECHA de cada línea, misma altura Y que la línea
-# (así se ve qué etiqueta corresponde a qué trazo).
+# Overlay HLD MTF: R/S de vela fuente 4h|D, dibujable en chart TF ≤ fuente.
+# Etiquetas: chip a la derecha de cada línea.
 
 sub new {
     my ( $class, %args ) = @_;
     die "Overlays::HLD: requiere 'indicator'" unless $args{indicator};
+    my $source_tf = $args{source_tf} // '4h';
+    die "Overlays::HLD: source_tf debe ser 4h|D"
+      unless $source_tf eq '4h' || $source_tf eq 'D';
+
+    my $label_prefix = $args{label_prefix}
+      // ( $source_tf eq 'D' ? 'HLD D' : 'HLD 4h' );
+
     my $self = {
-        indicator => $args{indicator},
-        theme     => $args{theme} || {},
-        visible   => exists $args{visible} ? ( $args{visible} ? 1 : 0 ) : 0,
-        _result   => undef,
-        _range    => [ 0, 0 ],
-        _md       => undef,
+        indicator     => $args{indicator},
+        source_tf     => $source_tf,
+        label_prefix  => $label_prefix,
+        theme         => $args{theme} || {},
+        visible       => exists $args{visible} ? ( $args{visible} ? 1 : 0 ) : 0,
+        _result       => undef,
+        _range        => [ 0, 0 ],
+        _md           => undef,
     };
     bless $self, $class;
     return $self;
 }
 
-sub tag { 'ov_hld' }
+sub tag {
+    my ($self) = @_;
+    my $src = $self->{source_tf} // '4h';
+    return $src eq 'D' ? 'ov_hld_d' : 'ov_hld_4h';
+}
+
+sub source_tf { $_[0]->{source_tf} }
 
 sub set_visible {
     my ( $self, $bool ) = @_;
@@ -38,10 +52,17 @@ sub compute_visible {
     $self->{_md}     = $market_data;
     return $self unless $self->{visible} && $market_data;
 
-    my $ind = $indicator // $self->{indicator};
-    my $tf  = $market_data->{active_tf} // '';
-    unless ( $tf eq '4h' || $tf eq 'D' ) {
-        $self->{_result} = { ok => 0, reason => 'wrong_tf', tf => $tf };
+    my $ind       = $indicator // $self->{indicator};
+    my $source_tf = $self->{source_tf};
+    my $chart_tf  = $market_data->{active_tf} // '';
+
+    unless ( $ind->chart_tf_allowed( $chart_tf, $source_tf ) ) {
+        $self->{_result} = {
+            ok        => 0,
+            reason    => 'chart_tf_too_high',
+            tf        => $chart_tf,
+            source_tf => $source_tf,
+        };
         return $self;
     }
 
@@ -55,8 +76,9 @@ sub compute_visible {
 
     $self->{_result} = $ind->compute(
         $market_data,
-        tf        => $tf,
-        end_index => $end_i,
+        source_tf       => $source_tf,
+        chart_tf        => $chart_tf,
+        chart_end_index => $end_i,
     );
     return $self;
 }
@@ -78,6 +100,7 @@ sub draw {
 
     my $tag       = $self->tag();
     my $win_start = ( $self->{_range} || [0] )->[0] // 0;
+    my $prefix    = $self->{label_prefix} // 'HLD';
 
     my $res_c  = $self->{theme}{hld_resistance} // '#c2185b';
     my $sup_c  = $self->{theme}{hld_support}    // '#1565c0';
@@ -95,14 +118,14 @@ sub draw {
         return $scales->value_to_y($p);
     };
 
-    my $i1 = $r->{anchor_index};
-    my $i2 = $r->{end_index};
-    $i2 = $i1 + 1 if !defined $i2 || $i2 <= $i1;
+    my $i1 = $r->{chart_anchor_index} // $r->{anchor_index};
+    my $i2 = $r->{chart_end_index} // $r->{end_index};
+    $i2 = $i1 + 1 if !defined $i2 || ( defined $i1 && $i2 <= $i1 );
+    $i1 = $win_start if !defined $i1;
 
     my $x1 = $x_of->($i1);
     my $x2 = $x_of->($i2);
 
-    # Líneas
     my $y_r = $y_of->( $r->{resistance} );
     eval {
         $canvas->createLine(
@@ -114,9 +137,9 @@ sub draw {
         1;
     };
 
-    my @labels;    # { text, price, y_nat } y_nat = altura natural de la línea
+    my @labels;
     push @labels,
-      { text => 'HLD R', price => $r->{resistance}, y_nat => $y_r };
+      { text => "$prefix R", price => $r->{resistance}, y_nat => $y_r };
 
     if ( $r->{show_nearest} && $r->{nearest_ohlc} ) {
         my $nv = $r->{nearest_ohlc}{value};
@@ -137,7 +160,7 @@ sub draw {
                 1;
             };
             push @labels,
-              { text => "HLD $nf", price => $nv, y_nat => $y_n };
+              { text => "$prefix $nf", price => $nv, y_nat => $y_n };
         }
     }
 
@@ -151,21 +174,18 @@ sub draw {
         );
         1;
     };
-    push @labels, { text => 'HLD S', price => $r->{support}, y_nat => $y_s };
+    push @labels,
+      { text => "$prefix S", price => $r->{support}, y_nat => $y_s };
 
-    # Etiquetas a la DERECHA, misma altura que su línea
-    # Si se solapan: ordenar por Y de pantalla (arriba→abajo) y empujar SOLO
-    # hacia abajo a las de más abajo, sin invertir el orden (evita HLD S
-    # encima de HLD close cuando la línea S está debajo).
     my $th      = 14;
     my $min_gap = $th + 6;
-    @labels = sort { $a->{y_nat} <=> $b->{y_nat} } @labels;    # top first
+    @labels = sort { $a->{y_nat} <=> $b->{y_nat} } @labels;
 
     my $prev_y;
     for my $lb (@labels) {
         my $y = $lb->{y_nat};
         if ( defined $prev_y && $y < $prev_y + $min_gap ) {
-            $y = $prev_y + $min_gap;    # solo empuja hacia abajo
+            $y = $prev_y + $min_gap;
         }
         $lb->{y_draw} = $y;
         $prev_y = $y;
