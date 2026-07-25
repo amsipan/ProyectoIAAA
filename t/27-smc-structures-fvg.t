@@ -280,8 +280,8 @@ use Market::Overlays::Base;
         color_role => 'bos_bull',
     };
     my $ov = Market::Overlays::SMC_Structures_FVG->new( indicator => $ind, visible => 1 );
-    ok( $ov->show_fvg,       'default show_fvg ON' );
-    ok( $ov->show_structure, 'default show_structure ON' );
+    ok( $ov->show_fvg,        'default show_fvg ON' );
+    ok( !$ov->show_structure, 'default show_structure OFF (anti-solape SMC Pro)' );
 
     $ov->compute_visible( undef, $ind, 0, 9 );
     my $scales = MockScalesFVG->new( plot_width => 400, bars => 10 );

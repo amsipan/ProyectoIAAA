@@ -76,11 +76,12 @@ Replay se ve bien implementado.
 - Botón propio (estilo habilitado/deshabilitado, como el resto de checks) para **independizar** FVG del etiquetado BOS/CHoCH interno de ese indicador.
 - Poder ver BOS/CHoCH de **SMC Pro** junto con **FVGs**, sin solape de etiquetas Structures+FVG.
 
-**Implementación (`feature/smc-fvg-toggle-independiente`)**
+**Implementación (`feature/smc-fvg-toggle-independiente` → `main`)**
 - Capa maestra **SMC Structures+FVG** + sub-toggles **FVG** y **BOS/CHoCH** (mismo patrón que OB int/ext).
 - Overlay `show_fvg` / `show_structure` controlan qué se dibuja sin re-feed.
+- Default al activar: **FVG ON**, **BOS/CHoCH OFF** (anti-solape con SMC Pro).
 
-**Estado:** en curso.
+**Estado:** hecho (2026-07-24).
 
 ---
 

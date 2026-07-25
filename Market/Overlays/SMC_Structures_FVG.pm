@@ -17,9 +17,10 @@ sub new {
         visible         => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
         # Independientes (feedback profe §4): FVG vs etiquetas BOS/CHoCH.
         show_fvg        => exists $args{show_fvg} ? ( $args{show_fvg} ? 1 : 0 ) : 1,
+        # OFF por defecto: evita solape con BOS/CHoCH de SMC Pro (feedback §4).
         show_structure  => exists $args{show_structure}
           ? ( $args{show_structure} ? 1 : 0 )
-          : 1,
+          : 0,
         _events         => [],
         _fvgs           => [],
         _compute_range  => undef,

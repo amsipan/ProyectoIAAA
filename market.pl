@@ -531,8 +531,8 @@ if ($ENV{MARKET_RELOAD}) {
         -command => sub { $set_overlay_visible->('smc_pro', $vis_smc_pro ? 1 : 0); })->pack(-side => 'left');
 
     # Structures+FVG: capa maestra + FVG / BOS-CHoCH independientes (feedback §4).
-    my $smc_fvg_show_fvg   = 1;
-    my $smc_fvg_show_struct = 1;
+    my $smc_fvg_show_fvg    = 1;
+    my $smc_fvg_show_struct = 0;    # OFF por defecto (anti-solape con SMC Pro)
     my $apply_smc_fvg_parts = sub {
         my $ov = $chart_engine->{smc_fvg_overlay};
         return unless $ov;
@@ -559,6 +559,7 @@ if ($ENV{MARKET_RELOAD}) {
         -variable => \$smc_fvg_show_struct,
         -command  => $apply_smc_fvg_parts,
     )->pack( -side => 'left' );
+    $apply_smc_fvg_parts->();    # sincronizar defaults UI → overlay al arrancar
 
     $box->Checkbutton(-text => 'HLD 4h', -variable => \$vis_hld_4h,
         -command => sub { $set_overlay_visible->('hld_4h', $vis_hld_4h ? 1 : 0); })->pack(-side => 'left');
