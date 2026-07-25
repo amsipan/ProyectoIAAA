@@ -79,9 +79,14 @@ print "[*]   base_tf : $base_tf\n";
 print "[*]   velas   : $n_file\n";
 print "[*]   first   : ", ($ts_first // '?'), "\n";
 print "[*]   last    : ", ($ts_last  // '?'), "\n";
-$market_data->build_timeframes();  # lazy no-op; eager=>1 solo si se necesita todo
+$market_data->build_timeframes(eager => 1);
 $market_data->set_timeframe($base_tf);
-print "[*] Velas en memoria ($base_tf): ", $market_data->size(), " (TF altos se construyen al usarlos)\n";
+print "[*] Velas en memoria ($base_tf): ", $market_data->size(), "\n";
+for my $tf (qw(5m 15m 1h 2h 4h D W)) {
+    next if $tf eq $base_tf;
+    my $n = scalar @{ $market_data->{data}{$tf} || [] };
+    print "[*]   TF $tf precargado: $n velas\n" if $n > 0;
+}
 print "[*] Calculando ATR $base_tf...\n";
 for (my $i = 0; $i < $market_data->size(); $i++) {
     $indicator_manager->update_last($market_data, $i);   # ATR es O(1)/vela

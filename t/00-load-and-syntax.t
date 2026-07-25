@@ -63,7 +63,8 @@ for my $file (@syntax_files) {
 # Liquidity v2 es oficial; el resto del legacy sigue fuera del árbol.
 ok( -f 'Market/Indicators/Liquidity.pm', 'Liquidity v2 indicator presente' );
 ok( -f 'Market/Overlays/Liquidity.pm',   'Liquidity v2 overlay presente' );
-ok( -f 'docs/LIQUIDITY_V2.md',           'spec LIQUIDITY_V2.md' );
+ok( -f 'docs/FEEDBACK_PROFESOR_REVISION_2026-07-24.md',
+    'feedback profesor vigente presente' );
 
 # Fase 2 §7/§8: Volume Profile (AVP) y Anchored VWAP (AVWAP) ya son oficiales.
 ok( -f 'Market/Indicators/VolumeProfile.pm', 'AVP indicator presente' );
@@ -85,6 +86,6 @@ for my $f (qw(
 ok( !-d 'legacy', 'carpeta legacy/ no está en el repo' );
 ok( !-d 't/legacy', 'carpeta t/legacy/ no está en el repo' );
 ok( -f 'docs/PRODUCTO_OFICIAL.md', 'existe PRODUCTO_OFICIAL.md' );
-ok( -f 'docs/LEGACY.md', 'existe LEGACY.md (apunta fuera del repo)' );
+ok( -f 'docs/CONSTITUTION.md', 'existe CONSTITUTION.md' );
 
 done_testing;
