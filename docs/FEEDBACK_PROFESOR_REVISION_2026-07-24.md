@@ -52,6 +52,11 @@ Replay se ve bien implementado.
 - Hoy, al llegar al margen, casi la mitad de la vela queda detrás del eje de precios.
 - Debe verse la última vela completa **más** el mismo espacio en blanco que ya separa una vela de otra.
 
+**Implementación (`feature/replay-right-margin`)**
+- Solo con Replay activo: padding px (`_replay_plot_right_margin_px`) = cuerpo completo + inter-vela `0.4*bar_w` (cualquier TF).
+- En Play, al auto-scroll del head al borde: mínimo 1 slot vacío a la derecha.
+- Live (sin Replay) sin cambio (`right_margin = 0`).
+
 ---
 
 ## 4. SMC Structures+FVG — toggle independiente de FVG
@@ -129,6 +134,6 @@ Poner una **línea punteada en el medio** del canal, como en TradingView.
 
 1. Optimizar `MarketData` (TF en memoria, `add_candle` O(1), `$base_index`).
 2. HLD 4h / HLD D (toggles) visibles en TF ≤ fuente, vectores prearmados.
-3. Margen derecho Replay (última vela completa).
+3. Margen derecho Replay (última vela completa + inter-vela; solo Replay).
 4. Toggles SMC Pro / Structures+FVG; quitar EQH/EQL de Liquidez.
 5. Anclas AVP/AVWAP + colores/estilos AVWAP auto + mediana canal paralelo.
