@@ -63,6 +63,12 @@ use Market::Indicators::SMC_Pro;
         'internal vuelve al reactivar flag' );
     is( scalar( grep { ( $_->{scope} // '' ) eq 'swing' } @$obs ), 0,
         'show_swing_ob=0 oculta swing' );
+
+    # Anti-flicker OB: apagar flag no borra _obs (solo el getter).
+    is( scalar( @{ $ind->{_obs} } ), 3, '_obs intacto tras hide OB (sin reset)' );
+    $ind->{show_swing_ob} = 1;
+    ok( scalar( grep { ( $_->{scope} // '' ) eq 'swing' && ( $_->{active} // 1 ) } @{ $ind->get_order_blocks() } ) >= 1,
+        'reactivar OB swing sin recalcular' );
 }
 
 # Mitigación gradual: achica la caja; solo borra al consumirse por completo.
@@ -140,6 +146,54 @@ use Market::Indicators::SMC_Pro;
     $obs = $ind->get_order_blocks();
     is( scalar(@$obs), 1, 'no mitiga en la vela de creación' );
     is( sprintf( '%.2f', $obs->[0]{hi} ), '50.00', 'hi intacto en created_at' );
+}
+
+# Feedback §5: get_events / get_eqhl respetan show_internal / show_swing / show_eqhl.
+{
+    my $ind = Market::Indicators::SMC_Pro->new();
+    ok( $ind->{show_internal}, 'default show_internal=1' );
+    ok( $ind->{show_swing},    'default show_swing=1' );
+    ok( $ind->{show_eqhl},     'default show_eqhl=1' );
+
+    $ind->{_events} = [
+        {
+            index => 10, type => 'BOS', dir => 'up', price => 100,
+            start_index => 5, scope => 'internal',
+        },
+        {
+            index => 20, type => 'CHoCH', dir => 'down', price => 90,
+            start_index => 15, scope => 'swing',
+        },
+    ];
+    $ind->{_eqhl} = [
+        { index => 12, type => 'EQH', price => 105, prev_index => 8, prev_price => 104.5 },
+        { index => 18, type => 'EQL', price => 88,  prev_index => 14, prev_price => 88.2 },
+    ];
+
+    my $ev = $ind->get_events();
+    is( scalar(@$ev), 2, 'ambos scopes BOS visibles con defaults ON' );
+    is( scalar( @{ $ind->get_eqhl() } ), 2, 'EQH/EQL visibles con show_eqhl=1' );
+
+    $ind->{show_internal} = 0;
+    $ev = $ind->get_events();
+    is( scalar(@$ev), 1, 'show_internal=0 oculta BOS int' );
+    is( $ev->[0]{scope}, 'swing', 'queda solo swing/externo' );
+
+    $ind->{show_swing} = 0;
+    $ev = $ind->get_events();
+    is( scalar(@$ev), 0, 'ambos BOS OFF → sin eventos' );
+
+    $ind->{show_internal} = 1;
+    $ind->{show_swing}    = 1;
+    $ind->{show_eqhl}     = 0;
+    is( scalar( @{ $ind->get_eqhl() } ), 0, 'show_eqhl=0 oculta EQH/EQL' );
+    is( scalar( @{ $ind->get_events() } ), 2, 'BOS no afectados por show_eqhl' );
+
+    # Anti-flicker: apagar flag no borra el almacén interno (solo el getter).
+    is( scalar( @{ $ind->{_events} } ), 2, '_events intacto tras hide (sin reset)' );
+    is( scalar( @{ $ind->{_eqhl} } ),   2, '_eqhl intacto tras show_eqhl=0' );
+    $ind->{show_eqhl} = 1;
+    is( scalar( @{ $ind->get_eqhl() } ), 2, 'reactivar EQH/EQL sin recalcular' );
 }
 
 done_testing();
