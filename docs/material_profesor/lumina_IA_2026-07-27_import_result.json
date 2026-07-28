@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "session_id": "2d01313877a5",
+  "job_id": "f90bb106b1ef",
+  "subject": "Inteligencia Artificial",
+  "title": "IA — Ultimas indicaciones del profe (modelos)",
+  "started": "2026-07-27T16:00:00",
+  "transcript_chars": 11021,
+  "transcript_path": "/srv/lumina-notes/imports/ia_2026-07-27/transcript.txt",
+  "notes_ok": true,
+  "notes_version": 1,
+  "notes_error": null,
+  "job_status": "done",
+  "url": "http://127.0.0.1:18777/#session/2d01313877a5"
+}

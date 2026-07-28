@@ -1,0 +1,14 @@
+# Generados: versionar solo lo necesario para demo oral / reentrenamiento
+*
+!.gitignore
+!fantasma_norm_stats.json
+!fantasma_train_norm.csv
+!fantasma_test_norm.csv
+!lstm_fantasma/
+!lstm_fantasma/**
+!lstm_fantasma_final/
+!lstm_fantasma_final/**
+!lstm_fantasma_v2/
+!lstm_fantasma_v2/**
+!lstm_fantasma_v2b/
+!lstm_fantasma_v2b/**

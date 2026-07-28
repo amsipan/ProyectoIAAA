@@ -1,0 +1,24 @@
+[*] MXNet OK — Fantasma LSTM (regresion MSE multi-salida)
+[*] train=Data/ml_out/fantasma_train_norm.csv
+[*] test=Data/ml_out/fantasma_test_norm.csv
+[*] stats=Data/ml_out/fantasma_norm_stats.json
+[*] out_dir=Data/ml_out/lstm_fantasma
+[*] seq_len=5 batch=64 hidden=32 layers=1 dropout=0.20 lr=0.01 epochs=1
+[*] Cargando train...
+[*] Cargando test...
+[*] load OK train_rows=7649 test_rows=2391 feats=86 targets=y3,y5,y10,y15 (4.3s)
+[*] secuencias train=7645 test=2387 (seq_len=5)
+[*] Convirtiendo a NDArray...
+[*] X_train_seq shape=7645x5x86 y_train_seq shape=7645x4
+[*] X_test_seq shape=2387x5x86 y_test_seq shape=2387x4
+[*] Cargando modelo Data/ml_out/lstm_fantasma/fantasma_lstm.params
+[*] Evaluando test julio...
+[*] === Metricas TEST (julio) ===
+[*] y3  MAE=0.8795  RMSE=1.0407  bin_acc(>=1)=0.6929  (n_pos=1545/2387)
+[*] y5  MAE=1.1943  RMSE=1.4416  bin_acc(>=1)=0.7507  (n_pos=1698/2387)
+[*] y10  MAE=1.7606  RMSE=2.1474  bin_acc(>=1)=0.8136  (n_pos=1879/2387)
+[*] y15  MAE=2.2330  RMSE=2.7223  bin_acc(>=1)=0.8349  (n_pos=1961/2387)
+[*] metrics=Data/ml_out/lstm_fantasma/metrics_test.json
+[*] preds=Data/ml_out/lstm_fantasma/preds_test.csv
+[*] config=Data/ml_out/lstm_fantasma/train_config.json
+[*] OK

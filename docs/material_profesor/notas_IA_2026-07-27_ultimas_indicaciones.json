@@ -1,0 +1,68 @@
+{
+  "title": "IA — Ultimas indicaciones del profe (modelos)",
+  "sections": [
+    {
+      "id": "introduccion",
+      "title": "Introducción a las últimas indicaciones del proyecto",
+      "summary": "El profesor proporciona indicaciones finales para el proyecto de modelos de Inteligencia Artificial.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "El profesor comenzó explicando que no se debe preocupar por el desequilibrio en la frecuencia de los eventos en el conjunto de datos, ya que el modelo LSTM puede manejar esto. Lo importante es asegurarse de que se estén tomando los datos de los lugares correctos para alimentar el modelo."
+        }
+      ]
+    },
+    {
+      "id": "metricas",
+      "title": "Métricas para evaluar el modelo",
+      "summary": "Se discuten las métricas adecuadas para evaluar el desempeño del modelo.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "El profesor mencionó que se pueden utilizar métricas de regresión para medir la cantidad de eventos que ocurren en un período de tiempo determinado (3, 5, 10, 15 minutos). También se puede binarizar la cuestión para medir si un evento ocurre o no en un período determinado, lo que permite calcular métricas de clasificación como precisión, exhaustividad y medida F."
+        }
+      ]
+    },
+    {
+      "id": "modelo-lstm",
+      "title": "Características del modelo LSTM",
+      "summary": "Se explican las características del modelo LSTM y cómo se aplica al proyecto.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "El modelo LSTM es sensible a la frecuencia de cada evento y puede aprender patrones en los datos. El profesor mencionó que se puede utilizar un tamaño de secuencia de 5 unidades hacia atrás para predecir la última unidad."
+        }
+      ]
+    },
+    {
+      "id": "indicadores-de-mercado",
+      "title": "Indicadores de mercado y su importancia",
+      "summary": "Se discuten los indicadores de mercado relevantes para el proyecto.",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "El profesor explicó que el indicador de perfil de volumen es importante para entender el comportamiento del mercado. Este indicador muestra la suma de volumen operado en un lapso de tiempo determinado y se puede desglosar en un histograma horizontal. El histograma horizontal proporciona información sobre dónde está el interés institucional y puede ayudar a predecir el movimiento del precio."
+        }
+      ]
+    },
+    {
+      "id": "tareas-y-entregables",
+      "title": "Tareas y entregables",
+      "summary": "Se establecen las tareas y entregables para el proyecto.",
+      "blocks": [
+        {
+          "type": "bullet",
+          "text": "Revisar y comprender las indicaciones del profesor para el proyecto."
+        },
+        {
+          "type": "bullet",
+          "text": "Aplicar las métricas adecuadas para evaluar el desempeño del modelo."
+        },
+        {
+          "type": "bullet",
+          "text": "Entregar el proyecto completo con los modelos y análisis correspondientes."
+        }
+      ]
+    }
+  ]
+}

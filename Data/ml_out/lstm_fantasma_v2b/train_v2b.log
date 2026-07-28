@@ -1,0 +1,59 @@
+[*] MXNet OK — Fantasma LSTM v2b (Opcion 4a: LSTM + Dense intermedia relu)
+[*] train=Data/ml_out/fantasma_train_norm.csv
+[*] test=Data/ml_out/fantasma_test_norm.csv
+[*] stats=Data/ml_out/fantasma_norm_stats.json
+[*] out_dir=Data/ml_out/lstm_fantasma_v2b
+[*] seq_len=5 max_epochs=25 patience=4 min_delta=0.0005 val_frac=0.15 seed=42
+[*] Cargando train...
+[*] Cargando test...
+[*] load OK train_rows=7649 test_rows=2391 feats=86 targets=y3,y5,y10,y15 (4.1s)
+[*] secuencias subtrain=6498 val=1143 test=2387 (seq_len=5)
+[*] Convirtiendo a NDArray...
+[*] X_subtrain_seq shape=6498x5x86  X_test_seq shape=2387x5x86
+[*] grid: 2 run(s), seleccion por menor val MAE promedio
+[*] === run d24: hidden=48 dense=24 dropout=0.20 lr=0.005 batch=32 ===
+[d24] epoch 01/25 train_L2=1.889256 val_MAE=1.5668 test_MAE=1.5025 (10.6s)
+[d24] epoch 02/25 train_L2=1.687582 val_MAE=1.5552 test_MAE=1.4957 (21.7s)
+[d24] epoch 03/25 train_L2=1.633390 val_MAE=1.6028 test_MAE=1.5496 (32.7s)
+[d24] epoch 04/25 train_L2=1.549647 val_MAE=1.5688 test_MAE=1.5214 (43.8s)
+[d24] epoch 05/25 train_L2=1.520230 val_MAE=1.5488 test_MAE=1.5091 (54.7s)
+[d24] epoch 06/25 train_L2=1.451569 val_MAE=1.5964 test_MAE=1.5337 (66.0s)
+[d24] epoch 07/25 train_L2=1.430410 val_MAE=1.5773 test_MAE=1.5403 (77.1s)
+[d24] epoch 08/25 train_L2=1.370954 val_MAE=1.5949 test_MAE=1.5449 (88.1s)
+[d24] epoch 09/25 train_L2=1.329599 val_MAE=1.6189 test_MAE=1.5798 (99.0s)
+[d24] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 5 val_MAE=1.5488)
+[d24] run OK best_epoch=5 best_val_MAE=1.5488 test_MAE@best=1.5091 (99.0s)
+[*] === run d32: hidden=48 dense=32 dropout=0.20 lr=0.005 batch=32 ===
+[d32] epoch 01/25 train_L2=1.890789 val_MAE=1.5505 test_MAE=1.5138 (10.9s)
+[d32] epoch 02/25 train_L2=1.674162 val_MAE=1.5478 test_MAE=1.5097 (21.8s)
+[d32] epoch 03/25 train_L2=1.619892 val_MAE=1.5646 test_MAE=1.4997 (32.8s)
+[d32] epoch 04/25 train_L2=1.561444 val_MAE=1.5467 test_MAE=1.4975 (43.8s)
+[d32] epoch 05/25 train_L2=1.516012 val_MAE=1.5749 test_MAE=1.5216 (54.9s)
+[d32] epoch 06/25 train_L2=1.462268 val_MAE=1.5589 test_MAE=1.5234 (65.9s)
+[d32] epoch 07/25 train_L2=1.410277 val_MAE=1.5572 test_MAE=1.5412 (76.8s)
+[d32] epoch 08/25 train_L2=1.348044 val_MAE=1.6322 test_MAE=1.5600 (87.7s)
+[d32] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 4 val_MAE=1.5467)
+[d32] run OK best_epoch=4 best_val_MAE=1.5467 test_MAE@best=1.4975 (87.7s)
+[*] === Resumen grid (ordenado por val MAE avg) ===
+[*] d32      h=48  dh=32  d=0.2 lr=0.005 b=32  epochs=08 best_ep=04 val_MAE=1.5467 test_MAE@best=1.4975  <-- ELEGIDO
+[*] d24      h=48  dh=24  d=0.2 lr=0.005 b=32  epochs=09 best_ep=05 val_MAE=1.5488 test_MAE@best=1.5091
+[*] grid total 186.8s
+[*] Mejor checkpoint: d32 -> Data/ml_out/lstm_fantasma_v2b/fantasma_lstm_v2b.params
+[*] Evaluando test julio (modelo final v2b)...
+[*] === Metricas TEST v2b (julio) ===
+[*] y3  MAE=0.8316  RMSE=1.0211  bin_acc(>=1)=0.5978  F1=0.8111  (TP/FP/TN/FN=1531/699/143/14)
+[*] y5  MAE=1.1678  RMSE=1.4333  bin_acc(>=1)=0.7537  F1=0.8517  (TP/FP/TN/FN=1686/575/114/12)
+[*] y10  MAE=1.7577  RMSE=2.1978  bin_acc(>=1)=0.8224  F1=0.8920  (TP/FP/TN/FN=1862/434/74/17)
+[*] y15  MAE=2.2328  RMSE=2.8362  bin_acc(>=1)=0.8442  F1=0.9109  (TP/FP/TN/FN=1948/368/58/13)
+[*] PROMEDIO  MAE=1.4975  RMSE=1.8721  F1=0.8664
+[*] config=Data/ml_out/lstm_fantasma_v2b/train_config_v2b.json
+[*] metrics=Data/ml_out/lstm_fantasma_v2b/metrics_test_v2b.json
+[*] preds=Data/ml_out/lstm_fantasma_v2b/preds_test_v2b.csv
+[*] === Comparacion vs v2 simple (test julio) ===
+[*] MAE avg:  v2=1.4886  v2b=1.4975  (delta +0.0089)
+[*] F1 avg:   v2=0.8657  v2b=0.8664  (delta +0.0007)
+[*] y3  MAE v2=0.8161 v2b=0.8316 | F1 v2=0.8121 v2b=0.8111
+[*] y5  MAE v2=1.1479 v2b=1.1678 | F1 v2=0.8511 v2b=0.8517
+[*] y10  MAE v2=1.7474 v2b=1.7577 | F1 v2=0.8935 v2b=0.8920
+[*] y15  MAE v2=2.2430 v2b=2.2328 | F1 v2=0.9061 v2b=0.9109
+[*] OK

@@ -1,0 +1,113 @@
+[*] MXNet OK — Fantasma LSTM v2 (early stop + val causal + dropout denso)
+[*] train=Data/ml_out/fantasma_train_norm.csv
+[*] test=Data/ml_out/fantasma_test_norm.csv
+[*] stats=Data/ml_out/fantasma_norm_stats.json
+[*] out_dir=Data/ml_out/lstm_fantasma_v2
+[*] seq_len=5 max_epochs=25 patience=4 min_delta=0.0005 val_frac=0.15 seed=42
+[*] Cargando train...
+[*] Cargando test...
+[*] load OK train_rows=7649 test_rows=2391 feats=86 targets=y3,y5,y10,y15 (4.1s)
+[*] secuencias subtrain=6498 val=1143 test=2387 (seq_len=5)
+[*] Convirtiendo a NDArray...
+[*] X_subtrain_seq shape=6498x5x86  X_test_seq shape=2387x5x86
+[*] grid: 8 run(s), seleccion por menor val MAE promedio
+[*] === run r01: hidden=32 dropout=0.20 lr=0.01 batch=64 ===
+[r01] epoch 01/25 train_L2=1.977543 val_MAE=1.5533 test_MAE=1.4984 (8.9s)
+[r01] epoch 02/25 train_L2=1.684100 val_MAE=1.5569 test_MAE=1.5454 (18.2s)
+[r01] epoch 03/25 train_L2=1.638456 val_MAE=1.5791 test_MAE=1.5556 (27.5s)
+[r01] epoch 04/25 train_L2=1.597432 val_MAE=1.5807 test_MAE=1.5552 (36.7s)
+[r01] epoch 05/25 train_L2=1.524967 val_MAE=1.5574 test_MAE=1.5372 (45.9s)
+[r01] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 1 val_MAE=1.5533)
+[r01] run OK best_epoch=1 best_val_MAE=1.5533 test_MAE@best=1.4984 (45.9s)
+[*] === run r02: hidden=16 dropout=0.20 lr=0.01 batch=64 ===
+[r02] epoch 01/25 train_L2=2.069591 val_MAE=1.5551 test_MAE=1.5127 (9.2s)
+[r02] epoch 02/25 train_L2=1.730248 val_MAE=1.5664 test_MAE=1.5034 (18.3s)
+[r02] epoch 03/25 train_L2=1.685844 val_MAE=1.5651 test_MAE=1.5056 (27.3s)
+[r02] epoch 04/25 train_L2=1.622184 val_MAE=1.5593 test_MAE=1.4965 (36.5s)
+[r02] epoch 05/25 train_L2=1.623256 val_MAE=1.5627 test_MAE=1.5023 (45.6s)
+[r02] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 1 val_MAE=1.5551)
+[r02] run OK best_epoch=1 best_val_MAE=1.5551 test_MAE@best=1.5127 (45.6s)
+[*] === run r03: hidden=48 dropout=0.30 lr=0.01 batch=64 ===
+[r03] epoch 01/25 train_L2=1.945509 val_MAE=1.5513 test_MAE=1.5046 (9.1s)
+[r03] epoch 02/25 train_L2=1.729750 val_MAE=1.5477 test_MAE=1.4839 (18.5s)
+[r03] epoch 03/25 train_L2=1.689679 val_MAE=1.5785 test_MAE=1.5389 (28.0s)
+[r03] epoch 04/25 train_L2=1.641975 val_MAE=1.5764 test_MAE=1.5418 (37.3s)
+[r03] epoch 05/25 train_L2=1.601653 val_MAE=1.5525 test_MAE=1.5433 (46.5s)
+[r03] epoch 06/25 train_L2=1.530245 val_MAE=1.5813 test_MAE=1.6432 (55.8s)
+[r03] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 2 val_MAE=1.5477)
+[r03] run OK best_epoch=2 best_val_MAE=1.5477 test_MAE@best=1.4839 (55.8s)
+[*] === run r04: hidden=32 dropout=0.30 lr=0.005 batch=64 ===
+[r04] epoch 01/25 train_L2=2.144403 val_MAE=1.5691 test_MAE=1.5174 (9.0s)
+[r04] epoch 02/25 train_L2=1.763391 val_MAE=1.5699 test_MAE=1.5187 (18.1s)
+[r04] epoch 03/25 train_L2=1.674094 val_MAE=1.5510 test_MAE=1.5041 (27.1s)
+[r04] epoch 04/25 train_L2=1.634660 val_MAE=1.5485 test_MAE=1.5208 (36.3s)
+[r04] epoch 05/25 train_L2=1.550321 val_MAE=1.5930 test_MAE=1.6037 (45.5s)
+[r04] epoch 06/25 train_L2=1.519155 val_MAE=1.5912 test_MAE=1.6167 (54.5s)
+[r04] epoch 07/25 train_L2=1.463904 val_MAE=1.6681 test_MAE=1.7134 (63.6s)
+[r04] epoch 08/25 train_L2=1.435496 val_MAE=1.6036 test_MAE=1.6248 (72.5s)
+[r04] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 4 val_MAE=1.5485)
+[r04] run OK best_epoch=4 best_val_MAE=1.5485 test_MAE@best=1.5208 (72.5s)
+[*] === run r05: hidden=16 dropout=0.30 lr=0.005 batch=64 ===
+[r05] epoch 01/25 train_L2=2.297662 val_MAE=1.5951 test_MAE=1.5666 (8.9s)
+[r05] epoch 02/25 train_L2=1.853906 val_MAE=1.5698 test_MAE=1.5255 (17.9s)
+[r05] epoch 03/25 train_L2=1.771648 val_MAE=1.5932 test_MAE=1.5180 (27.1s)
+[r05] epoch 04/25 train_L2=1.702231 val_MAE=1.5852 test_MAE=1.5263 (36.0s)
+[r05] epoch 05/25 train_L2=1.648396 val_MAE=1.6082 test_MAE=1.5515 (45.0s)
+[r05] epoch 06/25 train_L2=1.602859 val_MAE=1.5875 test_MAE=1.5228 (54.0s)
+[r05] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 2 val_MAE=1.5698)
+[r05] run OK best_epoch=2 best_val_MAE=1.5698 test_MAE@best=1.5255 (54.0s)
+[*] === run r06: hidden=48 dropout=0.20 lr=0.005 batch=32 ===
+[r06] epoch 01/25 train_L2=1.857264 val_MAE=1.5647 test_MAE=1.5054 (10.5s)
+[r06] epoch 02/25 train_L2=1.703440 val_MAE=1.5495 test_MAE=1.4815 (21.1s)
+[r06] epoch 03/25 train_L2=1.619757 val_MAE=1.5419 test_MAE=1.4886 (31.8s)
+[r06] epoch 04/25 train_L2=1.567964 val_MAE=1.5585 test_MAE=1.5264 (42.4s)
+[r06] epoch 05/25 train_L2=1.530489 val_MAE=1.5491 test_MAE=1.5804 (53.1s)
+[r06] epoch 06/25 train_L2=1.468478 val_MAE=1.5760 test_MAE=1.5930 (63.6s)
+[r06] epoch 07/25 train_L2=1.426126 val_MAE=1.5792 test_MAE=1.6234 (74.0s)
+[r06] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 3 val_MAE=1.5419)
+[r06] run OK best_epoch=3 best_val_MAE=1.5419 test_MAE@best=1.4886 (74.0s)
+[*] === run r07: hidden=32 dropout=0.10 lr=0.01 batch=32 ===
+[r07] epoch 01/25 train_L2=1.854291 val_MAE=1.5444 test_MAE=1.5101 (10.3s)
+[r07] epoch 02/25 train_L2=1.663202 val_MAE=1.5902 test_MAE=1.5479 (20.7s)
+[r07] epoch 03/25 train_L2=1.614490 val_MAE=1.5999 test_MAE=1.5506 (31.1s)
+[r07] epoch 04/25 train_L2=1.568277 val_MAE=1.5832 test_MAE=1.5331 (41.6s)
+[r07] epoch 05/25 train_L2=1.524035 val_MAE=1.5805 test_MAE=1.5556 (52.0s)
+[r07] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 1 val_MAE=1.5444)
+[r07] run OK best_epoch=1 best_val_MAE=1.5444 test_MAE@best=1.5101 (52.0s)
+[*] === run r08: hidden=16 dropout=0.10 lr=0.005 batch=64 ===
+[r08] epoch 01/25 train_L2=2.081484 val_MAE=1.5824 test_MAE=1.5665 (9.0s)
+[r08] epoch 02/25 train_L2=1.730856 val_MAE=1.5720 test_MAE=1.5273 (18.0s)
+[r08] epoch 03/25 train_L2=1.651099 val_MAE=1.6200 test_MAE=1.5601 (27.2s)
+[r08] epoch 04/25 train_L2=1.618947 val_MAE=1.5911 test_MAE=1.5151 (36.3s)
+[r08] epoch 05/25 train_L2=1.574009 val_MAE=1.6189 test_MAE=1.5479 (45.5s)
+[r08] epoch 06/25 train_L2=1.537345 val_MAE=1.6201 test_MAE=1.5498 (54.6s)
+[r08] early stop: 4 epochs sin mejora >= 0.0005 (best epoch 2 val_MAE=1.5720)
+[r08] run OK best_epoch=2 best_val_MAE=1.5720 test_MAE@best=1.5273 (54.6s)
+[*] === Resumen grid (ordenado por val MAE avg) ===
+[*] r06      h=48  d=0.2 lr=0.005 b=32  epochs=07 best_ep=03 val_MAE=1.5419 test_MAE@best=1.4886  <-- ELEGIDO
+[*] r07      h=32  d=0.1 lr=0.01  b=32  epochs=05 best_ep=01 val_MAE=1.5444 test_MAE@best=1.5101
+[*] r03      h=48  d=0.3 lr=0.01  b=64  epochs=06 best_ep=02 val_MAE=1.5477 test_MAE@best=1.4839
+[*] r04      h=32  d=0.3 lr=0.005 b=64  epochs=08 best_ep=04 val_MAE=1.5485 test_MAE@best=1.5208
+[*] r01      h=32  d=0.2 lr=0.01  b=64  epochs=05 best_ep=01 val_MAE=1.5533 test_MAE@best=1.4984
+[*] r02      h=16  d=0.2 lr=0.01  b=64  epochs=05 best_ep=01 val_MAE=1.5551 test_MAE@best=1.5127
+[*] r05      h=16  d=0.3 lr=0.005 b=64  epochs=06 best_ep=02 val_MAE=1.5698 test_MAE@best=1.5255
+[*] r08      h=16  d=0.1 lr=0.005 b=64  epochs=06 best_ep=02 val_MAE=1.5720 test_MAE@best=1.5273
+[*] grid total 454.4s
+[*] Mejor checkpoint: r06 -> Data/ml_out/lstm_fantasma_v2/fantasma_lstm_v2.params
+[*] Evaluando test julio (modelo final v2)...
+[*] === Metricas TEST v2 (julio) ===
+[*] y3  MAE=0.8161  RMSE=1.0114  bin_acc(>=1)=0.5894  F1=0.8121  (TP/FP/TN/FN=1513/668/174/32)
+[*] y5  MAE=1.1479  RMSE=1.4127  bin_acc(>=1)=0.7520  F1=0.8511  (TP/FP/TN/FN=1675/563/126/23)
+[*] y10  MAE=1.7474  RMSE=2.1511  bin_acc(>=1)=0.8157  F1=0.8935  (TP/FP/TN/FN=1862/427/81/17)
+[*] y15  MAE=2.2430  RMSE=2.7682  bin_acc(>=1)=0.8395  F1=0.9061  (TP/FP/TN/FN=1939/380/46/22)
+[*] PROMEDIO  MAE=1.4886  RMSE=1.8359  F1=0.8657
+[*] config=Data/ml_out/lstm_fantasma_v2/train_config_v2.json
+[*] metrics=Data/ml_out/lstm_fantasma_v2/metrics_test_v2.json
+[*] preds=Data/ml_out/lstm_fantasma_v2/preds_test_v2.csv
+[*] === Comparacion vs v1 (test julio) ===
+[*] MAE avg:  v1=1.7943  v2=1.4886  (delta -0.3057)
+[*] y3  MAE v1=0.9091 v2=0.8161 | RMSE v1=1.1430 v2=1.0114
+[*] y5  MAE v1=1.3106 v2=1.1479 | RMSE v1=1.6686 v2=1.4127
+[*] y10  MAE v1=2.1489 v2=1.7474 | RMSE v1=2.7528 v2=2.1511
+[*] y15  MAE v1=2.8087 v2=2.2430 | RMSE v1=3.5809 v2=2.7682
+[*] OK

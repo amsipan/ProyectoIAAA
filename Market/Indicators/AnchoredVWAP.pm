@@ -88,24 +88,9 @@ sub set_anchor {
     $idx = int($idx);
     $idx = 0 if $idx < 0;
 
-    if ($self->{_market_data}) {
-        my $total = (ref($self->{_market_data}) && $self->{_market_data}->can('size'))
-            ? $self->{_market_data}->size()
-            : scalar(@{$self->{_highs} // []});
-        if ($total > 0) {
-            $self->{_last_data_idx} = $total - 1;
-            for my $i (0 .. $total - 1) {
-                my $c = $self->{_market_data}->get_candle($i);
-                next unless $c;
-                $self->{_opens}->[$i]   = $c->[1];
-                $self->{_highs}->[$i]   = $c->[2];
-                $self->{_lows}->[$i]    = $c->[3];
-                $self->{_closes}->[$i]  = $c->[4];
-                $self->{_volumes}->[$i] = defined $c->[5] ? $c->[5] : 0;
-            }
-        }
-    }
-
+    # No precargar 0..size()-1 del MarketData: en extract/Replay el MD ya tiene
+    # todo el historial y eso forzaba _last_data_idx al final + recompute O(N)
+    # por cada cambio de ancla / update_last. Los OHLC llegan por update_last.
     my $last = $self->{_last_data_idx};
     $idx = $last if $last >= 0 && $idx > $last;
     $self->{anchor_idx} = $idx;

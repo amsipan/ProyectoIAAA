@@ -1,0 +1,46 @@
+[*] MXNet OK — Fantasma LSTM (regresion MSE multi-salida)
+[*] train=Data/ml_out/fantasma_train_norm.csv
+[*] test=Data/ml_out/fantasma_test_norm.csv
+[*] stats=Data/ml_out/fantasma_norm_stats.json
+[*] out_dir=Data/ml_out/lstm_fantasma
+[*] seq_len=5 batch=64 hidden=32 layers=1 dropout=0.20 lr=0.01 epochs=20
+[*] Cargando train...
+[*] Cargando test...
+[*] load OK train_rows=7649 test_rows=2391 feats=86 targets=y3,y5,y10,y15 (4.7s)
+[*] secuencias train=7645 test=2387 (seq_len=5)
+[*] Convirtiendo a NDArray...
+[*] X_train_seq shape=7645x5x86 y_train_seq shape=7645x4
+[*] X_test_seq shape=2387x5x86 y_test_seq shape=2387x4
+[*] Entrenando...
+[*] epoch 01/20  train_L2=1.867914  (7.6s)
+[*] epoch 02/20  train_L2=1.695491  (15.5s)
+[*] epoch 03/20  train_L2=1.638398  (23.9s)
+[*] epoch 04/20  train_L2=1.610924  (31.9s)
+[*] epoch 05/20  train_L2=1.553608  (39.8s)
+[*] epoch 06/20  train_L2=1.525757  (48.0s)
+[*] epoch 07/20  train_L2=1.477735  (56.0s)
+[*] epoch 08/20  train_L2=1.434978  (64.2s)
+[*] epoch 09/20  train_L2=1.384646  (72.4s)
+[*] epoch 10/20  train_L2=1.365803  (80.3s)
+[*] epoch 11/20  train_L2=1.334626  (87.9s)
+[*] epoch 12/20  train_L2=1.300132  (95.5s)
+[*] epoch 13/20  train_L2=1.295952  (103.1s)
+[*] epoch 14/20  train_L2=1.254415  (110.4s)
+[*] epoch 15/20  train_L2=1.216473  (117.9s)
+[*] epoch 16/20  train_L2=1.184458  (125.3s)
+[*] epoch 17/20  train_L2=1.169008  (132.8s)
+[*] epoch 18/20  train_L2=1.134104  (140.9s)
+[*] epoch 19/20  train_L2=1.122959  (148.4s)
+[*] epoch 20/20  train_L2=1.101353  (156.2s)
+[*] Modelo guardado: Data/ml_out/lstm_fantasma/fantasma_lstm.params (156.2s total train)
+[*] Evaluando test julio...
+[*] === Metricas TEST (julio) ===
+[*] y3  MAE=0.9091  RMSE=1.1430  bin_acc(>=1)=0.4755  (n_pos=1545/2387)
+[*] y5  MAE=1.3106  RMSE=1.6686  bin_acc(>=1)=0.5689  (n_pos=1698/2387)
+[*] y10  MAE=2.1489  RMSE=2.7528  bin_acc(>=1)=0.6778  (n_pos=1879/2387)
+[*] y15  MAE=2.8087  RMSE=3.5809  bin_acc(>=1)=0.7151  (n_pos=1961/2387)
+[*] metrics=Data/ml_out/lstm_fantasma/metrics_test.json
+[*] preds=Data/ml_out/lstm_fantasma/preds_test.csv
+[*] config=Data/ml_out/lstm_fantasma/train_config.json
+[*] OK
+EXIT:0

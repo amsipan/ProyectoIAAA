@@ -1,0 +1,77 @@
+{
+   "binary_accuracy" : {
+      "y10" : {
+         "accuracy" : 0.677838290741517,
+         "n" : 2387,
+         "n_pos" : 1879,
+         "threshold" : 1
+      },
+      "y15" : {
+         "accuracy" : 0.715123586091328,
+         "n" : 2387,
+         "n_pos" : 1961,
+         "threshold" : 1
+      },
+      "y3" : {
+         "accuracy" : 0.475492249685798,
+         "n" : 2387,
+         "n_pos" : 1545,
+         "threshold" : 1
+      },
+      "y5" : {
+         "accuracy" : 0.56891495601173,
+         "n" : 2387,
+         "n_pos" : 1698,
+         "threshold" : 1
+      }
+   },
+   "binary_threshold" : 1,
+   "hyperparams" : {
+      "batch_size" : 64,
+      "cnn" : 0,
+      "dropout" : 0.2,
+      "epochs" : 20,
+      "hidden" : 32,
+      "loss" : "L2Loss",
+      "lr" : 0.01,
+      "num_layers" : 1,
+      "optimizer" : "adam",
+      "seed" : 42
+   },
+   "model" : "Data/ml_out/lstm_fantasma/fantasma_lstm.params",
+   "n_features" : 86,
+   "n_sequences" : 2387,
+   "regression" : {
+      "y10" : {
+         "mae" : 2.14888824247507,
+         "n" : 2387,
+         "rmse" : 2.75282046376549
+      },
+      "y15" : {
+         "mae" : 2.80873384339806,
+         "n" : 2387,
+         "rmse" : 3.58094297577431
+      },
+      "y3" : {
+         "mae" : 0.909062193471753,
+         "n" : 2387,
+         "rmse" : 1.14303375069084
+      },
+      "y5" : {
+         "mae" : 1.31058733261869,
+         "n" : 2387,
+         "rmse" : 1.66862911195866
+      }
+   },
+   "seq_len" : 5,
+   "split" : "test_julio",
+   "stats_json" : "Data/ml_out/fantasma_norm_stats.json",
+   "targets" : [
+      "y3",
+      "y5",
+      "y10",
+      "y15"
+   ],
+   "test_csv" : "Data/ml_out/fantasma_test_norm.csv",
+   "train_csv" : "Data/ml_out/fantasma_train_norm.csv"
+}

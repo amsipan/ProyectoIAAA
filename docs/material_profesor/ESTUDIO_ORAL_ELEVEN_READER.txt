@@ -1,0 +1,411 @@
+ESTUDIO ORAL — PIPELINE COMPLETO: DE LA APP DE CHARTING AL MODELO ENTRENADO
+Material para escuchar con Eleven Reader. Habla pausada. Dirigido a ti, que vas a defender la exposición en unas horas.
+
+
+INTRODUCCIÓN — CÓMO USAR ESTE AUDIO
+
+Hola. Este audio dura más o menos media hora de narración, más unos cinco minutos de preguntas frecuentes del profesor.
+
+Escúchalo una vez completo. Luego vuelve a las secciones que sientas flojas.
+
+No necesitas memorizar código. Necesitas poder contar una historia clara: qué problema resolvemos, de dónde salen los datos, cómo entrenamos, cómo medimos el éxito, y qué cifras recuerdas.
+
+Respira. Vas a poder defender esto.
+
+
+SECCIÓN 1 — PARA QUÉ SIRVE LA APP DE CHARTING
+
+Piensa en la aplicación de gráficos como una fábrica.
+
+No es solo un dibujo bonito de velas. Es una fábrica de observaciones.
+
+Entra materia prima: un archivo CSV con el precio minuto a minuto. Cada fila es una vela. Esa vela tiene apertura, máximo, mínimo, cierre y volumen. Eso se llama OHLCV.
+
+Analogía: OHLCV es como el ticket de caja de un minuto. Abrió a tanto. Subió hasta tanto. Bajó hasta tanto. Cerró a tanto. Y se movió tanto volumen.
+
+La fábrica no inventa magia. Calcula indicadores: ZigZag, liquidez, order blocks, gaps de valor justo, perfiles de volumen, anclas de precio ponderado por volumen, y más.
+
+Esos indicadores son como sensores en la fábrica. Cada sensor mide algo del mercado: dónde hay liquidez, dónde hubo un vacío de precio, dónde el volumen institucional se concentró.
+
+La app también tiene Replay. Replay es como rebobinar una película y avanzar fotograma a fotograma. Nunca miras el futuro. Solo lo que ya ocurrió hasta ese minuto.
+
+Eso importa muchísimo. Porque el profesor insiste: no se inventan algoritmos raros. Se saca la data del lugar correcto. En el momento correcto. Sin mirar adelante cuando no toca.
+
+En una frase: la app convierte precio bruto en una tablota de features listas para entrenar un modelo.
+
+Qué decirle al profe si pregunta “¿para qué la GUI?”
+
+La interfaz no es el modelo. La interfaz demuestra que los indicadores existen, que el Replay es causal, y que de ahí sale la tablota. El valor de Fase indicadores alimenta Fase modelos.
+
+
+SECCIÓN 2 — QUÉ ES EL FANTASMITA Y LOS RASTROS
+
+El corazón del problema es el fantasmita.
+
+El fantasmita es un marcador que aparece cuando el precio rompe un pivote y se proyecta hacia afuera. Piensa en una huella provisional: “aquí el precio acaba de escapar del rango”.
+
+Cuando esa punta provisional se mueve de verdad hacia afuera, deja un rastro. Ese rastro se cuenta como un uno. Si no se mueve, no hay rastro nuevo.
+
+Analogía: imagina un fantasma que se teletransporta cada vez que el precio rompe un techo o un piso provisional. Cada salto deja una marca chalk en el suelo. Esas marcas son los rastros.
+
+Nuestro objetivo no es dibujar el fantasma bonito. Es predecir, justo cuando aparece o se reubica, cuántos rastros nuevos dejará en los próximos minutos.
+
+Concretamente: cuatro ventanas.
+
+Tres minutos. Cinco minutos. Diez minutos. Quince minutos.
+
+Esas salidas se llaman y3, y5, y10 y y15.
+
+Si en tres minutos no hay ningún rastro nuevo, y3 vale cero. Si hay un desplazamiento fuera del rango, vale uno. Si hay dos, vale dos. Y así.
+
+El profesor dijo en clase que el rango típico predecible suele ser de cero a tres. Sobre todo en ventanas cortas, lo más frecuente es cero o uno. En ventanas más largas, el conteo puede subir un poco.
+
+Importante: cada aparición o reubicación del fantasmita es una muestra nueva. No tomamos una fila por cada minuto del día. Solo cuando el evento ocurre.
+
+Analogía del examen: no cuentas cada segundo de la clase. Solo anotas cuando el profesor hace una pregunta. Cada pregunta es un evento. Alrededor de esa pregunta mides el contexto.
+
+En una frase: el modelo responde “después de este salto del fantasma, ¿cuántos rastros más habrá en 3, 5, 10 y 15 minutos?”.
+
+Un ejemplo concreto, inventado solo para imaginarlo.
+
+Supón que a las diez y doce el fantasmita aparece. En los siguientes tres minutos no hay más escapes. En cinco minutos hay uno. En diez hay dos. En quince hay dos. Entonces esa fila lleva y3 igual a cero, y5 igual a uno, y10 igual a dos, y15 igual a dos.
+
+Esa fila no se mezcla con minutos vacíos. Solo existe porque el evento ocurrió.
+
+
+SECCIÓN 3 — FEATURES, DISTANCIAS A LIQUIDEZ Y MULTI-TIMEFRAME
+
+Cuando dispara el evento, no le damos al modelo solo el precio. Le damos contexto.
+
+Ese contexto son las features.
+
+Una feature es una medición numérica del entorno. Por ejemplo: ¿a cuántos PIPs está el precio del order block más cercano? ¿Del fair value gap? ¿Del POC del perfil de volumen? ¿De las bandas del AVWAP? ¿De un equal high o equal low?
+
+PIP, en nuestro caso de NQ, es una unidad chica de precio. Un PIP vale cero punto veinticinco. Es como medir distancias en centímetros en vez de kilómetros. Así el modelo compara manzanas con manzanas.
+
+Analogía: estás en una ciudad. El fantasmita aparece en una esquina. Las features son distancias a lugares importantes: hospital, banco, semáforo, plaza. No le dices al GPS “estoy en la latitud 40”. Le dices “estoy a dos cuadras del banco y a media del semáforo”.
+
+Además medimos en varias temporalidades. Al menos tres: un minuto, diez minutos y una hora.
+
+¿Por qué? Porque el mercado se ve distinto según el zoom. En un minuto ves ruido. En una hora ves la tendencia gorda. Es como mirar un mapa de barrio y también el mapa del país.
+
+También usamos perfil de volumen horizontal. El profesor lo enfatizó. El volumen vertical solo cuenta lo de ese minuto. El horizontal suma interés a lo largo del tiempo y por nivel de precio. Ahí se ve dónde operó más el institucional.
+
+Sweep, Grab y Run pueden aparecer como contexto de features, pero el modelo LSTM no está obligado a decir “será Sweep o Grab”. El profesor aclaró: a veces basta preguntar si habrá manipulación de liquidez, sí o no. El tipo exacto solo se conoce mirando el futuro.
+
+En el pack completo terminamos con ochenta y seis features numéricas después de limpiar y normalizar.
+
+En una frase: cada muestra es un evento del fantasma más un vector de distancias y señales de liquidez en varios zooms del gráfico.
+
+
+SECCIÓN 4 — EXTRACCIÓN, NORMALIZACIÓN Y SECUENCIAS
+
+Ahora el pipeline, paso a paso. Como una receta de cocina.
+
+Paso cero. Datos. CSV de abril a junio para entrenar. CSV de julio para testear. Son los archivos que dio el curso.
+
+Paso uno. Extracción. Un script recorre el histórico en Replay de un minuto, de forma causal. Cuando el fantasmita aparece o se reubica, escribe una fila: metadata, labels y features.
+
+Causal quiere decir: las features se calculan con información disponible hasta el evento. No con lo que pasó después. Los labels sí miran el futuro, pero solo para etiquetar. Como poner la respuesta correcta al final del ejercicio, sin usarla para resolverlo.
+
+Resultado típico: unas siete mil seiscientas cuarenta y nueve filas de train, y unas dos mil trescientas noventa y una de test.
+
+Paso dos. Normalización. Aquí viene la analogía de la báscula.
+
+Cada columna tiene unidades distintas. Volumen es grande. Distancia en PIPs puede ser otra escala. Si no normalizas, el modelo se obsesiona con la columna más “gruesa”.
+
+Usamos z-score: restar la media y dividir por el desvío. Pero ojo. La media y el desvío se calculan solo con el train. Luego se aplican al test. Si calcularas stats con julio, estarías haciendo trampa. Es como filtrar el examen viendo las respuestas del examen.
+
+Guardamos esas medias y desvíos en un JSON de estadísticas. Es la “receta de la báscula”.
+
+Paso tres. Secuencias para la LSTM. El modelo no mira una sola fila aislada. Mira una ventanita de cinco muestras seguidas del evento. Eso se llama seq_len igual a cinco. Viene de la pista del laboratorio acústico del profesor: cinco pasos atrás para predecir.
+
+Train: unas siete mil seiscientas cuarenta y cinco secuencias. Test: dos mil trescientas ochenta y siete.
+
+En una frase: extracto causal, normalizo sin mirar el test, y armo ventanas de cinco eventos para la red.
+
+Mini glosario rápido de esta sección.
+
+Extracción: recorrer el histórico y escribir filas solo en eventos.
+
+Normalización: poner todas las columnas en una escala comparable.
+
+Secuencia: empaquetar cinco filas seguidas para que la red vea orden temporal.
+
+Train: meses de práctica. Test: mes de examen. Validación: un rinconcito del train que no se usa para aprender, solo para decidir cuándo parar.
+
+
+SECCIÓN 5 — ENTRENAMIENTO: QUÉ ES UNA LSTM Y CÓMO LA CUIDAMOS
+
+LSTM, en una frase: es una red que recuerda una secuencia corta y aprende patrones en el tiempo.
+
+Analogía: no es una foto fija. Es alguien que escucha las últimas cinco notas de una melodía y adivina cuántos toques más vendrán.
+
+Nuestro modelo final es simple: una capa LSTM con cuarenta y ocho unidades ocultas, dropout de cero punto dos, y luego una capa densa que produce las cuatro salidas. Sin CNN. El enunciado pide probar primero sin convolucionales.
+
+Entrenamos con Adam y pérdida L2, o sea error cuadrático. Semilla cuarenta y dos para reproducir.
+
+Ahora, early stopping. Analogía del estudio para un examen.
+
+Si estudias demasiado de memoria el mismo cuaderno, memorizas ruidos. En validación empiezas a empeorar aunque en el cuaderno de práctica sigas bajando el error. Early stopping mira una cola del train que no se usa para aprender, la validación causal. Cuando esa validación deja de mejorar, para y se queda con el mejor checkpoint.
+
+En nuestro caso, el modelo ganador paró temprano. El mejor epoch fue el tres. No hizo falta exprimir veinte epochs fijas. Eso evitaba overfit.
+
+Overfit, en una frase: el modelo se aprende el pasado de memoria y falla en el mes nuevo.
+
+También corrimos un grid corto de ocho configuraciones. Variamos hidden, dropout, learning rate y batch. Elegimos por el menor MAE de validación. El test de julio solo se reporta. No se usa para elegir. Así no hay fuga.
+
+La configuración ganadora: hidden cuarenta y ocho, dropout cero punto dos, learning rate cero punto cero cero cinco, batch treinta y dos.
+
+Frente a la primera versión, el error medio bajó alrededor de un diecisiete por ciento.
+
+En una frase: LSTM de secuencia cinco, cuarenta y ocho unidades, parada temprana, elegido por validación, no por mirar el examen.
+
+Dropout, en una frase casera: durante el entrenamiento apagas al azar algunas conexiones para que la red no se apoye siempre en el mismo truco. Es como estudiar sin mirar siempre el mismo subrayado.
+
+Learning rate: qué tan grandes son los pasos al corregir errores. Muy grande, te pasas. Muy chico, tardas eternidades. Nosotros usamos cero punto cero cero cinco en el ganador.
+
+Batch: cuántas muestras digiere de un golpe antes de actualizar pesos. Treinta y dos en el modelo final.
+
+
+SECCIÓN 6 — CÓMO SE MIDE EL ÉXITO
+
+Hay dos lentes. Regresión y vista binaria.
+
+Primero, regresión. El modelo predice números: cero, uno, dos… El profesor pide comparar predicción contra el etiquetado automático.
+
+MAE es el error absoluto medio. Analogía: en promedio, ¿por cuántos rastros te equivocas?
+
+Si el verdadero es dos y predices uno punto dos, el error absoluto es cero punto ocho. Promedias eso en todo el test.
+
+RMSE es parecido, pero castiga más los errores grandes. Es como la “nota dura” cuando te equivocas feo.
+
+Segundo, vista binaria. Binarizas: ¿apareció al menos un rastro en la ventana, sí o no? Label positivo si el conteo es mayor o igual a uno. Predicción positiva si el score es mayor o igual a cero punto cinco.
+
+Ahí entran accuracy, precision, recall y F1.
+
+Accuracy: de todas las predicciones, ¿cuántas acertaste? Cuidado. Si casi siempre hay rastro en ventanas largas, un modelo tonto que siempre dice “sí” también saca accuracy alto. Por eso no te quedes solo con accuracy.
+
+Precision: cuando dices “sí habrá rastro”, ¿con qué frecuencia tenías razón?
+
+Recall: de todos los casos donde sí hubo rastro, ¿cuántos atrapaste? También se llama exhaustividad o sensibilidad.
+
+F1: el equilibrio entre precision y recall. Una sola nota combinada.
+
+Matriz de confusión: cuatro casillas. Verdaderos positivos, falsos positivos, verdaderos negativos, falsos negativos. Es el tablero del árbitro.
+
+Analogía del detector de humo: recall alto significa que casi nunca se te escapa un incendio. Precision más baja significa que a veces suena sin fuego. Nuestro modelo, en vista binaria, tiene recall muy alto y specificity más baja. Hay que decirlo con honestidad.
+
+El profesor acepta ambas vistas: regresión de conteos y, o, clasificación binarizada. Nosotros entregamos las dos. La métrica primaria de selección del modelo fue el MAE promedio. El F1 promedio es el criterio secundario.
+
+También dijo: el desbalance no es excusa. La LSTM debe aprender la frecuencia real. No rebalanceamos artificialmente. Como en el lab acústico: la pausa es menos frecuente que el habla, y aun así el modelo funciona.
+
+Ejemplo rápido de matriz de confusión en y3.
+
+Verdaderos positivos: mil quinientos trece. Había rastro y lo detectamos.
+Falsos positivos: seiscientos sesenta y ocho. Dijimos que sí, pero no había.
+Verdaderos negativos: ciento setenta y cuatro. Dijimos que no, y acertamos.
+Falsos negativos: treinta y dos. Había rastro y se nos escapó.
+
+Eso explica el recall altísimo: casi no hay falsos negativos. Y también explica la specificity baja: hay bastantes falsos positivos.
+
+Qué decirle al profe: “La métrica primaria es regresión. La binaria muestra que casi no perdemos ventanas con actividad, a costa de alarmar de más cuando no hay rastro.”
+
+
+SECCIÓN 7 — RESULTADOS DEL MODELO FINAL
+
+Memoriza estas cifras redondeadas. Son tu ancla oral.
+
+Modelo final: carpeta lstm_fantasma_final. LSTM, cuarenta y ocho unidades, dropout cero punto dos, secuencia de cinco, ochenta y seis features, cuatro salidas.
+
+Test: julio. Dos mil trescientas ochenta y siete secuencias.
+
+MAE promedio: uno punto cuarenta y nueve. Exacto: uno coma cuatro ocho ocho seis.
+
+RMSE promedio: uno punto ochenta y cuatro.
+
+Por ventana, MAE aproximado: y3 cero punto ochenta y dos. y5 uno punto quince. y10 uno punto setenta y cinco. y15 dos punto veinticuatro.
+
+F1 promedio: cero punto ochenta y siete. Exacto: cero coma ocho seis cinco siete.
+
+Por ventana, F1 aproximado: cero punto ochenta y uno, cero punto ochenta y cinco, cero punto ochenta y nueve, cero punto noventa y uno.
+
+Accuracy binaria aproximada: cero punto setenta y uno, cero punto setenta y cinco, cero punto ochenta y uno, cero punto ochenta y tres.
+
+Recall: alrededor de noventa y ocho a noventa y nueve por ciento. Casi no se pierde una ventana con actividad.
+
+Mejora frente a la primera versión: menos diecisiete por ciento de MAE. De aproximadamente uno punto setenta y nueve a uno punto cuarenta y nueve.
+
+Qué decir en una respiración:
+
+“Entrenamos abriles a junio, testeamos julio. LSTM sin CNN, cuarenta y ocho unidades, early stop. MAE promedio uno punto cuarenta y nueve. F1 promedio cero punto ochenta y siete. Muestreo por aparición del fantasmita, no por cada minuto.”
+
+
+SECCIÓN 8 — QUÉ SON LOS ARCHIVOS RESULTADO, COMO ENTREGABLES DE UNA RECETA
+
+Imagina que cocinaste un plato. Estos son los envases que dejas en la mesa.
+
+Uno. fantasma_lstm.params. Son los pesos del modelo. La receta ya cocinada. Lo que cargas en la demo. No se reentrena en la presentación.
+
+Dos. metrics_test.json. La hoja de notas del examen de julio: MAE, RMSE, y el bloque binario completo.
+
+Tres. binary_metrics_test.json. Zoom de la vista sí o no: confusión, precision, recall, F1, AUC por ventana.
+
+Cuatro. preds_test.csv. Cada fila del test con verdadero y predicción. Si falla MXNet, puedes abrir esto y mostrar true versus pred.
+
+Cinco. train_config.json. Cómo se eligió el modelo: hiperparámetros, historial del grid, early stopping.
+
+Seis. fantasma_norm_stats.json. La báscula: medias y desvíos del train.
+
+Siete. CSVs normalizados de train y test. La tablota ya lista.
+
+Ocho. Las slides y el guion. Apoyo visual. Pero el profesor dijo claro: no necesita diapositivas bonitas. Quiere ver que tomaron los eventos en el momento correcto.
+
+
+SECCIÓN 9 — QUÉ MOSTRAR EN LA DEMO EN VIVO
+
+La demo es obligatoria en espíritu. El reloj de la exposición es corto, unos diez minutos grupales. Prioriza muestreo y predicción.
+
+Flujo mental de la demo:
+
+Primero. Explica el problema en treinta segundos.
+
+Segundo. Di cómo dispara el extractor: Replay un minuto, aparición o reubicación del fantasma, features causales, labels futuros solo para etiquetar.
+
+Tercero. Di split y normalización train-only.
+
+Cuarto. Muestra la tablita de métricas.
+
+Quinto. Corre la demo de predicción. Carga el modelo final. Imprime verdadero versus predicho en varios puntos de julio.
+
+Sexto. Señala una fila buena y una con error. “No es magia. Es comparación contra etiqueta automática.”
+
+Séptimo. Cierra con límites honestos: contrato Opción A del fantasmita, no paridad literal con TradingView; t-SNE GMM HMM es paralelo si hay tiempo, no bloquea esta entrega.
+
+Comando mental: demo_fantasma_predict con n igual a ocho. Carga pesos. No reentrena.
+
+Si algo falla: abre preds_test.csv y sigue narrando.
+
+
+MAPA MENTAL DE TREINTA SEGUNDOS
+
+Repite esto en voz alta ahora.
+
+CSV OHLCV entra a la fábrica.
+
+Indicadores y Replay construyen contexto sin futuro.
+
+El fantasmita dispara cada muestra.
+
+Contamos rastros futuros en cuatro ventanas.
+
+Medimos distancias a liquidez en PIPs y en tres temporalidades.
+
+Normalizamos con stats del train.
+
+Armamos secuencias de cinco.
+
+Entrenamos LSTM con early stop.
+
+Evaluamos en julio.
+
+MAE uno punto cuarenta y nueve. F1 cero punto ochenta y siete.
+
+Demo: cargar params y comparar pred contra true.
+
+
+PREGUNTAS FRECUENTES DEL PROFESOR — APROXIMADAMENTE CINCO MINUTOS
+
+Estas preguntas salen de lo que Josafa enfatizó en clase, sobre todo en las indicaciones finales y en el mes previo. Respuestas cortas, para decir en oral.
+
+
+Pregunta uno. ¿Qué evalúo yo en la presentación?
+
+Respuesta. Que tomaron la data en los momentos correctos. Cuando ocurre el evento del fantasmita. No diapositivas bonitas. Muestreo correcto alimenta el entrenamiento.
+
+
+Pregunta dos. ¿Una fila por cada minuto?
+
+Respuesta. No. Cada muestra es una aparición o reubicación del fantasmita. Si se mueve otra vez, nueva muestra. Así se evita llenar la tabla con minutos sin evento.
+
+
+Pregunta tres. ¿Por qué cuatro ventanas, tres cinco diez y quince?
+
+Respuesta. Porque el enunciado pide contar rastros hacia adelante en esos horizontes. Cuatro salidas numéricas. Ventanas cortas suelen dar cero o uno. Ventanas largas rellenan un poco más.
+
+
+Pregunta cuatro. ¿Qué es un rastro?
+
+Respuesta. Cuando la punta provisional del fantasmita se desplaza fuera del rango y deja la marca uno. Si nadie se mueve, el conteo de esa ventana queda en cero.
+
+
+Pregunta cinco. ¿Por qué LSTM y no otra red?
+
+Respuesta. Porque hay dependencia temporal entre eventos. La LSTM acomoda secuencias. Seguimos la plantilla del laboratorio acústico del curso, adaptada a features del extractor. Primero sin CNN.
+
+
+Pregunta seis. ¿Cómo evitan mirar el futuro?
+
+Respuesta. Features con estructura previa al evento. Labels sí usan futuro, pero solo para etiquetar offline. El split es temporal: entrenamos abril a junio y testeamos julio. Stats de normalización solo del train.
+
+
+Pregunta siete. ¿Y el desbalance de clases? Casi siempre cero o casi siempre hay rastro.
+
+Respuesta. No es excusa. El profesor lo dijo: la LSTM es sensible a la frecuencia real, como pausa versus habla en el lab. No rebalanceamos artificialmente.
+
+
+Pregunta ocho. ¿Regresión o clasificación?
+
+Respuesta. Las dos sirven. Regresión sobre los conteos con MAE y RMSE. Y, o, binarizar aparece o no, con precision, recall y F1. Nosotros reportamos ambas. Seleccionamos el modelo por MAE promedio.
+
+
+Pregunta nueve. ¿El modelo predice si será Sweep, Grab o Run?
+
+Respuesta. No está obligado. Puede responder si habrá toma o cambio de liquidez en la ventana. El tipo exacto solo se conoce después, mirando el futuro. Ese tipo puede ser feature de contexto, no label obligatoria de la LSTM.
+
+
+Pregunta diez. ¿Qué cifras clave tienen?
+
+Respuesta. Test julio. MAE promedio uno punto cuarenta y nueve. F1 promedio cero punto ochenta y siete. LSTM cuarenta y ocho unidades, dropout cero punto dos, secuencia cinco, ochenta y seis features. Mejora de menos diecisiete por ciento de MAE frente a la primera versión.
+
+
+Pregunta once. ¿Por qué normalizan?
+
+Respuesta. Para que columnas con escalas distintas no dominen el aprendizaje. Z-score con media y desvío del train. El test se transforma con esa misma báscula.
+
+
+Pregunta doce. ¿Hicieron t-SNE, GMM y HMM?
+
+Respuesta. Esa cadena quedó como paralelo si alcanza el tiempo. El entregable contractual de esta parte final es el extractor del fantasmita más LSTM y la demo de predicción contra etiquetas automáticas.
+
+
+Pregunta trece. ¿Por qué seq_len cinco?
+
+Respuesta. Viene de la pista del laboratorio acústico: cinco pasos atrás para predecir. Adaptamos esa idea a eventos del fantasmita en minutos, no a audio de cien milisegundos.
+
+
+Pregunta catorce. ¿El perfil de volumen para qué sirve en el modelo?
+
+Respuesta. El histograma horizontal muestra dónde se concentró el interés institucional a lo largo del tiempo. Eso el precio solo no cuenta. Por eso entra como features de distancia a POC, VAH y VAL.
+
+
+Pregunta quince. ¿Qué pasa si la demo tarda o MXNet falla?
+
+Respuesta. Decir: está cargando pesos, no reentrena. Plan B: abrir el CSV de predicciones y mostrar verdadero versus predicho. Las métricas ya están en el JSON.
+
+
+CIERRE — ÚLTIMOS TRES MINUTOS MENTALES ANTES DE ENTRAR
+
+Tú no tienes que sonar a paper académico. Tienes que sonar a alguien que entiende su fábrica.
+
+Di: problema, disparo, features, split, métricas, demo, límites.
+
+Si te trabas, vuelve al fantasmita. Todo cuelga de ahí.
+
+Si te preguntan detalle técnico fino, di la idea y apunta al CSV o al JSON. No inventes.
+
+Si te preguntan por TradingView literal, di: contrato Opción A en nuestra implementación Perl. Contamos rastros de forma automática y reproducible. No reclamamos paridad visual pixel a pixel.
+
+Confía en el mapa. La app es la fábrica. El fantasmita es el disparador. La LSTM es el predictor de conteos. Julio es el examen. Uno punto cuarenta y nueve y cero punto ochenta y siete son tus anclas.
+
+Fin del material de estudio oral. Éxito.

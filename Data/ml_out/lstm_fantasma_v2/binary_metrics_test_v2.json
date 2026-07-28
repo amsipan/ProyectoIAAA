@@ -1,0 +1,142 @@
+{
+  "model_version": "v2",
+  "preds_source": "Data\\ml_out\\lstm_fantasma_v2\\preds_test_v2.csv",
+  "label_threshold": 1.0,
+  "pred_threshold": 0.5,
+  "definition": "pos = >=1 rastro en la ventana (true>=1); pred>=0.5 -> pos",
+  "n_rows": 2387,
+  "y3": {
+    "n": 2387,
+    "confusion": {
+      "tp": 1513,
+      "fp": 668,
+      "tn": 174,
+      "fn": 32
+    },
+    "accuracy": 0.7067,
+    "precision": 0.6937,
+    "recall": 0.9793,
+    "specificity": 0.2067,
+    "f1": 0.8121,
+    "n_pos": 1545,
+    "auc": 0.6345
+  },
+  "y5": {
+    "n": 2387,
+    "confusion": {
+      "tp": 1675,
+      "fp": 563,
+      "tn": 126,
+      "fn": 23
+    },
+    "accuracy": 0.7545,
+    "precision": 0.7484,
+    "recall": 0.9865,
+    "specificity": 0.1829,
+    "f1": 0.8511,
+    "n_pos": 1698,
+    "auc": 0.6469
+  },
+  "y10": {
+    "n": 2387,
+    "confusion": {
+      "tp": 1862,
+      "fp": 427,
+      "tn": 81,
+      "fn": 17
+    },
+    "accuracy": 0.814,
+    "precision": 0.8135,
+    "recall": 0.991,
+    "specificity": 0.1594,
+    "f1": 0.8935,
+    "n_pos": 1879,
+    "auc": 0.6505
+  },
+  "y15": {
+    "n": 2387,
+    "confusion": {
+      "tp": 1939,
+      "fp": 380,
+      "tn": 46,
+      "fn": 22
+    },
+    "accuracy": 0.8316,
+    "precision": 0.8361,
+    "recall": 0.9888,
+    "specificity": 0.108,
+    "f1": 0.9061,
+    "n_pos": 1961,
+    "auc": 0.6484
+  },
+  "f1_avg": 0.8657,
+  "youden_test_informative": {
+    "note": "Optimo in-sample sobre el propio test; solo discusion, no usado en las metricas reportadas",
+    "per_target": {
+      "y3": {
+        "threshold": 0.762165,
+        "youden_j": 0.2115,
+        "n": 2387,
+        "confusion": {
+          "tp": 1402,
+          "fp": 586,
+          "tn": 256,
+          "fn": 143
+        },
+        "accuracy": 0.6946,
+        "precision": 0.7052,
+        "recall": 0.9074,
+        "specificity": 0.304,
+        "f1": 0.7937
+      },
+      "y5": {
+        "threshold": 1.34012,
+        "youden_j": 0.2266,
+        "n": 2387,
+        "confusion": {
+          "tp": 1437,
+          "fp": 427,
+          "tn": 262,
+          "fn": 261
+        },
+        "accuracy": 0.7118,
+        "precision": 0.7709,
+        "recall": 0.8463,
+        "specificity": 0.3803,
+        "f1": 0.8069
+      },
+      "y10": {
+        "threshold": 2.371683,
+        "youden_j": 0.2515,
+        "n": 2387,
+        "confusion": {
+          "tp": 1512,
+          "fp": 281,
+          "tn": 227,
+          "fn": 367
+        },
+        "accuracy": 0.7285,
+        "precision": 0.8433,
+        "recall": 0.8047,
+        "specificity": 0.4469,
+        "f1": 0.8235
+      },
+      "y15": {
+        "threshold": 2.308219,
+        "youden_j": 0.2638,
+        "n": 2387,
+        "confusion": {
+          "tp": 1797,
+          "fp": 278,
+          "tn": 148,
+          "fn": 164
+        },
+        "accuracy": 0.8148,
+        "precision": 0.866,
+        "recall": 0.9164,
+        "specificity": 0.3474,
+        "f1": 0.8905
+      }
+    }
+  }
+}

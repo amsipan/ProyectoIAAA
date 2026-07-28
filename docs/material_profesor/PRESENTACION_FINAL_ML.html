@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Predicción del comportamiento del fantasma — LSTM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #161616;
+      --ink-2: #3d3d3d;
+      --ink-3: #6b6b6b;
+      --paper: #fbfbf9;
+      --rule: #161616;
+      --hair: #d9d9d4;
+      --shade: #f0f0ec;
+      --dark: #161616;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      color: var(--ink);
+      font-family: "Inter", "Segoe UI", sans-serif;
+      background: #0d0d0d;
+      overflow: hidden;
+    }
+
+    .deck {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide {
+      display: none;
+      width: min(97vw, 1360px);
+      height: min(94vh, 765px);
+      padding: clamp(1.6rem, 3vw, 2.6rem) clamp(2rem, 3.6vw, 3.2rem) clamp(1.2rem, 2vw, 1.8rem);
+      background: var(--paper);
+      position: relative;
+      flex-direction: column;
+    }
+    .slide.active { display: flex; animation: in 200ms ease; }
+    @keyframes in { from { opacity: 0; } to { opacity: 1; } }
+
+    .masthead {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 3px solid var(--rule);
+      margin-bottom: 1.1rem;
+    }
+    .kicker {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+    .masthead .num {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.78rem;
+      color: var(--ink-3);
+    }
+
+    h1 {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(2.6rem, 5.4vw, 4.2rem);
+      line-height: 1.02;
+      letter-spacing: -0.02em;
+      margin: 0.4rem 0 1rem;
+    }
+    h2 {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(2rem, 3.8vw, 3rem);
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+      margin: 0.2rem 0 0.9rem;
+    }
+    .sub {
+      font-size: clamp(1rem, 1.6vw, 1.22rem);
+      color: var(--ink-2);
+      line-height: 1.5;
+      max-width: 62rem;
+    }
+    .sub strong { color: var(--ink); }
+
+    .cols { display: grid; gap: 1.4rem; flex: 1; min-height: 0; align-content: start; }
+    .cols-2 { grid-template-columns: 1fr 1fr; }
+    .cols-2b { grid-template-columns: 1.15fr 0.85fr; }
+    .cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+    .body-copy {
+      font-size: clamp(1.02rem, 1.45vw, 1.18rem);
+      color: var(--ink-2);
+      line-height: 1.58;
+    }
+    .body-copy p { margin-bottom: 0.85rem; }
+    .body-copy strong { color: var(--ink); }
+    .body-copy .mono { font-family: "JetBrains Mono", monospace; font-size: 0.88em; }
+
+    .rulebox {
+      border-top: 2px solid var(--rule);
+      padding-top: 0.85rem;
+    }
+    .rulebox h3 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      margin-bottom: 0.55rem;
+    }
+
+    .stat {
+      border-top: 3px solid var(--rule);
+      padding-top: 0.7rem;
+    }
+    .stat .v {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .stat .k {
+      margin-top: 0.45rem;
+      font-size: 0.95rem;
+      color: var(--ink-2);
+      line-height: 1.4;
+    }
+
+    .deflist { display: grid; gap: 0.55rem; }
+    .deflist .row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr;
+      gap: 0.9rem;
+      align-items: baseline;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--hair);
+    }
+    .deflist .row:last-child { border-bottom: 0; }
+    .deflist dt {
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+      font-size: 1.02rem;
+      color: var(--ink);
+    }
+    .deflist dd {
+      font-size: 1.05rem;
+      color: var(--ink-2);
+      line-height: 1.45;
+    }
+    .deflist dd strong { color: var(--ink); }
+
+    .steps { counter-reset: s; display: grid; gap: 0.7rem; }
+    .steps .st {
+      counter-increment: s;
+      display: grid;
+      grid-template-columns: 2.6rem 1fr;
+      gap: 0.9rem;
+      align-items: start;
+    }
+    .steps .st::before {
+      content: counter(s, decimal-leading-zero);
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--ink-3);
+      padding-top: 0.15rem;
+    }
+    .steps .st p { font-size: 1.06rem; color: var(--ink-2); line-height: 1.5; }
+    .steps .st strong { color: var(--ink); }
+
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: clamp(0.95rem, 1.35vw, 1.12rem);
+      background: var(--paper);
+    }
+    table.data caption {
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      padding-bottom: 0.5rem;
+    }
+    table.data th, table.data td {
+      padding: 0.62rem 0.9rem;
+      border-bottom: 1px solid var(--hair);
+      text-align: right;
+    }
+    table.data th:first-child, table.data td:first-child { text-align: left; }
+    table.data thead th {
+      border-top: 2px solid var(--rule);
+      border-bottom: 2px solid var(--rule);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    table.data tbody tr:last-child td { border-bottom: 2px solid var(--rule); }
+    table.data td.num { font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 0.92em; }
+    table.data td.strong { font-weight: 700; color: var(--ink); }
+    table.data td.dim { color: var(--ink-3); }
+
+    .note {
+      font-size: 0.92rem;
+      color: var(--ink-3);
+      line-height: 1.5;
+      border-top: 1px solid var(--hair);
+      padding-top: 0.6rem;
+    }
+
+    pre.cmd {
+      background: var(--dark);
+      color: #e8e8e2;
+      border-radius: 4px;
+      padding: 1.1rem 1.25rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: clamp(0.85rem, 1.3vw, 1rem);
+      line-height: 1.55;
+      overflow: auto;
+    }
+    pre.cmd .cmt { color: #8a8a80; }
+    pre.cmd .hi { color: #fff; font-weight: 600; }
+
+    .dark .masthead { border-color: #e8e8e2; }
+    .dark { background: var(--dark); color: #f0f0ea; }
+    .dark .kicker, .dark .masthead .num { color: #9a9a90; }
+    .dark h2 { color: #f0f0ea; }
+    .dark .sub { color: #c9c9c0; }
+    .dark .sub strong { color: #fff; }
+
+    .footer {
+      margin-top: auto;
+      padding-top: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.78rem;
+      color: var(--ink-3);
+      border-top: 1px solid var(--hair);
+    }
+
+    .pagenum {
+      position: absolute;
+      right: 1.6rem;
+      bottom: 1rem;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.78rem;
+      color: var(--ink-3);
+    }
+    .dark .pagenum { color: #8a8a80; }
+
+    .chrome {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      color: #8a8a80;
+      font-size: 0.74rem;
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55));
+      pointer-events: none;
+    }
+    .chrome kbd {
+      display: inline-block;
+      padding: 0.08rem 0.32rem;
+      border: 1px solid rgba(154,154,144,0.4);
+      border-radius: 3px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+    }
+    .progress {
+      position: fixed;
+      top: 0; left: 0; height: 2px;
+      background: #e8e8e2;
+      z-index: 30;
+      width: 0%;
+      transition: width 180ms ease;
+    }
+
+    @media (max-width: 900px) {
+      .cols-2, .cols-2b, .cols-3, .cols-4 { grid-template-columns: 1fr; }
+      .slide { height: auto; max-height: 94vh; overflow: auto; }
+    }
+
+    @media print {
+      body { background: #fff; overflow: visible; }
+      .deck { display: block; height: auto; }
+      .chrome, .progress { display: none !important; }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        width: 100%;
+        height: 190mm;
+        animation: none;
+        margin: 0 0 6mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+  <div class="deck" id="deck">
+
+    <!-- 01 PORTADA -->
+    <section class="slide active" data-title="Portada">
+      <h1 style="font-size:clamp(2.8rem,5.6vw,4.4rem)">Inteligencia Artificial y Aprendizaje Automático<br>Proyecto Final</h1>
+      <p class="sub" style="margin-top:1.2rem">
+        Predicción del comportamiento del fantasma con un modelo <strong>LSTM</strong>, a partir de la
+        estructura y la liquidez del motor de charting.
+      </p>
+      <div class="cols cols-4" style="margin-top:auto">
+        <div class="stat"><div class="v">7 649</div><div class="k">muestras de entrenamiento<br>(abril–junio)</div></div>
+        <div class="stat"><div class="v">2 391</div><div class="k">muestras de prueba<br>(1–24 de julio)</div></div>
+        <div class="stat"><div class="v">86</div><div class="k">variables de entrada<br>normalizadas</div></div>
+        <div class="stat"><div class="v">4</div><div class="k">salidas numéricas<br>(y3 · y5 · y10 · y15)</div></div>
+      </div>
+      <span class="pagenum">01</span>
+      </section>
+
+    <!-- 02 OBJETIVO -->
+    <section class="slide" data-title="Objetivo">
+      <h2>Cuatro salidas, una por horizonte</h2>
+      <div class="cols cols-2b">
+        <div class="body-copy">
+          <p>
+            Cada vez que el fantasma <strong>aparece o se reubica</strong> se toma una muestra.
+            El modelo predice cuántos rastros dejará hacia adelante en cuatro horizontes distintos.
+          </p>
+          <p>
+            La respuesta es un número entero de rastros por ventana; por eso el problema se trata como
+            <strong>regresión</strong> con cuatro salidas simultáneas.
+          </p>
+          <div class="rulebox" style="margin-top:1.2rem">
+            <h3>Definición de las salidas</h3>
+            <dl class="deflist">
+              <div class="row"><dt>y3</dt><dd>rastros que deja el fantasma en los próximos <strong>3 minutos</strong></dd></div>
+              <div class="row"><dt>y5</dt><dd>rastros en los próximos <strong>5 minutos</strong></dd></div>
+              <div class="row"><dt>y10</dt><dd>rastros en los próximos <strong>10 minutos</strong></dd></div>
+              <div class="row"><dt>y15</dt><dd>rastros en los próximos <strong>15 minutos</strong></dd></div>
+            </dl>
+          </div>
+        </div>
+        <div class="rulebox">
+          <h3>Entrada del modelo</h3>
+          <p class="body-copy" style="margin-bottom:0.8rem">
+            Una ventana de <strong>5 muestras consecutivas</strong>, cada una con <strong>86 variables</strong>
+            calculadas en la vela siguiente al evento:
+          </p>
+          <p class="body-copy">
+            distancias en PIPs a niveles de liquidez y estructura
+            (order blocks, FVG, Fibonacci, AVWAP, perfil de volumen, máximos/mínimos, rupturas de estructura),
+            en tres temporalidades: <strong>1m, 10m y 1h</strong>.
+          </p>
+        </div>
+      </div>
+    <span class="pagenum">02</span></section>
+
+    <!-- 03 MUESTREO -->
+    <section class="slide" data-title="Muestreo">
+      <h2>El disparo es el evento del fantasma</h2>
+      <div class="cols cols-2">
+        <div class="steps">
+          <div class="st"><p><strong>Detección del evento.</strong> Se recorre el histórico 1m en modo Replay y se registra cada aparición o reubicación del fantasma provisional.</p></div>
+          <div class="st"><p><strong>Contexto causal.</strong> Las variables se calculan mirando solo hacia atrás, con la información disponible hasta la vela siguiente al evento. Nada mira el futuro.</p></div>
+          <div class="st"><p><strong>Etiquetado automático.</strong> Las salidas y3/y5/y10/y15 se obtienen contando los rastros que efectivamente aparecen después del evento.</p></div>
+        </div>
+        <div class="rulebox">
+          <h3>Volumen del dataset</h3>
+          <dl class="deflist">
+            <div class="row"><dt>Train</dt><dd><strong>7 649</strong> muestras · abril–junio 2026 (88 736 velas 1m)</dd></div>
+            <div class="row"><dt>Test</dt><dd><strong>2 391</strong> muestras · 1–24 julio 2026 (24 179 velas 1m)</dd></div>
+            <div class="row"><dt>Secuencias</dt><dd>7 645 train / 2 387 test (ventana de 5)</dd></div>
+          </dl>
+          <p class="note" style="margin-top:1rem">
+            El comportamiento del fantasma replica el indicador implementado en el motor de charting.
+          </p>
+        </div>
+      </div>
+    <span class="pagenum">03</span></section>
+
+    <!-- 04 PIPELINE -->
+    <section class="slide" data-title="Proceso">
+      <h2>Del CSV al modelo</h2>
+      <div class="cols cols-3">
+        <div class="rulebox">
+          <h3>1 · Extracción</h3>
+          <p class="body-copy">Script sin interfaz gráfica recorre el CSV en Replay y, en cada evento del fantasma, guarda una fila con las 86 variables y las 4 salidas futuras.</p>
+          <p class="note" style="margin-top:0.7rem">7 649 filas train · 2 391 test</p>
+        </div>
+        <div class="rulebox">
+          <h3>2 · Normalización</h3>
+          <p class="body-copy">Estandarización z-score con media y desviación calculadas <strong>solo con train</strong>; el test se transforma con los mismos parámetros.</p>
+          <p class="note" style="margin-top:0.7rem">Columnas de tiempo y metadatos no entrenan</p>
+        </div>
+        <div class="rulebox">
+          <h3>3 · Entrenamiento</h3>
+          <p class="body-copy">LSTM de una capa (48 unidades, dropout 0.2), ventana de 5 muestras, 4 salidas con error cuadrático medio, optimizador Adam y parada temprana con validación.</p>
+          <p class="note" style="margin-top:0.7rem">Grid de 8 configuraciones (~8 min) · AI::MXNet · pesos guardados en disco</p>
+        </div>
+      </div>
+      <span class="pagenum">04</span></section>
+
+    <!-- 05 RESULTADOS REGRESIÓN -->
+    <section class="slide" data-title="Regresión">
+      <h2>Error en el conteo de rastros</h2>
+      <div class="cols cols-2b">
+        <div>
+          <table class="data">
+            <caption>Regresión · n = 2 387 secuencias de test</caption>
+            <thead>
+              <tr><th>Salida</th><th>MAE</th><th>RMSE</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>y3 · 3 min</td><td class="num strong">0.82</td><td class="num">1.01</td></tr>
+              <tr><td>y5 · 5 min</td><td class="num">1.15</td><td class="num">1.41</td></tr>
+              <tr><td>y10 · 10 min</td><td class="num">1.75</td><td class="num">2.15</td></tr>
+              <tr><td>y15 · 15 min</td><td class="num">2.24</td><td class="num">2.77</td></tr>
+            </tbody>
+          </table>
+          <p class="note" style="margin-top:0.8rem">
+            MAE: error medio absoluto, en unidades de rastros. RMSE penaliza más los errores grandes.
+          </p>
+        </div>
+        <div class="body-copy">
+          <p>
+            En la ventana corta el modelo se equivoca en <strong>menos de un rastro</strong> en promedio
+            (MAE 0.82 en y3).
+          </p>
+          <p>
+            El error crece con el horizonte, de forma esperada: a 15 minutos hay más rastros posibles
+            y más incertidumbre.
+          </p>
+          <p>
+            El error medio de las cuatro ventanas es <strong>1.49 rastros</strong>, un 17% menos que
+            la primera versión entrenada del modelo.
+          </p>
+        </div>
+      </div>
+    <span class="pagenum">05</span></section>
+
+    <!-- 06 RESULTADOS BINARIOS -->
+    <section class="slide" data-title="Clasificación">
+      <h2>¿Aparece al menos un rastro?</h2>
+      <div class="cols cols-2b">
+        <div>
+          <table class="data">
+            <caption>Positivo = ≥1 rastro en la ventana · n = 2 387</caption>
+            <thead>
+              <tr><th>Salida</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>y3</td><td class="num dim">0.71</td><td class="num dim">0.69</td><td class="num">0.98</td><td class="num">0.81</td></tr>
+              <tr><td>y5</td><td class="num">0.75</td><td class="num">0.75</td><td class="num">0.99</td><td class="num">0.85</td></tr>
+              <tr><td>y10</td><td class="num">0.81</td><td class="num">0.81</td><td class="num">0.99</td><td class="num">0.89</td></tr>
+              <tr><td>y15</td><td class="num strong">0.83</td><td class="num">0.84</td><td class="num">0.99</td><td class="num strong">0.91</td></tr>
+            </tbody>
+          </table>
+          <p class="note" style="margin-top:0.8rem">
+            La salida continua del modelo se binariza con umbral 0.5.
+          </p>
+        </div>
+        <div class="body-copy">
+          <p>
+            El modelo casi no se pierde una ventana con actividad: detecta <strong>98–99%</strong>
+            de los casos con al menos un rastro (recall).
+          </p>
+          <p>
+            Cuando anuncia actividad a 10–15 minutos acierta 81–84% de las veces (precision);
+            el F1 promedio de las cuatro ventanas es <strong>0.87</strong>.
+          </p>
+        </div>
+      </div>
+    <span class="pagenum">06</span></section>
+
+    <!-- 07 MATRIZ DE CONFUSIÓN -->
+    <section class="slide" data-title="Confusión">
+      <h2>Detalle por ventana</h2>
+      <div class="cols cols-2b">
+        <table class="data">
+          <caption>Positivo = ≥1 rastro · n = 2 387 por fila</caption>
+          <thead>
+            <tr><th>Salida</th><th>TP</th><th>FP</th><th>TN</th><th>FN</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>y3</td><td class="num">1 513</td><td class="num">668</td><td class="num">174</td><td class="num dim">32</td></tr>
+            <tr><td>y5</td><td class="num">1 675</td><td class="num">563</td><td class="num">126</td><td class="num dim">23</td></tr>
+            <tr><td>y10</td><td class="num strong">1 862</td><td class="num">427</td><td class="num">81</td><td class="num dim">17</td></tr>
+            <tr><td>y15</td><td class="num strong">1 939</td><td class="num">380</td><td class="num">46</td><td class="num dim">22</td></tr>
+          </tbody>
+        </table>
+        <div class="rulebox">
+          <h3>Lectura</h3>
+          <dl class="deflist">
+            <div class="row"><dt>TP</dt><dd>predijo rastro y sí hubo</dd></div>
+            <div class="row"><dt>FP</dt><dd>predijo rastro y no hubo</dd></div>
+            <div class="row"><dt>TN</dt><dd>predijo que no y no hubo</dd></div>
+            <div class="row"><dt>FN</dt><dd>predijo que no y sí hubo</dd></div>
+          </dl>
+          <p class="note" style="margin-top:1rem">
+            Casi no deja pasar actividad real: solo 17–32 falsos negativos por ventana,
+            de 1 545–1 961 casos con rastro.
+          </p>
+        </div>
+      </div>
+    <span class="pagenum">07</span></section>
+
+    <!-- 08 DEMO -->
+    <section class="slide" data-title="Demostración">
+      <h2>Cargar el modelo y comparar</h2>
+      <div class="body-copy" style="max-width:64rem; margin-bottom:1.1rem">
+        <p>
+          El programa carga los pesos entrenados (<strong>no reentrena</strong>), arma las ventanas de
+          5 muestras sobre el test ya normalizado e imprime el conteo real contra la predicción
+          para varios puntos de julio.
+        </p>
+      </div>
+      <pre class="cmd"><span class="cmt"># entorno: WSL Fedora · raíz del proyecto</span>
+cd /mnt/c/Users/bryan/ia/proyecto_iaaa/Proyecto/ProyectoIAAA
+perl -I. scripts/demo_fantasma_predict.pl <span class="hi">--n 8</span></pre>
+      <div class="cols cols-3" style="margin-top:1.1rem">
+        <div class="rulebox"><h3>Paso 1</h3><p class="body-copy">Carga el test normalizado y los pesos <span class="mono">.params</span></p></div>
+        <div class="rulebox"><h3>Paso 2</h3><p class="body-copy">Construye ventanas de 5 muestras consecutivas</p></div>
+        <div class="rulebox"><h3>Paso 3</h3><p class="body-copy">Imprime TRUE vs PRED para y3 · y5 · y10 · y15</p></div>
+      </div>
+      <span class="pagenum">08</span></section>
+
+    <!-- 09 CIERRE -->
+    <section class="slide dark" data-title="Cierre">
+      <h2>Qué queda demostrado</h2>
+      <div class="cols cols-2" style="margin-top:0.6rem">
+        <div class="steps">
+          <div class="st"><p><strong>El disparo es correcto.</strong> Cada muestra corresponde a un evento real del fantasma, con contexto estrictamente causal.</p></div>
+          <div class="st"><p><strong>El pipeline es reproducible.</strong> Extracción, normalización, entrenamiento y evaluación quedan como scripts ejecutables.</p></div>
+          <div class="st"><p><strong>El modelo carga y predice en vivo</strong> sobre datos que nunca vio en entrenamiento.</p></div>
+        </div>
+        <div>
+          <table class="data" style="background:var(--dark); color:#e8e8e2">
+            <caption style="color:#9a9a90">Resumen</caption>
+            <thead>
+              <tr><th style="color:#e8e8e2; border-color:#e8e8e2">Pieza</th><th style="color:#e8e8e2; border-color:#e8e8e2">Estado</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Dataset train/test</td><td class="num" style="border-color:#3d3d3d">7 649 / 2 391</td></tr>
+              <tr><td>Variables</td><td class="num" style="border-color:#3d3d3d">86</td></tr>
+              <tr><td>MAE prom · 4 ventanas</td><td class="num" style="border-color:#3d3d3d">1.49</td></tr>
+              <tr><td>F1 prom · binario</td><td class="num" style="border-color:#3d3d3d">0.87</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <span class="pagenum">09</span></section>
+
+  </div>
+
+  <div class="chrome">
+    <span id="label">1 / 9 · Portada</span>
+    <span><kbd>←</kbd> <kbd>→</kbd> · <kbd>F</kbd> pantalla completa · <kbd>P</kbd> imprimir</span>
+  </div>
+
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".slide"));
+      const label = document.getElementById("label");
+      const progress = document.getElementById("progress");
+      let i = 0;
+
+      function show(n) {
+        i = (n + slides.length) % slides.length;
+        slides.forEach((s, idx) => s.classList.toggle("active", idx === i));
+        label.textContent = (i + 1) + " / " + slides.length + " · " + (slides[i].dataset.title || "");
+        progress.style.width = ((i + 1) / slides.length * 100) + "%";
+      }
+      function next() { show(i + 1); }
+      function prev() { show(i - 1); }
+
+      document.addEventListener("keydown", (e) => {
+        if (["ArrowRight", " ", "PageDown"].includes(e.key)) { e.preventDefault(); next(); }
+        else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); prev(); }
+        else if (e.key === "Home") { e.preventDefault(); show(0); }
+        else if (e.key === "End") { e.preventDefault(); show(slides.length - 1); }
+        else if (e.key === "f" || e.key === "F") {
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+          else document.exitFullscreen?.();
+        } else if (e.key === "p" || e.key === "P") window.print();
+      });
+
+      document.getElementById("deck").addEventListener("click", (e) => {
+        if (e.target.closest("a, button, pre")) return;
+        if (e.clientX > window.innerWidth * 0.55) next(); else prev();
+      });
+
+      show(0);
+    })();
+  </script>
+</body>
+</html>

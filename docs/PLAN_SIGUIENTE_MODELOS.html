@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProyectoIAAA — ¿Qué sigue? Modelos (jul 2026)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #14201a;
+      --ink-soft: #3a4a42;
+      --muted: #5c6b62;
+      --paper: #f3efe4;
+      --paper-2: #ebe4d4;
+      --cream: #faf7f0;
+      --line: rgba(20, 32, 26, 0.12);
+      --teal: #0f6b5c;
+      --teal-deep: #0a4d42;
+      --teal-soft: #d7efe8;
+      --amber: #c45c16;
+      --amber-soft: #f5e0cf;
+      --coral: #b33a3a;
+      --coral-soft: #f3d4d0;
+      --sage: #4d6b52;
+      --max: 72rem;
+      --radius: 1.25rem;
+      --shadow: 0 18px 50px rgba(20, 32, 26, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(15, 107, 92, 0.14), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(196, 92, 22, 0.12), transparent 50%),
+        linear-gradient(180deg, var(--cream) 0%, var(--paper) 40%, #e8e2d3 100%);
+      line-height: 1.55;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image:
+        linear-gradient(rgba(20, 32, 26, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(20, 32, 26, 0.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
+      z-index: 0;
+    }
+
+    a { color: var(--teal-deep); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+    a:hover { color: var(--amber); }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(100% - 2rem, var(--max));
+      margin: 0 auto;
+    }
+
+    /* —— HERO —— */
+    .hero {
+      padding: clamp(2.5rem, 7vw, 5rem) 0 2.5rem;
+    }
+
+    .brand-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      align-items: center;
+      margin-bottom: 1.75rem;
+    }
+
+    .brand {
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 800;
+      font-size: clamp(1.6rem, 4vw, 2.35rem);
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      color: var(--teal-deep);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: var(--teal-soft);
+      color: var(--teal-deep);
+      border: 1px solid rgba(15, 107, 92, 0.2);
+    }
+
+    .pill.warn {
+      background: var(--amber-soft);
+      color: #7a3508;
+      border-color: rgba(196, 92, 22, 0.25);
+    }
+
+    .hero h1 {
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 700;
+      font-size: clamp(2.4rem, 8vw, 4.6rem);
+      line-height: 1.02;
+      letter-spacing: -0.04em;
+      margin: 0 0 1rem;
+      max-width: 14ch;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--amber);
+      font-weight: 700;
+    }
+
+    .lede {
+      font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+      color: var(--ink-soft);
+      max-width: 38rem;
+      margin: 0 0 1.75rem;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      max-width: 36rem;
+    }
+
+    .stat {
+      padding: 0.9rem 1rem;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(6px);
+    }
+
+    .stat b {
+      display: block;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.55rem;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--teal-deep);
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* —— SECTIONS —— */
+    section {
+      padding: 2.25rem 0;
+    }
+
+    .section-head {
+      margin-bottom: 1.35rem;
+    }
+
+    .kicker {
+      display: block;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 0.45rem;
+    }
+
+    h2 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(1.65rem, 3.5vw, 2.25rem);
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin: 0 0 0.4rem;
+    }
+
+    .section-head p {
+      margin: 0;
+      color: var(--ink-soft);
+      max-width: 40rem;
+    }
+
+    /* —— DONE —— */
+    .done-panel {
+      position: relative;
+      overflow: hidden;
+      border-radius: calc(var(--radius) + 0.35rem);
+      padding: clamp(1.25rem, 3vw, 2rem);
+      background:
+        linear-gradient(135deg, rgba(15, 107, 92, 0.92), rgba(10, 77, 66, 0.96)),
+        var(--teal-deep);
+      color: #f4fff9;
+      box-shadow: var(--shadow);
+    }
+
+    .done-panel::after {
+      content: "";
+      position: absolute;
+      right: -4rem;
+      top: -4rem;
+      width: 16rem;
+      height: 16rem;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.16), transparent 65%);
+      pointer-events: none;
+    }
+
+    .done-panel h2,
+    .done-panel .kicker { color: #dff7ef; }
+    .done-panel .kicker { opacity: 0.85; }
+    .done-panel > p {
+      position: relative;
+      z-index: 1;
+      max-width: 42rem;
+      margin: 0 0 1.25rem;
+      color: rgba(244, 255, 249, 0.88);
+    }
+
+    .chip-grid {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip {
+      padding: 0.4rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+    }
+
+    .grade-note {
+      position: relative;
+      z-index: 1;
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      font-size: 0.95rem;
+      color: rgba(244, 255, 249, 0.9);
+    }
+
+    .grade-note strong {
+      color: #ffe0b8;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.15rem;
+    }
+
+    /* —— TIMELINE —— */
+    .timeline {
+      display: grid;
+      gap: 0;
+      position: relative;
+      margin-top: 0.5rem;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 0.85rem;
+      top: 0.6rem;
+      bottom: 0.6rem;
+      width: 3px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--teal), var(--amber), var(--coral));
+      opacity: 0.55;
+    }
+
+    .tl-item {
+      display: grid;
+      grid-template-columns: 2rem 1fr;
+      gap: 0.9rem;
+      padding: 0.85rem 0;
+    }
+
+    .tl-dot {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.65rem;
+      font-weight: 600;
+      background: var(--cream);
+      border: 3px solid var(--teal);
+      z-index: 1;
+      color: var(--teal-deep);
+    }
+
+    .tl-item.done .tl-dot {
+      background: var(--teal);
+      color: #fff;
+      border-color: var(--teal-deep);
+    }
+
+    .tl-item.next .tl-dot {
+      border-color: var(--amber);
+      background: var(--amber);
+      color: #fff;
+      box-shadow: 0 0 0 6px rgba(196, 92, 22, 0.18);
+    }
+
+    .tl-item.final .tl-dot {
+      border-color: var(--coral);
+      background: var(--coral);
+      color: #fff;
+    }
+
+    .tl-body {
+      padding: 0.15rem 0 0.35rem;
+    }
+
+    .tl-body time {
+      display: block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .tl-body strong {
+      display: block;
+      font-size: 1.05rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .tl-body p {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-block;
+      margin-left: 0.4rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+
+    .badge.past { background: var(--teal-soft); color: var(--teal-deep); }
+    .badge.now { background: var(--amber-soft); color: #7a3508; }
+    .badge.soon { background: var(--coral-soft); color: #6e1f1f; }
+
+    /* —— PIPELINE —— */
+    .pipeline {
+      display: grid;
+      gap: 0.55rem;
+      margin-top: 0.25rem;
+    }
+
+    .pipe-node {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.85rem;
+      align-items: start;
+      padding: 0.95rem 1.05rem;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid var(--line);
+      position: relative;
+    }
+
+    .pipe-node::before {
+      content: "";
+      position: absolute;
+      left: 1.55rem;
+      top: 100%;
+      width: 2px;
+      height: 0.55rem;
+      background: rgba(15, 107, 92, 0.35);
+    }
+
+    .pipe-node:last-child::before { display: none; }
+
+    .pipe-idx {
+      width: 2.1rem;
+      height: 2.1rem;
+      border-radius: 0.65rem;
+      display: grid;
+      place-items: center;
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 600;
+      font-size: 0.78rem;
+      background: var(--teal-soft);
+      color: var(--teal-deep);
+      flex-shrink: 0;
+    }
+
+    .pipe-node.hl {
+      background: linear-gradient(90deg, rgba(196, 92, 22, 0.1), rgba(255,255,255,0.7));
+      border-color: rgba(196, 92, 22, 0.28);
+    }
+
+    .pipe-node.hl .pipe-idx {
+      background: var(--amber-soft);
+      color: #7a3508;
+    }
+
+    .pipe-node h3 {
+      margin: 0 0 0.2rem;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .pipe-node p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--ink-soft);
+    }
+
+    /* —— STEPS —— */
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 0.65rem;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .steps li {
+      counter-increment: step;
+      display: grid;
+      grid-template-columns: 2.6rem 1fr;
+      gap: 0.85rem;
+      align-items: start;
+      padding: 0.95rem 1rem;
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.55);
+      border: 1px solid var(--line);
+    }
+
+    .steps li::before {
+      content: counter(step, decimal-leading-zero);
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 700;
+      font-size: 1.35rem;
+      line-height: 1;
+      color: var(--teal);
+      padding-top: 0.15rem;
+    }
+
+    .steps strong {
+      display: block;
+      margin-bottom: 0.15rem;
+      font-size: 1.02rem;
+    }
+
+    .steps span {
+      color: var(--ink-soft);
+      font-size: 0.92rem;
+    }
+
+    .steps li.done {
+      background: rgba(215, 239, 232, 0.65);
+      border-color: rgba(15, 107, 92, 0.28);
+      opacity: 0.92;
+    }
+
+    .steps li.done::before {
+      content: "ok";
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.85rem;
+      color: var(--teal-deep);
+      padding-top: 0.35rem;
+    }
+
+    .steps li.next {
+      background: linear-gradient(90deg, rgba(196, 92, 22, 0.12), rgba(255,255,255,0.7));
+      border-color: rgba(196, 92, 22, 0.35);
+      box-shadow: 0 0 0 3px rgba(196, 92, 22, 0.1);
+    }
+
+    .steps li.next::before {
+      color: var(--amber);
+    }
+
+    /* —— DON'T —— */
+    .dont {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .dont-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.75rem;
+      align-items: start;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius);
+      background: linear-gradient(90deg, rgba(179, 58, 58, 0.08), rgba(255,255,255,0.5));
+      border: 1px solid rgba(179, 58, 58, 0.18);
+    }
+
+    .dont-x {
+      font-family: "IBM Plex Mono", monospace;
+      font-weight: 700;
+      color: var(--coral);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .dont-item p { margin: 0; color: var(--ink-soft); font-size: 0.95rem; }
+    .dont-item strong { color: var(--ink); }
+
+    /* —— QUOTES —— */
+    .quotes {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    blockquote {
+      margin: 0;
+      padding: 1.1rem 1.2rem 1.1rem 1.35rem;
+      border-left: 4px solid var(--amber);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      background: rgba(255, 255, 255, 0.55);
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.12rem;
+      font-style: italic;
+      line-height: 1.35;
+      color: var(--ink);
+    }
+
+    blockquote cite {
+      display: block;
+      margin-top: 0.55rem;
+      font-family: "IBM Plex Sans", sans-serif;
+      font-style: normal;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    /* —— MATERIAL —— */
+    .mat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+      gap: 0.6rem;
+    }
+
+    .mat {
+      padding: 0.85rem 0.95rem;
+      border-radius: 0.9rem;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+
+    .mat code {
+      display: block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--teal);
+      margin-bottom: 0.25rem;
+    }
+
+    .mat.key {
+      background: linear-gradient(160deg, rgba(15, 107, 92, 0.1), rgba(255,255,255,0.65));
+      border-color: rgba(15, 107, 92, 0.28);
+    }
+
+    .mat.key code { color: var(--teal-deep); }
+
+    /* —— RUBRIC —— */
+    .rubric {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .rub-box {
+      padding: 1.2rem 1.25rem;
+      border-radius: calc(var(--radius) + 0.15rem);
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .rub-box.locked {
+      background: linear-gradient(160deg, rgba(15, 107, 92, 0.12), rgba(255,255,255,0.6));
+    }
+
+    .rub-box.open {
+      background: linear-gradient(160deg, rgba(196, 92, 22, 0.14), rgba(255,255,255,0.6));
+      border-color: rgba(196, 92, 22, 0.25);
+    }
+
+    .rub-box .label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .rub-box .score {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(2rem, 5vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+
+    .rub-box.locked .score { color: var(--teal-deep); }
+    .rub-box.open .score { color: var(--amber); }
+
+    .rub-box p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--ink-soft);
+    }
+
+    /* —— FOOTER —— */
+    footer {
+      margin: 2rem 0 3rem;
+      padding: 1.5rem 0 0;
+      border-top: 1px solid var(--line);
+    }
+
+    footer h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .paths {
+      display: grid;
+      gap: 0.55rem;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.78rem;
+    }
+
+    .paths div {
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.75rem;
+      background: rgba(20, 32, 26, 0.04);
+      border: 1px solid var(--line);
+      word-break: break-all;
+      color: var(--ink-soft);
+    }
+
+    .paths strong {
+      display: block;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", sans-serif;
+      font-size: 0.82rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .fine {
+      margin-top: 1.25rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    /* —— RESPONSIVE —— */
+    @media (max-width: 720px) {
+      .hero-stats { grid-template-columns: 1fr; max-width: none; }
+      .rubric { grid-template-columns: 1fr; }
+      .hero h1 { max-width: none; }
+    }
+
+    @media (min-width: 860px) {
+      .two-col {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 2rem;
+        align-items: start;
+      }
+    }
+
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .done-panel, .pipe-node, .steps li, .mat, .rub-box { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero wrap">
+    <div class="brand-row">
+      <div class="brand">ProyectoIAAA</div>
+      <span class="pill">EPN · IA / AA · 2026A GR1SW</span>
+      <span class="pill warn">Actualizado · Paso 0 hecho (27 jul)</span>
+    </div>
+
+    <h1>¿Qué <em>sigue</em>?</h1>
+    <p class="lede">
+      La app Perl/Tk ya es la <strong>fábrica de observaciones</strong>.
+      Feedback §1–§10 cerrado.
+      Spec contractual #1: <strong>DOCX Indicaciones v1.0</strong>
+      (25/07); el oral del <strong>27 jul</strong> solo complementa.
+      Objetivo: data en los <em>lugares correctos</em> (fantasmita / niveles)
+      → LSTM con ventanas <strong>3 / 5 / 10 / 15</strong>.
+    </p>
+
+    <div class="hero-stats">
+      <div class="stat">
+        <b>20/35</b>
+        <span>Indicadores (cerrado)</span>
+      </div>
+      <div class="stat">
+        <b>15/35</b>
+        <span>Modelos + presentación</span>
+      </div>
+      <div class="stat">
+        <b>28 jul</b>
+        <span>Presentación ~10 min</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- A. HECHO -->
+    <section aria-labelledby="hecho">
+      <div class="done-panel">
+        <span class="kicker">A · Estado</span>
+        <h2 id="hecho">Qué ya está hecho</h2>
+        <p>
+          Motor de charting con indicadores oficiales, Replay causal, overlays
+          bajo demanda y feedback del profe cerrado. La GUI deja de ser el
+          cuello de botella: pasa a ser <em>exportador</em> de features.
+        </p>
+        <div class="chip-grid">
+          <span class="chip">SMC Pro</span>
+          <span class="chip">Structures + FVG</span>
+          <span class="chip">HLD</span>
+          <span class="chip">ZigZag</span>
+          <span class="chip">Fib Retracement</span>
+          <span class="chip">Liquidity BSL/SSL</span>
+          <span class="chip">Canal paralelo</span>
+          <span class="chip">AVP</span>
+          <span class="chip">AVWAP</span>
+          <span class="chip">Replay</span>
+          <span class="chip">MXNet patches + LSTM smoke</span>
+        </div>
+        <p class="grade-note">
+          Calificación indicadores (20–22 jul):
+          <strong>20 / 35</strong>
+          — queda el bloque de modelos/presentación.
+          Paso 0 MXNet <strong>hecho</strong> (27 jul; Acc 97.28% / AUC 0.99).
+        </p>
+      </div>
+    </section>
+
+    <!-- B + G -->
+    <section class="two-col" aria-labelledby="cal">
+      <div>
+        <div class="section-head">
+          <span class="kicker">B · Calendario</span>
+          <h2 id="cal">Pizarras finales</h2>
+          <p>Indicadores y examen ya pasaron; el 28 es la meta viva.</p>
+        </div>
+
+        <div class="timeline">
+          <article class="tl-item done">
+            <div class="tl-dot" aria-hidden="true">ok</div>
+            <div class="tl-body">
+              <time datetime="2026-07-20">20–22 jul</time>
+              <strong>Calificación indicadores <span class="badge past">hecho</span></strong>
+              <p>20/35. Polish cerrado; no reabrir salvo bug bloqueante.</p>
+            </div>
+          </article>
+          <article class="tl-item done">
+            <div class="tl-dot" aria-hidden="true">ok</div>
+            <div class="tl-body">
+              <time datetime="2026-07-27">27 jul · lunes</time>
+              <strong>Examen + últimas indicaciones <span class="badge past">hoy</span></strong>
+              <p>Clase oral importada a Lumina. Foco: muestreo correcto + LSTM 3/5/10/15.</p>
+            </div>
+          </article>
+          <article class="tl-item final">
+            <div class="tl-dot" aria-hidden="true">28</div>
+            <div class="tl-body">
+              <time datetime="2026-07-28">28 jul · martes</time>
+              <strong>Presentación modelos <span class="badge soon">~10 min</span></strong>
+              <p>t-SNE, GMM, HMM + LSTM. Criterio del profe: data en lugares correctos, no PPT bonito.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <span class="kicker">G · Rúbrica</span>
+          <h2>Puntaje en juego</h2>
+          <p>Bloque indicadores ya contado; el 15 restante se gana con modelos + oral.</p>
+        </div>
+        <div class="rubric">
+          <div class="rub-box locked">
+            <div class="label">Indicadores</div>
+            <div class="score">20/35</div>
+            <p>Cerrado tras revisión 20–22 jul. Feedback §1–§10 en main.</p>
+          </div>
+          <div class="rub-box open">
+            <div class="label">Modelos + presentación</div>
+            <div class="score">15/35</div>
+            <p>Accuracy, precisión, ROC, confusión. Cadena causal clara en slides.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UPDATE 27 JUL -->
+    <section aria-labelledby="julio27">
+      <div class="done-panel" style="border-color: rgba(196, 92, 22, 0.35); background: linear-gradient(135deg, #fff8f1, var(--cream));">
+        <span class="kicker" style="color: var(--amber);">N · Spec escrita + oral 27 jul</span>
+        <h2 id="julio27">Indicaciones finales (jerarquía de fuentes)</h2>
+        <p>
+          <strong>Fuente contractual #1:</strong>
+          <code>Indicaciones-Proyecto-parte-final_v1.0.docx</code>
+          (25/07/2026 14:00) en
+          <code>docs/material_aula_virtual/10_indicaciones_finales_2026-07-27/</code>
+          — checklist exhaustiva en
+          <a href="material_profesor/AUDIT_DOCX_INDICACIONES_FINAL_V1.md"><code>AUDIT_DOCX_INDICACIONES_FINAL_V1.md</code></a>
+          · oral Lumina en
+          <a href="material_profesor/AUDIT_ORAL_LUMINA_IA_ULTIMO_MES.md"><code>AUDIT_ORAL_LUMINA_IA_ULTIMO_MES.md</code></a>
+          (<strong>merge done</strong> → ruta).
+          El DOCX <em>manda</em> sobre lo oral si hay duda; el oral 27-jul solo complementa sin contradecir.
+          Transcripción oral:
+          <code>docs/material_profesor/transcripcion_IA_2026-07-27_ultimas_indicaciones.txt</code>.
+          Guía accionable:
+          <a href="RUTA_FINAL_MODELOS.md"><code>docs/RUTA_FINAL_MODELOS.md</code></a>
+          (Paso 0 HECHO · Paso 1 siguiente · merge oral cerrado). CSV train abr–jun + test jul 1–24 en la misma carpeta 10_….
+        </p>
+        <div class="chip-grid" style="margin-top: 1rem;">
+          <span class="chip">DOCX v1.0 = fuente #1</span>
+          <span class="chip">Muestreo correcto &gt; slides</span>
+          <span class="chip">Fantasmita 1m Replay</span>
+          <span class="chip">Ventanas 3 / 5 / 10 / 15</span>
+          <span class="chip">Conteo 0–3 (regresión)</span>
+          <span class="chip">o binario (clasificación)</span>
+          <span class="chip">AVP = interés institucional</span>
+          <span class="chip">Sin balancear clases</span>
+          <span class="chip">Sweep/Grab/Run solo con futuro</span>
+        </div>
+        <ol class="steps" style="margin-top: 1.25rem;">
+          <li>
+            <div>
+              <strong>Lo que el profe quiere ver el 28</strong>
+              <span>Que tomaron data cuando ocurren los eventos (fantasmita / niveles). No inventar algoritmo: sacar la tabla del lugar correcto.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Cuándo muestrear</strong>
+              <span>Replay 1m: cada vez que aparece o se desplaza el fantasmita → nueva muestra. Si el precio está en rango sin “desbloquear” fantasmita, esa data no entra.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Target LSTM (principal oral 27-jul)</strong>
+              <span>Desde cada fantasmita, contar cuántas veces el rastro se proyecta fuera del rango en los próximos <strong>3, 5, 10 y 15</strong> minutos → 4 salidas (valores tip. 0…3).</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Métricas</strong>
+              <span><em>Regresión</em> sobre los conteos. <em>Clasificación</em> si binarizan aparece/no aparece por ventana → precisión, recall, F1, sensibilidad. Pueden usar ambas.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Features / contexto</strong>
+              <span>Tabla multi-columna. <strong>AVP / perfil horizontal</strong> aporta interés institucional. Desbalance de etiquetas no es excusa (como pausa vs habla en el LSTM acústico).</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Sweep / Grab / Run</strong>
+              <span>Tipo solo con futuro. Puede ser columna offline; en vivo basta “¿habrá toma/manipulación en la ventana? sí/no”. Pistas: HTF + histograma horizontal.</span>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- C. PIPELINE -->
+    <section aria-labelledby="cadena">
+      <div class="section-head">
+        <span class="kicker">C · Cadena causal</span>
+        <h2 id="cadena">De la app a los modelos</h2>
+        <p>
+          No es “meter el CSV crudo”. Es filtrar eventos cerca de liquidez,
+          construir features, etiquetar offline y luego reducir → mezclar → secuenciar.
+        </p>
+      </div>
+
+      <div class="pipeline" role="list">
+        <div class="pipe-node" role="listitem">
+          <div class="pipe-idx">01</div>
+          <div>
+            <h3>App (fábrica)</h3>
+            <p>Niveles + overlays. Solo observaciones <strong>cerca de liquidez</strong>.</p>
+          </div>
+        </div>
+        <div class="pipe-node" role="listitem">
+          <div class="pipe-idx">02</div>
+          <div>
+            <h3>Features (~50–100)</h3>
+            <p>Distancias en pips, Z-score con estadísticas <strong>train-only</strong>. Sin columna time en la matriz ML.</p>
+          </div>
+        </div>
+        <div class="pipe-node" role="listitem">
+          <div class="pipe-idx">03</div>
+          <div>
+            <h3>Labels offline</h3>
+            <p>Sweep / Grab / Run — etiquetado fuera de la GUI, reproducible.</p>
+          </div>
+        </div>
+        <div class="pipe-node hl" role="listitem">
+          <div class="pipe-idx">04</div>
+          <div>
+            <h3>t-SNE (“Disney”)</h3>
+            <p>Reducción dimensional para ver clusters de régimen / contexto.</p>
+          </div>
+        </div>
+        <div class="pipe-node hl" role="listitem">
+          <div class="pipe-idx">05</div>
+          <div>
+            <h3>GMM</h3>
+            <p>Probabilidades que <strong>suman 1</strong>. Umbral ~85%; si no llega → abstención.</p>
+          </div>
+        </div>
+        <div class="pipe-node hl" role="listitem">
+          <div class="pipe-idx">06</div>
+          <div>
+            <h3>HMM int + ext</h3>
+            <p>Estados internos/externos sobre la secuencia de observaciones.</p>
+          </div>
+        </div>
+        <div class="pipe-node" role="listitem">
+          <div class="pipe-idx">07</div>
+          <div>
+            <h3>LSTM (lab → proyecto)</h3>
+            <p>Demo acústico Unidad 5 → misma idea: por cada fantasmita, 4 conteos en 3 / 5 / 10 / 15 min (0–3). Secuencia tipo “5 atrás → predice” adaptada a minutos.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- D + E -->
+    <section class="two-col" aria-labelledby="ya">
+      <div>
+        <div class="section-head">
+          <span class="kicker">D · Acción</span>
+          <h2 id="ya">Qué hacer YA</h2>
+          <p>Paso 0 cerrado. Siguiente: CSV train/test → export → train → slides.</p>
+        </div>
+        <ol class="steps">
+          <li class="done">
+            <div>
+              <strong>Paso 0 — Patches MXNet + smoke LSTM acústico <span class="badge past">hecho</span></strong>
+              <span>Fedora35 · usuario <code>bryan</code> · raíz <code>/usr/local/share/perl5/5.34/</code> · 13 <code>.pm</code> · Acc 97.28% / AUC 0.99 (2026-07-27). Detalle: <code>docs/RUTA_FINAL_MODELOS.md</code>.</span>
+            </div>
+          </li>
+          <li class="next">
+            <div>
+              <strong>Paso 1 — CSV abr–jun train / jul test <span class="badge now">siguiente</span></strong>
+              <span>Copiar/cablear <code>2026_Abril-Junio.csv</code> + <code>2026_07_24.csv</code>; verificar fantasmita/rastro vs Pine. Replay 1m desde el inicio de sesión.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Congelar polish; priorizar export correcto</strong>
+              <span>El 28 se juzga por <em>dónde</em> muestrearon, no por UI.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Schema: fila = aparición/desplazamiento de fantasmita</strong>
+              <span>Features (distancias a niveles, AVP/POC/VAH/VAL, ATR, HTF…) + targets 3/5/10/15. No 1 fila/minuto.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Batch headless (sin Tk)</strong>
+              <span>Recorrer historia 1m, detectar fantasmita, congelar features, contar proyecciones en ventanas.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Entrenar LSTM del proyecto (conteos o binario) + métricas</strong>
+              <span>Entorno ya validado en Paso 0; adaptar I/O al CSV de trading. Regresión 0–3 y/o clasificación aparece/no.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>t-SNE → GMM → HMM (cadena paralela)</strong>
+              <span>Sigue en rúbrica pizarra; labels S/G/R offline con futuro si aportan.</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <strong>Presentación 28: demostrar muestreo + resultados</strong>
+              <span>Mostrar ejemplos de filas ancladas a fantasmita/niveles + métricas. Slides mínimas.</span>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div>
+        <div class="section-head">
+          <span class="kicker">E · Fronteras</span>
+          <h2>Qué NO hacer</h2>
+          <p>Evitar trampas que comen el tiempo hasta el 28.</p>
+        </div>
+        <div class="dont">
+          <div class="dont-item">
+            <span class="dont-x">NO</span>
+            <p><strong>Rehacer la FSM de liquidez “perfecta”.</strong> Ya entregaron; el profe evaluó. Perfecto es enemigo del train set.</p>
+          </div>
+          <div class="dont-item">
+            <span class="dont-x">NO</span>
+            <p><strong>Una fila por minuto.</strong> Solo eventos cerca de nivel / liquidez.</p>
+          </div>
+          <div class="dont-item">
+            <span class="dont-x">NO</span>
+            <p><strong>Meter <code>time</code> en la matriz ML.</strong> Fuga temporal y ruido.</p>
+          </div>
+          <div class="dont-item">
+            <span class="dont-x">NO</span>
+            <p><strong>Abandonar la app.</strong> Sigue siendo la fábrica. Se congela polish, no se tira.</p>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top: 2rem;">
+          <span class="kicker">H · Citas del profe</span>
+          <h2>Brújula en tres frases</h2>
+        </div>
+        <div class="quotes">
+          <blockquote>
+            No necesito diapositivas bonitas… quiero ver que tomaron la data
+            de los lugares correctos para alimentar el modelo.
+            <cite>— 27 jul · Lumina 2d01313877a5</cite>
+          </blockquote>
+          <blockquote>
+            Cada vez que aparece el fantasma… tomamos datos para 3, 5, 10 y 15.
+            Si se mueve otra vez, nueva muestra.
+            <cite>— 27 jul · muestreo LSTM</cite>
+          </blockquote>
+          <blockquote>
+            El tipo (sweep/grab/run) solo se sabe mirando el futuro…
+            ¿habrá manipulación? sí o no.
+            <cite>— 27 jul · target vs label offline</cite>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <!-- F. MATERIAL -->
+    <section aria-labelledby="mat">
+      <div class="section-head">
+        <span class="kicker">F · Material</span>
+        <h2 id="mat">Aula virtual organizada</h2>
+        <p>
+          Todo en <code>docs/material_aula_virtual/</code>
+          (ver también <code>README.md</code> y <code>00_inventario.md</code>).
+          Las carpetas clave para modelos van marcadas.
+        </p>
+      </div>
+
+      <div class="mat-grid">
+        <div class="mat">
+          <code>01_perl_y_tensores/</code>
+          Guías Perl + tensores
+        </div>
+        <div class="mat">
+          <code>02_servidor_jupyter_y_vpn/</code>
+          Jupyter + VPN Netscaler
+        </div>
+        <div class="mat">
+          <code>03_bibliografia_brownlee/</code>
+          From Scratch (Brownlee)
+        </div>
+        <div class="mat">
+          <code>04_entorno_citrix_fedora/</code>
+          Citrix / certs Fedora
+        </div>
+        <div class="mat">
+          <code>05_datasets_ejemplo/</code>
+          CSV clásicos (iris, pima…)
+        </div>
+        <div class="mat">
+          <code>06_ml_supervisado_cap01_06/</code>
+          Caps. 1–6 + Cap. 5 examen
+        </div>
+        <div class="mat key">
+          <code>07_unidad4_recurrentes_hmm/</code>
+          Markov + HMM / Viterbi
+        </div>
+        <div class="mat key">
+          <code>08_…/t-SNE/</code>
+          Reducción dimensional
+        </div>
+        <div class="mat key">
+          <code>08_…/EM-GMM/</code>
+          Mezclas gaussianas / EM
+        </div>
+        <div class="mat key">
+          <code>08_…/LSTM/</code>
+          Demo acústico → fantasmita
+        </div>
+        <div class="mat key">
+          <code>08_…/Proyecto/</code>
+          Spec Fase 2 + CSV NQ
+        </div>
+        <div class="mat key">
+          <code>09_mxnet_patches/</code>
+          Parches AI::MXNet + sml.pm (Paso 0)
+        </div>
+        <div class="mat key">
+          <code>09_…/lstm_prueba_acustica/</code>
+          Smoke LSTM acústico (LSTM.zip)
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <h2>Rutas de anclaje</h2>
+      <div class="paths">
+        <div>
+          <strong>Ruta ML (Paso 0 hecho → Paso 1 CSV · merge oral done)</strong>
+          docs/RUTA_FINAL_MODELOS.md
+          · audits: material_profesor/AUDIT_DOCX_… · AUDIT_ORAL_…
+        </div>
+        <div>
+          <strong>Esta página</strong>
+          docs/PLAN_SIGUIENTE_MODELOS.html
+        </div>
+        <div>
+          <strong>Material aula (árbol + piezas clave)</strong>
+          docs/material_aula_virtual/README.md
+          · docs/material_aula_virtual/00_inventario.md
+        </div>
+        <div>
+          <strong>Feedback profesor — cerrado</strong>
+          docs/FEEDBACK_PROFESOR_REVISION_2026-07-24.md
+        </div>
+        <div>
+          <strong>Producto oficial / constitución</strong>
+          docs/PRODUCTO_OFICIAL.md · docs/CONSTITUTION.md
+        </div>
+      </div>
+      <p class="fine">
+        Página autocontenida · 2026-07-27 · Grupo 2 · No sustituye el código ni el feedback;
+        sirve de mapa mental para la semana de modelos. Paso 0 MXNet cerrado.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

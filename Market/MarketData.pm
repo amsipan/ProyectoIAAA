@@ -7,6 +7,7 @@ use Time::Moment;
 my %TF_RANK = (
     '1m'  => 1,
     '5m'  => 5,
+    '10m' => 10,
     '15m' => 15,
     '1h'  => 60,
     '2h'  => 120,
@@ -18,7 +19,10 @@ my %TF_RANK = (
 sub new {
     my ($class) = @_;
     my $self = {
-        data      => { '1m' => [], '5m' => [], '15m' => [], '1h' => [], '2h' => [], '4h' => [], 'D' => [], 'W' => [] },
+        data      => {
+            '1m'  => [], '5m' => [], '10m' => [], '15m' => [],
+            '1h'  => [], '2h' => [], '4h'  => [], 'D'   => [], 'W' => [],
+        },
         active_tf => '1m',
         # Serie nativa cargada desde CSV (1m por defecto; 15m si export TV 15m).
         base_tf   => '1m',
@@ -66,7 +70,7 @@ sub get_data {
 
 # TFs agregables desde la base (orden fijo; O(1) por vela).
 sub _aggregate_tf_names {
-    return qw(5m 15m 1h 2h 4h D W);
+    return qw(5m 10m 15m 1h 2h 4h D W);
 }
 
 # add_candle: push base O(1) + actualizar HTF abiertos O(1) por TF fijo.
@@ -258,6 +262,8 @@ sub _bucket_timestamp {
     my $minutes;
     if ($tf eq '5m') {
         $minutes = 5;
+    } elsif ($tf eq '10m') {
+        $minutes = 10;
     } elsif ($tf eq '15m') {
         $minutes = 15;
     } elsif ($tf eq '1h') {
@@ -395,7 +401,7 @@ sub ensure_timeframe {
     return unless defined $tf;
     my $base = $self->base_timeframe();
     return if $tf eq $base;
-    $self->build_tf_candles($tf) if exists $self->{data}{$tf} || $tf =~ /^(?:5m|15m|1h|2h|4h|D|W|\d+)$/;
+    $self->build_tf_candles($tf) if exists $self->{data}{$tf} || $tf =~ /^(?:5m|10m|15m|1h|2h|4h|D|W|\d+)$/;
     return $self;
 }
 

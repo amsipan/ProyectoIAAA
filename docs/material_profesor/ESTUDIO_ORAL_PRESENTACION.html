@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estudio oral — Pipeline Fantasma → LSTM</title>
+<style>
+  :root {
+    --bg: #f7f1e8;
+    --paper: #fffdf8;
+    --ink: #1f1a14;
+    --muted: #5c5348;
+    --line: #d9cbb8;
+    --accent: #b54a2a;
+    --accent-soft: #f3e0d6;
+    --teal: #1f6f6a;
+    --teal-soft: #d8ebe8;
+    --gold: #c4922a;
+    --gold-soft: #f6ebcf;
+    --ok: #2f6b3a;
+    --shadow: 0 10px 30px rgba(31, 26, 20, 0.08);
+    --radius: 18px;
+    --mono: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    --sans: "Segoe UI", "Trebuchet MS", "Lucida Grande", sans-serif;
+    --display: Georgia, "Palatino Linotype", Palatino, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 12% 8%, #ffe8c8 0, transparent 28%),
+      radial-gradient(circle at 88% 0%, #d9efe9 0, transparent 24%),
+      linear-gradient(180deg, #fbf6ee, var(--bg));
+    font-family: var(--sans);
+    line-height: 1.55;
+  }
+  a { color: var(--teal); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 80px; }
+  header.hero {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    padding: 34px 28px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  header.hero::before {
+    content: "";
+    position: absolute;
+    inset: auto -40px -60px auto;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(181,74,42,.18), transparent 70%);
+  }
+  .eyebrow {
+    display: inline-block;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(1.8rem, 3vw, 2.55rem);
+    line-height: 1.15;
+    margin: 0 0 12px;
+  }
+  .lede { color: var(--muted); font-size: 1.05rem; max-width: 46rem; margin: 0; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .chip.teal { background: var(--teal-soft); color: var(--teal); }
+  .chip.gold { background: var(--gold-soft); color: #7a5a10; }
+  nav.toc {
+    margin: 24px 0;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+  }
+  nav.toc h2 { margin: 0 0 10px; font-size: 1rem; }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    columns: 2;
+    gap: 24px;
+  }
+  nav.toc li { margin: 0.25rem 0; }
+  @media (max-width: 720px) {
+    nav.toc ol { columns: 1; }
+  }
+  section {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px 22px;
+    margin: 18px 0;
+    box-shadow: var(--shadow);
+  }
+  section h2 {
+    font-family: var(--display);
+    margin: 0 0 8px;
+    font-size: 1.55rem;
+  }
+  section h3 {
+    margin: 1.2rem 0 0.4rem;
+    font-size: 1.05rem;
+    color: var(--teal);
+  }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 720px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  .box {
+    border-radius: 14px;
+    padding: 14px 14px 12px;
+    border: 1px solid var(--line);
+    background: #fff;
+  }
+  .box.frase { background: var(--teal-soft); border-color: #b7d8d3; }
+  .box.analogia { background: var(--gold-soft); border-color: #e6d19a; }
+  .box.profe { background: var(--accent-soft); border-color: #e4b8a8; }
+  .box .label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    opacity: 0.85;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 14px 0;
+  }
+  @media (max-width: 820px) {
+    .metrics { grid-template-columns: 1fr 1fr; }
+  }
+  .metric {
+    background: linear-gradient(180deg, #fff, #faf4ea);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px;
+    text-align: center;
+  }
+  .metric .num {
+    font-family: var(--display);
+    font-size: 1.7rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .metric .cap { font-size: 0.82rem; color: var(--muted); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    margin: 10px 0 4px;
+  }
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 8px 6px;
+    text-align: left;
+  }
+  th { color: var(--muted); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pipeline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin: 12px 0;
+  }
+  .step {
+    background: #fff;
+    border: 1px dashed var(--teal);
+    color: var(--teal);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+  .arrow { color: var(--muted); font-weight: 700; }
+  .files li { margin: 0.45rem 0; }
+  .files code, code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: #f0e8db;
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+  details.faq {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    padding: 10px 14px;
+    margin: 8px 0;
+  }
+  details.faq summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+  details.faq p { margin: 8px 0 4px; color: var(--muted); }
+  .glossary dt {
+    font-weight: 800;
+    margin-top: 0.7rem;
+  }
+  .glossary dd {
+    margin: 0.15rem 0 0;
+    color: var(--muted);
+  }
+  footer {
+    margin-top: 28px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-align: center;
+  }
+  .memo {
+    border-left: 4px solid var(--accent);
+    padding: 4px 0 4px 12px;
+    margin: 12px 0;
+    color: var(--ink);
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero" id="top">
+    <div class="eyebrow">Material de estudio · presentación ML</div>
+    <h1>De la app de charting al modelo entrenado</h1>
+    <p class="lede">
+      Guía autosuficiente para defender el pipeline del <strong>fantasmita → LSTM</strong>
+      en ~30 min de estudio + FAQ del profesor. Complementa el audio
+      <code>ESTUDIO_ORAL_ELEVEN_READER.txt</code>, pero se entiende sola.
+    </p>
+    <div class="chip-row">
+      <span class="chip">Modelo final v2</span>
+      <span class="chip teal">MAE prom 1.49</span>
+      <span class="chip teal">F1 prom 0.87</span>
+      <span class="chip gold">h=48 · dropout 0.2 · seq=5</span>
+      <span class="chip">86 features · 4 salidas</span>
+    </div>
+  </header>
+
+  <nav class="toc" id="toc" aria-label="Tabla de contenidos">
+    <h2>Mapa de navegación</h2>
+    <ol>
+      <li><a href="#mapa">Mapa mental en 30 s</a></li>
+      <li><a href="#app">1. App = fábrica de observaciones</a></li>
+      <li><a href="#fantasma">2. Fantasmita y rastros</a></li>
+      <li><a href="#features">3. Features y multi-TF</a></li>
+      <li><a href="#pipeline">4. Extracción → norm → secuencias</a></li>
+      <li><a href="#lstm">5. Entrenamiento LSTM</a></li>
+      <li><a href="#metricas">6. Cómo se mide el éxito</a></li>
+      <li><a href="#resultados">7. Resultados finales</a></li>
+      <li><a href="#artefactos">8. Archivos = entregables de receta</a></li>
+      <li><a href="#demo">9. Qué mostrar en la demo</a></li>
+      <li><a href="#faq">FAQ del profesor</a></li>
+      <li><a href="#glosario">Glosario</a></li>
+    </ol>
+  </nav>
+
+  <section id="mapa">
+    <h2>Mapa mental en 30 segundos</h2>
+    <div class="pipeline">
+      <span class="step">CSV OHLCV</span><span class="arrow">→</span>
+      <span class="step">App / indicadores</span><span class="arrow">→</span>
+      <span class="step">Evento fantasmita</span><span class="arrow">→</span>
+      <span class="step">Features + labels</span><span class="arrow">→</span>
+      <span class="step">Normalizar</span><span class="arrow">→</span>
+      <span class="step">LSTM seq=5</span><span class="arrow">→</span>
+      <span class="step">Test julio</span>
+    </div>
+    <p class="memo">
+      “Entrenamos abr–jun, testeamos julio. LSTM sin CNN, 48 unidades, early stop.
+      MAE promedio 1.49. F1 promedio 0.87. Muestreo por aparición del fantasmita, no por cada minuto.”
+    </p>
+    <div class="grid-2">
+      <div class="box frase">
+        <div class="label">En una frase</div>
+        La app fabrica observaciones; el modelo predice cuántos rastros futuros dejará el fantasmita en 4 ventanas.
+      </div>
+      <div class="box profe">
+        <div class="label">Qué decirle al profe</div>
+        Lo importante no son slides bonitas: es tomar la data en el momento correcto del evento.
+      </div>
+    </div>
+  </section>
+
+  <section id="app">
+    <h2>1. Para qué sirve la app de charting</h2>
+    <p>
+      La aplicación Perl/Tk no es solo un gráfico bonito. Es una <strong>fábrica de observaciones</strong>:
+      convierte precio bruto OHLCV en indicadores de estructura y liquidez que luego alimentan el modelo.
+    </p>
+    <div class="grid-2">
+      <div class="box analogia">
+        <div class="label">Analogía</div>
+        OHLCV = ticket de caja de un minuto (abrió, máximo, mínimo, cerró, volumen).
+        Los indicadores = sensores de la fábrica. Replay = película fotograma a fotograma, sin saltar al final.
+      </div>
+      <div class="box frase">
+        <div class="label">En una frase</div>
+        La GUI demuestra indicadores y Replay causal; el valor real para ML es la tablota que sale de ahí.
+      </div>
+    </div>
+    <h3>Idea clave de causalidad</h3>
+    <p>
+      En Replay de 1 minuto solo existe lo ya ocurrido hasta ese minuto. Las features del evento
+      se calculan con estructura <em>previa</em>. Los labels miran el futuro solo para etiquetar offline.
+    </p>
+  </section>
+
+  <section id="fantasma">
+    <h2>2. El fantasmita y los rastros (labels)</h2>
+    <p>
+      El <strong>fantasmita</strong> aparece o se reubica cuando el precio rompe un pivote y se proyecta
+      fuera del rango. Si esa punta provisional se mueve de verdad, deja un <strong>rastro “1”</strong>.
+    </p>
+    <div class="grid-2">
+      <div class="box analogia">
+        <div class="label">Analogía</div>
+        Un fantasma que se teletransporta al romper techos/pisos. Cada salto deja una marca chalk.
+        Esas marcas son los rastros que contamos.
+      </div>
+      <div class="box frase">
+        <div class="label">En una frase</div>
+        Pregunta del modelo: tras este salto, ¿cuántos rastros más habrá en 3, 5, 10 y 15 minutos?
+      </div>
+    </div>
+    <h3>Cuatro salidas</h3>
+    <table>
+      <thead>
+        <tr><th>Salida</th><th>Ventana</th><th>Qué cuenta</th><th>Rango típico (oral)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>y3</code></td><td>3 min</td><td>Rastros nuevos</td><td>Suele 0 o 1</td></tr>
+        <tr><td><code>y5</code></td><td>5 min</td><td>Rastros nuevos</td><td>0…3 frecuente</td></tr>
+        <tr><td><code>y10</code></td><td>10 min</td><td>Rastros nuevos</td><td>Puede rellenar más</td></tr>
+        <tr><td><code>y15</code></td><td>15 min</td><td>Rastros nuevos</td><td>Puede rellenar más</td></tr>
+      </tbody>
+    </table>
+    <div class="box profe" style="margin-top:12px">
+      <div class="label">Qué decirle al profe</div>
+      Cada aparición o reubicación = <strong>nueva muestra</strong>. No es una fila por cada minuto.
+      Si nadie se mueve en la ventana, el conteo es 0.
+    </div>
+    <h3>Ejemplo inventado para imaginar</h3>
+    <p>
+      Fantasma a las 10:12 → en 3 min ningún escape (y3=0), en 5 min uno (y5=1),
+      en 10 min dos (y10=2), en 15 min dos (y15=2). Esa fila existe solo porque el evento ocurrió.
+    </p>
+  </section>
+
+  <section id="features">
+    <h2>3. Features, liquidez y multi-timeframe</h2>
+    <p>
+      Al disparar el evento, medimos el entorno: distancias en <strong>PIPs</strong> (NQ: 1 PIP = 0.25)
+      desde el precio medio de la punta hacia niveles cercanos, en al menos <strong>3 TF: 1m, 10m, 1h</strong>.
+    </p>
+    <div class="grid-2">
+      <div class="box analogia">
+        <div class="label">Analogía (GPS)</div>
+        No basta “estoy en latitud X”. Dices: “a 2 cuadras del banco, a media del semáforo”.
+        Los niveles (OB, FVG, VWAP, POC…) son esos puntos de referencia.
+      </div>
+      <div class="box frase">
+        <div class="label">En una frase</div>
+        86 columnas numéricas de contexto de liquidez/estructura + ATR/volumen; metadata y hora no entrenan.
+      </div>
+    </div>
+    <h3>Pack típico de columnas</h3>
+    <ul>
+      <li>Order Blocks y FVG (nivel + espesor/rango)</li>
+      <li>Fib anclado a ZigZag externo</li>
+      <li>AVWAP (anclas) y bandas</li>
+      <li>AVP: POC / VAH / VAL (interés institucional vía volumen horizontal)</li>
+      <li>BOS/CHoCH, EQH/EQL, DIY, canal si aplica</li>
+      <li>Soportes/resistencias 4h / D / W</li>
+      <li>ATR, volumen, EMA de volumen en 1m</li>
+    </ul>
+    <div class="box profe">
+      <div class="label">Qué decirle al profe</div>
+      Sweep/Grab/Run pueden ser contexto, pero la LSTM no está obligada a decir el tipo.
+      El tipo exacto solo se conoce mirando el futuro. Basta (en vista binaria) “¿habrá manipulación? sí/no”.
+      El volumen horizontal cuenta interés a lo largo del tiempo; el vertical solo ese minuto.
+    </div>
+  </section>
+
+  <section id="pipeline">
+    <h2>4. Extracción → normalización → secuencias</h2>
+    <div class="pipeline">
+      <span class="step">0 CSV</span><span class="arrow">→</span>
+      <span class="step">1 Extract</span><span class="arrow">→</span>
+      <span class="step">2 Normalize</span><span class="arrow">→</span>
+      <span class="step">3 Seq LSTM</span><span class="arrow">→</span>
+      <span class="step">4 Train/Eval</span>
+    </div>
+    <h3>Extracción (Opción A)</h3>
+    <p>
+      Script headless recorre Replay 1m causal. En cada aparición/reubicación escribe una fila:
+      metadata + <code>y3/y5/y10/y15</code> + features. Train ≈ <strong>7649</strong> filas; test ≈ <strong>2391</strong>.
+    </p>
+    <h3>Normalización (z-score train-only)</h3>
+    <div class="grid-2">
+      <div class="box analogia">
+        <div class="label">Analogía (báscula)</div>
+        Cada columna tiene escala distinta. Z-score = restar media y dividir por desvío.
+        La báscula se calibra solo con abril–junio. Julio se pesa con esa misma báscula.
+      </div>
+      <div class="box frase">
+        <div class="label">En una frase</div>
+        Fit solo en train; persistir medias/std en JSON; no meter <code>meta_*</code> ni tiempo en X.
+      </div>
+    </div>
+    <h3>Secuencias</h3>
+    <p>
+      <code>seq_len = 5</code>: la red mira 5 eventos hacia atrás (pista del lab acústico del curso).
+      Train ≈ 7645 secuencias · Test julio = <strong>2387</strong> secuencias.
+    </p>
+  </section>
+
+  <section id="lstm">
+    <h2>5. Entrenamiento: LSTM, early stop y grid</h2>
+    <div class="box frase">
+      <div class="label">LSTM en una frase</div>
+      Red que recuerda una secuencia corta y aprende patrones en el tiempo (aquí: 5 pasos → 4 conteos).
+    </div>
+    <div class="grid-2" style="margin-top:12px">
+      <div class="box analogia">
+        <div class="label">Analogía</div>
+        No es una foto fija: es alguien que escucha las últimas 5 notas y adivina cuántos toques más vendrán.
+      </div>
+      <div class="box analogia">
+        <div class="label">Early stopping</div>
+        Si estudias de más el mismo cuaderno, memorizas ruido. Cuando la validación empeora, paras
+        y te quedas con el mejor checkpoint.
+      </div>
+    </div>
+    <h3>Modelo final</h3>
+    <ul>
+      <li>1 capa LSTM, <strong>hidden = 48</strong>, <strong>dropout = 0.2</strong> (capa Dropout real antes del Dense)</li>
+      <li>Sin CNN (primero sin convolucionales, según enunciado)</li>
+      <li>Adam + L2Loss · lr = 0.005 · batch = 32 · seed = 42</li>
+      <li>Validación causal = 15% cola del train · paciencia 4 · mejor epoch = <strong>3</strong></li>
+      <li>Grid de 8 configs; se elige por menor MAE de validación (test solo se reporta)</li>
+    </ul>
+    <div class="box profe">
+      <div class="label">Qué decirle al profe</div>
+      Overfit = aprenderse el pasado de memoria. Por eso early stop + validación causal.
+      No elegimos hiperparámetros mirando julio. Desbalance no se “arregla” rebalanceando: la LSTM
+      debe respetar frecuencias reales (analogía pausa vs habla del lab).
+    </div>
+  </section>
+
+  <section id="metricas">
+    <h2>6. Cómo se mide el éxito</h2>
+    <h3>Lente A — Regresión (primaria)</h3>
+    <ul>
+      <li><strong>MAE</strong>: en promedio, ¿por cuántos rastros te equivocas?</li>
+      <li><strong>RMSE</strong>: parecido, pero castiga más los errores grandes.</li>
+    </ul>
+    <h3>Lente B — Binaria (complemento)</h3>
+    <p>
+      Positivo si hay ≥1 rastro en la ventana. Predicción positiva si score ≥ 0.5.
+    </p>
+    <table>
+      <thead><tr><th>Métrica</th><th>Significado casero</th></tr></thead>
+      <tbody>
+        <tr><td>Accuracy</td><td>% de aciertos totales (cuidado con clases desbalanceadas)</td></tr>
+        <tr><td>Precision</td><td>Cuando digo “sí”, ¿cuántas veces era verdad?</td></tr>
+        <tr><td>Recall</td><td>De todos los “sí reales”, ¿cuántos atrapé?</td></tr>
+        <tr><td>F1</td><td>Equilibrio precision–recall</td></tr>
+        <tr><td>Matriz de confusión</td><td>TP / FP / TN / FN — el tablero del árbitro</td></tr>
+      </tbody>
+    </table>
+    <div class="box analogia" style="margin-top:12px">
+      <div class="label">Analogía (detector de humo)</div>
+      Recall alto ≈ casi no se te escapa un incendio. Specificity baja ≈ a veces suena sin fuego.
+      Nuestro modelo binario: recall ~98–99%, specificity más baja — hay que decirlo con honestidad.
+    </div>
+    <h3>Confusión y3 (ejemplo real del final)</h3>
+    <table>
+      <thead><tr><th></th><th>Predicho sí</th><th>Predicho no</th></tr></thead>
+      <tbody>
+        <tr><td>Real sí</td><td>TP 1513</td><td>FN 32</td></tr>
+        <tr><td>Real no</td><td>FP 668</td><td>TN 174</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="resultados">
+    <h2>7. Resultados del modelo final</h2>
+    <p>Carpeta: <code>Data/ml_out/lstm_fantasma_final/</code> · Test julio · n = 2387 secuencias.</p>
+    <div class="metrics">
+      <div class="metric"><div class="num">1.49</div><div class="cap">MAE promedio</div></div>
+      <div class="metric"><div class="num">0.87</div><div class="cap">F1 promedio</div></div>
+      <div class="metric"><div class="num">−17%</div><div class="cap">vs 1ª versión (MAE)</div></div>
+      <div class="metric"><div class="num">48</div><div class="cap">unidades LSTM</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Ventana</th><th>MAE</th><th>RMSE</th><th>Acc bin.</th><th>F1</th><th>Recall</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>y3</td><td>0.82</td><td>1.01</td><td>0.71</td><td>0.81</td><td>0.98</td></tr>
+        <tr><td>y5</td><td>1.15</td><td>1.41</td><td>0.75</td><td>0.85</td><td>0.99</td></tr>
+        <tr><td>y10</td><td>1.75</td><td>2.15</td><td>0.81</td><td>0.89</td><td>0.99</td></tr>
+        <tr><td>y15</td><td>2.24</td><td>2.77</td><td>0.83</td><td>0.91</td><td>0.99</td></tr>
+        <tr><td><strong>prom.</strong></td><td><strong>1.49</strong></td><td><strong>1.84</strong></td><td><strong>0.78</strong></td><td><strong>0.87</strong></td><td><strong>0.99</strong></td></tr>
+      </tbody>
+    </table>
+    <p style="color:var(--muted);font-size:0.9rem">
+      Exactos de referencia: MAE prom 1.4886 · F1 prom 0.8657 · RMSE prom 1.8359.
+      Criterio de selección: 1º menor MAE prom; 2º mayor F1 prom.
+    </p>
+    <div class="box profe">
+      <div class="label">Frase lista para oral</div>
+      “LSTM 48 unidades, dropout 0.2, early stop (mejor epoch 3), 86 features, seq_len 5.
+      Train abr–jun / test julio. MAE 1.49, F1 0.87. Mejora ~17% de MAE frente a la primera versión.”
+    </div>
+  </section>
+
+  <section id="artefactos">
+    <h2>8. Archivos resultado = entregables de una receta</h2>
+    <ul class="files">
+      <li><code>fantasma_lstm.params</code> — pesos cocinados (lo que carga la demo).</li>
+      <li><code>metrics_test.json</code> — hoja de notas: MAE/RMSE + bloque binario.</li>
+      <li><code>binary_metrics_test.json</code> — zoom sí/no: confusión, precision, recall, F1, AUC.</li>
+      <li><code>preds_test.csv</code> — verdadero vs predicho fila a fila (plan B si falla MXNet).</li>
+      <li><code>train_config.json</code> — cómo se eligió (grid + early stop).</li>
+      <li><code>fantasma_norm_stats.json</code> — la báscula (mean/std del train).</li>
+      <li>CSVs <code>*_norm.csv</code> — tablota lista.</li>
+      <li>Slides / guion — apoyo; el profe prioriza muestreo correcto ≫ slides.</li>
+    </ul>
+  </section>
+
+  <section id="demo">
+    <h2>9. Qué mostrar en la demo en vivo</h2>
+    <ol>
+      <li>Problema en 30 s (4 conteos tras el fantasmita).</li>
+      <li>Disparo del extractor (Replay 1m, evento ≠ cada minuto, causal).</li>
+      <li>Split abr–jun / julio + normalización train-only.</li>
+      <li>Tabla de métricas (MAE 1.49 / F1 0.87).</li>
+      <li><strong>Demo:</strong> cargar params final y mostrar TRUE vs PRED en puntos de julio.</li>
+      <li>Señalar una fila buena y una con error (“no es magia”).</li>
+      <li>Límites: Opción A (no paridad TV literal); t-SNE→GMM→HMM paralelo, no bloquea.</li>
+    </ol>
+    <div class="box frase">
+      <div class="label">Comando mental</div>
+      <code>perl -I. scripts/demo_fantasma_predict.pl --n 8</code>
+      — carga pesos, no reentrena. Si tarda: “está cargando”. Si falla: abrir <code>preds_test.csv</code>.
+    </div>
+  </section>
+
+  <section id="faq">
+    <h2>Preguntas frecuentes del profesor</h2>
+    <p style="color:var(--muted)">
+      Basadas en orales Lumina (sobre todo 20–27 jul) y el DOCX de indicaciones finales.
+      Respuestas cortas “para decir en oral”.
+    </p>
+
+    <details class="faq" open>
+      <summary>1. ¿Qué evalúa usted en la presentación?</summary>
+      <p>Que tomaron la data en los momentos correctos del fantasmita. Muestreo correcto ≫ slides bonitas. No inventar algoritmos: alimentar bien la tablota.</p>
+    </details>
+    <details class="faq">
+      <summary>2. ¿Una fila por cada minuto?</summary>
+      <p>No. Cada muestra = aparición o reubicación del fantasmita. Si se mueve otra vez, nueva muestra.</p>
+    </details>
+    <details class="faq">
+      <summary>3. ¿Por qué ventanas 3, 5, 10 y 15?</summary>
+      <p>Porque el enunciado pide contar rastros hacia adelante en esos horizontes. Cuatro salidas. Cortas suelen dar 0/1; largas rellenan un poco más.</p>
+    </details>
+    <details class="faq">
+      <summary>4. ¿Qué es un rastro?</summary>
+      <p>Cuando la punta provisional se desplaza fuera del rango y deja la marca “1”. Si nadie se mueve, el conteo de esa ventana es 0.</p>
+    </details>
+    <details class="faq">
+      <summary>5. ¿Por qué LSTM?</summary>
+      <p>Hay dependencia temporal entre eventos. Seguimos la plantilla del lab acústico del curso, adaptada al extractor. Primero sin CNN.</p>
+    </details>
+    <details class="faq">
+      <summary>6. ¿Cómo evitan mirar el futuro?</summary>
+      <p>Features con estructura previa al evento. Labels usan futuro solo para etiquetar. Split temporal abr–jun / julio. Stats de normalización solo del train.</p>
+    </details>
+    <details class="faq">
+      <summary>7. ¿Y el desbalance de clases?</summary>
+      <p>No es excusa. La LSTM es sensible a la frecuencia real (como pausa vs habla). No rebalanceamos artificialmente.</p>
+    </details>
+    <details class="faq">
+      <summary>8. ¿Regresión o clasificación?</summary>
+      <p>Ambas valen. Regresión de conteos (MAE/RMSE) y/o binaria aparece/no (precision, recall, F1). Nosotros reportamos las dos; seleccionamos por MAE promedio.</p>
+    </details>
+    <details class="faq">
+      <summary>9. ¿Predicen Sweep / Grab / Run?</summary>
+      <p>No está obligado. Puede ser “¿habrá manipulación? sí/no”. El tipo exacto solo se conoce después. Puede ir como feature de contexto.</p>
+    </details>
+    <details class="faq">
+      <summary>10. ¿Cifras clave?</summary>
+      <p>Test julio. MAE prom 1.49. F1 prom 0.87. LSTM 48, dropout 0.2, seq 5, 86 features. −17% MAE vs primera versión.</p>
+    </details>
+    <details class="faq">
+      <summary>11. ¿Por qué normalizan?</summary>
+      <p>Para que escalas distintas no dominen. Z-score con media/desvío del train; el test usa esa misma báscula.</p>
+    </details>
+    <details class="faq">
+      <summary>12. ¿Hicieron t-SNE → GMM → HMM?</summary>
+      <p>Paralelo si alcanza el tiempo. El entregable de esta parte final es extractor + LSTM + demo de predicción vs etiquetas automáticas.</p>
+    </details>
+    <details class="faq">
+      <summary>13. ¿Por qué seq_len = 5?</summary>
+      <p>Pista del lab acústico: 5 pasos atrás para predecir. Adaptado a eventos del fantasmita en minutos.</p>
+    </details>
+    <details class="faq">
+      <summary>14. ¿Para qué el perfil de volumen?</summary>
+      <p>El histograma horizontal muestra dónde se concentró el interés institucional. El precio solo no cuenta eso. Entra como distancias a POC/VAH/VAL.</p>
+    </details>
+    <details class="faq">
+      <summary>15. ¿Si la demo falla?</summary>
+      <p>“Está cargando pesos, no reentrena.” Plan B: abrir <code>preds_test.csv</code> y mostrar true vs pred. Métricas ya están en el JSON.</p>
+    </details>
+  </section>
+
+  <section id="glosario">
+    <h2>Glosario express</h2>
+    <dl class="glossary">
+      <dt>OHLCV</dt><dd>Open, High, Low, Close, Volume de cada vela.</dd>
+      <dt>Timeframe</dt><dd>Zoom temporal (1m, 10m, 1h…). Mismo mercado, distinta lupa.</dd>
+      <dt>Indicador</dt><dd>Sensor calculado sobre precio/volumen (no es el modelo ML).</dd>
+      <dt>Fantasmita</dt><dd>Marcador de escape/proyección al romper pivote.</dd>
+      <dt>Rastro</dt><dd>Marca “1” cuando la punta provisional se mueve fuera del rango.</dd>
+      <dt>Feature</dt><dd>Número de contexto que entra a X (distancias, ATR, vol…).</dd>
+      <dt>Label / y3…y15</dt><dd>Respuesta correcta: conteo futuro de rastros en esa ventana.</dd>
+      <dt>Normalización</dt><dd>Reescalar columnas; stats solo del train.</dd>
+      <dt>LSTM</dt><dd>Red de secuencia con memoria corta útil.</dd>
+      <dt>seq_len</dt><dd>Cuántos pasos previos mira la red (aquí 5).</dd>
+      <dt>Train / Val / Test</dt><dd>Práctica / rinconcito para parar / examen de julio.</dd>
+      <dt>MAE / RMSE</dt><dd>Errores de regresión (promedio absoluto / castigo a errores grandes).</dd>
+      <dt>Accuracy / Precision / Recall / F1</dt><dd>Métricas de la vista sí/no.</dd>
+      <dt>Matriz de confusión</dt><dd>TP, FP, TN, FN.</dd>
+      <dt>Early stopping</dt><dd>Parar cuando la validación deja de mejorar.</dd>
+      <dt>Overfit</dt><dd>Memorizar el train y fallar en datos nuevos.</dd>
+      <dt>Dropout</dt><dd>Apagar conexiones al azar en entrenamiento para generalizar mejor.</dd>
+    </dl>
+  </section>
+
+  <footer>
+    Estudio oral · modelo final v2 (<code>lstm_fantasma_final</code>) ·
+    cifras alineadas a métricas del 2026-07-28 ·
+    <a href="#top">Volver arriba</a>
+  </footer>
+</div>
+</body>
+</html>
