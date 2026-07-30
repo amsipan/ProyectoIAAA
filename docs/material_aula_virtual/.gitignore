@@ -1,0 +1,18 @@
+# Binarios / datos pesados del aula (sí existen en disco; no versionar)
+*.mp4
+*.rpm
+*.zip
+
+# CSVs de mercado ya viven en Data/ del repo
+08_unidad5_no_supervisado/Proyecto/*.csv
+
+# Datasets de voz del demo LSTM (pesados; reextraer del zip Unidad 5 / LSTM.zip si hace falta)
+08_unidad5_no_supervisado/LSTM/VAD_data/
+09_mxnet_patches/lstm_prueba_acustica/**/VAD_data/
+
+# Backups / basura
+*~
+*.bak
+Thumbs.db
+desktop.ini
+_staging/

@@ -9,7 +9,7 @@ use Time::HiRes qw(time);
 use AI::MXNet qw(mx nd);
 use Market::ML::FantasmaLSTMData;
 
-# LSTM regresion multi-salida (y3/y5/y10/y15) sobre dataset fantasmita normalizado.
+# LSTM regresion multi-salida (y3/y5/y10/y15) sobre dataset fantasma normalizado.
 # Sin CNN. Patron adaptado del lab 09_02_02 (seq_len≈5, Gluon LSTM NTC).
 
 STDOUT->autoflush(1);
@@ -341,7 +341,7 @@ sub _shape_str {
 
 sub print_usage {
     print <<'USAGE';
-train_fantasma_lstm.pl — LSTM regresion multi-salida (fantasmita, sin CNN)
+train_fantasma_lstm.pl — LSTM regresion multi-salida (fantasma, sin CNN)
 
   --train PATH         (default Data/ml_out/fantasma_train_norm.csv)
   --test PATH          (default Data/ml_out/fantasma_test_norm.csv)

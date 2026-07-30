@@ -6,7 +6,7 @@ use lib "$FindBin::Bin/..";
 
 use Market::ML::NormalizeFantasmaDataset;
 
-# Normalización train-only (z-score) para dataset fantasmita.
+# Normalización train-only (z-score) para dataset fantasma.
 # Fit en train → aplica a train y test; guarda stats JSON.
 
 my %opt = (
@@ -63,7 +63,7 @@ for my $p ( $opt{out_train}, $opt{out_test}, $opt{stats} ) {
     }
 }
 
-print "[*] Normalización fantasmita ($opt{method})\n";
+print "[*] Normalización fantasma ($opt{method})\n";
 print "[*] train=$opt{train}\n";
 print "[*] test=$opt{test}\n";
 

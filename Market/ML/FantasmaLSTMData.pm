@@ -4,7 +4,7 @@ use warnings;
 use JSON::PP ();
 use Market::ML::NormalizeFantasmaDataset;
 
-# Carga CSV normalizado fantasmita + arma matrices X/y en orden temporal.
+# Carga CSV normalizado fantasma + arma matrices X/y en orden temporal.
 # Targets: y3,y5,y10,y15. Features: lista de fantasma_norm_stats.json.
 
 our $VERSION = '0.1';

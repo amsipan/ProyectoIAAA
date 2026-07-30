@@ -1,0 +1,9 @@
+# NOTA: RPM omitido por tamaño
+
+Archivo NO copiado aquí (~151 MB):
+  Citrix-Fedora/ICAClient-rhel-22.11.0.19-0.x86_64.rpm
+
+Origen intacto en Downloads:
+  C:\Users\bryan\Downloads\OneDrive_1_7-25-2026 (2).zip
+
+Si lo necesitas, extráelo manualmente desde ese zip.

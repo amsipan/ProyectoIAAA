@@ -3,12 +3,9 @@ use strict;
 use warnings;
 use Time::Moment;
 
-# Extractor headless de features + labels para el LSTM del fantasmita.
-# Contrato Opción A (PivotPointsHL actual / comentario Josafa):
-#   - disparo = aparición o reubicación de la punta provisional
-#   - rastro "1" solo si la punta se mueve (trail en punta previa)
-#   - labels y3/y5/y10/y15 = conteo de trails creados en ventanas futuras
-# Sin Tk. Causal: features solo con estructura <= event_bar.
+# Extractor headless de features + labels para el LSTM del fantasma.
+# Opción A: disparo = punta provisional nueva/reubicada; rastro "1" si la punta se mueve;
+# labels y3/y5/y10/y15 = trails creados en ventanas futuras. Sin Tk; causal (<= event_bar).
 
 use Market::MarketData;
 use Market::Indicators::PivotPointsHL;
@@ -250,7 +247,7 @@ sub write_csv {
     return $path;
 }
 
-# --- internos ---
+# helpers privados
 
 sub _new_tf_context {
     my ( $class, $md, $tf, $pph_len, $pack ) = @_;
@@ -323,7 +320,7 @@ sub _feed_context {
         $ctx->{liq}->update_last( $md, $i );
     }
 
-    # AVWAP fantasmita: anclar a punta provisional actual.
+    # AVWAP del fantasma: anclar a punta provisional actual.
     my $prov = $ctx->{pph}->get_values()->{provisional};
     if ( $prov && defined $prov->{index} ) {
         my $ai = $prov->{index};

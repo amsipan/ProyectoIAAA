@@ -1,0 +1,68 @@
+Install CITRIX on Fedora 32/33/34/35/36/37
+
+Source of information:
+https://www.reddit.com/r/Fedora/comments/z6gn3l/citrix_workspace_2211_on_fedora_37_guide/
+
+https://discussion.fedoraproject.org/t/how-to-install-citrix-workspace-on-fedora-33/69337
+
+Download the Ctrix .rpm programs from Unidad 1: Capitulo 1 - Citrix-Fedora:
+
+ICAClient-rhel-22.11.0.19-0.x86_64.rpm
+ctxusb-22.11.0.19-1.x86_64.rpm
+
+
+----------
+For your reference only, the sources have been downloaded from:
+
+https://www.citrix.com/downloads/workspace-app/legacy-workspace-app-for-linux/workspace-app-for-linux-latest4.html
+
+More versions of Citrix can be found at:
+https://www.citrix.com/downloads/workspace-app/legacy-workspace-app-for-linux/
+
+
+RPM Packages > RedHat Full Package (Self-Service Support) > Citrix Workspace app for Linux (x86_64)
+
+RPM Packages > USB Support Package > USB Support Package (x86_64)
+
+------------
+
+sudo dnf localinstall ICAClient-rhel-22.11.0.19-0.x86_64.rpm
+sudo dnf localinstall ctxusb-22.11.0.19-1.x86_64.rpm
+
+
+Download from Unidad 1: Capitulo 1 - Citrix-Fedora: the .pem certificates from https://vdi.epn.edu.ec 
+
+------------
+For your reference only, I'll show how to obtain the required certificates:
+
+Enter https://vdi.epn.edu.ec/ URL in Firefox.
+Click on the locker, then on the arrow given by Conection is Secure, then More Information. In Security window, click on View Certificate.
+
+At *.epn.edu.ec tab, go down to Miscelaneous and download PEM (cert).
+
+At UserTrust RSA Certification Authority, do the same download, while changing its name into UserTrustRSACertificationAuthority.cert.pem.
+
+At the end you will have two certificates:
+
+epn-edu-ec.cert.pem
+UserTrustRSACertificationAuthority.cert.pem
+
+To make it easier, they have been already placed in Citrix-Fedora folder.
+----------------
+
+After downloading the *cert.pem files, copy all *cert.pem files into /opt/Citrix/ICAClient/keystore/cacerts/ via terminal:
+
+sudo cp *cert.pem /opt/Citrix/ICAClient/keystore/cacerts/
+
+Then run the following command to rehash the certificates:
+
+sudo /opt/Citrix/ICAClient/util/ctx_rehash
+
+Restart your browser and go to: https://vdi.epn.edu.ec
+Open Google Chrome from the vdi to download a .ica file.
+
+Open that .ica file to start a new browser session.
+
+If you have any problem, contact asistencia.tecnica@epn.edu.ec for further help regarding Citrix and its errors. They have a contract with Citrix to use their software.
+
+

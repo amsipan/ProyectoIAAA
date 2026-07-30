@@ -9,8 +9,8 @@ use JSON::PP ();
 use AI::MXNet qw(mx nd);
 use Market::ML::FantasmaLSTMData;
 
-# Demo oral: carga modelo LSTM fantasmita y muestra N predicciones vs labels.
-# Solo lee test + stats (no reentrena). Salida ASCII apta para proyector.
+# Carga modelo LSTM y muestra N predicciones vs labels de test.
+# Solo lee test + stats (no reentrena).
 
 STDOUT->autoflush(1);
 STDERR->autoflush(1);
@@ -28,7 +28,7 @@ my %opt = (
     n         => 8,
     seed      => 42,
     indices   => undef,    # CSV de indices de secuencia, p.ej. 0,100,500
-    spaced    => 1,        # muestrear espaciado en el test (default oral)
+    spaced    => 1,        # muestrear espaciado en el test (default)
 );
 
 while (@ARGV) {
@@ -179,8 +179,6 @@ _banner('FIN DEMO — comparar true_* vs pred_* (conteo de rastros)');
 printf "Total wall: %.1fs\n", time() - $t0;
 exit 0;
 
-# ---------------------------------------------------------------------------
-
 # Detecta indexacion Dense: v2/final = 2.weight (Dropout hijo intermedio); v1 = 1.weight
 sub _detect_arch {
     my ( $params_path, $force ) = @_;
@@ -223,7 +221,7 @@ sub _pick_indices {
         return ( 0 .. $n - 1 );
     }
 
-    # Espaciado uniforme a lo largo de julio (buen muestreo para oral)
+    # Espaciado uniforme a lo largo del conjunto de test
     return (0) if $n == 1;
     my @out;
     for my $k ( 0 .. $n - 1 ) {
@@ -299,7 +297,7 @@ sub _banner {
 
 sub print_usage {
     print <<'USAGE';
-demo_fantasma_predict.pl — demo oral: cargar LSTM y mostrar true vs pred
+demo_fantasma_predict.pl — cargar LSTM y mostrar true vs pred
 
   --test PATH       (default Data/ml_out/fantasma_test_norm.csv)
   --stats PATH      (default Data/ml_out/fantasma_norm_stats.json)
@@ -318,7 +316,7 @@ demo_fantasma_predict.pl — demo oral: cargar LSTM y mostrar true vs pred
 Por defecto auto-detecta la arch leyendo claves del .params
 (2.weight → v2/final; 1.weight → v1).
 
-Ejemplo oral (Fedora35):
+Ejemplo (Fedora35):
 
   cd /mnt/c/Users/bryan/ia/proyecto_iaaa/Proyecto/ProyectoIAAA
   perl -I. scripts/demo_fantasma_predict.pl --n 8

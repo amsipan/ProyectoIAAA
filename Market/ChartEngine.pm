@@ -1949,7 +1949,7 @@ sub _blank_cursor_xbm_paths {
 # cursor plot invisible en Select Bar (solo tijera dibujada como puntero).
 # Fedora35/WSLg (Tk 804.036): none/blank NO existen y '' deja cget=undef (WSLg muestra flecha
 # fantasma). Lo que SÍ oculta el puntero: cursor XBM fuente+mascara todo-ceros con hotspot,
-# spec arrayref ['@src', mask, fg, bg]. Verificado por captura (revisión, 0053).
+# spec arrayref ['@src', mask, fg, bg]. Verificado en WSLg con cursor XBM en blanco.
 sub _select_mode_blank_cursor {
     my ($self) = @_;
     return $self->{_select_blank_cursor} if exists $self->{_select_blank_cursor};
@@ -2301,7 +2301,7 @@ sub _promote_avwap_auto_to_manual {
     return $self;
 }
 
-# Toggle rastro "1" del fantasma (Josafa). Solo render; el cálculo se conserva.
+# Toggle rastro "1" del fantasma. Solo render; el cálculo se conserva.
 sub set_pph_show_rastro {
     my ( $self, $on ) = @_;
     $self->{pph_overlay}->set_show_rastro($on) if $self->{pph_overlay};

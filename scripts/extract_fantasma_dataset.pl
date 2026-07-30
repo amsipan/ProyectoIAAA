@@ -9,7 +9,7 @@ use Market::ML::ExtractFantasmaDataset;
 $| = 1;    # progreso en log sin buffer
 select( ( select(STDERR), $| = 1 )[0] );
 
-# CLI headless — extractor fantasmita Opción A.
+# CLI headless — extractor de features/labels fantasma (Opción A).
 # Ejemplos:
 #   perl scripts/extract_fantasma_dataset.pl --smoke
 #   perl scripts/extract_fantasma_dataset.pl --csv Data/2026_Abril-Junio.csv --out Data/ml_out/train.csv
@@ -80,7 +80,7 @@ $opt{out} //= 'Data/ml_out/fantasma_dataset.csv';
 
 die "CSV no encontrado: $opt{csv}\n" unless -f $opt{csv};
 
-print "[*] Extractor fantasmita Opción A\n";
+print "[*] Extractor fantasma Opción A\n";
 print "[*] csv=$opt{csv} pack=$opt{pack}\n";
 print "[*] start=", ( $opt{start_ts} // '-' ), " end=", ( $opt{end_ts} // '-' ), "\n";
 print "[*] max_bars=", ( $opt{max_bars} // '-' ),
@@ -119,7 +119,7 @@ if ( @{ $res->{rows} || [] } ) {
       " y3=$r0->{y3} y5=$r0->{y5} y10=$r0->{y10} y15=$r0->{y15}",
       " atr=$r0->{atr_1m} pip_ob_1m=", ( $r0->{pip_ob_1m} // 'NA' ), "\n";
 
-    # Masa de labels en tip oral 0…3
+    # Masa de labels en clases 0…3
     for my $h ( 3, 5, 10, 15 ) {
         my %hist;
         for my $r ( @{ $res->{rows} } ) {
@@ -141,7 +141,7 @@ exit 0;
 
 sub print_usage {
     print <<'USAGE';
-extract_fantasma_dataset.pl — features+labels LSTM fantasmita (Opción A)
+extract_fantasma_dataset.pl — features+labels LSTM fantasma (Opción A)
 
   --smoke              1ª semana abril train + max 80 muestras
   --csv PATH           CSV OHLCV 1m (default Data/2026_Abril-Junio.csv)

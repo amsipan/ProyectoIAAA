@@ -11,8 +11,7 @@ use JSON::PP ();
 use AI::MXNet qw(mx nd);
 use Market::ML::FantasmaLSTMData;
 
-# LSTM v2b (Fase 4, Opcion 4a): misma receta v2 (val causal, early stop,
-# dropout explicito) pero con una Dense intermedia relu antes de la salida.
+# LSTM v2b: misma receta v2 (val causal, early stop, dropout) con Dense intermedia relu.
 # Artefactos con sufijo _v2b en out_dir propio; v1 y v2 quedan intactos.
 
 STDOUT->autoflush(1);
@@ -93,7 +92,7 @@ if ( $opt{eval_only} ) {
     }
 }
 
-print "[*] MXNet OK — Fantasma LSTM v2b (Opcion 4a: LSTM + Dense intermedia relu)\n";
+print "[*] MXNet OK — Fantasma LSTM v2b (Dense intermedia relu)\n";
 print "[*] train=$opt{train}\n";
 print "[*] test=$opt{test}\n";
 print "[*] stats=$opt{stats}\n";
@@ -190,7 +189,7 @@ package FantasmaLSTMV2B {
         );
         # Con 1 capa el dropout interno del LSTM no aplica: capa explicita
         $self->{drop} = mx->gluon->nn->Dropout( rate => $args{dropout} // 0 );
-        # Capa densa intermedia (Opcion 4a): hidden -> dense_hidden con relu
+        # Dense intermedia: hidden -> dense_hidden con relu
         $self->{dense_mid} = mx->gluon->nn->Dense(
             units      => $args{dense_hidden},
             in_units   => $args{in_units},
@@ -725,7 +724,7 @@ exit 0;
 
 sub print_usage {
     print <<'USAGE';
-train_fantasma_lstm_v2b.pl — variante Fase 4 (Opcion 4a): LSTM + Dense intermedia
+train_fantasma_lstm_v2b.pl — LSTM v2b: Dense intermedia relu antes de la salida
 
   --train PATH         (default Data/ml_out/fantasma_train_norm.csv)
   --test PATH          (default Data/ml_out/fantasma_test_norm.csv)

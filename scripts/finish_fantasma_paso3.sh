@@ -1,5 +1,5 @@
 #!/bin/bash
-# Espera fin del train extract, copia a Data/ml_out y normaliza.
+# Espera fin del extract train, copia a Data/ml_out y normaliza.
 set -euo pipefail
 ROOT="/mnt/c/Users/bryan/ia/proyecto_iaaa/Proyecto/ProyectoIAAA"
 cd "$ROOT"

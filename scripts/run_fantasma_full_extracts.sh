@@ -1,5 +1,5 @@
 #!/bin/bash
-# Launcher Paso 3 — full extracts en /tmp (I/O local), logs con progreso.
+# Launcher full extracts train+test en /tmp (I/O local), logs con progreso.
 set -euo pipefail
 ROOT="/mnt/c/Users/bryan/ia/proyecto_iaaa/Proyecto/ProyectoIAAA"
 cd "$ROOT"
