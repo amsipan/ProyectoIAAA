@@ -418,6 +418,24 @@ sub _causal_end {
         : $last;
 }
 
+# _replay_head_is_partial — head de Replay dentro de un bucket aún abierto.
+sub _replay_head_is_partial {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return ($rc && $rc->is_active() && $rc->can('head_is_partial') && $rc->head_is_partial()) ? 1 : 0;
+}
+
+# _replay_closed_index — última vela CERRADA permitida para feeds de
+# indicadores/overlays (con head parcial es replay_idx - 1). Sin Replay, el
+# tope causal normal.
+sub _replay_closed_index {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self->_causal_end() unless $rc && $rc->is_active();
+    return $rc->closed_index() if $rc->can('closed_index');
+    return $rc->current_index();
+}
+
 sub _replay_blank_slots {
     my ($self, $visible) = @_;
     $visible ||= $self->{visible_bars} || MIN_VISIBLE_BARS;
@@ -599,12 +617,18 @@ sub _replay_window {
 
 # Extrae solo datos causalmente permitidos y rellena el resto del viewport con
 # undef. Evita que autoescala, ATR y render lean informacion futura indirecta.
+# Con head parcial (Replay en bucket abierto): OHLC dibuja la vela en formación
+# agregada hasta el instante (paridad TV); ATR se trunca en la última cerrada.
 sub _causal_slice {
     my ($self, $kind, $start, $end) = @_;
     return [] if !defined $start || !defined $end || $start > $end;
 
     my $causal_end = $self->_causal_end();
     my $read_end = $end < $causal_end ? $end : $causal_end;
+    if ($kind eq 'ATR' && $self->_replay_head_is_partial()) {
+        my $closed = $self->_replay_closed_index();
+        $read_end = $closed if defined $closed && $read_end > $closed;
+    }
     my $slice;
     if ($read_end >= $start) {
         $slice = $kind eq 'ATR'
@@ -615,6 +639,18 @@ sub _causal_slice {
         $slice = [];
     }
     $self->_pad_visible_slice($slice, $start, $end);
+    if ($kind ne 'ATR' && $self->_replay_head_is_partial()) {
+        my $ci = $causal_end - $start;
+        if ($ci >= 0 && $ci < @$slice) {
+            my $rc = $self->{replay_controller};
+            my $pc = eval {
+                $self->{market_data}->partial_candle(
+                    $self->{market_data}{active_tf}, $causal_end,
+                    $rc->current_base_index() );
+            };
+            $slice->[$ci] = $pc if $pc;
+        }
+    }
     return $slice;
 }
 
@@ -628,8 +664,9 @@ sub sync_overlay_indicators {
     return unless $self->{overlay_manager};
 
     my $last_idx = $self->{market_data}->size() - 1;
-    # Mismo tope que render/_causal_end (Replay: effective_end ≡ current_index).
-    my $feed_to  = $self->_causal_end();
+    # Tope = última vela CERRADA (Replay con head parcial no alimenta la vela
+    # en formación: los indicadores confirman al cierre, como en TradingView).
+    my $feed_to  = $self->_replay_closed_index();
     $feed_to = $last_idx if defined $last_idx && $feed_to > $last_idx;
 
     # Solo Producto.
@@ -1084,7 +1121,7 @@ sub _schedule_smc_background_feed {
             my $last = $md->size() - 1;
             return 1 if $last < 0;
             # Mismo tope que sync/render (relee causal cada tick; $target es hint).
-            my $feed_to = $self->_causal_end();
+            my $feed_to = $self->_replay_closed_index();
             $feed_to = $last if !defined $feed_to || $feed_to > $last;
 
             # Solo capas realmente registradas y visibles (mismo criterio on-demand).
@@ -1141,7 +1178,9 @@ sub _schedule_auto_tc_background_feed {
                 my $replay  = $self->{replay_controller};
                 my $feed_to = $target;
                 if ( $replay && $replay->is_active() && defined $replay->current_index() ) {
-                    $feed_to = $replay->current_index();
+                    $feed_to = $replay->can('closed_index')
+                        ? $replay->closed_index()
+                        : $replay->current_index();
                     $feed_to = $last if $feed_to > $last;
                 }
                 else {
@@ -1341,7 +1380,18 @@ sub render {
         my $ridx = $replay->current_index();
         if (defined $ridx) {
             $replay_head_candle = $self->{market_data}->get_candle($ridx);
-            my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $ridx, $ridx);
+            if ($self->_replay_head_is_partial()) {
+                # Vela en formación (paridad TV): OHLC solo hasta el instante.
+                my $pc = eval {
+                    $self->{market_data}->partial_candle(
+                        $self->{market_data}{active_tf}, $ridx,
+                        $replay->current_base_index() );
+                };
+                $replay_head_candle = $pc if $pc;
+            }
+            my $atr_i = $self->_replay_closed_index();
+            $atr_i = $ridx if !defined $atr_i || $atr_i < 0;
+            my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $atr_i, $atr_i);
             $replay_head_atr = $atr_slice->[0] if $atr_slice && @$atr_slice;
         }
     }
@@ -1482,9 +1532,10 @@ sub render {
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
         # feed_to en sync_overlay_indicators.
-        # Unico tope causal para todas las capas. En Replay nunca se deriva del
-        # cursor SMC ni del final completo del dataset.
-        my $feed_end = $self->_causal_end();
+        # Unico tope para todas las capas: última vela CERRADA (con head parcial
+        # los overlays no leen la vela en formación). Nunca se deriva del cursor
+        # SMC ni del final completo del dataset.
+        my $feed_end = $self->_replay_closed_index();
         for my $name (qw(smc_pro smc_fvg smc)) {
             my $ov = $self->{overlay_manager}->get($name);
             $ov->{_feed_end} = $feed_end if $ov;
@@ -4774,8 +4825,9 @@ sub set_timeframe {
     $self->_clear_ctrl_zoom_state();
 
     if ($preserve_replay) {
-        # Remapear tope y ancla de vista al TF nuevo: última vela cerrada en el
-        # instante preservado, conservando hueco derecho (trail) y zoom.
+        # Remapear tope y ancla de vista al TF nuevo: bucket que contiene el
+        # instante exacto (vela en formación si aún no cerró), conservando el
+        # hueco derecho (trail) y el zoom.
         my $new_idx = $rc->seek_base_index($head_bi);
         $new_idx = 0 if !defined $new_idx || $new_idx < 0;
         $self->{replay_view_end} = $new_idx + $trail_slots;
