@@ -308,4 +308,32 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     ok(scalar(@afters) >= 1, 'step_back programa el resync diferido');
 }
 
+# Serie destino más corta que la ventana (cambio a D/W): anclar al inicio en
+# vez de colapsar el head al borde izquierdo; ida y vuelta sin deriva.
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    $rc->start(1500);
+    $chart->frame_replay_view_at(1500);
+    $chart->{visible_bars} = 60;
+    $chart->{replay_view_end} = 1530;   # head al ~49% de la ventana (60 velas)
+    my ($ws0, $we0) = $chart->compute_window();
+    my $frac0 = (1500 - $ws0) / ($we0 - $ws0);
+
+    $chart->set_timeframe('D');   # serie D de 4 velas (más corta que la ventana)
+    my $total_d = scalar @{ $md->{data}{'D'} };
+    my ($wsd, $wed) = $chart->compute_window();
+    is($wsd, 0, 'TF grande: ventana anclada al inicio (sin colapso al borde)');
+    is($wed - $wsd + 1, $total_d, 'TF grande: toda la serie D visible');
+    my $frac_d = ($rc->current_index() - $wsd) / ($wed - $wsd);
+    ok($frac_d > 0.2, 'TF grande: head dentro de la vista (no colapsa al borde)');
+
+    $chart->set_timeframe('1m');
+    my ($ws2, $we2) = $chart->compute_window();
+    my $frac2 = ($rc->current_index() - $ws2) / ($we2 - $ws2);
+    ok(abs($frac2 - $frac0) < 0.02, 'ida y vuelta: fracción del head recuperada sin deriva');
+    is($rc->current_base_index(), 1500, 'ida y vuelta: instante exacto intacto');
+}
+
 done_testing();

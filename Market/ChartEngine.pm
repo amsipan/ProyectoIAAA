@@ -591,6 +591,18 @@ sub _replay_window {
 
         # CLAMP MIN-VISIBLE derecha (siempre).
         my $max_end = $causal_end + $max_blank;
+        if ( $view_end > $max_end && $causal_end + 1 <= $visible ) {
+            # Trail irrealizable con la serie completa visible (p.ej. al pasar
+            # a un TF grande D/W): anclar al inicio — el head conserva la mejor
+            # fracción posible en vez de colapsar al borde izquierdo.
+            $view_end = $visible - 1;
+            $self->{_replay_view_fits} = 1;
+        }
+        elsif ( $causal_end + 1 > $visible ) {
+            # La marca persiste mientras la serie siga cabiendo en la ventana
+            # (así set_timeframe recuerda la fracción lógica al volver).
+            delete $self->{_replay_view_fits};
+        }
         $view_end = $max_end if $view_end > $max_end;
 
         # CLAMP izquierda: no permitir hueco en blanco a la izquierda (start >= 0),
@@ -2166,6 +2178,8 @@ sub frame_replay_view_at {
     my $blank = $opts->{anchor} ? $self->_replay_blank_slots($vis) : 0;
     $self->{replay_view_end} = $index + $blank;
     delete $self->{replay_prev_causal_end}; # reinicia deteccion de borde
+    delete $self->{_replay_view_fits};
+    delete $self->{_replay_head_frac};
     return $self;
 }
 
@@ -4811,12 +4825,16 @@ sub set_timeframe {
             $preserve_replay = 1;
             my $causal_end = $self->_causal_end();
             # Fracción de pantalla del head (0=izquierda, 1=derecha) para
-            # conservar su posición exacta en el TF nuevo (paridad TV).
+            # conservar su posición exacta en el TF nuevo (paridad TV). Si la
+            # ventana actual está anclada al inicio por serie corta, se usa la
+            # fracción recordada (esa ventana no puede representarla).
             my ($ws, $we) = $self->compute_window();
             my $span = $we - $ws + 1;
-            $head_frac = $span > 1 ? ($causal_end - $ws) / ($span - 1) : 1;
-            $head_frac = 0 if $head_frac < 0;
-            $head_frac = 1 if $head_frac > 1;
+            my $win_frac = $span > 1 ? ($causal_end - $ws) / ($span - 1) : 1;
+            $win_frac = 0 if $win_frac < 0;
+            $win_frac = 1 if $win_frac > 1;
+            $self->{_replay_head_frac} = $win_frac if !$self->{_replay_view_fits};
+            $head_frac = $self->{_replay_head_frac} // $win_frac;
             $vis_before = $self->{visible_bars} || $span || 60;
         }
     }
