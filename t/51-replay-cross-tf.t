@@ -260,7 +260,7 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     $chart->frame_replay_view_at(3000);
     $chart->set_timeframe('D');
     my ($wsd, $wed) = $chart->compute_window();   # render en D (serie de 4 velas)
-    ok($wed - $wsd + 1 <= 4, 'en D la ventana se acota a las velas disponibles');
+    is($wed - $wsd + 1, 20, 'en D la ventana conserva el nº de barras (huecos)');
     $chart->set_timeframe('1m');
     $chart->compute_window();
     is($chart->{visible_bars}, 20, 'zoom intacto tras ciclo 1m->D->1m');
@@ -322,12 +322,11 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     my $frac0 = (1500 - $ws0) / ($we0 - $ws0);
 
     $chart->set_timeframe('D');   # serie D de 4 velas (más corta que la ventana)
-    my $total_d = scalar @{ $md->{data}{'D'} };
     my ($wsd, $wed) = $chart->compute_window();
-    is($wsd, 0, 'TF grande: ventana anclada al inicio (sin colapso al borde)');
-    is($wed - $wsd + 1, $total_d, 'TF grande: toda la serie D visible');
+    ok($wsd < 0, 'TF grande: huecos a la izquierda (padding, sin colapso ni salto)');
+    is($wed - $wsd + 1, 60, 'TF grande: el nº de barras se conserva con huecos');
     my $frac_d = ($rc->current_index() - $wsd) / ($wed - $wsd);
-    ok($frac_d > 0.2, 'TF grande: head dentro de la vista (no colapsa al borde)');
+    ok(abs($frac_d - $frac0) < 0.02, 'TF grande: head en la MISMA fracción de pantalla');
 
     $chart->set_timeframe('1m');
     my ($ws2, $we2) = $chart->compute_window();
