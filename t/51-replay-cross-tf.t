@@ -336,4 +336,47 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     is($rc->current_base_index(), 1500, 'ida y vuelta: instante exacto intacto');
 }
 
+# Modo de escala manual del usuario: sobrevive al cambio de temporalidad
+# (la app nunca lo vuelve Auto por su cuenta; el indicador A/M no desincroniza).
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my @atr_mode_calls;
+    $chart->{atr_scale_mode_callback} = sub { push @atr_mode_calls, $_[0] };
+    $chart->{is_auto_scale} = 0;
+    $chart->{manual_min_y} = 150;
+    $chart->{manual_max_y} = 250;
+    $chart->{is_atr_auto_scale} = 0;
+    $chart->{atr_manual_min_y} = 1;
+    $chart->{atr_manual_max_y} = 9;
+
+    $chart->set_timeframe('15m');
+    ok(!$chart->{is_auto_scale}, 'escala precio: manual sobrevive al cambio de TF');
+    is($chart->{manual_min_y}, 150, 'escala precio: rango manual min intacto');
+    is($chart->{manual_max_y}, 250, 'escala precio: rango manual max intacto');
+    ok(!$chart->{is_atr_auto_scale}, 'escala ATR: manual sobrevive al cambio de TF');
+    is($chart->{atr_manual_min_y}, 1, 'escala ATR: rango manual min intacto');
+    is($chart->{atr_manual_max_y}, 9, 'escala ATR: rango manual max intacto');
+    is(scalar @atr_mode_calls, 0, 'cambio de TF no dispara callback a Auto');
+    is($chart->{visible_bars}, 60, 'reframe clásico conserva 60 velas visibles');
+
+    my $chart2 = build_chart($md);
+    $chart2->{is_auto_scale} = 1;   # default del motor real
+    $chart2->set_timeframe('5m');
+    ok($chart2->{is_auto_scale}, 'escala precio: modo Auto también se conserva');
+
+    # Con Replay activo (rama preserve) el modo manual también se conserva.
+    $md->set_timeframe('1m');
+    my $chart3 = build_chart($md);
+    my $rc3 = $chart3->{replay_controller};
+    $rc3->start(1500);
+    $chart3->frame_replay_view_at(1500);
+    $chart3->{is_auto_scale} = 0;
+    $chart3->{manual_min_y} = 500;
+    $chart3->{manual_max_y} = 600;
+    $chart3->set_timeframe('15m');
+    ok(!$chart3->{is_auto_scale}, 'replay: escala manual sobrevive al cambio de TF');
+    is($chart3->{manual_min_y}, 500, 'replay: rango manual min intacto');
+}
+
 done_testing();

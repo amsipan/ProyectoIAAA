@@ -238,6 +238,13 @@ $price_mode_M = $price_mode_corner->Button(
 )->pack(-side => 'left', -expand => 1, -fill => 'both');
 $refresh_price_mode_buttons->();
 
+# Todo cambio programático del modo (p.ej. Reset Vista) también refresca A/M:
+# el indicador de la esquina siempre refleja el comportamiento real de la app.
+$chart_engine->{scale_mode_callback} = sub {
+    $scale_mode = $_[0];
+    $refresh_price_mode_buttons->();
+};
+
 $chart_engine->{replay_bar_selected_callback} = sub {
     Market::UI::Callbacks->replay_confirm_bar_selection($chart_engine, \%ui_vars);
 };

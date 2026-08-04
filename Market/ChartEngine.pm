@@ -4862,15 +4862,8 @@ sub set_timeframe {
     $self->_atr_apply_for_timeframe($tf);
     $self->_reset_indicators_for_timeframe_change($tf);
 
-    $self->{is_auto_scale} = 1;
-    $self->{manual_min_y} = undef;
-    $self->{manual_max_y} = undef;
-    $self->{is_atr_auto_scale} = 1;
-    $self->{atr_manual_min_y} = undef;
-    $self->{atr_manual_max_y} = undef;
-    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
-        $self->{atr_scale_mode_callback}->('auto');
-    }
+    # El modo de escala (auto/manual) y el rango manual son configuración del
+    # usuario: se conservan al cambiar de TF (nunca volver a auto solos).
     $self->_clear_ctrl_zoom_state();
 
     if ($preserve_replay) {
@@ -4889,7 +4882,10 @@ sub set_timeframe {
         return $self;
     }
 
-    $self->reset_view();
+    # Reframe clásico (60 velas, borde derecho) sin tocar el modo de escala.
+    $self->{visible_bars} = 60;
+    $self->{offset} = 0;
+    $self->request_render();
 }
 
 # Reinicia overlays/indicadores al cambiar TF (sin recalcular ATR aqui).
