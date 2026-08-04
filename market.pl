@@ -383,7 +383,7 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 # SMC separada de Estructura: presupuesto ~1050 px / fila (laptop 14", ~1080 duro).
 my %panel;
 $panel{$_} = $panel_row->Frame()
-  for qw(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay);
+  for qw(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vista Replay);
 
 my $active_tab = 'Estructura';
 my $show_panel = sub {
@@ -409,13 +409,15 @@ my %tab_label = (
     Liquidez   => 'Liquidez',
     ZigZag     => 'ZigZag',
     Dibujo     => 'Dibujo',
+    Fib        => 'Fib',
     Auto       => 'Auto',
     Volumen    => 'Volumen',
+    AVWAP      => 'AVWAP',
     Vista      => 'Vista',
     Replay     => 'Replay',
 );
 my $tabs_box = $tab_row->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 5);
-for my $name (qw(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay)) {
+for my $name (qw(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vista Replay)) {
     $tabs_box->Radiobutton(
         -text => $tab_label{$name}, -value => $name, -variable => \$active_tab,
         -indicatoron => 0, -padx => 8, -pady => 1,
@@ -787,6 +789,13 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left', -padx => 2 );
     $trend_hint->pack( -side => 'left', -padx => 4 );
 
+}
+
+# Pestaña Fib
+# Separada de Dibujo por ancho en laptop 14" (~1050 px de presupuesto por fila).
+{
+    my $p = $panel{Fib};
+
     # Fib Retracement (clone TV: 2 clics / último impulso ZZ ext / hasta última vela)
     my $fib_box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 6 );
     $fib_box->Label( -text => 'Fib:' )->pack( -side => 'left', -padx => 2 );
@@ -919,6 +928,53 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
 
+    # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
+    my $pph_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
+    my $apply_pph = sub {
+        my $ind = $chart_engine->{pph_indicator} or return;
+        $ind->{show_reg}  = $pph_show_reg  ? 1 : 0;
+        $ind->{show_miss} = $pph_show_miss ? 1 : 0;
+        $ind->reset() if $ind->can('reset');
+        $chart_engine->{_pph_fed_up_to} = -1;   # forzar re-feed causal (Replay-safe)
+        $chart_engine->set_pph_show_rastro($pph_show_rastro);
+        $chart_engine->request_render();
+    };
+    $pph_box->Checkbutton(
+        -text     => 'Pivots & Fantasmas',
+        -variable => \$vis_pph,
+        -command  => sub { $cb_pph->( $vis_pph ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+    $pph_box->Checkbutton(
+        -text     => 'Regular',
+        -variable => \$pph_show_reg,
+        -command  => $apply_pph,
+    )->pack( -side => 'left' );
+    $pph_box->Checkbutton(
+        -text     => 'Missed',
+        -variable => \$pph_show_miss,
+        -command  => $apply_pph,
+    )->pack( -side => 'left' );
+    $pph_box->Checkbutton(
+        -text     => 'Rastro',
+        -variable => \$pph_show_rastro,
+        -command  => sub {
+            $chart_engine->set_pph_show_rastro($pph_show_rastro);
+        },
+    )->pack( -side => 'left' );
+
+    # DIY Custom Strategy Builder (Supply/Demand Zones)
+    $p->Checkbutton(
+        -text     => 'DIY (S/D Zones)',
+        -variable => \$vis_diy,
+        -command  => sub { $set_overlay_visible->( 'diy', $vis_diy ? 1 : 0 ); },
+    )->pack( -side => 'left' );
+}
+
+# Pestaña AVWAP
+# Separada de Volumen por ancho en laptop 14" (~1050 px de presupuesto por fila).
+{
+    my $p = $panel{AVWAP};
+
     # Anchored VWAP (AVWAP): Manual | Auto | Manual+Auto
     # Auto ≤2 (pivot consolidado + fantasma); manual opcional adicional (hasta 3).
     my $avwap_mode_ui = 'off';    # off | manual | auto | both
@@ -1006,47 +1062,6 @@ if ($ENV{MARKET_RELOAD}) {
             $avwap_mode_ui = $m;
         },
     )->pack( -side => 'left', -padx => 2 );
-
-    # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
-    my $pph_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
-    my $apply_pph = sub {
-        my $ind = $chart_engine->{pph_indicator} or return;
-        $ind->{show_reg}  = $pph_show_reg  ? 1 : 0;
-        $ind->{show_miss} = $pph_show_miss ? 1 : 0;
-        $ind->reset() if $ind->can('reset');
-        $chart_engine->{_pph_fed_up_to} = -1;   # forzar re-feed causal (Replay-safe)
-        $chart_engine->set_pph_show_rastro($pph_show_rastro);
-        $chart_engine->request_render();
-    };
-    $pph_box->Checkbutton(
-        -text     => 'Pivots & Fantasmas',
-        -variable => \$vis_pph,
-        -command  => sub { $cb_pph->( $vis_pph ? 1 : 0 ); },
-    )->pack( -side => 'left' );
-    $pph_box->Checkbutton(
-        -text     => 'Regular',
-        -variable => \$pph_show_reg,
-        -command  => $apply_pph,
-    )->pack( -side => 'left' );
-    $pph_box->Checkbutton(
-        -text     => 'Missed',
-        -variable => \$pph_show_miss,
-        -command  => $apply_pph,
-    )->pack( -side => 'left' );
-    $pph_box->Checkbutton(
-        -text     => 'Rastro',
-        -variable => \$pph_show_rastro,
-        -command  => sub {
-            $chart_engine->set_pph_show_rastro($pph_show_rastro);
-        },
-    )->pack( -side => 'left' );
-
-    # DIY Custom Strategy Builder (Supply/Demand Zones)
-    $p->Checkbutton(
-        -text     => 'DIY (S/D Zones)',
-        -variable => \$vis_diy,
-        -command  => sub { $set_overlay_visible->( 'diy', $vis_diy ? 1 : 0 ); },
-    )->pack( -side => 'left' );
 }
 
 # Pestaña Vista

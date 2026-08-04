@@ -532,8 +532,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     like($src, qr/my \$zigzag_density_pct = 35;/, '0064: densidad ZigZag inicial baja');
     like($src, qr/qw\(GLOBAL BSL SSL EQH EQL SWEEP GRAB RUN\)/, '0065: selector incluye familias específicas Liq');
     like($src, qr/qw\(GLOBAL INTERNAL EXTERNAL CHANNEL\)/, '0065: selector incluye familias específicas ZigZag');
-    like($src, qr/for my \$name \(qw\(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay\)\)/,
-         '§5: pestañas con SMC separada de Estructura (presupuesto 14")');
+    like($src, qr/for my \$name \(qw\(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vista Replay\)\)/,
+         '§5: pestañas por dominio (SMC separada; Fib y AVWAP propias; presupuesto 14")');
     like($src, qr/my \$overlay_button_text = sub \{ \$_\[0\] \? 'Ocultar' : 'Mostrar' \}/, '0066: botones contextuales alternan Mostrar/Ocultar');
     like($src, qr/\$overlay_button\{strategy\}/, '0066: Estrategia tiene boton Mostrar/Ocultar en su pestaña');
     like($src, qr/qw\(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER\)/, '0066: Estrategia expone subcapas tecnicas opcionales');
