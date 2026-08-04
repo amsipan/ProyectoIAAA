@@ -523,9 +523,11 @@ sub compute_window {
     my $visible = $self->{visible_bars} || 60;
     $visible = MIN_VISIBLE_BARS if $visible < MIN_VISIBLE_BARS;
     $visible = MAX_VISIBLE_BARS if $visible > MAX_VISIBLE_BARS;
+    $self->{visible_bars} = $visible;
+    # Clamp al total TRANSITORIO (no se persiste): visitar una serie corta
+    # (p.ej. D/W) no debe destruir el zoom del usuario al volver.
     $visible = $total_candles if $visible > $total_candles;
     $visible = 1 if $visible < 1;
-    $self->{visible_bars} = $visible;
 
     my $replay = $self->{replay_controller};
     if ($replay && $replay->is_active()) {
@@ -1343,6 +1345,23 @@ sub request_render {
     }
 }
 
+# defer_overlay_resync($ms) — coalescing de ráfagas de rewind: las velas se
+# redibujan al instante en cada paso y los indicadores pesados se resincronizan
+# una sola vez cuando la ráfaga frena (job cancelable, mismo patrón que ATR).
+sub defer_overlay_resync {
+    my ($self, $ms) = @_;
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas} or return $self;
+    $self->{_overlay_resync_deferred} = 1;
+    my $job = ++$self->{_overlay_resync_job};
+    $canvas->after($ms // 80, sub {
+        return if ($self->{_overlay_resync_job} // 0) != $job;
+        $self->{_overlay_resync_deferred} = 0;
+        $self->sync_overlay_indicators();
+        $self->request_render();
+    });
+    return $self;
+}
+
 sub render {
     my ($self) = @_;
 
@@ -1501,7 +1520,9 @@ sub render {
     # un rewind pinte etiquetas obtenidas con barras futuras.
     $self->{price_panel}->set_scale($price_scale);
     $self->{price_panel}->set_run_candles(
-        $self->_prepare_run_candle_map_for_frame()
+        $self->{_overlay_resync_deferred}
+            ? {}
+            : $self->_prepare_run_candle_map_for_frame()
     );
     # Reutilizar en crosshair/snap (evita new Scales en cada Motion).
     $self->{_last_price_scale} = $price_scale;
@@ -1527,7 +1548,12 @@ sub render {
     # overlays — compute + draw respetando replay_idx.
     # Los indicadores ya se sincronizaron antes de pintar los paneles para que
     # velas semánticas (RUN) y overlays compartan el mismo estado causal.
-    if ($self->{overlay_manager}) {
+    if ($self->{overlay_manager} && $self->{_overlay_resync_deferred}) {
+        # Ráfaga de rewind: las capas alimentadas quedarían desfasadas respecto
+        # a las velas; se limpian y se redibujan al frenar la ráfaga.
+        $self->{overlay_manager}->clear_all($self->{price_canvas});
+    }
+    elsif ($self->{overlay_manager}) {
         $self->_sync_fib_follow_zz_ext();
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
@@ -4778,15 +4804,20 @@ sub set_timeframe {
     # continúa en el TF nuevo (paridad TradingView). Sin base_index disponible
     # se cae al cierre clásico de sesión.
     my $rc = $self->{replay_controller};
-    my ($preserve_replay, $head_bi, $trail_slots);
+    my ($preserve_replay, $head_bi, $head_frac, $vis_before);
     if ($rc && $rc->is_active()) {
         $head_bi = eval { $rc->current_base_index() };
         if (defined $head_bi) {
             $preserve_replay = 1;
             my $causal_end = $self->_causal_end();
-            $trail_slots = (defined $self->{replay_view_end} && defined $causal_end)
-                ? $self->{replay_view_end} - $causal_end : 0;
-            $trail_slots = 0 if $trail_slots < 0;
+            # Fracción de pantalla del head (0=izquierda, 1=derecha) para
+            # conservar su posición exacta en el TF nuevo (paridad TV).
+            my ($ws, $we) = $self->compute_window();
+            my $span = $we - $ws + 1;
+            $head_frac = $span > 1 ? ($causal_end - $ws) / ($span - 1) : 1;
+            $head_frac = 0 if $head_frac < 0;
+            $head_frac = 1 if $head_frac > 1;
+            $vis_before = $self->{visible_bars} || $span || 60;
         }
     }
     if (!$preserve_replay) {
@@ -4826,11 +4857,14 @@ sub set_timeframe {
 
     if ($preserve_replay) {
         # Remapear tope y ancla de vista al TF nuevo: bucket que contiene el
-        # instante exacto (vela en formación si aún no cerró), conservando el
-        # hueco derecho (trail) y el zoom.
+        # instante exacto (vela en formación si aún no cerró), con el head en
+        # la MISMA posición de pantalla y el mismo zoom (nº de barras).
         my $new_idx = $rc->seek_base_index($head_bi);
         $new_idx = 0 if !defined $new_idx || $new_idx < 0;
-        $self->{replay_view_end} = $new_idx + $trail_slots;
+        my $vis = $vis_before || $self->{visible_bars} || 60;
+        $self->{visible_bars} = $vis;
+        my $trail = int((1 - $head_frac) * ($vis - 1) + 0.5);
+        $self->{replay_view_end} = $new_idx + $trail;
         delete $self->{replay_prev_causal_end};
         $self->{offset} = 0;
         $self->request_render();

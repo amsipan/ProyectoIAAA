@@ -43,6 +43,16 @@ sub build_md {
     sub slice_array { my ($s, $name, $a, $b) = @_; return [ map { $_ } ($a .. $b) ]; }
 }
 
+{
+    package AfterCapture;
+    sub after { my ($s, $ms, $cb) = @_; push @{ $s->{q} }, { ms => $ms, cb => $cb }; return scalar @{ $s->{q} }; }
+    sub geometry { '900x600' }
+    sub Width { 900 }
+    sub Height { 600 }
+    sub configure { return; }
+    sub delete { return; }
+}
+
 sub build_chart {
     my ($md) = @_;
     my $chart = bless {
@@ -220,6 +230,82 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     ok(!defined $rcd->seek_base_index(10), 'md sin helpers -> seek_base_index undef');
     ok(!$rcd->head_is_partial(), 'modo legacy: nunca parcial');
     is($rcd->closed_index(), 3, 'modo legacy: closed_index = replay_idx');
+}
+
+# Head fuera del borde (paneado): su fracción de pantalla se conserva cross-TF.
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    $rc->start(1500);
+    $chart->frame_replay_view_at(1500);
+    # Panear: head al ~74% de la ventana (trail de 5 slots sobre 20 visibles).
+    $chart->{replay_view_end} = 1505;
+    my ($ws0, $we0) = $chart->compute_window();
+    my $frac0 = (1500 - $ws0) / ($we0 - $ws0);
+
+    $chart->set_timeframe('15m');
+    my ($ws1, $we1) = $chart->compute_window();
+    my $frac1 = ($rc->current_index() - $ws1) / ($we1 - $ws1);
+    ok(abs($frac0 - $frac1) < 0.06, 'head paneado: fracción de pantalla conservada 1m->15m');
+    is($chart->{visible_bars}, 20, 'head paneado: zoom (nº barras) intacto');
+}
+
+# Visitar una serie corta (D) no destruye el zoom al volver (clamp transitorio).
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    $rc->start(3000);
+    $chart->frame_replay_view_at(3000);
+    $chart->set_timeframe('D');
+    my ($wsd, $wed) = $chart->compute_window();   # render en D (serie de 4 velas)
+    ok($wed - $wsd + 1 <= 4, 'en D la ventana se acota a las velas disponibles');
+    $chart->set_timeframe('1m');
+    $chart->compute_window();
+    is($chart->{visible_bars}, 20, 'zoom intacto tras ciclo 1m->D->1m');
+    is($rc->current_base_index(), 3000, 'instante exacto intacto tras el ciclo');
+    is($rc->current_index(), 3000, 'head 1m restaurado al volver');
+}
+
+# Rewind coalescing: defer_overlay_resync programa un único resync al frenar.
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    $rc->start(1500);
+
+    my @afters;
+    $chart->{price_canvas} = bless { q => \@afters }, 'AfterCapture';
+    my $syncs = 0;
+    {
+        no warnings 'redefine';
+        local *Market::ChartEngine::sync_overlay_indicators = sub { $syncs++; return 0 };
+        $chart->defer_overlay_resync(80);
+        $chart->defer_overlay_resync(80);   # ráfaga: el segundo job cancela al primero
+        ok($chart->{_overlay_resync_deferred}, 'defer activo durante la ráfaga');
+        is(scalar @afters, 2, 'un after por pulsación');
+        $afters[0]{cb}->();
+        is($syncs, 0, 'el primer job quedó cancelado (sin resync doble)');
+        ok($chart->{_overlay_resync_deferred}, 'defer sigue activo tras job cancelado');
+        $afters[1]{cb}->();
+        is($syncs, 1, 'al frenar la ráfaga hay exactamente 1 resync');
+        ok(!$chart->{_overlay_resync_deferred}, 'defer liberado tras el resync');
+    }
+}
+
+# step_back (botón o Shift+Left) dispara el rewind coalescing.
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    my @afters;
+    $chart->{price_canvas} = bless { q => \@afters }, 'AfterCapture';
+    $rc->start(1500);
+    Market::UI::Callbacks->make_replay_step_back($chart)->();
+    is($rc->current_index(), 1499, 'step_back retrocede una vela');
+    ok($chart->{_overlay_resync_deferred}, 'step_back activa el resync coalescido');
+    ok(scalar(@afters) >= 1, 'step_back programa el resync diferido');
 }
 
 done_testing();

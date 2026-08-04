@@ -642,6 +642,9 @@ sub make_replay_step_back {
             _replay_begin($chart, _replay_start_index($chart));
         }
         $rc->step_backward();
+        # Ráfagas de rewind (tecla mantenida): velas al instante y los
+        # indicadores se resincronizan una vez al frenar (evita O(n) por paso).
+        $chart->defer_overlay_resync(80) if $chart->can('defer_overlay_resync');
         $chart->request_render();
     };
 }
