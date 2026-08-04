@@ -53,6 +53,9 @@ use constant {
     # PricePanel: body_w = 0.6*bar_w → inter-vela = 0.4*bar_w; margen min = 0.2*bar_w.
     CANDLE_BODY_FRAC       => 0.6,
     REPLAY_MIN_TRAIL_SLOTS => 1,
+    # Tope de ventana efectiva en Replay: ~2 px por barra mínimo para que el
+    # eje temporal nunca se sature de etiquetas en series cortas (D/W).
+    REPLAY_MIN_EFFECTIVE_BAR_W_PX => 2,
     # Zoom-out live: si bar_w aprox < este umbral, aire a la derecha de la
     # última vela (evita que al adelgazar el centro se coma el borde).
     # Live zoom-out: rampa continua de margen derecho (evita cliff 0→N px).
@@ -527,9 +530,13 @@ sub compute_window {
 
     my $replay = $self->{replay_controller};
     if ($replay && $replay->is_active()) {
-        # Sin clamp al total: la ventana Replay conserva el nº de barras y los
-        # huecos se rellenan a la izquierda, así el head queda siempre en la
-        # misma fracción de pantalla aunque la serie activa sea más corta.
+        # Sin clamp al total duro: los huecos se rellenan a la izquierda y el
+        # head conserva su fracción de pantalla. Pero la ventana usa un
+        # "visible" efectivo acotado (zoom auto en márgenes razonables) para
+        # que el eje temporal nunca se sature de etiquetas en series cortas;
+        # el zoom del usuario (visible_bars) queda intacto.
+        my $cap = $self->_replay_visible_cap($total_candles);
+        $visible = $cap if $visible > $cap;
         return $self->_replay_window($visible);
     }
 
@@ -541,6 +548,25 @@ sub compute_window {
     $self->{offset} = $self->_clamp_offset($self->{offset}, $total_candles);
     my $end_idx = $total_candles - 1 - $self->{offset};
     return ($end_idx - $visible + 1, $end_idx);
+}
+
+# Tope de la ventana efectiva en Replay: una serie activa corta (D/W) no debe
+# inflar la ventana con cientos de huecos (el eje temporal se saturaba de
+# etiquetas hasta formar una masa ilegible). Se acota a 2× la serie (mínimo
+# 40) y, con ancho de canvas conocido, a ~2 px por barra. Es transitorio:
+# nunca toca el visible_bars del usuario.
+sub _replay_visible_cap {
+    my ($self, $total) = @_;
+    $total = 0 if !defined $total || $total < 0;
+    my $cap = 2 * $total;
+    $cap = 40 if $cap < 40;
+    my $w = $self->{_last_price_canvas_w} || 0;
+    if ($w > 1) {
+        my $px_cap = int($w / REPLAY_MIN_EFFECTIVE_BAR_W_PX);
+        $cap = $px_cap if $px_cap < $cap;
+    }
+    $cap = MIN_VISIBLE_BARS if $cap < MIN_VISIBLE_BARS;
+    return $cap;
 }
 
 # _replay_window($visible) — geometria del viewport durante Replay.
@@ -4855,12 +4881,16 @@ sub set_timeframe {
     if ($preserve_replay) {
         # Remapear tope y ancla de vista al TF nuevo: bucket que contiene el
         # instante exacto (vela en formación si aún no cerró), con el head en
-        # la MISMA posición de pantalla y el mismo zoom (nº de barras).
+        # la MISMA posición de pantalla. El trail se calcula con la ventana
+        # efectiva acotada (la misma de compute_window), así la fracción del
+        # head se conserva aunque la serie destino sea muy corta.
         my $new_idx = $rc->seek_base_index($head_bi);
         $new_idx = 0 if !defined $new_idx || $new_idx < 0;
         my $vis = $vis_before || $self->{visible_bars} || 60;
         $self->{visible_bars} = $vis;
-        my $trail = int((1 - $head_frac) * ($vis - 1) + 0.5);
+        my $cap = $self->_replay_visible_cap($self->{market_data}->size() || 0);
+        my $eff = $cap < $vis ? $cap : $vis;
+        my $trail = int((1 - $head_frac) * ($eff - 1) + 0.5);
         $self->{replay_view_end} = $new_idx + $trail;
         delete $self->{replay_prev_causal_end};
         $self->{offset} = 0;
@@ -5289,7 +5319,14 @@ sub _build_calendar_time_axis_plan {
     my @calendar;
     for my $d (@dates) {
         my %cand = %$d;
-        if (($cand{day} || 0) == 1 || ($cand{weight} || 0) >= 60) {
+        if (($cand{weight} || 0) >= 70) {
+            # Año: tier superior del calendario (desplaza meses/días cercanos).
+            $cand{text} = sprintf('%04d', $cand{year} // 0);
+            $cand{calendar_month_anchor} = 1;
+            $cand{label_half_width} = $month_label_px / 2;
+            $cand{weak_partial_session} = 0;
+        }
+        elsif (($cand{day} || 0) == 1 || ($cand{weight} || 0) >= 60) {
             $cand{text} = $months[($cand{month} || 1) - 1] || $cand{text};
             $cand{calendar_month_anchor} = 1;
             $cand{label_half_width} = $month_label_px / 2;
@@ -5307,11 +5344,17 @@ sub _build_calendar_time_axis_plan {
     my @accepted;
     for my $cand (@calendar) {
         if ($cand->{calendar_month_anchor}) {
-            # Mes siempre entra. Si colisiona con último día aceptado, el día se elimina.
-            if (@accepted && !$accepted[-1]{calendar_month_anchor}) {
+            # Nunca apilar anchors: separación mínima con el último aceptado,
+            # sea del tier que sea. En colisión gana el de mayor jerarquía
+            # (año > mes > día); a igual jerarquía se conserva el primero.
+            if (@accepted) {
                 my $half_sum = $accepted[-1]{label_half_width} + $cand->{label_half_width} + $min_gap_px;
                 if ($cand->{x} - $accepted[-1]{x} < $half_sum) {
-                    pop @accepted;
+                    if (($cand->{weight} || 0) > ($accepted[-1]{weight} || 0)) {
+                        pop @accepted;
+                        push @accepted, $cand;
+                    }
+                    next;
                 }
             }
             push @accepted, $cand;

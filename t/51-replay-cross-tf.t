@@ -324,7 +324,7 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     $chart->set_timeframe('D');   # serie D de 4 velas (más corta que la ventana)
     my ($wsd, $wed) = $chart->compute_window();
     ok($wsd < 0, 'TF grande: huecos a la izquierda (padding, sin colapso ni salto)');
-    is($wed - $wsd + 1, 60, 'TF grande: el nº de barras se conserva con huecos');
+    is($wed - $wsd + 1, 40, 'TF grande: ventana efectiva acotada (zoom auto, huecos)');
     my $frac_d = ($rc->current_index() - $wsd) / ($wed - $wsd);
     ok(abs($frac_d - $frac0) < 0.02, 'TF grande: head en la MISMA fracción de pantalla');
 
@@ -333,6 +333,39 @@ is($md->base_last_index(), 4319, 'base_last_index = última vela 1m');
     my $frac2 = ($rc->current_index() - $ws2) / ($we2 - $ws2);
     ok(abs($frac2 - $frac0) < 0.02, 'ida y vuelta: fracción del head recuperada sin deriva');
     is($rc->current_base_index(), 1500, 'ida y vuelta: instante exacto intacto');
+}
+
+# Zoom extremo + serie muy corta (W): la ventana efectiva se acota y el eje de
+# tiempo NUNCA acumula etiquetas (masa negra); el head conserva su fracción.
+{
+    $md->set_timeframe('1m');
+    my $chart = build_chart($md);
+    my $rc = $chart->{replay_controller};
+    $rc->start(1500);
+    $chart->frame_replay_view_at(1500);
+    $chart->{visible_bars} = 1000;
+    $chart->{replay_view_end} = 1500 + 500;   # head al ~50% con 1000 barras
+    my ($ws0, $we0) = $chart->compute_window();
+    my $frac0 = (1500 - $ws0) / ($we0 - $ws0);
+
+    $chart->set_timeframe('W');   # 1 sola vela W en este dataset
+    my ($ws, $we) = $chart->compute_window();
+    my $frac_w = ($rc->current_index() - $ws) / ($we - $ws);
+    ok(abs($frac_w - $frac0) < 0.05, 'W zoom extremo: head conserva su fracción');
+    cmp_ok($we - $ws + 1, '<=', 100, 'W zoom extremo: ventana efectiva acotada');
+    is($chart->{visible_bars}, 1000, 'W zoom extremo: zoom del usuario intacto');
+
+    my $labels = $chart->compute_intraday_labels();
+    my @lbl = grep { $_->{label} } @$labels;
+    cmp_ok(scalar(@lbl), '<=', 12, 'W zoom extremo: pocas etiquetas (sin masa negra)');
+    if (@lbl > 1) {
+        my $min_gap;
+        for my $i (1 .. $#lbl) {
+            my $g = $lbl[$i]{index} - $lbl[$i - 1]{index};
+            $min_gap = $g if !defined $min_gap || $g < $min_gap;
+        }
+        cmp_ok($min_gap, '>=', 3, 'W zoom extremo: etiquetas con separación mínima');
+    }
 }
 
 # Modo de escala manual del usuario: sobrevive al cambio de temporalidad
