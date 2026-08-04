@@ -67,11 +67,16 @@ sub compute_visible {
     }
 
     my $end_i = $end;
-    if ( defined $self->{_feed_end} && $self->{_feed_end} >= 0 ) {
+    if ( defined $self->{_feed_end} ) {
         $end_i = $self->{_feed_end};
     }
     elsif ( $market_data->can('last_index') ) {
         $end_i = $market_data->last_index();
+    }
+    # Head parcial en el primer bucket del TF: no hay vela cerrada que anclar.
+    if ( $end_i < 0 ) {
+        $self->{_result} = { ok => 0, reason => 'no_data' };
+        return $self;
     }
 
     $self->{_result} = $ind->compute(

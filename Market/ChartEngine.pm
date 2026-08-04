@@ -53,6 +53,9 @@ use constant {
     # PricePanel: body_w = 0.6*bar_w → inter-vela = 0.4*bar_w; margen min = 0.2*bar_w.
     CANDLE_BODY_FRAC       => 0.6,
     REPLAY_MIN_TRAIL_SLOTS => 1,
+    # Tope de ventana efectiva en Replay: ~2 px por barra mínimo para que el
+    # eje temporal nunca se sature de etiquetas en series cortas (D/W).
+    REPLAY_MIN_EFFECTIVE_BAR_W_PX => 2,
     # Zoom-out live: si bar_w aprox < este umbral, aire a la derecha de la
     # última vela (evita que al adelgazar el centro se coma el borde).
     # Live zoom-out: rampa continua de margen derecho (evita cliff 0→N px).
@@ -418,6 +421,24 @@ sub _causal_end {
         : $last;
 }
 
+# _replay_head_is_partial — head de Replay dentro de un bucket aún abierto.
+sub _replay_head_is_partial {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return ($rc && $rc->is_active() && $rc->can('head_is_partial') && $rc->head_is_partial()) ? 1 : 0;
+}
+
+# _replay_closed_index — última vela CERRADA permitida para feeds de
+# indicadores/overlays (con head parcial es replay_idx - 1). Sin Replay, el
+# tope causal normal.
+sub _replay_closed_index {
+    my ($self) = @_;
+    my $rc = $self->{replay_controller};
+    return $self->_causal_end() unless $rc && $rc->is_active();
+    return $rc->closed_index() if $rc->can('closed_index');
+    return $rc->current_index();
+}
+
 sub _replay_blank_slots {
     my ($self, $visible) = @_;
     $visible ||= $self->{visible_bars} || MIN_VISIBLE_BARS;
@@ -505,18 +526,47 @@ sub compute_window {
     my $visible = $self->{visible_bars} || 60;
     $visible = MIN_VISIBLE_BARS if $visible < MIN_VISIBLE_BARS;
     $visible = MAX_VISIBLE_BARS if $visible > MAX_VISIBLE_BARS;
-    $visible = $total_candles if $visible > $total_candles;
-    $visible = 1 if $visible < 1;
     $self->{visible_bars} = $visible;
 
     my $replay = $self->{replay_controller};
     if ($replay && $replay->is_active()) {
+        # Sin clamp al total duro: los huecos se rellenan a la izquierda y el
+        # head conserva su fracción de pantalla. Pero la ventana usa un
+        # "visible" efectivo acotado (zoom auto en márgenes razonables) para
+        # que el eje temporal nunca se sature de etiquetas en series cortas;
+        # el zoom del usuario (visible_bars) queda intacto.
+        my $cap = $self->_replay_visible_cap($total_candles);
+        $visible = $cap if $visible > $cap;
         return $self->_replay_window($visible);
     }
+
+    # Clamp al total TRANSITORIO (no se persiste): visitar una serie corta
+    # (p.ej. D/W) no debe destruir el zoom del usuario al volver.
+    $visible = $total_candles if $visible > $total_candles;
+    $visible = 1 if $visible < 1;
 
     $self->{offset} = $self->_clamp_offset($self->{offset}, $total_candles);
     my $end_idx = $total_candles - 1 - $self->{offset};
     return ($end_idx - $visible + 1, $end_idx);
+}
+
+# Tope de la ventana efectiva en Replay: una serie activa corta (D/W) no debe
+# inflar la ventana con cientos de huecos (el eje temporal se saturaba de
+# etiquetas hasta formar una masa ilegible). Se acota a 2× la serie (mínimo
+# 40) y, con ancho de canvas conocido, a ~2 px por barra. Es transitorio:
+# nunca toca el visible_bars del usuario.
+sub _replay_visible_cap {
+    my ($self, $total) = @_;
+    $total = 0 if !defined $total || $total < 0;
+    my $cap = 2 * $total;
+    $cap = 40 if $cap < 40;
+    my $w = $self->{_last_price_canvas_w} || 0;
+    if ($w > 1) {
+        my $px_cap = int($w / REPLAY_MIN_EFFECTIVE_BAR_W_PX);
+        $cap = $px_cap if $px_cap < $cap;
+    }
+    $cap = MIN_VISIBLE_BARS if $cap < MIN_VISIBLE_BARS;
+    return $cap;
 }
 
 # _replay_window($visible) — geometria del viewport durante Replay.
@@ -599,12 +649,18 @@ sub _replay_window {
 
 # Extrae solo datos causalmente permitidos y rellena el resto del viewport con
 # undef. Evita que autoescala, ATR y render lean informacion futura indirecta.
+# Con head parcial (Replay en bucket abierto): OHLC dibuja la vela en formación
+# agregada hasta el instante (paridad TV); ATR se trunca en la última cerrada.
 sub _causal_slice {
     my ($self, $kind, $start, $end) = @_;
     return [] if !defined $start || !defined $end || $start > $end;
 
     my $causal_end = $self->_causal_end();
     my $read_end = $end < $causal_end ? $end : $causal_end;
+    if ($kind eq 'ATR' && $self->_replay_head_is_partial()) {
+        my $closed = $self->_replay_closed_index();
+        $read_end = $closed if defined $closed && $read_end > $closed;
+    }
     my $slice;
     if ($read_end >= $start) {
         $slice = $kind eq 'ATR'
@@ -615,6 +671,18 @@ sub _causal_slice {
         $slice = [];
     }
     $self->_pad_visible_slice($slice, $start, $end);
+    if ($kind ne 'ATR' && $self->_replay_head_is_partial()) {
+        my $ci = $causal_end - $start;
+        if ($ci >= 0 && $ci < @$slice) {
+            my $rc = $self->{replay_controller};
+            my $pc = eval {
+                $self->{market_data}->partial_candle(
+                    $self->{market_data}{active_tf}, $causal_end,
+                    $rc->current_base_index() );
+            };
+            $slice->[$ci] = $pc if $pc;
+        }
+    }
     return $slice;
 }
 
@@ -628,8 +696,9 @@ sub sync_overlay_indicators {
     return unless $self->{overlay_manager};
 
     my $last_idx = $self->{market_data}->size() - 1;
-    # Mismo tope que render/_causal_end (Replay: effective_end ≡ current_index).
-    my $feed_to  = $self->_causal_end();
+    # Tope = última vela CERRADA (Replay con head parcial no alimenta la vela
+    # en formación: los indicadores confirman al cierre, como en TradingView).
+    my $feed_to  = $self->_replay_closed_index();
     $feed_to = $last_idx if defined $last_idx && $feed_to > $last_idx;
 
     # Solo Producto.
@@ -1084,7 +1153,7 @@ sub _schedule_smc_background_feed {
             my $last = $md->size() - 1;
             return 1 if $last < 0;
             # Mismo tope que sync/render (relee causal cada tick; $target es hint).
-            my $feed_to = $self->_causal_end();
+            my $feed_to = $self->_replay_closed_index();
             $feed_to = $last if !defined $feed_to || $feed_to > $last;
 
             # Solo capas realmente registradas y visibles (mismo criterio on-demand).
@@ -1141,7 +1210,9 @@ sub _schedule_auto_tc_background_feed {
                 my $replay  = $self->{replay_controller};
                 my $feed_to = $target;
                 if ( $replay && $replay->is_active() && defined $replay->current_index() ) {
-                    $feed_to = $replay->current_index();
+                    $feed_to = $replay->can('closed_index')
+                        ? $replay->closed_index()
+                        : $replay->current_index();
                     $feed_to = $last if $feed_to > $last;
                 }
                 else {
@@ -1304,6 +1375,23 @@ sub request_render {
     }
 }
 
+# defer_overlay_resync($ms) — coalescing de ráfagas de rewind: las velas se
+# redibujan al instante en cada paso y los indicadores pesados se resincronizan
+# una sola vez cuando la ráfaga frena (job cancelable, mismo patrón que ATR).
+sub defer_overlay_resync {
+    my ($self, $ms) = @_;
+    my $canvas = $self->{price_canvas} || $self->{atr_canvas} or return $self;
+    $self->{_overlay_resync_deferred} = 1;
+    my $job = ++$self->{_overlay_resync_job};
+    $canvas->after($ms // 80, sub {
+        return if ($self->{_overlay_resync_job} // 0) != $job;
+        $self->{_overlay_resync_deferred} = 0;
+        $self->sync_overlay_indicators();
+        $self->request_render();
+    });
+    return $self;
+}
+
 sub render {
     my ($self) = @_;
 
@@ -1341,7 +1429,18 @@ sub render {
         my $ridx = $replay->current_index();
         if (defined $ridx) {
             $replay_head_candle = $self->{market_data}->get_candle($ridx);
-            my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $ridx, $ridx);
+            if ($self->_replay_head_is_partial()) {
+                # Vela en formación (paridad TV): OHLC solo hasta el instante.
+                my $pc = eval {
+                    $self->{market_data}->partial_candle(
+                        $self->{market_data}{active_tf}, $ridx,
+                        $replay->current_base_index() );
+                };
+                $replay_head_candle = $pc if $pc;
+            }
+            my $atr_i = $self->_replay_closed_index();
+            $atr_i = $ridx if !defined $atr_i || $atr_i < 0;
+            my $atr_slice = $self->{indicator_manager}->slice_array('ATR', $atr_i, $atr_i);
             $replay_head_atr = $atr_slice->[0] if $atr_slice && @$atr_slice;
         }
     }
@@ -1451,7 +1550,9 @@ sub render {
     # un rewind pinte etiquetas obtenidas con barras futuras.
     $self->{price_panel}->set_scale($price_scale);
     $self->{price_panel}->set_run_candles(
-        $self->_prepare_run_candle_map_for_frame()
+        $self->{_overlay_resync_deferred}
+            ? {}
+            : $self->_prepare_run_candle_map_for_frame()
     );
     # Reutilizar en crosshair/snap (evita new Scales en cada Motion).
     $self->{_last_price_scale} = $price_scale;
@@ -1477,14 +1578,20 @@ sub render {
     # overlays — compute + draw respetando replay_idx.
     # Los indicadores ya se sincronizaron antes de pintar los paneles para que
     # velas semánticas (RUN) y overlays compartan el mismo estado causal.
-    if ($self->{overlay_manager}) {
+    if ($self->{overlay_manager} && $self->{_overlay_resync_deferred}) {
+        # Ráfaga de rewind: las capas alimentadas quedarían desfasadas respecto
+        # a las velas; se limpian y se redibujan al frenar la ráfaga.
+        $self->{overlay_manager}->clear_all($self->{price_canvas});
+    }
+    elsif ($self->{overlay_manager}) {
         $self->_sync_fib_follow_zz_ext();
         # compute_all y el filtro del overlay (index <= end) actúan como segunda
         # barrera (defensa en profundidad); la corrección real es alimentar hasta
         # feed_to en sync_overlay_indicators.
-        # Unico tope causal para todas las capas. En Replay nunca se deriva del
-        # cursor SMC ni del final completo del dataset.
-        my $feed_end = $self->_causal_end();
+        # Unico tope para todas las capas: última vela CERRADA (con head parcial
+        # los overlays no leen la vela en formación). Nunca se deriva del cursor
+        # SMC ni del final completo del dataset.
+        my $feed_end = $self->_replay_closed_index();
         for my $name (qw(smc_pro smc_fvg smc)) {
             my $ov = $self->{overlay_manager}->get($name);
             $ov->{_feed_end} = $feed_end if $ov;
@@ -4722,11 +4829,31 @@ sub set_timeframe {
             return;
     }
 
-    # D: cambio de TF normaliza replay/selección (Play se detiene en Callbacks).
-    if ($self->{replay_controller}) {
-        $self->{replay_controller}->exit();
+    # Con Replay activo el cambio de TF NO sale de la sesión: el instante causal
+    # se preserva vía base_index (índice compartido entre temporalidades) y Play
+    # continúa en el TF nuevo (paridad TradingView). Sin base_index disponible
+    # se cae al cierre clásico de sesión.
+    my $rc = $self->{replay_controller};
+    my ($preserve_replay, $head_bi, $head_frac, $vis_before);
+    if ($rc && $rc->is_active()) {
+        $head_bi = eval { $rc->current_base_index() };
+        if (defined $head_bi) {
+            $preserve_replay = 1;
+            my $causal_end = $self->_causal_end();
+            # Fracción de pantalla del head (0=izquierda, 1=derecha) para
+            # conservar su posición exacta en el TF nuevo (paridad TV).
+            my ($ws, $we) = $self->compute_window();
+            my $span = $we - $ws + 1;
+            $head_frac = $span > 1 ? ($causal_end - $ws) / ($span - 1) : 1;
+            $head_frac = 0 if $head_frac < 0;
+            $head_frac = 1 if $head_frac > 1;
+            $vis_before = $self->{visible_bars} || $span || 60;
+        }
     }
-    $self->clear_replay_select_state();
+    if (!$preserve_replay) {
+        $rc->exit() if $rc;
+        $self->clear_replay_select_state();
+    }
 
     # TF ya precargado en MarketData (add_candle O(1)); ensure es no-op si lleno.
     my $base_tf = '1m';
@@ -4747,17 +4874,34 @@ sub set_timeframe {
     $self->_atr_apply_for_timeframe($tf);
     $self->_reset_indicators_for_timeframe_change($tf);
 
-    $self->{is_auto_scale} = 1;
-    $self->{manual_min_y} = undef;
-    $self->{manual_max_y} = undef;
-    $self->{is_atr_auto_scale} = 1;
-    $self->{atr_manual_min_y} = undef;
-    $self->{atr_manual_max_y} = undef;
-    if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
-        $self->{atr_scale_mode_callback}->('auto');
-    }
+    # El modo de escala (auto/manual) y el rango manual son configuración del
+    # usuario: se conservan al cambiar de TF (nunca volver a auto solos).
     $self->_clear_ctrl_zoom_state();
-    $self->reset_view();
+
+    if ($preserve_replay) {
+        # Remapear tope y ancla de vista al TF nuevo: bucket que contiene el
+        # instante exacto (vela en formación si aún no cerró), con el head en
+        # la MISMA posición de pantalla. El trail se calcula con la ventana
+        # efectiva acotada (la misma de compute_window), así la fracción del
+        # head se conserva aunque la serie destino sea muy corta.
+        my $new_idx = $rc->seek_base_index($head_bi);
+        $new_idx = 0 if !defined $new_idx || $new_idx < 0;
+        my $vis = $vis_before || $self->{visible_bars} || 60;
+        $self->{visible_bars} = $vis;
+        my $cap = $self->_replay_visible_cap($self->{market_data}->size() || 0);
+        my $eff = $cap < $vis ? $cap : $vis;
+        my $trail = int((1 - $head_frac) * ($eff - 1) + 0.5);
+        $self->{replay_view_end} = $new_idx + $trail;
+        delete $self->{replay_prev_causal_end};
+        $self->{offset} = 0;
+        $self->request_render();
+        return $self;
+    }
+
+    # Reframe clásico (60 velas, borde derecho) sin tocar el modo de escala.
+    $self->{visible_bars} = 60;
+    $self->{offset} = 0;
+    $self->request_render();
 }
 
 # Reinicia overlays/indicadores al cambiar TF (sin recalcular ATR aqui).
@@ -5175,7 +5319,14 @@ sub _build_calendar_time_axis_plan {
     my @calendar;
     for my $d (@dates) {
         my %cand = %$d;
-        if (($cand{day} || 0) == 1 || ($cand{weight} || 0) >= 60) {
+        if (($cand{weight} || 0) >= 70) {
+            # Año: tier superior del calendario (desplaza meses/días cercanos).
+            $cand{text} = sprintf('%04d', $cand{year} // 0);
+            $cand{calendar_month_anchor} = 1;
+            $cand{label_half_width} = $month_label_px / 2;
+            $cand{weak_partial_session} = 0;
+        }
+        elsif (($cand{day} || 0) == 1 || ($cand{weight} || 0) >= 60) {
             $cand{text} = $months[($cand{month} || 1) - 1] || $cand{text};
             $cand{calendar_month_anchor} = 1;
             $cand{label_half_width} = $month_label_px / 2;
@@ -5193,11 +5344,17 @@ sub _build_calendar_time_axis_plan {
     my @accepted;
     for my $cand (@calendar) {
         if ($cand->{calendar_month_anchor}) {
-            # Mes siempre entra. Si colisiona con último día aceptado, el día se elimina.
-            if (@accepted && !$accepted[-1]{calendar_month_anchor}) {
+            # Nunca apilar anchors: separación mínima con el último aceptado,
+            # sea del tier que sea. En colisión gana el de mayor jerarquía
+            # (año > mes > día); a igual jerarquía se conserva el primero.
+            if (@accepted) {
                 my $half_sum = $accepted[-1]{label_half_width} + $cand->{label_half_width} + $min_gap_px;
                 if ($cand->{x} - $accepted[-1]{x} < $half_sum) {
-                    pop @accepted;
+                    if (($cand->{weight} || 0) > ($accepted[-1]{weight} || 0)) {
+                        pop @accepted;
+                        push @accepted, $cand;
+                    }
+                    next;
                 }
             }
             push @accepted, $cand;

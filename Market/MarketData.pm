@@ -464,6 +464,95 @@ sub get_timestamp {
     return $candle ? $candle->[0] : undef;
 }
 
+# base_index_at($tf, $idx) — base_index (campo [6]) de la vela $idx en la serie
+# $tf; en la serie base equivale al propio índice.
+sub base_index_at {
+    my ($self, $tf, $idx) = @_;
+    my $arr = (defined $tf) ? $self->{data}{$tf} : undef;
+    return undef unless $arr && defined $idx && $idx >= 0 && $idx <= $#$arr;
+    my $bi = $arr->[$idx][6];
+    $bi = $idx if !defined $bi && $tf eq $self->base_timeframe();
+    return $bi;
+}
+
+# index_for_base_index($tf, $bi) — mayor índice de la serie $tf cuya vela está
+# completamente cubierta por el instante base $bi (su [6] <= $bi). Búsqueda
+# binaria: [6] es monótono creciente por serie. -1 si ninguna vela cerró aún.
+sub index_for_base_index {
+    my ($self, $tf, $bi) = @_;
+    return -1 unless defined $tf && defined $bi;
+    my $arr = $self->{data}{$tf} or return -1;
+    my $base = $self->base_timeframe();
+    my ($lo, $hi, $best) = (0, $#$arr, -1);
+    while ($lo <= $hi) {
+        my $mid = ($lo + $hi) >> 1;
+        my $v = $arr->[$mid][6];
+        $v = $mid if !defined $v && $tf eq $base;
+        if (defined $v && $v <= $bi) { $best = $mid; $lo = $mid + 1; }
+        else                         { $hi = $mid - 1; }
+    }
+    return $best;
+}
+
+# base_last_index — último índice de la serie nativa (tope del tiempo base).
+sub base_last_index {
+    my ($self) = @_;
+    my $arr = $self->{data}{ $self->base_timeframe() } || [];
+    return $#$arr;
+}
+
+# index_of_bucket_containing($tf, $bi) — primer índice de la serie $tf cuya
+# vela cierra en o después del instante base $bi (su [6] >= $bi): el bucket que
+# contiene ese instante (igualdad = bucket ya cerrado). Binaria. -1 si $bi
+# supera el cierre de la última vela del TF.
+sub index_of_bucket_containing {
+    my ($self, $tf, $bi) = @_;
+    return -1 unless defined $tf && defined $bi;
+    my $arr = $self->{data}{$tf} or return -1;
+    my $base = $self->base_timeframe();
+    my ($lo, $hi, $best) = (0, $#$arr, -1);
+    while ($lo <= $hi) {
+        my $mid = ($lo + $hi) >> 1;
+        my $v = $arr->[$mid][6];
+        $v = $mid if !defined $v && $tf eq $base;
+        if (defined $v && $v >= $bi) { $best = $mid; $hi = $mid - 1; }
+        else                         { $lo = $mid + 1; }
+    }
+    return $best;
+}
+
+# partial_candle($tf, $idx, $bi) — vela del bucket $idx agregada SOLO hasta el
+# instante base $bi (vela en formación, paridad TradingView en Replay). Lee la
+# serie base; si el bucket ya cerró en o antes de $bi devuelve la vela completa.
+sub partial_candle {
+    my ($self, $tf, $idx, $bi) = @_;
+    return undef unless defined $tf && defined $idx && defined $bi;
+    my $arr  = $self->{data}{$tf} or return undef;
+    my $base = $self->base_timeframe();
+    my $barr = $self->{data}{$base} or return undef;
+    return undef if $idx < 0 || $idx > $#$arr;
+
+    my $close = $self->base_index_at($tf, $idx);
+    return $arr->[$idx] if defined $close && $close <= $bi;
+
+    my $from = ($idx > 0) ? ($self->base_index_at($tf, $idx - 1) // -1) + 1 : 0;
+    my $to   = $bi;
+    $to = $#$barr if $to > $#$barr;
+    return undef if $to < $from;
+
+    my ($o, $h, $l, $c, $v);
+    for my $i ($from .. $to) {
+        my $bc = $barr->[$i] or next;
+        $o = $bc->[1] if !defined $o;
+        $h = $bc->[2] if !defined $h || $bc->[2] > $h;
+        $l = $bc->[3] if !defined $l || $bc->[3] < $l;
+        $c = $bc->[4];
+        $v += $bc->[5] // 0;
+    }
+    return undef unless defined $o;
+    return [ $arr->[$idx][0], $o, $h, $l, $c, $v // 0, $bi ];
+}
+
 sub merge_delta_row {
     my ($self, $row) = @_;
     my $base = $self->base_timeframe();

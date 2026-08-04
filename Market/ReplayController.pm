@@ -28,6 +28,11 @@ sub new {
         market_data     => $args{market_data},
         active          => 0,
         replay_idx      => undef,
+        # Instante causal exacto en coordenadas de la serie base (fuente de
+        # verdad en modo base_index; replay_idx es el bucket contenedor en el
+        # TF activo). undef = modo legacy (md sin helpers base_index).
+        replay_base_idx => undef,
+        head_partial    => 0,
         playing         => 0,
         speed           => $args{speed} || 1,
         speed_label     => '1x',
@@ -41,6 +46,40 @@ sub new {
     return $self;
 }
 
+# _bi_capable — el MarketData soporta el índice compartido base_index.
+sub _bi_capable {
+    my ($self) = @_;
+    my $md = $self->{market_data};
+    return ($md && $md->can('base_index_at') && $md->can('index_of_bucket_containing')) ? 1 : 0;
+}
+
+# _bi_mode — operando con instante exacto en coordenadas base.
+sub _bi_mode {
+    my ($self) = @_;
+    return ($self->_bi_capable() && defined $self->{replay_base_idx}) ? 1 : 0;
+}
+
+# _sync_from_base — deriva replay_idx (bucket contenedor del instante) y
+# head_partial (bucket aún abierto) desde replay_base_idx en el TF activo.
+sub _sync_from_base {
+    my ($self) = @_;
+    my $md = $self->{market_data};
+    my $bi = $self->{replay_base_idx};
+    my $last = $self->_last_index();
+    if (!defined $last || $last < 0) {
+        $self->{replay_idx} = 0;
+        $self->{head_partial} = 0;
+        return $self->{replay_idx};
+    }
+    my $idx = $md->index_of_bucket_containing($md->{active_tf}, $bi);
+    $idx = 0 if $idx < 0;
+    $idx = $last if $idx > $last;
+    $self->{replay_idx} = $idx;
+    my $close = $md->base_index_at($md->{active_tf}, $idx);
+    $self->{head_partial} = (defined $close && defined $bi && $close == $bi) ? 0 : 1;
+    return $idx;
+}
+
 # start($idx) — activa Replay con tope en $idx (clamp a [0, last_index]).
 sub start {
     my ($self, $idx) = @_;
@@ -48,8 +87,17 @@ sub start {
     $idx = 0 if !defined $idx || $idx < 0;
     $idx = $last if defined $last && $idx > $last;
     $self->{active} = 1;
-    $self->{replay_idx} = $idx;
     $self->{playing} = 0;
+    $self->{head_partial} = 0;
+    if ($self->_bi_capable()) {
+        my $md = $self->{market_data};
+        $self->{replay_base_idx} = $md->base_index_at($md->{active_tf}, $idx);
+        $self->_sync_from_base();
+    }
+    else {
+        $self->{replay_base_idx} = undef;
+        $self->{replay_idx} = $idx;
+    }
     return $self;
 }
 
@@ -73,10 +121,32 @@ sub pause {
     return $self;
 }
 
-# step_forward — avanza replay_idx exactamente 1 (clamp al último).
+# step_forward — avanza al siguiente cierre de bucket (en modo base_index: si
+# el head está parcial, primero completa su bucket; si no, abre el siguiente).
 sub step_forward {
     my ($self) = @_;
     return unless $self->{active};
+    if ($self->_bi_mode()) {
+        my $md = $self->{market_data};
+        my $tf = $md->{active_tf};
+        my $close_cur = $md->base_index_at($tf, $self->{replay_idx});
+        my $next_close;
+        if (defined $close_cur && $close_cur > $self->{replay_base_idx}) {
+            $next_close = $close_cur;   # completar el bucket en formación
+        }
+        else {
+            my $ni = $self->{replay_idx} + 1;
+            my $last = $self->_last_index();
+            $ni = $last if defined $last && $ni > $last;
+            $next_close = $md->base_index_at($tf, $ni);
+        }
+        $self->{replay_base_idx} = $next_close if defined $next_close;
+        $self->_sync_from_base();
+        my $max_bi = $md->can('base_last_index') ? $md->base_last_index() : undef;
+        $self->pause() if defined $max_bi && defined $self->{replay_base_idx}
+            && $self->{replay_base_idx} >= $max_bi;
+        return $self->{replay_idx};
+    }
     my $last = $self->_last_index();
     $self->{replay_idx}++ if defined $self->{replay_idx};
     $self->{replay_idx} = $last if defined $last && $self->{replay_idx} > $last;
@@ -87,10 +157,25 @@ sub step_forward {
     return $self->{replay_idx};
 }
 
-# step_backward — retrocede replay_idx exactamente 1 (clamp a 0).
+# step_backward — retrocede al cierre de bucket anterior al instante actual
+# (un head parcial primero descarta su bucket en formación; clamp al inicio).
 sub step_backward {
     my ($self) = @_;
     return unless $self->{active};
+    if ($self->_bi_mode()) {
+        my $md = $self->{market_data};
+        my $tf = $md->{active_tf};
+        my $prev_close;
+        for (my $i = $self->{replay_idx}; $i >= 0; $i--) {
+            my $c = $md->base_index_at($tf, $i);
+            next unless defined $c;
+            if ($c < $self->{replay_base_idx}) { $prev_close = $c; last; }
+        }
+        $prev_close = 0 if !defined $prev_close;
+        $self->{replay_base_idx} = $prev_close;
+        $self->_sync_from_base();
+        return $self->{replay_idx};
+    }
     $self->{replay_idx}-- if defined $self->{replay_idx};
     $self->{replay_idx} = 0 if !defined $self->{replay_idx} || $self->{replay_idx} < 0;
     return $self->{replay_idx};
@@ -101,6 +186,18 @@ sub fast_forward {
     my ($self, $n) = @_;
     return unless $self->{active};
     $n //= 10 * ($self->{speed} || 1);
+    if ($self->_bi_mode()) {
+        my $md = $self->{market_data};
+        my $last = $self->_last_index();
+        my $target = ($self->{replay_idx} // 0) + $n;
+        $target = $last if defined $last && $target > $last;
+        $self->{replay_base_idx} = $md->base_index_at($md->{active_tf}, $target);
+        $self->_sync_from_base();
+        my $max_bi = $md->can('base_last_index') ? $md->base_last_index() : undef;
+        $self->pause() if defined $max_bi && defined $self->{replay_base_idx}
+            && $self->{replay_base_idx} >= $max_bi;
+        return $self->{replay_idx};
+    }
     my $last = $self->_last_index();
     $self->{replay_idx} += $n;
     $self->{replay_idx} = $last if defined $last && $self->{replay_idx} > $last;
@@ -108,11 +205,17 @@ sub fast_forward {
     return $self->{replay_idx};
 }
 
-# jump_to_end — revela hasta la ultima vela (replay_idx = last) y pausa autoplay.
+# jump_to_end — revela hasta la ultima vela (tope = último instante base) y pausa autoplay.
 sub jump_to_end {
     my ($self) = @_;
     return unless $self->{active};
     $self->pause();
+    if ($self->_bi_mode()) {
+        my $md = $self->{market_data};
+        $self->{replay_base_idx} = $md->base_last_index();
+        $self->_sync_from_base();
+        return $self->{replay_idx};
+    }
     my $last = $self->_last_index();
     $self->{replay_idx} = $last if defined $last;
     return $self->{replay_idx};
@@ -124,6 +227,8 @@ sub exit {
     $self->pause();
     $self->{active} = 0;
     $self->{replay_idx} = undef;
+    $self->{replay_base_idx} = undef;
+    $self->{head_partial} = 0;
     return $self;
 }
 
@@ -131,6 +236,47 @@ sub exit {
 sub current_index {
     my ($self) = @_;
     return $self->{active} ? $self->{replay_idx} : undef;
+}
+
+# current_base_index — instante causal exacto en coordenadas de la serie base
+# (fuente de verdad en modo base_index; fallback al [6] de la vela-tope).
+sub current_base_index {
+    my ($self) = @_;
+    return undef unless $self->{active};
+    return $self->{replay_base_idx} if defined $self->{replay_base_idx};
+    my $md = $self->{market_data};
+    return undef unless $md && $md->can('base_index_at') && defined $self->{replay_idx};
+    return $md->base_index_at($md->{active_tf}, $self->{replay_idx});
+}
+
+# seek_base_index($bi) — fija el instante causal exacto y lo remapea al TF
+# activo: replay_idx = bucket que contiene $bi (parcial si aún no cierra, sin
+# fuga de futuro porque el render dibuja solo la porción revelada).
+sub seek_base_index {
+    my ($self, $bi) = @_;
+    return undef unless $self->{active} && defined $bi;
+    return undef unless $self->_bi_capable();
+    my $md  = $self->{market_data};
+    my $max = $md->can('base_last_index') ? $md->base_last_index() : undef;
+    $bi = $max if defined $max && $bi > $max;
+    $bi = 0 if $bi < 0;
+    $self->{replay_base_idx} = $bi;
+    return $self->_sync_from_base();
+}
+
+# head_is_partial — 1 si el head cae dentro de un bucket aún abierto (vela en
+# formación: el render la dibuja agregando la base solo hasta el instante).
+sub head_is_partial {
+    my ($self) = @_;
+    return ($self->{active} && $self->{head_partial}) ? 1 : 0;
+}
+
+# closed_index — índice de la última vela CERRADA permitida para feeds de
+# indicadores/overlays (head parcial => replay_idx - 1; puede ser -1).
+sub closed_index {
+    my ($self) = @_;
+    return undef unless $self->{active} && defined $self->{replay_idx};
+    return $self->{head_partial} ? $self->{replay_idx} - 1 : $self->{replay_idx};
 }
 
 # is_active — bool.

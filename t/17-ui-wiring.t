@@ -219,9 +219,37 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
        'make_tf_callback sincroniza $active_tf con el último TF seleccionado (W)');
 }
 
-# =============================================================================
-# Test 2b (task 0040-D): cambio de TF con Play activo detiene Play y limpia estado.
-# =============================================================================
+# Test 2b: cambio de TF con Replay activo NO sale de la sesión (cross-TF):
+# el callback salta la limpieza y set_timeframe preserva el instante causal.
+{
+    my $chart = MockChart->new(market_data => MockMarketData->new(100));
+    my $replay_on = 1;
+    my $replay_select_mode = 0;
+    my $active_tf = '1m';
+    my %vars = (
+        replay_on          => \$replay_on,
+        replay_select_mode => \$replay_select_mode,
+        active_tf          => \$active_tf,
+    );
+    my $rc = $chart->{replay_controller};
+
+    $rc->start(50);
+    $rc->{playing} = 1;
+
+    ok($rc->{playing}, 'cross-TF: Play activo antes de TF');
+    ok($rc->is_active(), 'cross-TF: replay activo antes de TF');
+
+    my $cb = Market::UI::Callbacks->make_tf_callback($chart, '5m', \%vars);
+    $cb->();
+
+    ok($rc->{playing}, 'cross-TF: Play no se detiene al cambiar TF');
+    ok($rc->is_active(), 'cross-TF: Replay sigue activo tras cambiar TF');
+    is($replay_on, 1, 'cross-TF: replay_on se mantiene en 1');
+    is($active_tf, '5m', 'cross-TF: active_tf actualizado');
+    is($chart->tf_calls()->[-1], '5m', 'cross-TF: set_timeframe invocado');
+}
+
+# Test 2c: sin Replay activo el cambio de TF mantiene la limpieza clásica.
 {
     my $chart = MockChart->new(market_data => MockMarketData->new(100));
     my $replay_on = 1;
@@ -233,25 +261,20 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
         active_tf          => \$active_tf,
     );
     my $rc = $chart->{replay_controller};
-
-    $rc->start(50);
-    $rc->{playing} = 1;
     $chart->{_selected_bar} = 50;
     $chart->{_replay_select_mode} = 1;
 
-    ok($rc->{playing}, '0040-D: Play activo antes de TF');
-    ok($rc->is_active(), '0040-D: replay activo antes de TF');
+    ok(!$rc->is_active(), 'TF clásico: replay inactivo antes de TF');
 
     my $cb = Market::UI::Callbacks->make_tf_callback($chart, '5m', \%vars);
     $cb->();
 
-    ok(!$rc->{playing}, '0040-D: TF detiene Play');
-    ok(!$rc->is_active(), '0040-D: TF sale de Replay');
-    ok(!defined $chart->selected_bar(), '0040-D: TF limpia selected_bar');
-    is($replay_on, 0, '0040-D: replay_on=0');
-    is($replay_select_mode, 0, '0040-D: replay_select_mode=0');
-    is($active_tf, '5m', '0040-D: active_tf actualizado');
-    is($chart->tf_calls()->[-1], '5m', '0040-D: set_timeframe invocado');
+    ok(!$rc->is_active(), 'TF clásico: replay sigue inactivo');
+    ok(!defined $chart->selected_bar(), 'TF clásico: TF limpia selected_bar');
+    is($replay_on, 0, 'TF clásico: replay_on=0');
+    is($replay_select_mode, 0, 'TF clásico: replay_select_mode=0');
+    is($active_tf, '5m', 'TF clásico: active_tf actualizado');
+    is($chart->tf_calls()->[-1], '5m', 'TF clásico: set_timeframe invocado');
 }
 
 # =============================================================================
@@ -509,8 +532,8 @@ is(scalar(Market::UI::Callbacks->timeframes()), 8, 'son exactamente 8 TF');
     like($src, qr/my \$zigzag_density_pct = 35;/, '0064: densidad ZigZag inicial baja');
     like($src, qr/qw\(GLOBAL BSL SSL EQH EQL SWEEP GRAB RUN\)/, '0065: selector incluye familias específicas Liq');
     like($src, qr/qw\(GLOBAL INTERNAL EXTERNAL CHANNEL\)/, '0065: selector incluye familias específicas ZigZag');
-    like($src, qr/for my \$name \(qw\(SMC Estructura Liquidez ZigZag Dibujo Auto Volumen Vista Replay\)\)/,
-         '§5: pestañas con SMC separada de Estructura (presupuesto 14")');
+    like($src, qr/for my \$name \(qw\(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vista Replay\)\)/,
+         '§5: pestañas por dominio (SMC separada; Fib y AVWAP propias; presupuesto 14")');
     like($src, qr/my \$overlay_button_text = sub \{ \$_\[0\] \? 'Ocultar' : 'Mostrar' \}/, '0066: botones contextuales alternan Mostrar/Ocultar');
     like($src, qr/\$overlay_button\{strategy\}/, '0066: Estrategia tiene boton Mostrar/Ocultar en su pestaña');
     like($src, qr/qw\(SUPPLY_DEMAND SUPERTREND HALFTREND RANGEFILTER\)/, '0066: Estrategia expone subcapas tecnicas opcionales');

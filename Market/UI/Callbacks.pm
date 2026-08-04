@@ -33,17 +33,25 @@ sub tf_label {
 # Timeframe
 
 # make_tf_callback($chart, $tf, $vars) — callback para seleccionar un TF.
-# 1. Llama a $chart->set_timeframe($tf) (recalcula ATR + overlays, reset vista).
-# 2. Sincroniza $vars->{active_tf} con el TF seleccionado (estado del menú).
-# 3. set_timeframe ya dispara reset_view → request_render; no duplicamos.
+# 1. Con Replay activo NO se limpia la sesión: set_timeframe preserva el
+#    instante causal vía base_index y Play sigue en el TF nuevo (paridad TV).
+# 2. Sin Replay: limpieza de sesión + set_timeframe (reset vista clásico).
+# 3. Sincroniza $vars->{active_tf} con el TF seleccionado (estado del menú).
 sub make_tf_callback {
     my ($class, $chart, $tf, $vars) = @_;
     die "make_tf_callback: requiere \$chart" unless $chart;
     die "make_tf_callback: requiere \$tf"   unless defined $tf;
     my $ref = ref($vars) eq 'HASH' ? $vars->{active_tf} : undef;
     return sub {
-        _sync_replay_ui_cleanup($chart, $vars);
-        $chart->set_timeframe($tf);
+        my $rc = _replay($chart);
+        if ($rc && $rc->is_active()) {
+            $chart->set_timeframe($tf);
+            _sync_replay_play_icon($chart, $vars);
+        }
+        else {
+            _sync_replay_ui_cleanup($chart, $vars);
+            $chart->set_timeframe($tf);
+        }
         ${$ref} = $tf if $ref;
     };
 }
@@ -634,6 +642,9 @@ sub make_replay_step_back {
             _replay_begin($chart, _replay_start_index($chart));
         }
         $rc->step_backward();
+        # Ráfagas de rewind (tecla mantenida): velas al instante y los
+        # indicadores se resincronizan una vez al frenar (evita O(n) por paso).
+        $chart->defer_overlay_resync(80) if $chart->can('defer_overlay_resync');
         $chart->request_render();
     };
 }
