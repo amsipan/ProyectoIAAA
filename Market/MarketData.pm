@@ -464,6 +464,36 @@ sub get_timestamp {
     return $candle ? $candle->[0] : undef;
 }
 
+# base_index_at($tf, $idx) — base_index (campo [6]) de la vela $idx en la serie
+# $tf; en la serie base equivale al propio índice.
+sub base_index_at {
+    my ($self, $tf, $idx) = @_;
+    my $arr = (defined $tf) ? $self->{data}{$tf} : undef;
+    return undef unless $arr && defined $idx && $idx >= 0 && $idx <= $#$arr;
+    my $bi = $arr->[$idx][6];
+    $bi = $idx if !defined $bi && $tf eq $self->base_timeframe();
+    return $bi;
+}
+
+# index_for_base_index($tf, $bi) — mayor índice de la serie $tf cuya vela está
+# completamente cubierta por el instante base $bi (su [6] <= $bi). Búsqueda
+# binaria: [6] es monótono creciente por serie. -1 si ninguna vela cerró aún.
+sub index_for_base_index {
+    my ($self, $tf, $bi) = @_;
+    return -1 unless defined $tf && defined $bi;
+    my $arr = $self->{data}{$tf} or return -1;
+    my $base = $self->base_timeframe();
+    my ($lo, $hi, $best) = (0, $#$arr, -1);
+    while ($lo <= $hi) {
+        my $mid = ($lo + $hi) >> 1;
+        my $v = $arr->[$mid][6];
+        $v = $mid if !defined $v && $tf eq $base;
+        if (defined $v && $v <= $bi) { $best = $mid; $lo = $mid + 1; }
+        else                         { $hi = $mid - 1; }
+    }
+    return $best;
+}
+
 sub merge_delta_row {
     my ($self, $row) = @_;
     my $base = $self->base_timeframe();

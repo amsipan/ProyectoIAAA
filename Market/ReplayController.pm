@@ -133,6 +133,32 @@ sub current_index {
     return $self->{active} ? $self->{replay_idx} : undef;
 }
 
+# current_base_index — instante causal en coordenadas de la serie base:
+# base_index ([6]) de la vela-tope del Replay en el TF activo.
+sub current_base_index {
+    my ($self) = @_;
+    return undef unless $self->{active} && defined $self->{replay_idx};
+    my $md = $self->{market_data};
+    return undef unless $md && $md->can('base_index_at');
+    return $md->base_index_at($md->{active_tf}, $self->{replay_idx});
+}
+
+# seek_base_index($bi) — remapea replay_idx al TF activo usando el índice
+# compartido: última vela del TF completamente cubierta por $bi (sin fuga de
+# futuro). Si $bi cae dentro del primer bucket del TF, queda en 0 (regla v1).
+sub seek_base_index {
+    my ($self, $bi) = @_;
+    return undef unless $self->{active} && defined $bi;
+    my $md = $self->{market_data};
+    return undef unless $md && $md->can('index_for_base_index');
+    my $idx = $md->index_for_base_index($md->{active_tf}, $bi);
+    $idx = 0 if $idx < 0;
+    my $last = $self->_last_index();
+    $idx = $last if defined $last && $idx > $last;
+    $self->{replay_idx} = $idx;
+    return $idx;
+}
+
 # is_active — bool.
 sub is_active {
     my ($self) = @_;

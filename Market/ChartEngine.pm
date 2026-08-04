@@ -4722,11 +4722,26 @@ sub set_timeframe {
             return;
     }
 
-    # D: cambio de TF normaliza replay/selección (Play se detiene en Callbacks).
-    if ($self->{replay_controller}) {
-        $self->{replay_controller}->exit();
+    # Con Replay activo el cambio de TF NO sale de la sesión: el instante causal
+    # se preserva vía base_index (índice compartido entre temporalidades) y Play
+    # continúa en el TF nuevo (paridad TradingView). Sin base_index disponible
+    # se cae al cierre clásico de sesión.
+    my $rc = $self->{replay_controller};
+    my ($preserve_replay, $head_bi, $trail_slots);
+    if ($rc && $rc->is_active()) {
+        $head_bi = eval { $rc->current_base_index() };
+        if (defined $head_bi) {
+            $preserve_replay = 1;
+            my $causal_end = $self->_causal_end();
+            $trail_slots = (defined $self->{replay_view_end} && defined $causal_end)
+                ? $self->{replay_view_end} - $causal_end : 0;
+            $trail_slots = 0 if $trail_slots < 0;
+        }
     }
-    $self->clear_replay_select_state();
+    if (!$preserve_replay) {
+        $rc->exit() if $rc;
+        $self->clear_replay_select_state();
+    }
 
     # TF ya precargado en MarketData (add_candle O(1)); ensure es no-op si lleno.
     my $base_tf = '1m';
@@ -4757,6 +4772,19 @@ sub set_timeframe {
         $self->{atr_scale_mode_callback}->('auto');
     }
     $self->_clear_ctrl_zoom_state();
+
+    if ($preserve_replay) {
+        # Remapear tope y ancla de vista al TF nuevo: última vela cerrada en el
+        # instante preservado, conservando hueco derecho (trail) y zoom.
+        my $new_idx = $rc->seek_base_index($head_bi);
+        $new_idx = 0 if !defined $new_idx || $new_idx < 0;
+        $self->{replay_view_end} = $new_idx + $trail_slots;
+        delete $self->{replay_prev_causal_end};
+        $self->{offset} = 0;
+        $self->request_render();
+        return $self;
+    }
+
     $self->reset_view();
 }
 
