@@ -2,19 +2,7 @@ package Market::Overlays::SMC_Pro;
 use strict;
 use warnings;
 
-# Render capa SMC Pro [Neon] — config captura del profesor.
-# Anclaje X: centro de vela (index_to_center_x).
-# EQH/EQL: diagonal prev → new (Pine drawEqualHighLow).
-# OB: borde izquierdo de la caja = centro de la vela del bloque (paridad TV
-# bar_time / chart.point), NO el borde izquierdo de la barra.
-# Extremos
-# BOS/CHoCH → solo vela de rotura (event.index). NUNCA data_end.
-# Strong/Weak, MTF, OB → hasta última vela con OHLC (data_end).
-# Orden de dibujo (crítico)
-# OB → MTF → Strong/Weak → EQ → BOS/CHoCH → pivots
-# Si PDH comparte precio con un BOS (high del día = pivote de estructura),
-# MTF debajo + estilo acento/dotted evita que la extensión a data_end
-# parezca un BOS que “no corta” en la rotura.
+# Render capa SMC Pro [Neon] config captura del profesor.
 
 sub new {
     my ($class, %args) = @_;
@@ -49,9 +37,7 @@ sub compute_visible {
     $end   //= 0;
     $self->{_compute_range} = [$start, $end];
 
-    # data_end = última vela de la SERIE (o tope de feed Replay), NUNCA el fin
-    # del zoom. Si se usa el viewport, BOS largos con rotura fuera de pantalla
-    # se saltan en draw (break_i > data_end) y desaparecen — TV sí los muestra.
+    # data_end última vela de la SERIE (o tope de feed Replay), NUNCA el fin
     my $last_data;
     if ($market_data && $market_data->can('last_index')) {
         my $li = $market_data->last_index();
@@ -76,10 +62,10 @@ sub compute_visible {
 
     # Pivotes/labels: solo si el ancla cae en el viewport (texto puntual)
     $self->{_pivots} = _window($ind->get_pivots(), $start, $end);
-    # Segmentos (BOS/CHoCH/EQ): independientes del zoom — solape con viewport (como TV)
+    # Segmentos (BOS/CHoCH/EQ): independientes del zoom solape con viewport (como TV)
     $self->{_events} = _events_window($ind->get_events(), $start, $end);
     $self->{_eqhl}   = _eq_window($ind->get_eqhl(), $start, $end);
-    # OB: caja desde index hasta data_end — visible si cruza el viewport
+    # OB: caja desde index hasta data_end visible si cruza el viewport
     $self->{_obs} = [
         grep {
             defined $_->{index}
@@ -87,7 +73,7 @@ sub compute_visible {
             && _segment_overlaps($_->{index}, $cap, $start, $end)
         } @{ $ind->get_order_blocks() || [] }
     ];
-    # Strong/Weak y MTF: rayo [anchor, data_end] — visible si cruza el viewport
+    # Strong/Weak y MTF: rayo [anchor, data_end] visible si cruza el viewport
     $self->{_strong_weak} = [
         grep {
             defined $_->{index}
@@ -104,7 +90,6 @@ sub compute_visible {
 }
 
 # Segmento [a,b] (índices globales) intersecta viewport [vs,ve] (TV: se ve aunque
-# los extremos queden fuera de pantalla).
 sub _segment_overlaps {
     my ($a, $b, $vs, $ve) = @_;
     return 0 unless defined $a && defined $b && defined $vs && defined $ve;
@@ -126,7 +111,6 @@ sub _events_window {
         next unless defined $e->{index};
         my $s = $e->{start_index} // $e->{index};
         # Como TV: mostrar si el tramo pivote→rotura cruza el zoom, aunque
-        # ninguna de las dos velas esté en pantalla.
         next unless _segment_overlaps($s, $e->{index}, $start, $end);
         push @out, $e;
     }
@@ -169,7 +153,6 @@ sub _center_x {
 }
 
 # Clip a píxeles del plot (± margen). No cambia la lógica de datos: solo evita
-# geometría de decenas de miles de px que degrada Tk (crosshair/pan).
 sub _plot_x_bounds {
     my ($self, $scales) = @_;
     my $w = $scales->{width} // 0;
@@ -217,7 +200,7 @@ sub draw {
     $self->clear($canvas);
     my $tag = $self->tag();
 
-    # Pine: structure = themeBull/Bear; MTF levels = accentCol (no bull green).
+    # Pine: structure themeBull/Bear; MTF levels accentCol (no bull green).
     my $bull   = $self->{theme}{smc_bull} // '#00c853';
     my $bear   = $self->{theme}{smc_bear} // '#ff1744';
     my $ob_bull = $self->{theme}{smc_ob_bull} // '#00c853';
@@ -232,11 +215,7 @@ sub draw {
     my $data_end     = $self->_data_end;
     my $x_data_right = $self->_x_data_right($scales);
 
-    # 1) Order blocks (fondo) — escalón de mitigación (capturas profe)
-    # Izquierda (ya comido): zona RESTANTE hi/lo → "delgado".
-    # Derecha (proyección): zona ORIGINAL orig_hi/orig_lo → "grueso".
-    # Corte en last_mitig_index. Sin mitigar: un solo rectángulo original.
-    # Labels: "OB i" / "OB" (mismo criterio que BOS/CHoCH).
+    # 1) Order blocks (fondo) escalón de mitigación (capturas profe)
     for my $ob (@{ $self->{_obs} }) {
         next if ($ob->{index} // 0) > $data_end;
         my $fill = ($ob->{bias} // '') eq 'bull' ? $ob_bull : $ob_bear;
@@ -312,7 +291,7 @@ sub draw {
         }
     }
 
-    # 2) MTF (PDH/PDL/…) — acento + dotted, DEBAJO de estructura
+    # 2) MTF (PDH/PDL/…) acento + dotted, DEBAJO de estructura
     for my $lv (@{ $self->{_mtf} }) {
         my $anchor = $lv->{index} // 0;
         next if $anchor > $data_end;
@@ -343,7 +322,7 @@ sub draw {
         };
     }
 
-    # 3) Strong / Weak — debajo de estructura
+    # 3) Strong / Weak debajo de estructura
     for my $sw (@{ $self->{_strong_weak} }) {
         my $anchor = $sw->{index};
         next unless defined $anchor && $anchor <= $data_end;
@@ -410,7 +389,7 @@ sub draw {
         };
     }
 
-    # 5) BOS/CHoCH ENCIMA — segmento cerrado pivote → rotura
+    # 5) BOS/CHoCH ENCIMA segmento cerrado pivote → rotura
     for my $e (@{ $self->{_events} }) {
         my $break_i = $e->{index};
         my $start_i = $e->{start_index} // $break_i;
@@ -470,7 +449,7 @@ sub draw {
     return $self;
 }
 
-# Densidad: a eliminar. No filtrar SMC (paridad TV). Stubs no-op al 100%.
+# Densidad: a eliminar. No filtrar SMC (paridad TV). Stubs no op al 100%.
 sub set_density_pct { $_[0] }
 sub density_pct { 100 }
 sub set_element_density_pct { $_[0] }

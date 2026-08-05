@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Render Fib Retracement estilo TradingView
-# bandas + líneas + labels FUERA a la izquierda (misma altura) + handles
 
 # Espacio a la izquierda de las cajas para las etiquetas (px)
 my $LABEL_OUTSIDE_PX = 110;
@@ -98,11 +97,9 @@ sub _paint_fib {
     $x1 = $x0 + 40 if $x1 - $x0 < 40;
 
     # Cajas empiezan un poco a la derecha si hace falta sitio para labels
-    # Labels van FUERA a la izquierda de x0 (anchor e), misma Y que la línea.
     my $box_left = $x0;
     if ( $box_left < $LABEL_OUTSIDE_PX + 4 ) {
-        # Si el ancla está muy a la izquierda, no empujar la caja (evitar overflow);
-        # el label puede quedar parcialmente en el margen.
+        # Si el ancla está muy a la izquierda, no empujar la caja (evitar overflow)
     }
 
     # Bandas entre niveles consecutivos

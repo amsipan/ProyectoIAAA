@@ -8,8 +8,7 @@ use Market::UI::ReplayGotoMenu;
 use Market::UI::ReplaySpeedMenu;
 use Market::UI::ReplayIntervalMenu;
 
-# Market::UI::ReplayPanel — barra Replay inline (tasks 0043/0045/0046-prep).
-# Botones estilo reproductor multimedia: Canvas + hit-area Button (-command).
+# Market::UI::ReplayPanel barra Replay inline (tasks 0043/0045/0046 prep).
 
 use constant {
     MEDIA_FACE        => '#d8d8d8',
@@ -23,7 +22,7 @@ sub _media_colors {
     return (MEDIA_FACE, MEDIA_FACE_ACTIVE, MEDIA_ICON);
 }
 
-# ReplayMediaWidget — envoltorio con configure(-text/-command) para dropdowns.
+# ReplayMediaWidget envoltorio con configure( text/ command) para dropdowns.
 {
     package ReplayMediaWidget;
     sub new {
@@ -57,8 +56,7 @@ sub _media_colors {
         $draw->($self->{canvas}, $icon_color);
         return $self;
     }
-    # set_active($bool) — resalta el botón cuando su modo está encendido
-    # (p. ej. Select Bar activo). Azul TV en ON; cara gris normal en OFF.
+    # set_active($bool) resalta el botón cuando su modo está encendido
     sub set_active {
         my ($self, $on) = @_;
         $on = $on ? 1 : 0;
@@ -458,8 +456,7 @@ sub sync_mark_button {
     return $self;
 }
 
-# sync_select_bar_button($on) — resalta "Select bar" mientras el modo de
-# selección de vela está activo (feedback visual que faltaba).
+# sync_select_bar_button($on) resalta "Select bar" mientras el modo de
 sub sync_select_bar_button {
     my ($self, $on) = @_;
     my $btn = $self->{select_bar_btn};

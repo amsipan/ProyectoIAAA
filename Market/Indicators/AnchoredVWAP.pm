@@ -3,14 +3,6 @@ use strict;
 use warnings;
 
 # Market::Indicators::AnchoredVWAP
-# Anchored VWAP estilo TradingView (drawing tool)
-# El usuario fija una vela de ancla (anchor_idx).
-# Desde esa vela en adelante: VWAP acumulado ponderado por volumen.
-# Source por defecto: HLC3 = (H+L+C)/3 (como la imagen Anchored_VWAP.jpg de TV).
-# Bandas de desviación estándar (modo Standard)
-# variance = E[p²] - VWAP² (ponderado por vol)
-# upper/lower = VWAP ± mult * stdev
-# Multiplicadores #1/#2/#3 (TV defaults según imagen: 1 y 2 activadas, 3 desactivada).
 
 sub new {
     my ($class, %opts) = @_;
@@ -88,9 +80,7 @@ sub set_anchor {
     $idx = int($idx);
     $idx = 0 if $idx < 0;
 
-    # No precargar 0..size()-1 del MarketData: en extract/Replay el MD ya tiene
-    # todo el historial y eso forzaba _last_data_idx al final + recompute O(N)
-    # por cada cambio de ancla / update_last. Los OHLC llegan por update_last.
+    # No precargar 0..size() 1 del MarketData: en extract/Replay el MD ya tiene
     my $last = $self->{_last_data_idx};
     $idx = $last if $last >= 0 && $idx > $last;
     $self->{anchor_idx} = $idx;

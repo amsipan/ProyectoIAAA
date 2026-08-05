@@ -2,30 +2,18 @@ package Market::Indicators::ZigZag;
 use strict;
 use warnings;
 
-# Market::Indicators::ZigZag — dirección interna (MTF) + externa (swing)
-# dos ZigZag conviven con SMC/Mxwll; cálculo puro sin Tk.
-# Interno (ZZMTF / LonesomeTheBlue): resolución HTF (default 30m profe), period=2.
-# Captura profe: Show Zig Zag ON; Fibonacci OFF; colores verde/rojo.
-# Source
-# Pivotes ph/pl con ventana len desde newbar; dir +1/-1; último tramo ajustable.
-# Externo (ChartPrime): swingLength=150, solo línea zigzag azul.
-# Captura profe: Swing Channel OFF, VolumeProfile OFF, PoC OFF.
-# Source
-# max_external_segments=15 (paridad visual TV).
-# compute_internal / compute_external: on-demand (producto 3.2).
-# external_only=1 ⇒ no calcular interno (compat fase 3.1 / atajos).
-# Contrato: new / update_last($md,$i) / get_values / reset
+# Market::Indicators::ZigZag dirección interna (MTF) + externa (swing)
 
 use Time::Moment;
 
 my $MAX_VERTICES = 50;
-# ChartPrime: Amount of ZigZag Volume Profiles = 15 (captura profe)
+# ChartPrime: Amount of ZigZag Volume Profiles 15 (captura profe)
 my $DEFAULT_MAX_EXT_SEGS = 15;
 
 
 sub new {
     my ($class, %args) = @_;
-    # Compat: external_only=1 → no interno. Si se pasa compute_*, gana compute_*.
+    # Compat: external_only 1 → no interno. Si se pasa compute_ , gana compute_ .
     my $external_only = exists $args{external_only} ? ( $args{external_only} ? 1 : 0 ) : 0;
     my $compute_internal =
         exists $args{compute_internal}
@@ -75,7 +63,6 @@ sub reset {
     $self->{_ext_vertices}         = [];
     $self->{_ext_segments}         = [];
     # Historial de pivotes externos NUNCA recortado (para Liquidity / dataset).
-    # El dibujo sigue usando _ext_vertices (máx. 15 segs).
     $self->{_ext_pivot_log}        = [];
     $self->{_ext_pivot_high_idx}   = undef;
     $self->{_ext_pivot_high_price} = undef;
@@ -130,7 +117,7 @@ sub update_last {
     return unless $candle;
     my ($ts, $open, $high, $low, $close) = @$candle[0 .. 4];
 
-    # On-demand: ZZMTF interno y/o ChartPrime externo (producto 3.2).
+    # On demand: ZZMTF interno y/o ChartPrime externo (producto 3.2).
     if ( $self->{compute_internal} ) {
         $self->_update_internal( $market_data, $index, $ts, $high, $low );
     }
@@ -169,17 +156,12 @@ sub get_values {
     };
 }
 
-# external_channel — deprecado; vacío; tests antiguos solo exigen la clave.
+# external_channel deprecado; vacío; tests antiguos solo exigen la clave.
 sub _external_channel_list {
     return [];
 }
 
-# trend_channels — canal de tendencia clásico.
-# Trendline: 2 pivotes del mismo lado (2 lows si tendencia up, 2 highs si down).
-# Paralela: misma pendiente, anclada al pivote opuesto más extremo ENTRE esos dos.
-# Nota: _ext_vertices trae vértices DUPLICADOS (cada segmento empuja inicio+fin, así
-# que pivotes contiguos se repiten); hay que deduplicar por índice antes de clasificar
-# por alternancia, si no la paridad se desalinea.
+# trend_channels canal de tendencia clásico.
 sub _dedup_ext_vertices {
     my ($self) = @_;
     my @out;
@@ -202,7 +184,6 @@ sub _trend_channels_list {
     my $same_side = $dir eq 'up' ? 'low' : 'high';
 
     # Los vértices deduplicados alternan high/low; el tipo del primero se decide
-    # comparando con el segundo (real, no por posición).
     my $first_is_low = $verts[0]{price} < $verts[1]{price};
     my @sides = map {
         ($_ % 2 == 0) ? ($first_is_low ? 'low' : 'high')
@@ -463,9 +444,7 @@ sub _update_external {
     my $at_high = defined $swing_high && $high >= $swing_high - 1e-9;
     my $at_low  = defined $swing_low  && $low  <= $swing_low  + 1e-9;
 
-    # ChartPrime (zigzag_volumeprofile_chartprime.txt) asigna priceHigh:= low[1]
-    # (bug del Pine: el swing high queda en la mecha inferior). Corregimos solo el
-    # pivote alto: usar high (tope real de la vela). Los mínimos siguen en low.
+    # ChartPrime (zigzag_volumeprofile_chartprime.txt) asigna priceHigh: low[1]
     if ($at_high) {
         $self->{_ext_pivot_high_idx}   = $index;
         $self->{_ext_pivot_high_price} = $high;
@@ -518,8 +497,7 @@ sub _ext_start_segment {
     return unless defined $i0 && defined $p0 && defined $i1 && defined $p1;
     push @{ $self->{_ext_vertices} }, { index => $i0, price => $p0 };
     push @{ $self->{_ext_vertices} }, { index => $i1, price => $p1 };
-    # Log de pivotes para Liquidity: from es extremo cerrado del tramo previo;
-    # to del tramo nuevo se actualizará hasta que empiece el siguiente.
+    # Log de pivotes para Liquidity: from es extremo cerrado del tramo previo
     my $log = $self->{_ext_pivot_log} ||= [];
     my ( $side0, $side1 ) =
       ( ( $dir // '' ) eq 'up' )
@@ -553,7 +531,6 @@ sub _ext_update_last {
 }
 
 # ChartPrime: if SProfile.size() > volumeProfilesQty (15) → shift y zg.delete().
-# Cada segmento externo = 2 vértices (par). Conservar los N pares más recientes.
 sub _trim_external_history {
     my ($self) = @_;
     my $max_segs = $self->{max_external_segments} // $DEFAULT_MAX_EXT_SEGS;

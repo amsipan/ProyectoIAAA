@@ -2,20 +2,18 @@ package Market::OverlayManager;
 use strict;
 use warnings;
 
-# Market::OverlayManager — registro de overlays.
-# Registra overlays por nombre, itera los activos, delega draw/clear.
-# ChartEngine lo invoca en render() tras dibujar paneles, respetando replay_idx.
+# Market::OverlayManager registro de overlays.
 
 sub new {
     my ($class) = @_;
     my $self = {
-        overlays => {},  # name => overlay_instance
+        overlays => {},  # name > overlay_instance
     };
     bless $self, $class;
     return $self;
 }
 
-# register($name, $overlay) — registra un overlay.
+# register($name, $overlay) registra un overlay.
 sub register {
     my ($self, $name, $overlay) = @_;
     die "register: name is required" unless defined $name && length $name;
@@ -24,20 +22,20 @@ sub register {
     return $self;
 }
 
-# unregister($name) — elimina un overlay del registro.
+# unregister($name) elimina un overlay del registro.
 sub unregister {
     my ($self, $name) = @_;
     delete $self->{overlays}->{$name};
     return $self;
 }
 
-# get($name) — retorna el overlay por nombre.
+# get($name) retorna el overlay por nombre.
 sub get {
     my ($self, $name) = @_;
     return $self->{overlays}->{$name};
 }
 
-# each_active — retorna lista de overlays visibles, ordenada por nombre.
+# each_active retorna lista de overlays visibles, ordenada por nombre.
 sub each_active {
     my ($self) = @_;
     return grep { $_->is_visible() }
@@ -45,13 +43,13 @@ sub each_active {
            sort keys %{ $self->{overlays}};
 }
 
-# all — retorna todos los overlays registrados, ordenada por nombre.
+# all retorna todos los overlays registrados, ordenada por nombre.
 sub all {
     my ($self) = @_;
     return map { $self->{overlays}->{$_} } sort keys %{ $self->{overlays} };
 }
 
-# set_visible($name, $bool) — activa/desactiva un overlay por nombre.
+# set_visible($name, $bool) activa/desactiva un overlay por nombre.
 sub set_visible {
     my ($self, $name, $bool) = @_;
     my $ov = $self->{overlays}->{$name};
@@ -60,10 +58,7 @@ sub set_visible {
     return $self;
 }
 
-# compute_all($market_data, $start, $end) — prepara datos SOLO de overlays
-# visibles (capas apagadas no cuestan CPU en cada render).
-# $end ya viene truncado por ChartEngine.compute_window si Replay está activo.
-# _defer_draw: feed chunked incompleto (SMC) — no compute hasta caught-up.
+# compute_all($market_data, $start, $end) prepara datos SOLO de overlays
 sub compute_all {
     my ($self, $market_data, $start, $end) = @_;
     for my $ov ($self->each_active()) {
@@ -73,8 +68,7 @@ sub compute_all {
     return $self;
 }
 
-# draw_all($canvas, $scales) — dibuja todos los overlays activos.
-# Respeta _defer_draw (misma política que compute_all).
+# draw_all($canvas, $scales) dibuja todos los overlays activos.
 sub draw_all {
     my ($self, $canvas, $scales) = @_;
     for my $ov ($self->each_active()) {
@@ -84,7 +78,7 @@ sub draw_all {
     return $self;
 }
 
-# clear_all($canvas) — borra todos los overlays (visibles o no).
+# clear_all($canvas) borra todos los overlays (visibles o no).
 sub clear_all {
     my ($self, $canvas) = @_;
     for my $ov ($self->all()) {

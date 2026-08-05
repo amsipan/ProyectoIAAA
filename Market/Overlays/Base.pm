@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Contrato base de overlays (visible / compute / draw).
-# validate() comprueba que el objeto implemente la interfaz.
 
 sub validate {
     my ($class, $overlay) = @_;

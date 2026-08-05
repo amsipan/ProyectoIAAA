@@ -7,8 +7,7 @@ use parent 'Market::UI::ReplayDropdown';
 
 use Market::UI::Callbacks;
 
-# Market::UI::ReplayGotoMenu — dropdown "SELECT STARTING POINT".
-# Hereda place/toggle/click-fuera de ReplayDropdown (0045 fix race Fedora35).
+# Market::UI::ReplayGotoMenu dropdown "SELECT STARTING POINT".
 
 sub expected_menu_labels {
     return (

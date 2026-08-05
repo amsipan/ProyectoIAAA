@@ -3,22 +3,7 @@ use strict;
 use warnings;
 use List::Util qw(max min);
 
-# DIY Custom Strategy Builder [ZP] - v1 (Supply/Demand Zone sub-indicator)
-# Algoritmo de cálculo de zonas de oferta (Supply) y demanda (Demand)
-# Detección de pivotes Swing High/Low con longitud configurable k (default 10).
-# Cálculo incremental de ATR(50) de forma causal.
-# Cajas de oferta: top = Swing High, bottom = top - atr_buffer (width 2.5 * ATR / 10).
-# Cajas de demanda: bottom = Swing Low, top = bottom + atr_buffer.
-# Regla de no superposición: POI a más de 2 * ATR de cualquier zona activa existente.
-# Mitigación por cierre: close >= top (Supply) o close <= bottom (Demand) rompe la zona.
-# Zonas mitigadas (BOS) se conservan para dibujo lineal histórico (límite de 5).
-# Implementación como cola de tamaño fijo (sliding window) para active_supply y active_demand.
-# Métodos del contrato
-# new(%args)
-# reset()
-# update_last($market_data, $index)
-# get_values()
-# compute($market_data, %opts)
+# DIY Custom Strategy Builder [ZP] v1 (Supply/Demand Zone sub indicator)
 
 sub new {
     my ($class, %args) = @_;
@@ -253,7 +238,7 @@ sub _detect_and_create_zones {
     }
 }
 
-# _check_overlapping: retorna true si es seguro dibujar (no se superpone en 2 * ATR)
+# _check_overlapping: retorna true si es seguro dibujar (no se superpone en 2 ATR)
 sub _check_overlapping {
     my ($self, $new_poi, $queue, $atr) = @_;
     my $threshold = $atr * 2;

@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Time::Moment;
 
-# Resolución relativa de TFs (más bajo = más fino).
+# Resolución relativa de TFs (más bajo más fino).
 my %TF_RANK = (
     '1m'  => 1,
     '5m'  => 5,
@@ -28,7 +28,7 @@ sub new {
         base_tf   => '1m',
         # TFs ya agregados. Con add_candle incremental, los HTF se llenan al cargar.
         _tf_built => { '1m' => 1 },
-        # Cache Time::Moment por string de timestamp (evita re-parse en agregación).
+        # Cache Time::Moment por string de timestamp (evita re parse en agregación).
         _tm_cache => {},
     };
     bless $self, $class;
@@ -40,9 +40,7 @@ sub base_timeframe {
     return $self->{base_tf} // '1m';
 }
 
-# set_base_timeframe($tf) — define la serie nativa (p.ej. '1m' o '15m').
-# Limpia todas las series y marca solo la base como construida.
-# Llamar ANTES de add_candle cuando se carga un CSV no-1m.
+# set_base_timeframe($tf) define la serie nativa (p.ej. '1m' o '15m').
 sub set_base_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf && exists $self->{data}{$tf};
@@ -74,7 +72,6 @@ sub _aggregate_tf_names {
 }
 
 # add_candle: push base O(1) + actualizar HTF abiertos O(1) por TF fijo.
-# Devuelve base_index (índice en la serie nativa).
 sub add_candle {
     my ( $self, $candle ) = @_;
     return undef unless $candle && ref($candle) eq 'ARRAY';
@@ -109,7 +106,7 @@ sub _update_higher_tfs {
     return $self;
 }
 
-# Un tick de la base → bucket HTF: nuevo push o merge in-place + base_index.
+# Un tick de la base → bucket HTF: nuevo push o merge in place + base_index.
 sub _update_tf_incremental {
     my ( $self, $tf, $candle, $base_index ) = @_;
     my $arr = $self->{data}{$tf} ||= [];
@@ -138,8 +135,7 @@ sub _update_tf_incremental {
     return;
 }
 
-# Parche HTF cuando la última vela base se actualiza in-place (merge_delta_row).
-# $vol_delta es el volumen añadido en este tick (no el total de la vela base).
+# Parche HTF cuando la última vela base se actualiza in place (merge_delta_row).
 sub _patch_open_htf_from_base {
     my ( $self, $base_candle, $base_index, $vol_delta ) = @_;
     my $base      = $self->base_timeframe();
@@ -194,7 +190,7 @@ sub build_tf_candles {
         return;
     }
 
-    # Idempotente: no reconstruir si ya está (lazy multi-llamada OK).
+    # Idempotente: no reconstruir si ya está (lazy multi llamada OK).
     if ($self->{_tf_built}{$tf} && @{ $self->{data}{$tf} || [] }) {
         return;
     }
@@ -228,16 +224,7 @@ sub build_tf_candles {
     $self->{_tf_built}{$tf} = 1;
 }
 
-# _bucket_timestamp($ts, $tf) — frontera de reloj/sesión para el TF dado.
-# $tf puede ser un nombre ('5m','15m','1h','2h','4h','D','W') o un entero de minutos.
-# 5m/15m: truncar al múltiplo de minutos de la hora local (comportamiento Fase 1).
-# >=1h: anclar a sesión CME/NQ UTC-5 que inicia 17:00, como TradingView.
-# Esto hace que 2h use horas impares (...23:00,01:00,03:00...), 3h vía entero
-# 180 use...23:00,02:00,05:00..., y 4h use...21:00,01:00,05:00...
-# 'D': día de trading CME. Desde 17:00 pertenece al día de trading siguiente,
-# pero se conserva timestamp YYYY-MM-DDT00:00:00 para etiquetas diarias limpias.
-# 'W': semana ISO del día de trading (lunes). Time::Moment->day_of_week es
-# ISO 8601 (1=Lun.. 7=Dom).
+# _bucket_timestamp($ts, $tf) frontera de reloj/sesión para el TF dado.
 sub _parse_tm_cached {
     my ($self, $ts) = @_;
     return undef unless defined $ts;
@@ -289,7 +276,7 @@ sub _bucket_timestamp {
         return $ts;
     }
 
-    # D/W y >=1h necesitan Time::Moment (cacheado).
+    # D/W y > 1h necesitan Time::Moment (cacheado).
     my $tm = $self->_parse_tm_cached($ts);
 
     if ($tf eq 'D') {
@@ -300,14 +287,14 @@ sub _bucket_timestamp {
     if ($tf eq 'W') {
         return $ts unless $tm && defined $suffix;
         my $trading_day = $self->_trading_day_tm($tm);
-        my $dow = $trading_day->day_of_week;  # 1=Lun.. 7=Dom
+        my $dow = $trading_day->day_of_week;  # 1 Lun.. 7 Dom
         my $monday = $trading_day->minus_days($dow - 1);
         return $self->_format_bucket_timestamp($monday, 0, 0, $suffix);
     }
 
     return $ts if !defined $minutes || $minutes <= 1;
 
-    # Para >= 60 min, anclar al inicio de sesión CME (17:00 local).
+    # Para > 60 min, anclar al inicio de sesión CME (17:00 local).
     if ($minutes >= 60) {
         return $self->_session_bucket_timestamp($tm, $minutes, $suffix) if $tm && defined $suffix;
 
@@ -377,8 +364,7 @@ sub _session_bucket_timestamp {
     return $self->_format_bucket_timestamp($bucket_date, $bucket_hour, $bucket_min, $suffix);
 }
 
-# build_timeframes — incremental ya llena HTF en add_candle.
-# eager => 1 completa solo TF faltantes (red de seguridad al boot).
+# build_timeframes incremental ya llena HTF en add_candle.
 sub build_timeframes {
     my ($self, %opts) = @_;
     if ($opts{eager}) {
@@ -395,7 +381,7 @@ sub build_timeframes {
     return $self;
 }
 
-# ensure_timeframe($tf) — garantiza que el TF está agregado antes de usarlo.
+# ensure_timeframe($tf) garantiza que el TF está agregado antes de usarlo.
 sub ensure_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf;
@@ -405,7 +391,7 @@ sub ensure_timeframe {
     return $self;
 }
 
-# set_timeframe — O(1) si el TF ya está precargado; fallback rebuild si falta.
+# set_timeframe O(1) si el TF ya está precargado; fallback rebuild si falta.
 sub set_timeframe {
     my ($self, $tf) = @_;
     return unless defined $tf;
@@ -464,8 +450,7 @@ sub get_timestamp {
     return $candle ? $candle->[0] : undef;
 }
 
-# base_index_at($tf, $idx) — base_index (campo [6]) de la vela $idx en la serie
-# $tf; en la serie base equivale al propio índice.
+# base_index_at($tf, $idx) base_index (campo [6]) de la vela $idx en la serie
 sub base_index_at {
     my ($self, $tf, $idx) = @_;
     my $arr = (defined $tf) ? $self->{data}{$tf} : undef;
@@ -475,9 +460,7 @@ sub base_index_at {
     return $bi;
 }
 
-# index_for_base_index($tf, $bi) — mayor índice de la serie $tf cuya vela está
-# completamente cubierta por el instante base $bi (su [6] <= $bi). Búsqueda
-# binaria: [6] es monótono creciente por serie. -1 si ninguna vela cerró aún.
+# index_for_base_index($tf, $bi) mayor índice de la serie $tf cuya vela está
 sub index_for_base_index {
     my ($self, $tf, $bi) = @_;
     return -1 unless defined $tf && defined $bi;
@@ -494,17 +477,14 @@ sub index_for_base_index {
     return $best;
 }
 
-# base_last_index — último índice de la serie nativa (tope del tiempo base).
+# base_last_index último índice de la serie nativa (tope del tiempo base).
 sub base_last_index {
     my ($self) = @_;
     my $arr = $self->{data}{ $self->base_timeframe() } || [];
     return $#$arr;
 }
 
-# index_of_bucket_containing($tf, $bi) — primer índice de la serie $tf cuya
-# vela cierra en o después del instante base $bi (su [6] >= $bi): el bucket que
-# contiene ese instante (igualdad = bucket ya cerrado). Binaria. -1 si $bi
-# supera el cierre de la última vela del TF.
+# index_of_bucket_containing($tf, $bi) primer índice de la serie $tf cuya
 sub index_of_bucket_containing {
     my ($self, $tf, $bi) = @_;
     return -1 unless defined $tf && defined $bi;
@@ -521,9 +501,7 @@ sub index_of_bucket_containing {
     return $best;
 }
 
-# partial_candle($tf, $idx, $bi) — vela del bucket $idx agregada SOLO hasta el
-# instante base $bi (vela en formación, paridad TradingView en Replay). Lee la
-# serie base; si el bucket ya cerró en o antes de $bi devuelve la vela completa.
+# partial_candle($tf, $idx, $bi) vela del bucket $idx agregada SOLO hasta el
 sub partial_candle {
     my ($self, $tf, $idx, $bi) = @_;
     return undef unless defined $tf && defined $idx && defined $bi;
@@ -574,25 +552,7 @@ sub merge_delta_row {
     }
 }
 
-# compute_time_anchors — puntos clave de tiempo para el eje/etiquetas (capa de datos).
-# Detecta dos tipos de ancla temporal recorriendo el array de velas activo
-# * Cambio de HORA dentro del mismo día (etiqueta de tiempo regular).
-# * Cambio de DÍA calendario (marcador de fecha) usando Time::Moment
-# (->year, ->month, ->day_of_month). Un cambio de día es ancla aunque la
-# hora coincida con la de la vela anterior (p.ej. gaps de datos entre jornadas).
-# CAMBIO DE CONTRATO (tradingview-parity, tarea 4.1)
-# Antes devolvía un arrayref de ENTEROS (índices donde cambiaba la hora).
-# Ahora devuelve un arrayref de HASHES enriquecidos
-# [ { index => N, is_date => 0|1 },... ]
-# donde is_date == 1 marca un cambio de DÍA (cambio de fecha) e is_date == 0
-# marca un cambio de HORA dentro del mismo día. La primera vela del array no
-# se considera cambio de fecha (no tiene vela anterior con la cual comparar),
-# por lo que se marca como ancla de hora (is_date => 0).
-# No hay consumidores previos que dependan del formato antiguo; ChartEngine
-# usará la marca is_date para resaltar los cambios de fecha en el eje de tiempo.
-# Responsabilidad: SOLO capa de datos. No conoce render ni coordenadas; usa
-# exclusivamente Time::Moment (ya importado). Las velas con timestamp no
-# parseable se omiten sin abortar.
+# compute_time_anchors puntos clave de tiempo para el eje/etiquetas (capa de datos).
 sub compute_time_anchors {
     my ($self) = @_;
     my $arr = $self->_active_array();

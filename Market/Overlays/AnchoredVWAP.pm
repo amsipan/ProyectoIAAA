@@ -3,13 +3,6 @@ use strict;
 use warnings;
 
 # Market::Overlays::AnchoredVWAP
-# Render visual (no cambia la fórmula del indicador)
-# Polilínea única por serie (mismos puntos centro-de-vela).
-# Grosor uniforme (estilo TV).
-# Terna runtime (ChartEngine): Manual cian / Auto-1 tomate / Auto-2 morado+dash.
-# Fallbacks genéricos abajo solo si el caller no pasa colores.
-# Relleno semitransparente entre upper1 y lower1 (stipple Tk).
-# Círculo handle deslicable en la vela ancla.
 
 sub new {
     my ($class, %args) = @_;
@@ -41,7 +34,7 @@ sub new {
           // $theme->{vwap_handle_fill}    // '#FFFFFF',
         color_handle_outline => $args{color_handle_outline}
           // $theme->{vwap_handle_outline} // ( $args{color_vwap} // $theme->{vwap_line} // '#00BCD4' ),
-        # Estilo de trazo: undef/'' = continuo; '-' = guiones (AVWAP Auto-2 §9)
+        # Estilo de trazo: undef/'' continuo; ' ' guiones (AVWAP Auto 2 )
         line_dash => exists $args{line_dash} ? $args{line_dash}
           : ( $theme->{vwap_dash} // undef ),
         _start       => 0,

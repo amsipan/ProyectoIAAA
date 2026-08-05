@@ -3,13 +3,11 @@ use strict;
 use warnings;
 
 # Herramienta Parallel Channel (TradingView drawing tool).
-# 3 anclas: p1-p2 = trendline base; p3 define la paralela (misma pendiente).
-# Política Fase A: un solo canal activo (crear otro reemplaza).
 
 sub new {
     my ( $class, %args ) = @_;
     my $self = {
-        channel      => undef,    # hash p1,p2,p3,extend_*,colors
+        channel      => undef,    # hash p1,p2,p3,extend_ ,colors
         draft        => [],       # 0..2 puntos mientras se dibuja
         tool_active  => 0,
         extend_right => exists $args{extend_right} ? ( $args{extend_right} ? 1 : 0 ) : 0,
@@ -46,9 +44,7 @@ sub clear_channel {
 
 sub get_channel { $_[0]->{channel} }
 
-# set_point($which, {index,price}) — reposiciona un ancla del canal (p1|p2|p3).
-# p1/p2 definen la pendiente de la trendline base; p3 la paralela. Mover
-# cualquiera recalcula toda la geometría en geometry_for.
+# set_point($which, {index,price}) reposiciona un ancla del canal (p1|p2|p3).
 sub set_point {
     my ( $self, $which, $pt ) = @_;
     return $self unless $self->{channel};
@@ -62,14 +58,14 @@ sub set_point {
     return $self;
 }
 
-# base_mid_index — índice medio del segmento base (p1-p2).
+# base_mid_index índice medio del segmento base (p1 p2).
 sub base_mid_index {
     my ($self) = @_;
     my $ch = $self->{channel} or return undef;
     return ( $ch->{p1}{index} + $ch->{p2}{index} ) / 2;
 }
 
-# base_mid_price — precio de la línea base en su índice medio.
+# base_mid_price precio de la línea base en su índice medio.
 sub base_mid_price {
     my ($self) = @_;
     my $ch = $self->{channel} or return undef;
@@ -77,9 +73,7 @@ sub base_mid_price {
     return $self->price_on_line( $ch->{p1}, $m, $self->base_mid_index() );
 }
 
-# move_base_to_price($price) — desplaza la línea BASE verticalmente para que su
-# punto medio pase por $price (mueve p1 y p2 por el mismo delta, conserva la
-# pendiente). Es el handle de altura del lado de la base (segmento con p1/p2).
+# move_base_to_price($price) desplaza la línea BASE verticalmente para que su
 sub move_base_to_price {
     my ( $self, $price ) = @_;
     my $ch = $self->{channel} or return $self;
@@ -92,8 +86,7 @@ sub move_base_to_price {
     return $self;
 }
 
-# move_channel($d_index, $d_price) — traslada TODO el canal (p1,p2,p3) por un
-# delta. Usado al arrastrar el cuerpo (segmento superior o inferior).
+# move_channel($d_index, $d_price) traslada TODO el canal (p1,p2,p3) por un
 sub move_channel {
     my ( $self, $di, $dp ) = @_;
     my $ch = $self->{channel} or return $self;
@@ -111,8 +104,7 @@ sub draft_count {
     return scalar @{ $self->{draft} || [] };
 }
 
-# add_point({ index => i, price => p }) — en modo tool.
-# Retorna: 'draft' | 'done' | undef (ignorado)
+# add_point({ index > i, price > p }) en modo tool.
 sub add_point {
     my ( $self, $pt ) = @_;
     return undef unless $self->{tool_active};
@@ -138,9 +130,7 @@ sub _commit_draft {
     my ($self) = @_;
     my @d = @{ $self->{draft} || [] };
     return unless @d >= 3;
-    # p3 = altura del canal: el 3.er clic aporta solo el PRECIO; su índice se
-    # fija al punto MEDIO del segmento base (p1-p2), como en TradingView, para
-    # que el handle de altura quede centrado en la línea superior/inferior.
+    # p3 altura del canal: el 3.er clic aporta solo el PRECIO; su índice se
     my $mid_index = ( $d[0]{index} + $d[1]{index} ) / 2;
     # Un solo canal: reemplaza el anterior
     $self->{channel} = {
@@ -170,8 +160,7 @@ sub price_on_line {
       + $m * ( ( $index // 0 ) - ( $anchor->{index} // 0 ) );
 }
 
-# geometry_for($channel, %opts) — rangos de dibujo
-# opts: data_end (último índice), view_start, view_end
+# geometry_for($channel, %opts) rangos de dibujo
 sub geometry_for {
     my ( $self, $ch, %opts ) = @_;
     return undef unless ref($ch) eq 'HASH'
@@ -223,7 +212,7 @@ sub geometry_for {
         line0   => [ $i_min, $y0_l, $i_max, $y0_r ],
         line1   => [ $i_min, $y1_l, $i_max, $y1_r ],
         mid     => ( defined $mid_l ? [ $i_min, $mid_l, $i_max, $mid_r ] : undef ),
-        # polígono fill: L0 left -> L0 right -> L1 right -> L1 left
+        # polígono fill: L0 left > L0 right > L1 right > L1 left
         poly_prices => [
             [ $i_min, $y0_l ],
             [ $i_max, $y0_r ],
@@ -233,7 +222,7 @@ sub geometry_for {
     };
 }
 
-# slopes_parallel($ch) — test helper
+# slopes_parallel($ch) test helper
 sub slopes_equal {
     my ( $self, $ch ) = @_;
     my $m0 = $self->slope( $ch->{p1}, $ch->{p2} );

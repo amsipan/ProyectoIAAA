@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Render de Parallel Channel (drawing tool TV).
-# Tag: draw_pchan — no ov_smc_* / zz_*.
 
 sub new {
     my ( $class, %args ) = @_;
@@ -81,11 +80,9 @@ sub draw {
     # Preview del draft
     my $draft = $draw->draft_points();
     if ( $draw->is_tool_active() && @$draft ) {
-        # Con 2 puntos fijos + cursor: previsualizar el canal completo (p3 = cursor).
-        # Así el usuario ve la altura/ancho siguiendo el ratón hasta el 3.er clic.
+        # Con 2 puntos fijos + cursor: previsualizar el canal completo (p3 cursor).
         if ( @$draft == 2 && $self->{_preview_cursor} ) {
-            # p3 preview: precio = cursor; índice = medio del segmento base, para
-            # que la altura se vea centrada igual que al fijar el 3.er clic.
+            # p3 preview: precio cursor; índice medio del segmento base, para
             my $mid_index = ( $draft->[0]{index} + $draft->[1]{index} ) / 2;
             my $prev = {
                 p1           => { %{ $draft->[0] } },
@@ -159,7 +156,7 @@ sub _paint_channel {
                 $x_of->($ia), $y_of->($pa), $x_of->($ib), $y_of->($pb),
                 -fill  => $line_c,
                 -width => 1,
-                # Guiones visibles (no '.' = puntos); patrón px on/off estilo TV
+                # Guiones visibles (no '.' puntos); patrón px on/off estilo TV
                 -dash  => [ 10, 6 ],
                 -tags  => [ $tag, 'pchan_mid' ],
             );
@@ -167,7 +164,7 @@ sub _paint_channel {
         };
     }
 
-    # Handles arrastrables en las 3 anclas (p1/p2 = base, p3 = paralela).
+    # Handles arrastrables en las 3 anclas (p1/p2 base, p3 paralela).
     for my $name (qw(p1 p2 p3)) {
         my $pt = $ch->{$name} or next;
         my $x  = $x_of->( $pt->{index} );
@@ -185,7 +182,6 @@ sub _paint_channel {
     }
 
     # Punto medio de la línea BASE (altura del lado base). El lado de la paralela
-    # ya tiene su handle de altura en p3, que está centrado en el índice medio.
     my $mid_i = ( $geo->{i_min} + $geo->{i_max} ) / 2;
     my ( undef, $mb0, undef, $mb1 ) = @{ $geo->{line0} };
     {
@@ -205,9 +201,6 @@ sub _paint_channel {
 }
 
 # hit_test → handle bajo el cursor, o undef. Prioridad
-# 'p1'|'p2'|'p3' → esquinas y altura de la paralela (p3 ya está centrado)
-# 'mid_base' → punto medio de la línea base (altura del lado base)
-# 'body' → cuerpo de un segmento (arrastrar todo el canal)
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -241,17 +234,16 @@ sub hit_test {
         view_end   => ( $self->{_range}[1] // 0 ),
     );
     return undef unless $geo;
-    my ( $i0a, $p0a, $i0b, $p0b ) = @{ $geo->{line0} };   # base (p1-p2)
+    my ( $i0a, $p0a, $i0b, $p0b ) = @{ $geo->{line0} };   # base (p1 p2)
     my ( $i1a, $p1a, $i1b, $p1b ) = @{ $geo->{line1} };   # paralela (p3)
 
     # 2) Punto medio de la línea base (altura del lado base). El lado paralela
-    # usa p3, ya cubierto arriba como esquina (está centrado en el medio).
     my $mid_i = ( $geo->{i_min} + $geo->{i_max} ) / 2;
     my $base_mid_p = ( $p0a + $p0b ) / 2;
     return 'mid_base'
       if $near->( $x_of->($mid_i), $y_of->($base_mid_p) );
 
-    # 3) Cuerpo: sobre cualquiera de los dos segmentos (perpendicular <= tol)
+    # 3) Cuerpo: sobre cualquiera de los dos segmentos (perpendicular < tol)
     my $on_seg = sub {
         my ( $ia, $pa, $ib, $pb ) = @_;
         return _dist_to_segment(
@@ -319,7 +311,7 @@ sub _paint_draft {
         # no debería ocurrir (commit al 3er punto); por si acaso
     }
     elsif ( @$draft == 2 && $draw->is_tool_active() ) {
-        # esperando p3 — sin paralela aún
+        # esperando p3 sin paralela aún
     }
 }
 

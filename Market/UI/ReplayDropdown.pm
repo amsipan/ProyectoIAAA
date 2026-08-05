@@ -3,9 +3,7 @@ use strict;
 use warnings;
 use utf8;
 
-# Market::UI::ReplayDropdown — base place/toggle/click-outside (tasks 0044/0045/0049).
-# Fedora35: el bind de click-fuera se difiere con after(1) para no cerrar en el mismo
-# clic que abre el menu (race conocida de Tk::bind <Button-1> sincrono).
+# Market::UI::ReplayDropdown base place/toggle/click outside (tasks 0044/0045/0049).
 
 sub new {
     my ($class, %args) = @_;
@@ -75,7 +73,7 @@ sub is_visible {
     return $self->{visible} ? 1 : 0;
 }
 
-# _widget_contains($leaf, $ancestor) — true si $leaf es $ancestor o descendiente.
+# _widget_contains($leaf, $ancestor) true si $leaf es $ancestor o descendiente.
 sub _widget_contains {
     my ($leaf, $ancestor) = @_;
     return 0 unless defined $leaf && defined $ancestor;

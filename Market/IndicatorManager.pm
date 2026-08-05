@@ -64,8 +64,6 @@ sub slice_array {
 sub reset_all {
     my ($self) = @_;
     # Paso 1 del recálculo al cambiar timeframe (Req. 13.4): reinicia cada
-    # indicador. ChartEngine::set_timeframe llama a este método y luego recalcula
-    # vela por vela con update_last (paso 2). Sin dependencias de render.
     for my $name (keys %{ $self->{indicators} }) {
         my $indicator = $self->{indicators}->{$name};
         $indicator->reset() if $indicator->can('reset');

@@ -3,21 +3,6 @@ use strict;
 use warnings;
 
 # Market::Indicators::PivotPointsHL
-# Port causal de "Pivot Points High Low & Missed Reversal Levels [LuxAlgo]"
-# (Pine v5). Source
-# Pivots regulares: high (▼) / low (▲), confirmados length velas después.
-# Pivots "missed" (perdidos): marcados con (fantasma).
-# Zigzag entre pivots (sólido = confirmado, punteado = missed/pendiente).
-# Ghost levels: líneas horizontales al nivel del pivote (semitransparentes).
-# Fantasma provisional (barstate.islast en Pine): el pivote en formación del
-# último índice causal. "Mientras el fantasma se mueve no operar; cuando se
-# queda quieto, sí" (profe). Se recalcula en cada vela → se ve moverse en Replay.
-# Rastro "1" (Josafa Ghosts_in_swings): al cambiar de punta el fantasma
-# provisional, deja marcador en la posición previa (conteo visual de saltos).
-# Cálculo PURO (sin Tk). Contrato: new / reset / update_last($md,$i) / get_values.
-# Totalmente causal: solo mira velas <= índice actual, así el feed incremental y
-# el rewind de Replay (reset + refeed) lo reconstruyen sin fuga de futuro.
-# Source rastro/AVWAP auto
 
 sub new {
     my ($class, %args) = @_;
@@ -43,7 +28,7 @@ sub reset {
     $self->{_max_x1} = undef; $self->{_min_x1} = undef;
     $self->{_follow_max} = undef; $self->{_follow_min} = undef;
     $self->{_follow_max_x1} = undef; $self->{_follow_min_x1} = undef;
-    $self->{_os}  = undef;               # 1 = último pivote high, 0 = low
+    $self->{_os}  = undef;               # 1 último pivote high, 0 low
     $self->{_py1} = undef; $self->{_px1} = undef;   # último punto del zigzag
     $self->{_seeded_run} = 0;
 
@@ -77,7 +62,6 @@ sub update_last {
     return $self unless defined $hL && defined $lL;
 
     # Semilla del tracking en la primera vela central válida (evita el artefacto
-    # (0,0) del init literal de Pine; el resto de la lógica es fiel).
     unless ($self->{_seeded_run}) {
         $self->{_max} = $hL; $self->{_min} = $lL;
         $self->{_follow_max} = $hL; $self->{_follow_min} = $lL;
@@ -249,15 +233,7 @@ sub _on_pivot_low {
     $self->{_max} = $pl; $self->{_min} = $pl;
 }
 
-# Fantasma provisional (barstate.islast del Pine, líneas 121-152).
-# os==1 → busca el low mínimo desde px1 ( abajo, style_label_up);
-# os==0 → busca el high máximo ( arriba, style_label_down).
-# Se mueve en cada vela hasta que un pivote real lo confirma ("se queda quieto").
-# Colores (fiel al source)
-# ghost (etiqueta ): os==1 → miss_pl (verde); os==0 → miss_ph (rojo)
-# líneas diagonal (l.150) y horizontal (l.152): color OPUESTO al ghost →
-# os==1 → miss_ph (rojo); os==0 → miss_pl (verde)
-# La horizontal va desde (x,y) hasta n, semitransparente (color.new(...,50)).
+# Fantasma provisional (barstate.islast del Pine, líneas 121 152).
 sub _provisional {
     my ($self) = @_;
     my $n = $self->{_last};
@@ -326,7 +302,7 @@ sub _update_rastro_from_provisional {
     return $self;
 }
 
-# Último pivot REGULAR consolidado (high o low) — ancla Auto-1 AVWAP.
+# Último pivot REGULAR consolidado (high o low) ancla Auto 1 AVWAP.
 sub last_regular_pivot {
     my ($self) = @_;
     my $labels = $self->{_labels} || [];
@@ -348,8 +324,6 @@ sub last_regular_pivot {
 }
 
 # Ghost levels con to_index encadenado (Pine: cada nivel se congela donde nace
-# el siguiente vía set_x2; el último se extiende a n). Sin esto, todas las líneas
-# llegarían hasta el final del gráfico, cuando en TV se cortan en el próximo pivote.
 sub _ghost_levels_chained {
     my ($self) = @_;
     my @lv = @{ $self->{_ghost_levels} };

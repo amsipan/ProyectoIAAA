@@ -2,10 +2,7 @@ package Market::Overlays::SMC_Structures_FVG;
 use strict;
 use warnings;
 
-# Render capa "SMC Structures and FVG" (LudoGH68) — config captura del profesor.
-# FVG: bull green / bear red / mitigated gray, max 5, reduce mitigated ON.
-# Structure: BOS gray, CHoCH bull green / bear red, width 1, max 10 breaks.
-# Sin fibs, sin current structure.
+# Render capa "SMC Structures and FVG" (LudoGH68) config captura del profesor.
 
 sub new {
     my ($class, %args) = @_;
@@ -15,9 +12,9 @@ sub new {
         indicator       => $args{indicator},
         theme           => $args{theme} || {},
         visible         => exists $args{visible} ? ($args{visible} ? 1 : 0) : 0,
-        # Independientes (feedback profe §4): FVG vs etiquetas BOS/CHoCH.
+        # Toggles independientes: FVG vs etiquetas BOS/CHoCH.
         show_fvg        => exists $args{show_fvg} ? ( $args{show_fvg} ? 1 : 0 ) : 1,
-        # OFF por defecto: evita solape con BOS/CHoCH de SMC Pro (feedback §4).
+        # OFF por defecto: evita solape con BOS/CHoCH de SMC Pro ( ).
         show_structure  => exists $args{show_structure}
           ? ( $args{show_structure} ? 1 : 0 )
           : 0,
@@ -68,7 +65,7 @@ sub compute_visible {
     $self->{_compute_range} = [ $start, $end ];
     my $ind = $indicator // $self->{indicator};
 
-    # Zoom-independiente: segmentos/cajas que cruzan el viewport (como TV).
+    # Zoom independiente: segmentos/cajas que cruzan el viewport (como TV).
     my @ev;
     for my $e ( @{ $ind->get_events() || [] } ) {
         next unless ref($e) eq 'HASH' && defined $e->{index};
@@ -136,8 +133,6 @@ sub draw {
     my $fvg_mit  = $self->{theme}{fvg_mit}        // '#9e9e9e';
 
     # Anclaje X como TV (bar_index / bar_time visual): centro de vela.
-    # Antes: index_to_x (borde izq. del slot) → la caja se salía a la izquierda
-    # de la vela (misma clase de bug que OB en SMC Pro).
     my $x_center = sub {
         my ($g) = @_;
         return $scales->index_to_center_x( ( $g // 0 ) - $win_start );
@@ -147,14 +142,14 @@ sub draw {
         return $scales->value_to_y($p);
     };
 
-    # 1) FVG boxes — left/right en centro de vela (Pine left=bar-2, right=bar_index)
+    # 1) FVG boxes left/right en centro de vela (Pine left bar 2, right bar_index)
     if ( $self->{show_fvg} ) {
     for my $f ( @{ $self->{_fvgs} } ) {
         my $li = $f->{left}  // $f->{index} // 0;
         my $ri = $f->{right} // $f->{index} // $li;
         my $x1 = $x_center->($li);
         my $x2 = $x_center->($ri);
-        # Si left==right, dar ancho de 1 slot (borde dcho. del mismo bar)
+        # Si left right, dar ancho de 1 slot (borde dcho. del mismo bar)
         if ( !defined $x2 || $x2 <= $x1 ) {
             my $loc  = $ri - $win_start;
             my $half = abs( $scales->index_to_center_x($loc) - $scales->index_to_x($loc) );
@@ -193,7 +188,7 @@ sub draw {
     }
     }
 
-    # 2) Structure breaks — centro de vela, width 1
+    # 2) Structure breaks centro de vela, width 1
     if ( $self->{show_structure} ) {
     for my $e ( @{ $self->{_events} } ) {
         my $role = $e->{color_role} // '';
@@ -231,7 +226,7 @@ sub draw {
     return $self;
 }
 
-# Densidad: no filtrar (paridad TV / captura). Stubs no-op.
+# Densidad: no filtrar (paridad TV / captura). Stubs no op.
 sub set_density_pct         { $_[0] }
 sub density_pct             { 100 }
 sub set_element_density_pct { $_[0] }

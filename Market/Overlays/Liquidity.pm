@@ -2,10 +2,7 @@ package Market::Overlays::Liquidity;
 use strict;
 use warnings;
 
-# Overlay Liquidity v2 — estilos PDF tabla 2 (BSL rojo, SSL verde, …).
-# Labels ASCII (Tk-safe). HISTORY = dibujar niveles resolved (demo profe).
-# Elementos: BSL SSL SWEEP GRAB RUN HISTORY
-# EQH/EQL: retirados del producto Liquidez (feedback §6); quedan en SMC Pro.
+# Overlay Liquidity v2 estilos PDF tabla 2 (BSL rojo, SSL verde, …).
 
 use constant {
     MAX_EVENT_MARKERS => 40,
@@ -23,7 +20,7 @@ sub new {
         elements  => {
             BSL     => 1,
             SSL     => 1,
-            EQH     => 0,    # §6: off permanente (sin UI)
+            EQH     => 0,    # off permanente (sin UI)
             EQL     => 0,
             SWEEP   => 1,
             GRAB    => 1,
@@ -57,7 +54,7 @@ sub set_element_visible {
     my ( $self, $elem, $bool ) = @_;
     $elem = uc( $elem // '' );
     return $self unless exists $self->{elements}{$elem};
-    # §6: EQH/EQL retirados — no reactivar por callback legacy.
+    # EQH/EQL retirados no reactivar por callback legacy.
     if ( $elem eq 'EQH' || $elem eq 'EQL' ) {
         $self->{elements}{$elem} = 0;
         return $self;
@@ -108,8 +105,6 @@ sub event_is_up {
 }
 
 # Posición X de una etiqueta sobre la porción REALMENTE visible del segmento.
-# Devuelve undef si el segmento no intersecta el plot: nunca arrastra texto desde
-# fuera de pantalla al borde, que era la causa de labels "flotantes" en Replay.
 sub clamp_label_x {
     my ( $class, $x1, $x2, $plot_w ) = @_;
     return undef unless defined $x1 && defined $x2;
@@ -257,7 +252,7 @@ sub draw {
                 $i1 = $lv->{resolve_index} // $lv->{sweep_index} // $i0;
             }
             else {
-                # Vivo: pivot → fin de feed (replay-safe), no más allá de eff_end
+                # Vivo: pivot → fin de feed (replay safe), no más allá de eff_end
                 $i1 = $eff_end;
             }
         }
@@ -285,15 +280,12 @@ sub draw {
             1;
         };
         # El precio ya quedó representado por una línea, aunque no haya cupo para
-        # texto. Así el dedupe sigue evitando geometría duplicada.
         push @shown_prices, { p => $price, arch => $archived };
 
         # El límite es solo de TEXTO. La geometría de todos los niveles visibles
-        # se conserva, especialmente con HISTORY y zoom lejano.
         next if $n_lbl >= MAX_LEVEL_LABELS;
         my $lx = __PACKAGE__->clamp_label_x( $x1, $x2, $plot_w );
         # La linea puede cruzar el viewport aunque su ancla quede fuera; en ese
-        # caso no inventamos una posicion para el texto.
         next unless defined $lx;
         my $lbl = $archived ? "$kind*" : $kind;
         eval {
@@ -373,7 +365,6 @@ sub draw {
         $lx = $plot_w - 50 if $lx > $plot_w - 50;
 
         # En zoom lejano conservar el punto exacto, pero espaciar textos. Dos
-        # labels dentro de la misma celda visual se perciben como duplicados.
         my $show_label = 1;
         for my $p (@event_label_pos) {
             if ( abs( $lx - $p->{x} ) < 58 && abs( $y - $p->{y} ) < 18 ) {

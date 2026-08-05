@@ -2,10 +2,7 @@ package Market::Drawing::FibRetracement;
 use strict;
 use warnings;
 
-# Fib Retracement — clone herramienta nativa TradingView
-# 2 anclas: p1 = nivel 1 (1.er clic), p2 = nivel 0 (2.º clic).
-# price(level) = p2.price + level * (p1.price - p2.price)
-# extend_to_last: proyecta la caja hasta la última vela (data_end), no infinito.
+# Fib Retracement clone herramienta nativa TradingView
 
 my @DEFAULT_LEVELS = (
     { ratio => 0,     color => '#787b86', fill => '#b2b5be' },
@@ -70,7 +67,7 @@ sub draft_count {
     return scalar @{ $self->{draft} || [] };
 }
 
-# price_at_level — TV: 0 en p2, 1 en p1
+# price_at_level TV: 0 en p2, 1 en p1
 sub price_at_level {
     my ( $class_or_self, $p1, $p2, $level ) = @_;
     return undef unless ref($p1) eq 'HASH' && ref($p2) eq 'HASH';
@@ -80,7 +77,7 @@ sub price_at_level {
     return $b + $level * ( $a - $b );
 }
 
-# add_point — 2 clics → commit (p1=1.er clic=nivel 1, p2=2.º=nivel 0)
+# add_point 2 clics → commit (p1 1.er clic nivel 1, p2 2.º nivel 0)
 sub add_point {
     my ( $self, $pt ) = @_;
     return undef unless $self->{tool_active};
@@ -110,9 +107,7 @@ sub _commit_draft {
     return $self->{fib};
 }
 
-# set_from_points($p1, $p2) — p1 = nivel 1, p2 = nivel 0 (convención TV)
-# El ancho de la caja = siempre min/max de p1.index y p2.index (como TV).
-# No hay bordes de ancho independientes de los anclajes.
+# set_from_points($p1, $p2) p1 nivel 1, p2 nivel 0 (convención TV)
 sub set_from_points {
     my ( $self, $p1, $p2 ) = @_;
     return undef unless ref($p1) eq 'HASH' && ref($p2) eq 'HASH';
@@ -140,9 +135,7 @@ sub _span_indices {
     return $i1 <= $i2 ? ( $i1, $i2 ) : ( $i2, $i1 );
 }
 
-# set_from_zz_leg($seg) — pierna del ZZ externo (from→to = impulso = 1→0)
-# Orientación TV: 1.er extremo de la pierna = nivel 1, 2.º = nivel 0.
-# En bajista: from=high → to=low ⇒ 1 arriba, 0 abajo (colores correctos).
+# set_from_zz_leg($seg) pierna del ZZ externo (from→to impulso 1→0)
 sub set_from_zz_leg {
     my ( $self, $leg ) = @_;
     return undef unless ref($leg) eq 'HASH'
@@ -159,11 +152,11 @@ sub set_from_zz_leg {
         index => 0 + $leg->{to_index},
         price => 0 + $leg->{to_price},
     };
-    # Convención impulso: inicio de la pierna = 1, fin = 0 (como 2 clics A→B en TV)
+    # Convención impulso: inicio de la pierna 1, fin 0 (como 2 clics A→B en TV)
     return $self->set_from_points( $a, $b );
 }
 
-# zz_leg_signature($leg) — firma estable para detectar cambio de impulso consolidado
+# zz_leg_signature($leg) firma estable para detectar cambio de impulso consolidado
 sub zz_leg_signature {
     my ( $class_or_self, $leg ) = @_;
     return undef unless ref($leg) eq 'HASH';
@@ -224,8 +217,7 @@ sub level_prices {
     return \@out;
 }
 
-# geometry_for — ancho = min/max de p1.index y p2.index (TV).
-# extend_to_last ⇒ right = data_end (última vela), sin handles de ancho.
+# geometry_for ancho min/max de p1.index y p2.index (TV).
 sub geometry_for {
     my ( $self, $fib, %opts ) = @_;
     $fib //= $self->{fib};
@@ -254,8 +246,7 @@ sub geometry_for {
     };
 }
 
-# last_consolidated_zz_segment(\@segs) — última pierna cerrada del ZZ externo
-# (ignora el tramo vivo aún en ajuste).
+# last_consolidated_zz_segment(\@segs) última pierna cerrada del ZZ externo
 sub last_consolidated_zz_segment {
     my ( $class_or_self, $segs ) = @_;
     return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;
@@ -269,12 +260,7 @@ sub last_consolidated_zz_segment {
     return undef;
 }
 
-# last_impulse_zz_segment_for_fib(\@segs) — impulso para Fib ZZ ext.
-# Regla simple (producto)
-# Última pierna consolidada UP → anclar ahí.
-# Si la última cerrada es DOWN → devolver la UP consolidada previa
-# (el follow no cambia de firma → se mantiene el Fib anterior).
-# Nunca el tramo vivo. Sin Fib en bajadas (el retroceso no ancla).
+# last_impulse_zz_segment_for_fib(\@segs) impulso para Fib ZZ ext.
 sub last_impulse_zz_segment_for_fib {
     my ( $class_or_self, $segs ) = @_;
     return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;
@@ -293,7 +279,7 @@ sub last_impulse_zz_segment_for_fib {
     return undef;
 }
 
-# nearest_zz_segment(\@segs, $index, $price) — pierna externa más cercana al clic
+# nearest_zz_segment(\@segs, $index, $price) pierna externa más cercana al clic
 sub nearest_zz_segment {
     my ( $class_or_self, $segs, $index, $price ) = @_;
     return undef unless $segs && ref($segs) eq 'ARRAY' && @$segs;

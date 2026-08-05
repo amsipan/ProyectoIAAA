@@ -2,25 +2,9 @@ package Market::Overlays::PivotPointsHL;
 use strict;
 use warnings;
 
-# Market::Overlays::PivotPointsHL — render de Pivot Points High Low & Missed
-# (LuxAlgo). Cálculo en Market::Indicators::PivotPointsHL.
-# Dibuja
-# Zigzag entre pivots: sólido (confirmado) / punteado (missed/pendiente).
-# Ghost levels: líneas horizontales al nivel del pivote, semitransparentes
-# (stipple 'gray50' simula el color.new(...,50) de Pine).
-# Etiquetas ▼ (high, rojo) / ▲ (low, verde), texto blanco (regular pivots).
-# Fantasma en pivots "missed" y en el pivote provisional (barstate.islast).
-# Si Fedora35/Tk no renderiza el emoji (WSLg suele fallar con emoji a color),
-# se dibuja un fantasma con primitivas de canvas idéntico visualmente.
-# Colores del source LuxAlgo
-# reg_ph/miss_ph = #ef5350 (rojo) reg_pl/miss_pl = #26a69a (verde)
-# label text = #ffffff (blanco)
-# Contrato: new / tag / set_visible / is_visible / compute_visible / draw / clear.
-# Causal: solo dibuja lo que el indicador acumuló hasta el índice alimentado.
+# Market::Overlays::PivotPointsHL render de Pivot Points High Low & Missed
 
-# Interruptor de emoji: 1 = intentar real; si el entorno no lo renderiza,
-# poner 0 y usa el fantasma dibujado. Por defecto dibujado (garantiza que se vea
-# igual en Fedora35). Se puede forzar el emoji con use_emoji => 1 en new().
+# Interruptor de emoji: 1 intentar real; si el entorno no lo renderiza,
 my $DEFAULT_USE_EMOJI = 0;
 
 sub new {
@@ -118,11 +102,7 @@ sub draw {
     my $x_of = sub { $scales->index_to_center_x($self->_local_index($_[0])) };
     my $y_of = sub { $scales->value_to_y($_[0]) };
 
-    # 1) Ghost levels (líneas horizontales semitransparentes) — al fondo.
-    # Cada nivel va de su índice hasta el siguiente pivote (to_index), NO
-    # hasta el final del gráfico (paridad TV: se cortan donde nace el próximo).
-    # Culling por SOLAPAMIENTO del segmento con la ventana visible: si el tramo
-    # cruza la pantalla se dibuja aunque su origen esté fuera (independiente del zoom).
+    # 1) Ghost levels (líneas horizontales semitransparentes) al fondo.
     for my $g (@{ $vals->{ghost_levels} || [] }) {
         my $to = $g->{to_index} // $self->{_end};
         next unless $self->_seg_visible($g->{index}, $to);
@@ -141,7 +121,7 @@ sub draw {
         };
     }
 
-    # 2) Zigzag (sólido confirmado / punteado missed-pendiente).
+    # 2) Zigzag (sólido confirmado / punteado missed pendiente).
     for my $s (@{ $vals->{zigzag} || [] }) {
         next unless $self->_seg_visible($s->{from_index}, $s->{to_index});
         next unless defined $s->{from_price} && defined $s->{to_price};
@@ -188,10 +168,7 @@ sub draw {
         }
     }
 
-    # 4) Fantasma provisional (barstate.islast, source l.121-152)
-    # a) diagonal punteada px1→(x,y) en color OPUESTO al fantasma (line_key)
-    # b) horizontal semitransparente (x,y)→n en el mismo line_key
-    # c) etiqueta en (x,y) con el color del fantasma (ghost_key)
+    # 4) Fantasma provisional (barstate.islast, source l.121 152)
     if (my $p = $vals->{provisional}) {
         my $line_col  = $self->_color_for($p->{line_key}  // $p->{color_key});
         my $ghost_col = $self->_color_for($p->{ghost_key} // $p->{color_key});
@@ -232,7 +209,6 @@ sub draw {
 }
 
 # Dibuja la etiqueta de un pivote. dir 'down' → sobre el precio (marca de high),
-# 'up' → bajo el precio (marca de low). Offset ~12px como en TV.
 sub _draw_label {
     my ($self, $canvas, $x, $y, $glyph, $dir, $color) = @_;
     my $dy = ($dir eq 'down') ? -12 : 12;
@@ -266,7 +242,6 @@ sub _draw_label {
 }
 
 # Fantasma dibujado con primitivas (fallback cuando el emoji no renderiza).
-# Cabeza redondeada + base ondulada + 2 ojos. ~14px de alto.
 sub _draw_ghost_shape {
     my ($self, $canvas, $cx, $cy, $color) = @_;
     my $w = 5;    # medio ancho

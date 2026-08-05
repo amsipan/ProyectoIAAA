@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Liquidity v2: BSL/SSL + FSM Sweep/Grab/Run.
-# EQH/EQL de esta capa: desactivados (feedback §6); usar SMC Pro.
 
 use constant {
     DEFAULT_K              => 3,
@@ -27,13 +26,12 @@ sub new {
         grab_max_bars  => $opts{grab_max_bars}  // DEFAULT_GRAB_MAX,
         max_live       => $opts{max_live}       // 12,    # menos ruido (QA profe)
         max_events     => $opts{max_events}     // DEFAULT_MAX_EVENTS,
-        # §6: no crear EQH/EQL en Liquidez (línea entre extremos lejanos).
+        # no crear EQH/EQL en Liquidez (línea entre extremos lejanos).
         show_eqhl      => exists $opts{show_eqhl} ? ( $opts{show_eqhl} ? 1 : 0 ) : 0,
         # Prefer ZZ/SMC pivots. History buffer survives ZZ trim (15 segs visual).
-        # k-swing solo si no hay ningún pivote externo acumulado.
         _external_pivots => undef,
-        _pivot_history   => {},    # "index:side" => { index, price, side }
-        _registered_ext  => {},    # "index:side" => 1
+        _pivot_history   => {},    # "index:side" > { index, price, side }
+        _registered_ext  => {},    # "index:side" > 1
     };
     bless $self, $class;
     $self->reset();
@@ -84,7 +82,6 @@ sub reset_soft {
 }
 
 # Fusiona pivotes nuevos (ZZ/SMC) sin borrar los antiguos (arregla "mayo vacío").
-# Devuelve cuántos pivotes NUEVOS se añadieron (ChartEngine puede refeed si >0).
 sub absorb_pivots {
     my ( $self, $pivots ) = @_;
     return 0 unless $pivots && ref($pivots) eq 'ARRAY' && @$pivots;
@@ -108,7 +105,6 @@ sub absorb_pivots {
 sub set_external_pivots {
     my ( $self, $pivots ) = @_;
     # Compat: reemplazo total solo si se llama set_external_pivots (tests).
-    # Runtime debe preferir absorb_pivots.
     $self->{_pivot_history}   = {};
     $self->{_registered_ext}  = {};
     if ( defined $pivots && ref($pivots) eq 'ARRAY' && @$pivots ) {
@@ -190,7 +186,7 @@ sub get_events {
     return [ map { {%$_} } @{ $self->{_events} } ];
 }
 
-# Filas candidatas para la tablota t-SNE/GMM (metadato time/event_id aparte).
+# Filas candidatas para la tablota t SNE/GMM (metadato time/event_id aparte).
 sub export_liquidity_events {
     my ($self) = @_;
     my @out;
@@ -306,12 +302,12 @@ sub _detect_swings_at {
     my $k = $self->{k} // DEFAULT_K;
     return if $i < 2 * $k;
 
-    # Pivot candidate index confirmed at bar i: pivot = i - k
+    # Pivot candidate index confirmed at bar i: pivot i k
     my $p = $i - $k;
     return if $p < $k;
 
     if ( $self->{_external_pivots} ) {
-        # Pivotes ya confirmados (ZZ/SMC): registrar al llegar a su índice (no i-k).
+        # Pivotes ya confirmados (ZZ/SMC): registrar al llegar a su índice (no i k).
         for my $pv ( @{ $self->{_external_pivots} } ) {
             my $ix   = $pv->{index};
             my $side = $pv->{side} // '';
@@ -362,7 +358,7 @@ sub _register_swing_high {
         kind        => 'BSL',
         price       => $price,
         pivot_index => $idx,
-        side        => 'bear',    # stops above highs → buy-side liquidity
+        side        => 'bear',    # stops above highs → buy side liquidity
     );
     $self->_try_equal_highs( $idx, $price ) if $self->{show_eqhl};
     return;
@@ -563,7 +559,7 @@ sub _advance_levels {
                 $lv->{outside_streak}   = 0;
                 $lv->{atr_at_sweep}     = $self->_atr_at($i);
                 $lv->{vol_at_sweep}     = $self->{_vols}[$i];
-                # Same-bar reclaim? (classic PDF sweep on single candle)
+                # Same bar reclaim? (classic PDF sweep on single candle)
                 my $reclaimed =
                   $is_buy_side ? ( $cl < $price ) : ( $cl > $price );
                 if ($reclaimed) {
@@ -600,7 +596,7 @@ sub _advance_levels {
 
             if ($reclaimed) {
                 my $bars = $lv->{bars_since_sweep} // 0;
-                # bars_since_sweep: 0 = same bar (already handled); 1 = next bar
+                # bars_since_sweep: 0 same bar (already handled); 1 next bar
                 my $elapsed = $bars;    # bars after sweep bar
                 if ( $elapsed <= $sweep_mx ) {
                     $self->_resolve( $lv, $i, 'sweep' );
@@ -609,7 +605,7 @@ sub _advance_levels {
                     $self->_resolve( $lv, $i, 'grab' );
                 }
                 else {
-                    # Late reclaim → still grab-like rejection per audio spirit
+                    # Late reclaim → still grab like rejection per audio spirit
                     $self->_resolve( $lv, $i, 'grab' );
                 }
                 next;

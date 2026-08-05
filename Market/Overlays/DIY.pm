@@ -3,20 +3,6 @@ use strict;
 use warnings;
 
 # Overlay DIY: visualización de Supply & Demand Zones
-# Renderiza
-# Rectángulos semitransparentes (con stipple) para las zonas activas
-# Supply: Gris claro (#CCCCCC) con texto "SUPPLY".
-# Demand: Cian (#00FFFF) con texto "DEMAND".
-# Línea discontinua horizontal en el nivel POI (centro de la caja activa) con etiqueta "POI".
-# Líneas de mitigación históricas (BOS) a nivel POI para zonas rotas.
-# Contrato de Overlays
-# new(%args)
-# tag()
-# set_visible($bool)
-# is_visible()
-# compute_visible($market_data, $indicator, $start, $end)
-# draw($canvas, $scales)
-# clear($canvas)
 
 sub new {
     my ($class, %args) = @_;

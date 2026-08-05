@@ -3,8 +3,6 @@ use strict;
 use warnings;
 
 # Render de TrendLine (drawing tool TV). Tag: draw_trend.
-# Dibuja todas las líneas colocadas + handles arrastrables en cada extremo +
-# preview del draft (1.er punto y línea elástica al 2.º clic).
 
 sub new {
     my ( $class, %args ) = @_;
@@ -121,7 +119,6 @@ sub _paint_draft {
 }
 
 # hit_test → índice de línea + extremo ("$li:p1" | "$li:p2"), o undef.
-# Recorre en orden inverso para priorizar la última línea dibujada.
 sub hit_test {
     my ( $self, $x, $y, $scales, $win_start ) = @_;
     my $draw = $self->{drawing};
@@ -150,7 +147,7 @@ sub hit_test {
             }
         }
     }
-    # Cuerpo de la línea: distancia perpendicular del clic al segmento <= tol.
+    # Cuerpo de la línea: distancia perpendicular del clic al segmento < tol.
     for ( my $li = $#$lines; $li >= 0; $li-- ) {
         my $ln = $lines->[$li];
         next unless $ln->{p1} && $ln->{p2};
@@ -163,7 +160,7 @@ sub hit_test {
     return undef;
 }
 
-# Distancia de un punto (px,py) al segmento (ax,ay)-(bx,by), en píxeles.
+# Distancia de un punto (px,py) al segmento (ax,ay) (bx,by), en píxeles.
 sub _dist_to_segment {
     my ( $px, $py, $ax, $ay, $bx, $by ) = @_;
     my $dx = $bx - $ax;

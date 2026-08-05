@@ -2,13 +2,7 @@ package Market::Indicators::SMC_Structures_FVG;
 use strict;
 use warnings;
 
-# Market::Indicators::SMC_Structures_FVG — paridad "SMC Structures and FVG"
-# Source:(LudoGH68)
-# Config canónica = captura del profesor (NO defaults Pine si chocan)
-# Display FVG ON, Reduce mitigated ON, Number of FVG = 5
-# Break with body OFF, Display current structure OFF
-# BOS gray / CHoCH bull green / bear red, width 1
-# Number of breaks = 10, all Structure Fibonacci OFF
+# Market::Indicators::SMC_Structures_FVG paridad "SMC Structures and FVG"
 
 sub new {
     my ($class, %opts) = @_;
@@ -34,7 +28,7 @@ sub new {
         _struct_lo   => undef,
         _struct_hi_i => 0,
         _struct_lo_i => 0,
-        _struct_dir  => 0,    # 0 none, 1 after low-break (bearish leg), 2 after high-break
+        _struct_dir  => 0,    # 0 none, 1 after low break (bearish leg), 2 after high break
 
         _events => [],        # BOS/CHoCH breaks (max struct_history)
         _fvgs   => [],        # FVG boxes
@@ -70,7 +64,7 @@ sub update_last {
     $self->{_last_index} = $index;
     $self->{_values}[$index] = undef;
 
-    # Pine: bar_index == 0 init
+    # Pine: bar_index 0 init
     if ($index == 0) {
         $self->{_struct_hi}   = $h;
         $self->{_struct_lo}   = $l;
@@ -84,8 +78,7 @@ sub update_last {
     return;
 }
 
-# FVG — LudoGH: isBullishFVG = high[3] < low[1]; isBearishFVG = low[3] > high[1]
-# box left=bar-2, right starts at bar-1, extends to current; max fvg_history
+# FVG LudoGH: isBullishFVG high[3] < low[1]; isBearishFVG low[3] > high[1]
 sub _process_fvg {
     my ($self, $i) = @_;
     return if $i < 3;
@@ -98,7 +91,7 @@ sub _process_fvg {
 
     # Create new gaps on this bar
     if ($h3 < $l1) {
-        # Bullish: top=low[1], bottom=high[3]
+        # Bullish: top low[1], bottom high[3]
         push @{ $self->{_fvgs} }, {
             index    => $i,
             left     => $i - 2,
@@ -114,7 +107,7 @@ sub _process_fvg {
         $self->_trim_fvgs;
     }
     if ($l3 > $h1) {
-        # Bearish: top=low[3], bottom=high[1]
+        # Bearish: top low[3], bottom high[1]
         push @{ $self->{_fvgs} }, {
             index    => $i,
             left     => $i - 2,
@@ -139,7 +132,7 @@ sub _process_fvg {
     for my $fvg (@{ $self->{_fvgs} }) {
         next unless $fvg->{active};
         if (($fvg->{type} // '') eq 'bull') {
-            # full mitigate: low <= bottom
+            # full mitigate: low < bottom
             if ($low <= $fvg->{lo}) {
                 next;
             }
@@ -151,7 +144,7 @@ sub _process_fvg {
             }
         }
         else {
-            # full mitigate: high >= top
+            # full mitigate: high > top
             if ($high >= $fvg->{hi}) {
                 next;
             }
@@ -171,9 +164,6 @@ sub _process_fvg {
 sub _trim_fvgs {
     my ($self) = @_;
     # Pine (LudoGH): if array.size(fvgBoxes) > fvgHistoryNbr + 1 → remove oldest.
-    # Con Number of FVG = 5 → se mantienen hasta 6 cajas (history+1), no 5.
-    # Cap estricto a 5 hacía desaparecer FVGs aún no mitigados (p.ej. 16-jul 17:15
-    # se recortaba el 17-jul 07:30 y no llegaba al final del chart como en TV).
     my $hist = $self->{fvg_history} // 5;
     $hist = 1 if $hist < 1;
     my $max = $hist + 1;
@@ -182,9 +172,7 @@ sub _trim_fvgs {
     }
 }
 
-# Structure helpers — port of get_structure_highest/lowest_bar + highestbars
-# Offsets are relative to current bar i (0 = current, -1 = prev,...).
-# Absolute bar = i + offset.
+# Structure helpers port of get_structure_highest/lowest_bar + highestbars
 sub _highestbars_offset {
     my ($self, $i, $length) = @_;
     return 0 if $length < 1 || $i < 0;
@@ -227,7 +215,7 @@ sub _get_structure_highest_bar_abs {
     my ($self, $i, $lookback) = @_;
     $lookback //= $self->{struct_lookback} // 10;
     my $len = ($i >= $lookback) ? $lookback : ($i + 1);
-    my $max_bar = $self->_highestbars_offset($i, $len);    # offset <= 0
+    my $max_bar = $self->_highestbars_offset($i, $len);    # offset < 0
 
     my $idx = 0;
     for my $k (0 .. $lookback - 1) {
@@ -283,7 +271,7 @@ sub _break_price {
     return $side eq 'high' ? $self->{_h}[$i] : $self->{_l}[$i];
 }
 
-# Structure processing — full LudoGH break conditions
+# Structure processing full LudoGH break conditions
 sub _process_structure {
     my ($self, $i) = @_;
     return if $i < 0;
@@ -354,7 +342,7 @@ sub _process_structure {
     my $struct_min_bar = $self->_get_structure_lowest_bar_abs($i);
 
     if ($low_broken) {
-        # dir==1 → BOS bearish; else CHoCH
+        # dir 1 → BOS bearish; else CHoCH
         my $tag = ($dir == 1) ? 'BOS' : 'CHoCH';
         $self->_push_break({
             index       => $i,
@@ -394,8 +382,7 @@ sub _process_structure {
         return;
     }
 
-    # else: extend structure extremes (Pine 364–371)
-    # With break_with_body OFF (captura), the inner "or not(body and bars>start)" is true.
+    # else: extend structure extremes (Pine 364 371)
     my $high = $self->{_h}[$i];
     my $low  = $self->{_l}[$i];
     if (defined $high && $high > $s_hi && ($dir == 0 || $dir == 2)) {
@@ -403,7 +390,6 @@ sub _process_structure {
         if ($body) {
             $allow = (($i - 1) > $s_hi_i && ($i - 2) > $s_hi_i && ($i - 3) > $s_hi_i) ? 0 : 1;
             # Pine: if(not(body) or not(body and bars>start)) → update when NOT (body and bars>start)
-            # i.e. update when !body OR !(bars>start)
             $allow = 1;    # simplified: with body ON, update unless all three bars after start
             if (($i - 1) > $s_hi_i && ($i - 2) > $s_hi_i && ($i - 3) > $s_hi_i) {
                 $allow = 0;

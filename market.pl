@@ -19,8 +19,7 @@ my $market_data = Market::MarketData->new();
 my $indicator_manager = Market::IndicatorManager->new();
 $indicator_manager->register('ATR', Market::Indicators::ATR->new(14));
 
-# Dataset por defecto: Data/2026_07_20.csv (NQ1! 1m, ISO UTC-5, volumen real).
-# Base nativa = 1m; 5m/15m/1h/2h/4h/D/W se agregan desde 1m.
+# Dataset por defecto: Data/2026_07_20.csv (NQ1! 1m, ISO UTC 5, volumen real).
 my $tv_src = 'C:/Users/bryan/Downloads/CME_MINI_DL_NQ1!, 1.csv';
 my $tv_dst = 'Data/tv_nq1_1m.csv';
 if (-f $tv_src && !-f $tv_dst) {
@@ -45,7 +44,7 @@ for my $cand (@csv_candidates) {
 die "No se encontró dataset (2026_07_20.csv, tv_nq1_1m.csv, tv_nq1_15m.csv ni 2026_06.csv)\n"
     unless defined $archivo_csv;
 
-# Detectar base por nombre: *15m* → base 15m; si no (1m u otros) → 1m.
+# Detectar base por nombre: 15m → base 15m; si no (1m u otros) → 1m.
 my $base_tf = '1m';
 if ($archivo_csv =~ /15m|_15\.csv|, 15\.csv/i) {
     $base_tf = '15m';
@@ -141,8 +140,6 @@ my $price_canvas = $price_frame->Canvas(
 
 my $time_frame = $chart_frame->Frame(-background => $theme{bg})->pack(-side => 'top', -fill => 'x');
 # Esquina inferior derecha (intersección eje precio × eje tiempo): aloja el
-# toggle A/M del modo de escala de precio (estilo TradingView). Se cablea más
-# abajo, tras crear $chart_engine.
 my $price_mode_corner = $time_frame->Frame(
     -width => $right_axis_width, -height => $time_axis_height, -background => $theme{bg},
     -relief => 'sunken', -bd => 1,
@@ -191,7 +188,7 @@ my $chart_engine = Market::ChartEngine->new(
     atr_scale_mode_callback => sub { $atr_scale_mode = $_[0] },
     replay_select_mode_callback => sub {
         $replay_select_mode = $_[0] ? 1 : 0;
-        # Feedback visual: resaltar "Select bar" mientras el modo está activo.
+        # Resalta Select bar mientras el modo esta activo.
         if ($replay_panel && ref($replay_panel) && $replay_panel->can('sync_select_bar_button')) {
             $replay_panel->sync_select_bar_button($replay_select_mode);
         }
@@ -207,8 +204,6 @@ $chart_engine->{atr_frame} = $atr_frame;
 $chart_engine->init_plot_cursors();
 
 # Toggle A/M del modo de escala de PRECIO (esquina inf. derecha, estilo TV)
-# A = automático, M = manual. El botón activo se resalta. Estos botones y el
-# modo de escala comparten los mismos callbacks para no desincronizarse.
 my $PMODE_ON_BG   = '#2962ff';   # activo
 my $PMODE_ON_FG   = '#ffffff';
 my $PMODE_OFF_BG  = '#e9edf3';   # inactivo
@@ -238,8 +233,7 @@ $price_mode_M = $price_mode_corner->Button(
 )->pack(-side => 'left', -expand => 1, -fill => 'both');
 $refresh_price_mode_buttons->();
 
-# Todo cambio programático del modo (p.ej. Reset Vista) también refresca A/M:
-# el indicador de la esquina siempre refleja el comportamiento real de la app.
+# Todo cambio programático del modo (p.ej. Reset Vista) también refresca A/M
 $chart_engine->{scale_mode_callback} = sub {
     $scale_mode = $_[0];
     $refresh_price_mode_buttons->();
@@ -271,11 +265,11 @@ if ($chart_engine->{zigzag_overlay} && $chart_engine->{zigzag_overlay}->can('set
 }
 my %vis_zzelem = ( INTERNAL => 0, EXTERNAL => 0, CHANNEL => 0 );
 my %vis_liq_el = map { $_ => 1 } qw(BSL SSL SWEEP GRAB RUN);
-# EQH/EQL quitados de Liquidez (feedback §6): viven en SMC Pro.
-$vis_liq_el{HISTORY} = 0;    # niveles archivados (resolved) — demo profe
+# EQH/EQL quitados de Liquidez ( ): viven en SMC Pro.
+$vis_liq_el{HISTORY} = 0;    # niveles archivados (resolved) demo profe
 my $zigzag_resolution = 30;
 my $fib_extend_to_last = 0;
-# Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
+# Pivot Points High Low & Missed (fantasmas) LuxAlgo. Ancla del VWAP.
 my $vis_pph       = 0;
 my $pph_show_reg  = 1;   # pivots regulares ▼▲
 my $pph_show_miss = 1;   # pivots perdidos
@@ -326,7 +320,7 @@ my $toggle_overlay_visible = sub {
 };
 my %cb_zzres = map { $_ => Market::UI::Callbacks->make_zigzag_resolution_callback($chart_engine, $_) }
                qw(15 30 60 120);
-# Toggle por capa ZZ (INTERNAL / EXTERNAL) con re-feed on-demand
+# Toggle por capa ZZ (INTERNAL / EXTERNAL) con re feed on demand
 my $set_zz_layer = sub {
     my ( $elem, $on ) = @_;
     $elem = uc( $elem // '' );
@@ -360,7 +354,6 @@ my %tf_cb  = map { $_ => Market::UI::Callbacks->make_tf_callback($chart_engine, 
              Market::UI::Callbacks->timeframes();
 
 # Barra de controles inline (sin menubar/Optionmenu: bajo WSLg abren popups X).
-# Fila superior: TF + pestañas. Fila inferior: panel de la pestaña activa.
 my $tab_row   = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 my $panel_row = $frame_controles->Frame()->pack(-side => 'top', -fill => 'x', -pady => 1);
 
@@ -386,8 +379,6 @@ for my $tf (Market::UI::Callbacks->timeframes()) {
 }
 
 # Opción A: TF siempre visible y pestañas compactas por dominio.
-# Replay es pestaña propia (no mezclada con Vista): un clic → Select bar listo.
-# SMC separada de Estructura: presupuesto ~1050 px / fila (laptop 14", ~1080 duro).
 my %panel;
 $panel{$_} = $panel_row->Frame()
   for qw(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vista Replay);
@@ -441,7 +432,6 @@ for my $name (qw(SMC Estructura Liquidez ZigZag Dibujo Fib Auto Volumen AVWAP Vi
 }
 
 # Indicador sutil de sesión Replay (fuera del gráfico: no tapa velas).
-# Visible con Select bar o replay truncado; distinto del watermark grande (Mark).
 my $replay_badge = $tab_row->Label(
     -text   => '',
     -font   => [ 'Helvetica', 7 ],
@@ -458,9 +448,6 @@ $chart_engine->{replay_session_badge_sync} = sub {
 };
 
 # Recargar app: reinicio TOTAL del proceso (código nuevo 100%).
-# En Windows+Tk, exec() a menudo NO reemplaza el proceso GUI y parece que
-# "no cargan los cambios". Flujo fiable: destroy UI → spawn proceso nuevo → exit.
-# (Panel Densidad eliminado de la UI — a borrar por completo más adelante.)
 my $reload_app = sub {
     require Cwd;
     require File::Spec;
@@ -500,7 +487,7 @@ my $reload_app = sub {
     local $ENV{MARKET_RELOAD} = 1;
     my @cmd = ($perl, $lib_flag, $script);
 
-    # Windows: system(1, LIST) = create process sin wait; luego exit del padre.
+    # Windows: system(1, LIST) create process sin wait; luego exit del padre.
     if ($^O =~ /MSWin32|msys|cygwin/i) {
         my $pid = eval { system(1, @cmd) };
         if (!defined $pid || $pid == 0 || $pid == -1) {
@@ -513,7 +500,7 @@ my $reload_app = sub {
         exit 0;
     }
 
-    # Unix/WSL: reemplazo in-place; si falla, spawn + exit.
+    # Unix/WSL: reemplazo in place; si falla, spawn + exit.
     exec { $cmd[0] } @cmd;
     warn "[!] exec falló ($!), intentando system...\n";
     my $rc = system { $cmd[0] } @cmd;
@@ -532,9 +519,8 @@ if ($ENV{MARKET_RELOAD}) {
 }
 
 # OPCIÓN A: pestañas por dominio (compactas para 14", ~1050 px/fila).
-# SMC Pro y Structures+FVG en pestañas distintas para no desbordar.
 
-# Pestaña SMC — SMC Pro + etiquetas BOS/EQ + OB (feedback §5; ~1050 px / 14")
+# Pestaña SMC SMC Pro + etiquetas BOS/EQ + OB ( ; ~1050 px / 14")
 {
     my $p = $panel{SMC};
     my $box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
@@ -597,14 +583,14 @@ if ($ENV{MARKET_RELOAD}) {
     )->pack( -side => 'left' );
 }
 
-# Pestaña Estructura — Structures+FVG + HLD (sin SMC Pro; presupuesto 14")
+# Pestaña Estructura Structures+FVG + HLD (sin SMC Pro; presupuesto 14")
 {
     my $p = $panel{Estructura};
     my $box = $p->Frame( -relief => 'groove', -bd => 2 )->pack( -side => 'left', -padx => 4 );
 
-    # Structures+FVG: capa maestra + FVG / BOS-CHoCH independientes (feedback §4).
+    # Structures+FVG: capa maestra + FVG / BOS CHoCH independientes ( ).
     my $smc_fvg_show_fvg    = 1;
-    my $smc_fvg_show_struct = 0;    # OFF por defecto (anti-solape con SMC Pro)
+    my $smc_fvg_show_struct = 0;    # OFF por defecto (anti solape con SMC Pro)
     my $apply_smc_fvg_parts = sub {
         my $ov = $chart_engine->{smc_fvg_overlay};
         return unless $ov;
@@ -656,7 +642,7 @@ if ($ENV{MARKET_RELOAD}) {
 
     my $niveles_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $niveles_box->Label(-text => 'Niveles:', -fg => '#555')->pack(-side => 'left', -padx => 2);
-    # Solo BSL/SSL — EQH/EQL removidos (feedback §6; usar SMC Pro).
+    # Solo BSL/SSL EQH/EQL removidos ( ; usar SMC Pro).
     for my $el (qw(BSL SSL)) {
         $niveles_box->Checkbutton(
             -text     => $el,
@@ -692,7 +678,7 @@ if ($ENV{MARKET_RELOAD}) {
         -variable => \$vis_zz_int,
         -command  => sub { $set_zz_layer->( 'INTERNAL', $vis_zz_int ? 1 : 0 ); },
     )->pack( -side => 'left' );
-    # Resolución MTF del ZZMTF (profe: 15, 30 o 60; default 30; 120=2h opcional)
+    # Resolución MTF del ZZMTF (profe: 15, 30 o 60; default 30; 120 2h opcional)
     my $zz_res_box = $p->Frame()->pack( -side => 'left', -padx => 4 );
     $zz_res_box->Label( -text => 'res:', -fg => '#555' )->pack( -side => 'left' );
     for my $mins (qw(15 30 60)) {
@@ -715,8 +701,6 @@ if ($ENV{MARKET_RELOAD}) {
 }
 
 # Pestaña Dibujo
-# Separadas de ZigZag para respetar el ancho máximo en laptop 14" (~1050 px).
-# Ver(restricción de ancho).
 {
     my $p = $panel{Dibujo};
 
@@ -799,7 +783,6 @@ if ($ENV{MARKET_RELOAD}) {
 }
 
 # Pestaña Fib
-# Separada de Dibujo por ancho en laptop 14" (~1050 px de presupuesto por fila).
 {
     my $p = $panel{Fib};
 
@@ -857,7 +840,6 @@ if ($ENV{MARKET_RELOAD}) {
 }
 
 # Pestaña Auto
-# Separada de Dibujo por ancho en laptop 14" (manuales quedan en Dibujo).
 {
     my $p = $panel{Auto};
 
@@ -935,14 +917,14 @@ if ($ENV{MARKET_RELOAD}) {
         },
     )->pack( -side => 'left', -padx => 2 );
 
-    # Pivot Points High Low & Missed (fantasmas) — LuxAlgo. Ancla del VWAP.
+    # Pivot Points High Low & Missed (fantasmas) LuxAlgo. Ancla del VWAP.
     my $pph_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 6);
     my $apply_pph = sub {
         my $ind = $chart_engine->{pph_indicator} or return;
         $ind->{show_reg}  = $pph_show_reg  ? 1 : 0;
         $ind->{show_miss} = $pph_show_miss ? 1 : 0;
         $ind->reset() if $ind->can('reset');
-        $chart_engine->{_pph_fed_up_to} = -1;   # forzar re-feed causal (Replay-safe)
+        $chart_engine->{_pph_fed_up_to} = -1;   # forzar re feed causal (Replay safe)
         $chart_engine->set_pph_show_rastro($pph_show_rastro);
         $chart_engine->request_render();
     };
@@ -978,12 +960,10 @@ if ($ENV{MARKET_RELOAD}) {
 }
 
 # Pestaña AVWAP
-# Separada de Volumen por ancho en laptop 14" (~1050 px de presupuesto por fila).
 {
     my $p = $panel{AVWAP};
 
     # Anchored VWAP (AVWAP): Manual | Auto | Manual+Auto
-    # Auto ≤2 (pivot consolidado + fantasma); manual opcional adicional (hasta 3).
     my $avwap_mode_ui = 'off';    # off | manual | auto | both
     my %vis_avwap_sub = ( band1 => 1, band2 => 1, band3 => 0, fill => 1 );
     my $avwap_box = $p->Frame( -relief => 'groove', -bd => 2 )
@@ -1075,8 +1055,6 @@ if ($ENV{MARKET_RELOAD}) {
 {
     my $p = $panel{Vista};
     # Modo de escala de PRECIO: se controla con los botones A/M de la esquina
-    # inferior derecha del gráfico (estilo TradingView). Aquí ya no va.
-    # Reset Vista vive siempre visible abajo-derecha (bajo ↻), fuera de esta pestaña.
 
     my $atr_box = $p->Frame(-relief => 'groove', -bd => 2)->pack(-side => 'left', -padx => 4);
     $atr_box->Label(-text => 'ATR:')->pack(-side => 'left', -padx => 3);
@@ -1150,7 +1128,6 @@ $mw->after(200, sub {
     print "[*] Render inicial (producto oficial: velas + ATR; capas bajo demanda)...\n";
     $chart_engine->render();
     # Panel ATR oculto por defecto (más espacio al gráfico); se muestra con el
-    # botón "Panel ATR" en la pestaña Vista.
     $chart_engine->set_atr_panel_visible(0) if $chart_engine->can('set_atr_panel_visible');
     $mw->after(200,  sub { $chart_engine->request_render(); });
     $mw->after(800,  sub { $chart_engine->request_render(); });

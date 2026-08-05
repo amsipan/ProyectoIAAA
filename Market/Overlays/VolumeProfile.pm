@@ -3,14 +3,7 @@ use strict;
 use warnings;
 use parent 'Market::Overlays::Base';
 
-# Market::Overlays::VolumeProfile — Anchored Volume Profile (AVP render)
-# Renderizado estilo TradingView AVP (captura profe Anchored_Volume_Profile.jpg)
-# Caja de rango ancla -> última vela (fondo sutil)
-# Histograma horizontal a la DERECHA (width: 30% del plot)
-# Value Area Up/Down en Cyan (#4DD0E1)
-# Up Volume exterior en Verde (#81C784), Down Volume exterior en Rojo (#E57373)
-# Líneas negras sólidas para VAH, VAL y POC
-# Mantiene capas por detrás de las velas (lower bajo tag 'candle')
+# Market::Overlays::VolumeProfile Anchored Volume Profile (AVP render)
 
 sub new {
     my ($class, %args) = @_;
@@ -34,7 +27,7 @@ sub new {
         color_down      => $theme->{vp_down}      // '#E57373', # Rosa/Rojo suave TradingView
         color_box       => $theme->{vp_box}       // '#E0F7FA', # Verde/Cyan pastel sutil transparente
         color_line      => $theme->{vp_line}      // '#000000', # Negro sólido para VAH/VAL/POC
-        # Handle TV: fill blanco + outline azul (feedback §7 / captura usuario)
+        # Handle TV: fill blanco + outline azul ( / captura usuario)
         color_handle_fill    => $theme->{vp_handle_fill}    // '#FFFFFF',
         color_handle_outline => $theme->{vp_handle_outline} // '#2962FF',
         hist_width_frac => $theme->{vp_hist_frac} // 0.30,      # 30% en la captura de TV
@@ -147,7 +140,7 @@ sub draw {
     }
     my $range_visible = ($x_right > 0 && $x_left < $plot_right && $x_right > $x_left);
 
-    # 1) Caja de rango verde/cyan transparente (ancla -> última vela)
+    # 1) Caja de rango verde/cyan transparente (ancla > última vela)
     if ($range_visible && $self->is_element_visible('BOX')) {
         eval {
             $canvas->createRectangle(
@@ -308,7 +301,7 @@ sub draw {
         };
     }
 
-    # Perfil detrás de velas; handle encima (feedback §7).
+    # Perfil detrás de velas; handle encima ( ).
     eval { $canvas->lower( $tag, 'candle' ) };
     eval { $canvas->raise('vp_anchor_handle') } if $drew_handle;
 

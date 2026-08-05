@@ -9,9 +9,7 @@ sub new {
         %args,
         crosshair_objects => []
     };
-    # El tema (paleta clara) se inyecta vía `theme => \%theme` desde ChartEngine.
-    # Garantizar robustez: si no llega, dejar un hashref vacío para que las lecturas
-    # posteriores (con defaults //) sean seguras.
+    # El tema (paleta clara) se inyecta vía `theme > \%theme` desde ChartEngine.
     $self->{theme} = {} unless defined $self->{theme};
     bless $self, $class;
     return $self;
@@ -37,8 +35,7 @@ sub _canvas_size {
     return ($w, $h);
 }
 
-# Calcula el rango de valores del ATR visible para escalar el eje Y del sub-panel.
-# Devuelve (min, max) con padding del 5%.
+# Calcula el rango de valores del ATR visible para escalar el eje Y del sub panel.
 sub get_y_range {
     my ($self, $visible_values) = @_;
 
@@ -66,8 +63,6 @@ sub set_scale {
 }
 
 # Dibuja la línea del ATR como polilínea sobre el canvas Tk.
-# Inyecta width/height del canvas en el objeto scale antes de usarlo.
-# Guarda el último valor definido para render_last_visible_value.
 sub render {
     my ($self, $canvas, $visible_values, $scale) = @_;
 
@@ -82,8 +77,6 @@ sub render {
     $scale->{height} = $canvas_h;
 
     # Inyectar colores de eje del tema en la escala antes de dibujar el eje Y.
-    # La conversión datos↔píxeles sigue viviendo en Scales; aquí solo se le pasan
-    # los colores claros (con defaults seguros si el tema no está disponible).
     $scale->{grid_color}      = $self->{theme}{grid}      // '#d4d8de';
     $scale->{grid_dash}       = $self->{theme}{grid_dash}  // [ 2, 3 ];
     $scale->{grid_width}      = $self->{theme}{grid_width} // 2;
@@ -208,13 +201,7 @@ sub render_last_visible_value {
     );
 }
 
-# Dibuja el crosshair sincronizado en el sub-panel del ATR.
-# La coordenada X es la misma que en PricePanel (sincronización temporal): la línea
-# vertical en $x queda alineada con el panel de precios. La línea horizontal en $y solo
-# se dibuja cuando $y está definido. Ambas usan el color `crosshair_line` del tema claro
-# (gris '#9598a1', visible sobre fondo blanco) con default seguro si el tema no se
-# inyectó, sustituyendo el antiguo 'gray' hardcodeado. Se conserva el estilo punteado
-# (-dash) y el borrado previo de los objetos 'atr_crosshair'.
+# Dibuja el crosshair sincronizado en el sub panel del ATR.
 sub draw_crosshair {
     my ($self, $x, $y) = @_;
 

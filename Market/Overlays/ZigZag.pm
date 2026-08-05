@@ -2,11 +2,7 @@ package Market::Overlays::ZigZag;
 use strict;
 use warnings;
 
-# Market::Overlays::ZigZag — render ZZ
-# INTERNAL = ZZMTF (verde/rojo)
-# EXTERNAL = ChartPrime (azul)
-# CHANNEL = OFF
-# Fib = herramienta Drawing::FibRetracement (no este overlay).
+# Market::Overlays::ZigZag render ZZ
 
 my %ELEMENTS = map { $_ => 1 } qw(INTERNAL EXTERNAL CHANNEL);
 
@@ -91,27 +87,18 @@ sub _filter_by_element_density {
     return $out;
 }
 
-# _seg_span($seg) — importancia de un segmento del zigzag: nº de velas que cubre
-# (from_index..to_index). Los tramos largos son las piernas relevantes de tendencia.
+# _seg_span($seg) importancia de un segmento del zigzag: nº de velas que cubre
 sub _seg_span {
     my ($seg) = @_;
     return abs(($seg->{to_index} // 0) - ($seg->{from_index} // 0));
 }
 
-# _filter_segments_continuous_by_element_density($elem, $items) — devuelve los
-# segmentos a dibujar, ordenados por índice.
-# IMPORTANTE (bug de "líneas cortadas"): el zigzag es una CADENA CONTINUA — el
-# to_index/to_price de cada segmento es el from del siguiente. Quitar segmentos
-# intermedios (por densidad, recencia o span) ROMPE la línea y deja huecos entre
-# las piernas verde/roja. Por eso aquí NO se recorta la cadena: se dibujan todos
-# los segmentos visibles. El decluttering del zigzag ya lo controla la RESOLUCIÓN
-# MTF (15m/30m/60m), no la densidad. Con pct=0 el elemento se oculta por completo.
-# Esto es además 100% independiente del zoom: la misma cadena en cualquier vista.
+# _filter_segments_continuous_by_element_density($elem, $items) devuelve los
 sub _filter_segments_continuous_by_element_density {
     my ($self, $elem, $items) = @_;
     return [] unless $items && ref($items) eq 'ARRAY';
     my $pct = $self->element_density_pct($elem);
-    return [] if $pct <= 0;   # 0% = ocultar la línea completa
+    return [] if $pct <= 0;   # 0% ocultar la línea completa
     return [ sort { ($a->{from_index} // 0) <=> ($b->{from_index} // 0) } @$items ];
 }
 

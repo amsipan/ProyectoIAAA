@@ -9,7 +9,7 @@ use constant {
     BEARISH_LEG => 0,
     BULLISH     => 1,
     BEARISH     => -1,
-    # Paridad Pine indicator(..., max_lines_count=500, max_labels_count=500)
+    # Paridad Pine indicator(..., max_lines_count 500, max_labels_count 500)
     MAX_LINES   => 500,
     MAX_LABELS  => 500,
 };
@@ -25,9 +25,7 @@ sub new {
         show_swing          => exists $opts{show_swing} ? ($opts{show_swing} ? 1 : 0) : 1,
         internal_size       => $opts{internal_size} // 5,
         swing_length        => $opts{swing_length} // 50,
-        # Order Blocks: demo profe = ambos ON (internos + swing/externos).
-        # Neon source: Show Internal OB = true, Show Swing OB = false.
-        # Para volver al default Neon: show_internal_ob=>1, show_swing_ob=>0.
+        # Order Blocks: demo profe ambos ON (internos + swing/externos).
         show_internal_ob    => exists $opts{show_internal_ob} ? ($opts{show_internal_ob} ? 1 : 0) : 1,
         show_swing_ob       => exists $opts{show_swing_ob} ? ($opts{show_swing_ob} ? 1 : 0) : 1,
         int_ob_count        => $opts{int_ob_count} // 5,
@@ -45,13 +43,13 @@ sub new {
         _o => [], _h => [], _l => [], _c => [], _t => [],
         _last_index => -1,
 
-        # ATR(200) Wilder-ish
+        # ATR(200) Wilder ish
         _atr => undef,
         _tr_sum => 0,
         _atr_vals => [],
 
         # leg state per size key
-        _leg => {},          # size => 0|1
+        _leg => {},          # size > 0|1
         # pivots: swing / internal / equal
         _sw_hi => { level => undef, last => undef, crossed => 0, bar => undef },
         _sw_lo => { level => undef, last => undef, crossed => 0, bar => undef },
@@ -59,7 +57,7 @@ sub new {
         _in_lo => { level => undef, last => undef, crossed => 0, bar => undef },
         _eq_hi => { level => undef, last => undef, crossed => 0, bar => undef },
         _eq_lo => { level => undef, last => undef, crossed => 0, bar => undef },
-        _sw_trend => 0,   # BULLISH=1 BEARISH=-1
+        _sw_trend => 0,   # BULLISH 1 BEARISH 1
         _in_trend => 0,
 
         # trailing extremes for strong/weak
@@ -98,10 +96,7 @@ sub _push_capped {
     return;
 }
 
-# Presupuesto compartido de LÍNEAS (eventos BOS/CHoCH + EQ) = max_lines_count.
-# Las etiquetas de pivote van en MAX_LABELS por separado.
-# Recorte estable (shift del más antiguo). NO usar merge+sort sobre el buffer
-# reventaba Tk ("Not a HASH reference") en series largas y abortaba el draw.
+# Presupuesto compartido de LÍNEAS (eventos BOS/CHoCH + EQ) max_lines_count.
 sub _push_line_item {
     my ($self, $arr_key, $item) = @_;
     return unless ref($item) eq 'HASH';
@@ -115,7 +110,7 @@ sub _push_line_item {
     while ($total > MAX_LINES) {
         my $e0 = $self->{_events}[0];
         my $q0 = $self->{_eqhl}[0];
-        # Saltar basura no-hash si la hubiera
+        # Saltar basura no hash si la hubiera
         if (defined $e0 && ref($e0) ne 'HASH') {
             shift @{ $self->{_events} };
             $total = @{ $self->{_events} } + @{ $self->{_eqhl} };
@@ -181,7 +176,6 @@ sub update_last {
     $self->_get_current_structure($index, $self->{eqhl_size}, 1, 0);
 
     # Detect BOS/CHoCH siempre (store en _events); OB gated dentro de _display_structure.
-    # Visibilidad BOS/CHoCH: get_events filtra show_internal / show_swing (sin reset UI).
     $self->_display_structure($index, 1);
     $self->_display_structure($index, 0);
 
@@ -194,7 +188,7 @@ sub update_last {
         $self->_refresh_strong_weak($index);
     }
 
-    # MTF H/L (best-effort from timestamps)
+    # MTF H/L (best effort from timestamps)
     if ($self->{show_mtf_hl}) {
         $self->_update_mtf_levels($index);
     }
@@ -224,13 +218,13 @@ sub _update_atr {
     $self->{_atr_vals}[$i] = $self->{_atr};
 }
 
-# Pine: highVolatilityBar = (high-low) >= 2*ATR → swap high/low for OB extremes
+# Pine: highVolatilityBar (high low) > 2 ATR → swap high/low for OB extremes
 sub _update_parsed {
     my ($self, $i, $h, $l) = @_;
     my $atr = $self->{_atr} // 0;
     my $range = $h - $l;
     my $high_vol = ($atr > 0 && $range >= 2 * $atr) ? 1 : 0;
-    # high-vol: parsedHigh=low, parsedLow=high (Neon/LuxAlgo)
+    # high vol: parsedHigh low, parsedLow high (Neon/LuxAlgo)
     if ($high_vol) {
         $self->{_ph}[$i] = $l;
         $self->{_pl}[$i] = $h;
@@ -260,11 +254,7 @@ sub _lowest {
     return $mn;
 }
 
-# leg(size) at bar i: pivot candidate at i-size (LuxAlgo/Neon).
-# newHigh: high[i-size] > max(high[i-size+1.. i]) → start of bearish leg (pivot high)
-# newLow: low[i-size] < min(low[i-size+1.. i]) → start of bullish leg (pivot low)
-# Only emits when leg state *changes* (ta.change != 0).
-# Pine: var legState = 0 (BEARISH). Primer newHigh es 0→0 → sin pivote.
+# leg(size) at bar i: pivot candidate at i size (LuxAlgo/Neon).
 sub _leg_at {
     my ($self, $i, $size) = @_;
     return (0, 0, 0) if $i < $size;
@@ -288,7 +278,6 @@ sub _leg_at {
     }
 
     # Pine legState inicia en BEARISH (0). Si aún no hay estado, sembrar 0
-    # sin emitir pivote en el primer newHigh (change == 0).
     my $prev = $self->{_leg}{$size};
     if (!defined $prev) {
         $self->{_leg}{$size} = BEARISH_LEG;
@@ -333,13 +322,12 @@ sub _get_current_structure {
             $self->{_trail_bot_bar} = $pivot_i;
             if ($self->{show_swing_labels}) {
                 my $label = (!defined $p->{last} || $price < $p->{last}) ? 'LL' : 'HL';
-                # fix: last was already overwritten — use previous last before assign
+                # fix: last was already overwritten use previous last before assign
             }
-            # re-compute label from stored last before overwrite... we already overwrote.
-            # Use: if last was undef first pivot skip; else compare price to last_level we saved
+            # re compute label from stored last before overwrite... we already overwrote.
             my $prev_lvl = $p->{last};
             my $label = (!defined $prev_lvl || $price < $prev_lvl) ? 'LL' : 'HL';
-            # Wait we set last = old level then level = price, so last is previous. Good.
+            # Wait we set last old level then level price, so last is previous. Good.
             $label = (!defined $prev_lvl) ? 'LL' : ($price < $prev_lvl ? 'LL' : 'HL');
             if ($self->{show_swing_labels} && defined $prev_lvl) {
                 $self->_push_capped('_pivots', {
@@ -347,7 +335,7 @@ sub _get_current_structure {
                 }, MAX_LABELS);
                 $self->{_values}[$pivot_i] = $label;
             } elsif ($self->{show_swing_labels} && !defined $prev_lvl) {
-                # Pine first low: current < last con last=na → falso → HL (no LL)
+                # Pine first low: current < last con last na → falso → HL (no LL)
                 $self->_push_capped('_pivots', {
                     index => $pivot_i, type => 'HL', price => $price, scope => 'swing',
                 }, MAX_LABELS);
@@ -378,7 +366,7 @@ sub _get_current_structure {
             $self->{_trail_top_bar} = $pivot_i;
             my $prev_lvl = $p->{last};
             if ($self->{show_swing_labels}) {
-                # Pine: current > last ? HH: LH; con last=na la comp. es falsa → LH
+                # Pine: current > last ? HH: LH; con last na la comp. es falsa → LH
                 my $label = (defined $prev_lvl && $price > $prev_lvl) ? 'HH' : 'LH';
                 $self->_push_capped('_pivots', {
                     index => $pivot_i, type => $label, price => $price, scope => 'swing',
@@ -400,7 +388,7 @@ sub _first_cross_up {
         my $c1 = $self->{_c}[$j];
         next unless defined $c1;
         my $c0 = $j > 0 ? $self->{_c}[$j - 1] : undef;
-        # ta.crossover: prev <= level y actual > level (si no hay prev, solo actual > level)
+        # ta.crossover: prev < level y actual > level (si no hay prev, solo actual > level)
         if ($c1 > $level && (!defined $c0 || $c0 <= $level)) {
             return $j;
         }
@@ -436,9 +424,7 @@ sub _display_structure {
     my $trend_key = $internal ? '_in_trend' : '_sw_trend';
     my $scope = $internal ? 'internal' : 'swing';
 
-    # Pine displayStructure: internal solo si nivel != swing (extraBull/extraBear).
-    # Confluence filter del profe = OFF → bullishBar/bearishBar siempre true.
-    # Si extra es false: NO marcar crossed ni cambiar trend (paridad Neon/LuxAlgo).
+    # Pine displayStructure: internal solo si nivel ! swing (extraBull/extraBear).
     my $extra_bull = 1;
     my $extra_bear = 1;
     if ($internal) {
@@ -449,7 +435,6 @@ sub _display_structure {
     }
 
     # Bullish break: ta.crossover(close, level) en la barra actual (Pine).
-    # Requiere close[i-1] definido (como series de TV); no "catch-up" histórico.
     if (defined $hi->{level} && !$hi->{crossed} && $extra_bull && $i > 0) {
         my $prev_c = $self->{_c}[$i - 1];
         my $is_cross = defined $prev_c
@@ -462,7 +447,7 @@ sub _display_structure {
             my $tag  = ($bias == BEARISH) ? 'CHoCH' : 'BOS';
             $hi->{crossed} = 1;
             $self->{$trend_key} = BULLISH;
-            # Siempre guardar evento y OB; show_* filtran en getters (anti-flicker UI).
+            # Siempre guardar evento y OB; show_ filtran en getters (anti flicker UI).
             $self->_push_line_item('_events', {
                 index       => $end_i,
                 type        => $tag,
@@ -511,13 +496,6 @@ sub _store_order_block {
     return unless defined $from && defined $i;
 
     # Pine storeOrderBlock (Neon / LuxAlgo)
-    # arr:= parsedLows.slice(p.barIndex, bar_index) # end EXCLUSIVO
-    # idx:= p.barIndex + arr.indexof(arr.min()) # PRIMERA ocurrencia
-    # ob:= parsedHighs/Lows de esa barra
-    # OB Volatility Filter = ATR → highVolatilityBar = (H-L) >= 2*ATR
-    # parsedHigh = HVOL ? low: high
-    # parsedLow = HVOL ? high: low
-    # (_update_parsed rellena _ph/_pl). NO usar raw H/L: rompería paridad source.
     my $to = $i - 1;
     return if $to < $from;
 
@@ -549,7 +527,7 @@ sub _store_order_block {
         index  => $best_i,
         hi     => $best_ph,
         lo     => $best_pl,
-        # Rango original (para escalón visual: derecha "gruesa" = original).
+        # Rango original (para escalón visual: derecha "gruesa" original).
         orig_hi => $best_ph,
         orig_lo => $best_pl,
         bias   => $bias == BULLISH ? 'bull' : 'bear',
@@ -571,10 +549,6 @@ sub _mitigate_order_blocks {
     my $l = $self->{_l}[$i];
     return unless defined $h && defined $l;
     # Mitigación gradual + escalón (pedido profe / capturas TV)
-    # hi/lo = zona RESTANTE (tramo izquierdo, "delgado").
-    # orig_hi/orig_lo = zona ORIGINAL (tramo derecho, "grueso").
-    # last_mitig_index = donde se corta el escalón.
-    # Neon source es binario; aquí la geometría sigue las capturas del curso.
     my @keep;
     for my $ob (@{ $self->{_obs} }) {
         next unless $ob->{active};
@@ -652,7 +626,7 @@ sub _refresh_strong_weak {
 sub _parse_ts_epoch {
     my ($ts) = @_;
     return undef unless defined $ts && length $ts;
-    # Accept "2026-07-06T09:30:00-05:00" or similar
+    # Accept "2026 07 06T09:30:00 05:00" or similar
     if ($ts =~ /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/) {
         require Time::Local;
         my ($Y, $M, $D, $h, $m, $s) = ($1, $2, $3, $4, $5, $6);
@@ -663,7 +637,7 @@ sub _parse_ts_epoch {
 
 sub _update_mtf_levels {
     my ($self, $i) = @_;
-    # Previous completed day/week/month H/L from loaded series (best-effort).
+    # Previous completed day/week/month H/L from loaded series (best effort).
     my $ts = $self->{_t}[$i];
     my $epoch = _parse_ts_epoch($ts);
     return unless defined $epoch;
@@ -671,7 +645,7 @@ sub _update_mtf_levels {
     my ($sec, $min, $hour, $mday, $mon, $year, $wday) = gmtime($epoch);
     my $day_key   = sprintf('%04d-%02d-%02d', $year + 1900, $mon + 1, $mday);
     my $month_key = sprintf('%04d-%02d', $year + 1900, $mon + 1);
-    # ISO-ish week: year-week
+    # ISO ish week: year week
     my $week_key  = sprintf('%04d-W%02d', $year + 1900, int(($mday + 6) / 7));
 
     $self->{_mtf_acc} //= {};
@@ -723,7 +697,7 @@ sub _update_mtf_levels {
     $self->{_mtf_levels} = \@levels;
 }
 
-# Public getters (non-mutating)
+# Public getters (non mutating)
 
 sub get_pivots {
     my ($self) = @_;
@@ -733,7 +707,6 @@ sub get_pivots {
 sub get_events {
     my ($self) = @_;
     # Filtrar por flags (como get_order_blocks): UI puede ocultar sin perder estado
-    # hasta el próximo reset+refeed. Historical: todos los que pasen el flag.
     return [
         grep {
             my $scope = $_->{scope} // '';

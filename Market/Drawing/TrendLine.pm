@@ -2,15 +2,7 @@ package Market::Drawing::TrendLine;
 use strict;
 use warnings;
 
-# TrendLine — herramienta de línea de tendencia (drawing tool TV).
-# 2 clics = una línea (p1 → p2). A diferencia del canal, se pueden colocar
-# VARIAS líneas a la vez. Cada línea es independiente y sus 2 extremos son
-# arrastrables (patrón idéntico a los handles del Fib).
-# Estado
-# lines => [ { p1 => {index,price}, p2 => {index,price} },... ]
-# draft => [ 0..1 puntos mientras se dibuja la línea actual ]
-# tool_active => 1 mientras el usuario está colocando líneas
-# El índice de línea + nombre de extremo ('0:p1', '2:p2'...) sirve de handle.
+# TrendLine herramienta de línea de tendencia (drawing tool TV).
 
 sub new {
     my ( $class, %args ) = @_;
@@ -27,8 +19,7 @@ sub new {
 
 sub is_tool_active { $_[0]->{tool_active} ? 1 : 0 }
 
-# start_tool — activa el modo colocar líneas. NO borra las líneas existentes
-# (se pueden ir agregando varias).
+# start_tool activa el modo colocar líneas. NO borra las líneas existentes
 sub start_tool {
     my ($self) = @_;
     $self->{tool_active} = 1;
@@ -50,7 +41,7 @@ sub clear_all {
     return $self;
 }
 
-# clear_last — borra la última línea colocada (deshacer sencillo).
+# clear_last borra la última línea colocada (deshacer sencillo).
 sub clear_last {
     my ($self) = @_;
     pop @{ $self->{lines} } if @{ $self->{lines} };
@@ -66,7 +57,6 @@ sub draft_points { [ @{ $_[0]->{draft} || [] } ] }
 sub draft_count { scalar @{ $_[0]->{draft} || [] } }
 
 # add_point({index,price}) en modo tool. Commit al 2.º clic → nueva línea.
-# Retorna 'draft' | 'done' | undef.
 sub add_point {
     my ( $self, $pt ) = @_;
     return undef unless $self->{tool_active};
@@ -86,15 +76,14 @@ sub add_point {
             p2 => { %{ $d[1] } },
         };
         $self->{draft} = [];
-        # TV-style: al 2.º clic se cierra la línea y se SALE del modo tool.
-        # Para otra línea, el usuario vuelve a pulsar "Trendline".
+        # TV style: al 2.º clic se cierra la línea y se SALE del modo tool.
         $self->{tool_active} = 0;
         return 'done';
     }
     return 'draft';
 }
 
-# set_point($line_idx, $which, {index,price}) — mueve un extremo (p1|p2).
+# set_point($line_idx, $which, {index,price}) mueve un extremo (p1|p2).
 sub set_point {
     my ( $self, $li, $which, $pt ) = @_;
     return $self unless defined $li && $self->{lines}[$li];
@@ -108,8 +97,7 @@ sub set_point {
     return $self;
 }
 
-# move_line($line_idx, $d_index, $d_price) — traslada la línea entera (ambos
-# extremos) por un delta. Usado al arrastrar el cuerpo ('body').
+# move_line($line_idx, $d_index, $d_price) traslada la línea entera (ambos
 sub move_line {
     my ( $self, $li, $di, $dp ) = @_;
     my $ln = $self->{lines}[$li] or return $self;

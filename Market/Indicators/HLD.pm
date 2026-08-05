@@ -2,14 +2,7 @@ package Market::Indicators::HLD;
 use strict;
 use warnings;
 
-# HLD — High/Low de vela HTF (profesor ~40:00–46:30). Sin Pine TV.
-# Cálculo solo sobre series 4h|D; se puede mostrar en chart TF ≤ fuente (MTF).
-# Regla unificada (diario y 4h)
-# P = close del tope causal del chart (o price explícito)
-# Diario: más reciente i con age>=1 y P en [low,high] (día anterior OK)
-# 4h: más reciente i con age>=4 (~16h) y P en [low,high]
-# Si no hay en rango: OHLC más cercano (mismo min age; fallback sin min)
-# ATH → no HLD
+# HLD High/Low de vela HTF (profesor ~40:00 46:30). Sin Pine TV.
 
 use constant {
     MAX_LOOKBACK_DAYS => 4,
@@ -31,7 +24,7 @@ sub tf_rank {
     return 0;
 }
 
-# chart_tf <= source_tf (misma o inferior).
+# chart_tf < source_tf (misma o inferior).
 sub chart_tf_allowed {
     my ( $self, $chart_tf, $source_tf ) = @_;
     my $rc = tf_rank($chart_tf);
@@ -66,9 +59,6 @@ sub reset {
 sub get_result { $_[0]->{_result} }
 
 # compute($md, %opts)
-#   source_tf / tf => '4h'|'D'
-#   chart_tf, chart_end_index, price (opcionales; MTF / Replay)
-#   end_index => índice ya en la serie fuente (tests / misma TF)
 sub compute {
     my ( $self, $md, %opts ) = @_;
     $self->{_result} = undef;
@@ -163,7 +153,7 @@ sub compute {
     my $in_range = ( $l <= $P && $P <= $h ) ? 1 : 0;
     my $nearest  = $self->_nearest_ohlc( $P, $o, $h, $l, $cl );
 
-    # Índices en TF del chart para dibujar (precio Y es TF-agnóstico).
+    # Índices en TF del chart para dibujar (precio Y es TF agnóstico).
     my ( $chart_anchor, $chart_end_draw );
     if ( length($chart_tf) && $chart_tf ne $source_tf ) {
         $chart_anchor =
@@ -223,19 +213,19 @@ sub map_chart_index_to_source {
     my $cc = $chart_arr->[$chart_i];
     return undef unless $cc;
 
-    # base_index del chart → última fuente con base_index <= chart_base
+    # base_index del chart → última fuente con base_index < chart_base
     my $chart_base = $cc->[6];
     if ( !defined $chart_base && $chart_tf eq ( $md->base_timeframe() // '' ) )
     {
         $chart_base = $chart_i;
     }
     if ( defined $chart_base ) {
-        # Binaria en MarketData ([6] monótono); -1 = ninguna fuente cerró aún
+        # Binaria en MarketData ([6] monótono); 1 ninguna fuente cerró aún
         my $mi = $md->index_for_base_index( $source_tf, $chart_base );
         return $mi if $mi >= 0;
     }
 
-    # Fallback: timestamp chart → última fuente con ts <= chart_ts
+    # Fallback: timestamp chart → última fuente con ts < chart_ts
     my $ts = $cc->[0];
     return undef unless defined $ts;
     my $best;
@@ -262,7 +252,7 @@ sub map_source_index_to_chart {
     my $ts = $sc->[0];
     return undef unless defined $ts;
 
-    # Primera vela chart con ts >= bucket fuente (binaria; ts monótono)
+    # Primera vela chart con ts > bucket fuente (binaria; ts monótono)
     my ( $lo, $hi ) = ( 0, $#$chart_arr );
     my $first_ge;
     while ( $lo <= $hi ) {

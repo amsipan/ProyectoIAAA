@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Overlay HLD MTF: R/S de vela fuente 4h|D, dibujable en chart TF ≤ fuente.
-# Etiquetas: chip a la derecha de cada línea.
 
 sub new {
     my ( $class, %args ) = @_;

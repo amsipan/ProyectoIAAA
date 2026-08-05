@@ -3,9 +3,6 @@ use strict;
 use warnings;
 
 # Canal y trendline automáticos (cálculo puro, sin Tk).
-# Un canal y una trendline activos; se extienden a la última vela causal.
-# Canal: ≥3 toques en la base (≥60 min). Trendline: span mínimo ~2h.
-# Perforación menor con retorno no mata; ruptura fuerte sí.
 
 sub new {
     my ( $class, %opts ) = @_;
@@ -150,7 +147,6 @@ sub update_last {
     }
 
     # Canal: UN activo. Mientras no hay activo, reintentar en pivote/muerte
-    # y también cada pocas barras (el ancla high puede confirmarse después).
     if ( $self->{enable_channel} && !$has_ch ) {
         my $periodic = ( ( $index % 4 ) == 0 ) ? 1 : 0;
         if ( $self->{_need_channel_birth} || $periodic ) {
@@ -163,8 +159,7 @@ sub update_last {
 
 sub get_values {
     my ($self) = @_;
-    # REQUISITOS §1.5: UN canal activo extendido a la punta causal; al invalidar
-    # desaparece por completo (no apilar históricos muertos en pantalla).
+    # REQUISITOS .5: UN canal activo extendido a la punta causal; al invalidar
     return {
         trendlines => $self->get_active_trendlines(),
         channels   => $self->get_active_channels(),
@@ -204,7 +199,7 @@ sub _max_span_minutes {
     my ($self) = @_;
     my $floor = $self->{canal_max_span_minutes_floor} // 480;
     my $bm    = $self->{bar_minutes} // 1;
-    # En TF altos, 8h wall-clock no alcanza para 3 pivotes; usar ≥ 48 barras
+    # En TF altos, 8h wall clock no alcanza para 3 pivotes; usar ≥ 48 barras
     my $by_bars = 48 * $bm;
     return $floor > $by_bars ? $floor : $by_bars;
 }
@@ -305,7 +300,6 @@ sub _fit_line {
 }
 
 # Ajuste por mínimos cuadrados de ≥3 toques (lows reales) → la base pasa
-# cerca de CADA mecha, no solo de extremos (evita punto medio “en el aire”).
 sub _fit_line_ls {
     my ($pts) = @_;
     return undef unless $pts && @$pts >= 2;
@@ -457,8 +451,7 @@ sub _pick_three_touches {
 
 # birth
 
-# + jun: UNA trendline diagonal que el precio respeta;
-# ≥3 toques; span ≥ ~2h; no apilar líneas que se crucen / ensucien.
+# + jun: UNA trendline diagonal que el precio respeta
 sub _try_birth_trendline {
     my ( $self, $tol, $i ) = @_;
     return
@@ -517,8 +510,7 @@ sub _best_tl_candidate {
             my ( $slope0, $int0 ) = _fit_line( $swings->[$a], $swings->[$b] );
             next unless defined $slope0;
 
-            # Soporte: no exigir pendiente positiva estricta (puede ser lateral-bajista
-            # suave); resistencia análogo. Evitar pendientes absurdas.
+            # Soporte: no exigir pendiente positiva estricta (puede ser lateral bajista
             next if abs($slope0) > 50;
 
             my $touches = $self->_count_touches( $swings, $a, $b, $slope0, $int0, $tol );
@@ -560,7 +552,7 @@ sub _best_tl_candidate {
                 next if $self->_max_consec_above_par( $i1, $i, $slope, $intercept, $tol ) >= $N;
             }
 
-            # Recencia − desviación tip (preferir línea que el tip aún toca de cerca)
+            # Recencia desviación tip (preferir línea que el tip aún toca de cerca)
             my $tip_err = abs( $close_now - $lp_now );
             my $score   = $i1 * 1e6 - $tip_err * 10;
             next if defined $best && $score <= $best->{score};
@@ -618,8 +610,6 @@ sub _try_birth_channel_bottom {
             next if ( $i - $i1 ) > $look_bars;       # último toque reciente en barras
 
             # Tras invalidar: la NUEVA formación debe empezar DESPUÉS de la muerte.
-            # Si solo exigíamos i1 > dead_after, el from_index podía solaparse con el
-            # canal anterior (dos azules en la misma zona / “cambio de dirección”).
             my $dead_after = $self->{_channel_dead_after}{support} // -1;
             next if $i0 <= $dead_after;
 
@@ -649,7 +639,7 @@ sub _try_birth_channel_bottom {
                 next if $width > $atr_now * $self->{max_width_atr_mult};
             }
 
-            # Score barato ANTES de barridos O(span) — solo validar si puede ganar.
+            # Score barato ANTES de barridos O(span) solo validar si puede ganar.
             my $score = $i1 * 1e6 - $width * 10;
             next if defined $best && $score <= $best->{score};
 
@@ -660,7 +650,6 @@ sub _try_birth_channel_bottom {
             next if $consec >= $self->{reclaim_bars};
 
             # no nacer si el precio ACTUAL (punta causal) ya está
-            # fuera del rango. Evita que el canal “aparezca” tras un dump/escape.
             my $close_now = $self->{_c}[$i];
             next unless defined $close_now;
             my $base_now = _line_price( $s2, $b2, $i );
@@ -797,7 +786,6 @@ sub _mitigate {
         $tl->{break_streak} = $broke ? ( ( $tl->{break_streak} // 0 ) + 1 ) : 0;
 
         # Retest / cercanía: si el precio se aleja mucho sin volver a la línea,
-        # la TL deja de ser relevante (ensucia; jun: no cruzar el chart).
         my $atr = $self->{_atr}[$i] // $self->{_atr}[ $i - 1 ];
         my $far_lim =
           ( defined $atr && $atr > 0 )
@@ -838,11 +826,6 @@ sub _mitigate {
         $ctol = $half_w if $half_w > 0 && $ctol > $half_w;
 
         # Muerte por
-        # (A) ruptura de BASE (soporte) sin retorno
-        # (B) ESCAPE FUERTE por el riel SUPERIOR (cierres claros fuera).
-        # superior "variable" ante roce/mecha; pero "escapa con fuerza
-        # → se desarma". Sin (B) un canal temprano bloquea todo el dataset
-        # (max_active_ch=1) porque el precio queda arriba de la base para siempre.
         my $broke = 0;
         my $reason_hint = 'liquidity_or_break';
 

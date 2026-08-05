@@ -2,17 +2,7 @@ package Market::Indicators::VolumeProfile;
 use strict;
 use warnings;
 
-# Market::Indicators::VolumeProfile — Anchored Volume Profile (AVP)
-# Estilo TradingView drawing tool "Anchored Volume Profile" (AVP)
-# Ancla manual (índice de vela) -> perfil desde ancla hasta fin efectivo.
-# Si no hay ancla manual especificada, ancla por defecto a 0.
-# Rows Layout = Number of Rows. Row Size configurable (default 100, max 1000).
-# Value Area Volume % = 70.
-# Volume mode: 'up_down' (desglose comprador/vendedor por bin) o 'total'.
-# POC = bin de mayor volumen; VAH/VAL = área de valor al 70% expandiendo desde POC.
-# Optimización de rendimiento: evaluación diferida (lazy evaluation con _dirty).
-# Las llamadas a update_last() durante la carga/feed masivo son O(1).
-# El recálculo del perfil (_recalculate_profile) ocurre SOLO 1 vez al consultar get_values().
+# Market::Indicators::VolumeProfile Anchored Volume Profile (AVP)
 
 sub new {
     my ($class, %opts) = @_;
@@ -229,7 +219,7 @@ sub _recalculate_profile {
     }
 
 
-    # POC = bin central del nodo/pico de mayor volumen
+    # POC bin central del nodo/pico de mayor volumen
     my $max_b_vol = 0;
     for my $b (0 .. $#bins) {
         $max_b_vol = $bins[$b]->{vol} if $bins[$b]->{vol} > $max_b_vol;
@@ -352,4 +342,3 @@ sub _recalculate_profile {
 }
 
 1;
-

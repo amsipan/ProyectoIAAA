@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 # Render de trendline/canal automáticos (tag ov_auto_tc).
-# Un canal activo hasta toma de liquidez; toques en riel inferior.
 
 sub new {
     my ( $class, %args ) = @_;
@@ -141,7 +140,7 @@ sub _paint_channel {
     my $line_c = $self->{col_ch_line};
     my $fill_c = $self->{col_ch_fill};
 
-    # Polígono: base-izq → base-der → par-der → par-izq (igual que manual)
+    # Polígono: base izq → base der → par der → par izq (igual que manual)
     eval {
         $canvas->createPolygon(
             $x_of->($i0), $y_of->($yb0),
@@ -192,7 +191,6 @@ sub _paint_channel {
     };
 
     # 3 puntos en lows REALES (mechas inferiores), no proyectados sobre la recta.
-    # Si se pintan sobre la línea LS, un toque con error residual queda “en el aire”.
     my $touches = $ch->{touches} || [];
     for my $t (@$touches) {
         my $ti = $t->{index};
