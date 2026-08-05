@@ -46,8 +46,9 @@ use constant {
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
     SHIFT_MASK       => 0x0001,
-    # Pan touchpad (Button-6/7 en X11): barras por notch de scroll horizontal
-    TOUCHPAD_PAN_STEP => 2,
+    # Pan touchpad (Button-6/7 o Shift+rueda): píxeles por notch. La
+    # sensibilidad es constante a cualquier zoom (estilo TV): px → barras.
+    TOUCHPAD_PAN_PX => 45,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
     # TradingView Bar Replay: borde derecho de la ultima vela visible al 80% del plot;
     # hueco fijo 20% del ancho (px), independiente del zoom en barras.
@@ -3693,27 +3694,52 @@ sub _ctrl_horizontal_zoom {
 }
 
 # _touchpad_hpan($dir) — pan horizontal por gestos del touchpad (Button-6/7 en
-# X11, o Shift+rueda). $dir=+1 ver pasado (offset sube), -1 ver futuro.
-# Misma geometría que el drag: offset en live, replay_view_end en Replay
-# (los clamps de _replay_window/compute_window se aplican en el render).
+# X11, o Shift+rueda). $dir=+1 ver pasado, -1 ver futuro.
+# Sensibilidad en píxeles (estilo TV): el gesto desplaza lo mismo en pantalla
+# con 60 o 3000 velas; los px se convierten a barras según el zoom. Barras
+# enteras a offset/replay_view_end y residuo sub-vela a x_shift, mismo patrón
+# que el drag (normalización shift↔offset y anti-temblor al tocar clamps).
 sub _touchpad_hpan {
     my ( $self, $dir ) = @_;
     return unless defined $dir && $dir != 0;
     my $total = $self->{market_data} ? ( $self->{market_data}->size() || 0 ) : 0;
     return unless $total > 0;
 
-    my $acc = ( $self->{_tpan_accum} // 0 ) + $dir * TOUCHPAD_PAN_STEP;
-    my $whole = int($acc);
-    $self->{_tpan_accum} = $acc - $whole;
-    return unless $whole;
+    my $visible = $self->{visible_bars} || 60;
+    $visible = 1 if $visible < 1;
+    my $scale = Market::Panels::Scales->new(
+        bars         => $visible,
+        right_margin => $self->_current_right_margin(),
+    );
+    $scale->{width} = $self->_canvas_width( $self->{price_canvas} );
+    my $bar_w = $scale->plot_width() / $visible;
+    $bar_w = 1 if $bar_w <= 0;
+
+    my $px    = $dir * TOUCHPAD_PAN_PX;
+    my $whole = int( $px / $bar_w );
+    my $rem   = $px - ( $whole * $bar_w );
 
     my $rc = $self->{replay_controller};
     if ( $rc && $rc->is_active() && defined $self->{replay_view_end} ) {
-        $self->{replay_view_end} -= $whole;
+        my $new_view_end = $self->{replay_view_end} - $whole;
+        my $new_shift = ( $self->{ctrl_zoom_x_shift} // 0 ) + $rem;
+        while ( $new_shift >= $bar_w )  { $new_shift -= $bar_w; $new_view_end -= 1; }
+        while ( $new_shift <= -$bar_w ) { $new_shift += $bar_w; $new_view_end += 1; }
+        $self->{replay_view_end} = $new_view_end;
+        my ( undef, $ve ) = $self->compute_window();
+        # Si el clamp corrigió el borde, no permitir residuo sub-vela.
+        $new_shift = 0 if defined $ve && $ve != $new_view_end;
+        $self->{ctrl_zoom_x_shift} = $new_shift;
     }
     else {
-        $self->{offset} =
-          $self->_clamp_offset( ( $self->{offset} // 0 ) + $whole, undef );
+        my $new_offset = ( $self->{offset} // 0 ) + $whole;
+        my $new_shift = ( $self->{ctrl_zoom_x_shift} // 0 ) + $rem;
+        while ( $new_shift >= $bar_w )  { $new_shift -= $bar_w; $new_offset += 1; }
+        while ( $new_shift <= -$bar_w ) { $new_shift += $bar_w; $new_offset -= 1; }
+        $self->{offset} = $self->_clamp_offset( $new_offset, undef );
+        # Clamp tocado: sin residuo sub-vela (anti-temblor, igual que el drag).
+        $new_shift = 0 if $self->{offset} != $new_offset;
+        $self->{ctrl_zoom_x_shift} = $new_shift;
     }
     $self->request_render();
 }
