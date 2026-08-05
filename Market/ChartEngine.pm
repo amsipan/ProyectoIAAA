@@ -45,6 +45,10 @@ use constant {
     MAX_VISIBLE_BARS => 3000,
     ZOOM_STEP        => 5,
     CTRL_MASK        => 0x0004,
+    SHIFT_MASK       => 0x0001,
+    # Pan touchpad (Button-6/7 o Shift+rueda): píxeles por notch. La
+    # sensibilidad es constante a cualquier zoom (estilo TV): px → barras.
+    TOUCHPAD_PAN_PX => 45,
     TIME_AXIS_DRAG_PX_PER_BAR => 8,
     # TradingView Bar Replay: borde derecho de la ultima vela visible al 80% del plot;
     # hueco fijo 20% del ancho (px), independiente del zoom en barras.
@@ -3246,6 +3250,15 @@ sub _bind_all_canvas {
             $self->_wheel_zoom($widget, ZOOM_STEP, $x, $y, $state);
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        # Scroll horizontal del touchpad (X11: 6=izquierda, 7=derecha)
+        $p_canvas->Tk::bind('<Button-6>', [sub {
+            $self->_touchpad_hpan(1);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        $p_canvas->Tk::bind('<Button-7>', [sub {
+            $self->_touchpad_hpan(-1);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $p_canvas->Tk::bind('<Double-Button-1>', sub { $self->reset_view(); });
         $p_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($p_canvas); });
         $p_canvas->Tk::bind('<Key-a>', sub { $self->set_scale_mode('auto'); });
@@ -3304,6 +3317,14 @@ sub _bind_all_canvas {
         $a_canvas->Tk::bind('<Button-5>', [sub {
             my ($widget, $x, $y, $state) = @_;
             $self->_wheel_zoom($widget, ZOOM_STEP, $x, $y, $state);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        $a_canvas->Tk::bind('<Button-6>', [sub {
+            $self->_touchpad_hpan(1);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        $a_canvas->Tk::bind('<Button-7>', [sub {
+            $self->_touchpad_hpan(-1);
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $a_canvas->Tk::bind('<Configure>', sub { $self->_on_resize($a_canvas); });
@@ -3398,6 +3419,14 @@ sub _bind_all_canvas {
         $time_canvas->Tk::bind('<Button-5>', [sub {
             my ($widget, $x, $y, $state) = @_;
             $self->_wheel_zoom($widget, ZOOM_STEP, $x, $y, $state);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        $time_canvas->Tk::bind('<Button-6>', [sub {
+            $self->_touchpad_hpan(1);
+            return 'break';
+        }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
+        $time_canvas->Tk::bind('<Button-7>', [sub {
+            $self->_touchpad_hpan(-1);
             return 'break';
         }, Tk::Ev('x'), Tk::Ev('y'), Tk::Ev('s')]);
         $time_canvas->Tk::bind('<Enter>', sub { $self->_set_cursor($time_canvas, 'sb_h_double_arrow') });
@@ -3551,6 +3580,12 @@ sub _wheel_zoom {
         $self->{active_canvas} = $widget if defined $widget;
     }
 
+    # Shift+rueda = pan horizontal (convención desktop; no es zoom).
+    if (defined $state && ($state & SHIFT_MASK)) {
+        $self->_touchpad_hpan($step > 0 ? -1 : 1);
+        return;
+    }
+
     my $delta = $self->_wheel_zoom_delta($step);
     return if $delta == 0;
 
@@ -3616,6 +3651,21 @@ sub _ctrl_horizontal_zoom {
     else {
         my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
         my $base_total = $base_end + 1;
+        # Pin de bordes estilo TV: el zoom nunca agranda el hueco en blanco de
+        # un borde más allá del que ya existía por pan (0 en el caso normal);
+        # la última vela queda clavada al borde derecho al hacer zoom-out.
+        if ( $new_visible >= $base_total ) {
+            $new_end = $base_end;
+        }
+        else {
+            my $max_end = $base_end + ( $end > $base_end ? $end - $base_end : 0 );
+            $new_end = $max_end if $new_end > $max_end;
+            my $min_start = $start < 0 ? $start : 0;
+            $new_start = $new_end - $new_visible + 1;
+            if ( $new_start < $min_start ) {
+                $new_end = $min_start + $new_visible - 1;
+            }
+        }
         my $new_offset = $base_end - $new_end;
         $self->{offset} = $self->_clamp_offset($new_offset, $base_total);
     }
@@ -3640,6 +3690,57 @@ sub _ctrl_horizontal_zoom {
         }
     }
 
+    $self->request_render();
+}
+
+# _touchpad_hpan($dir) — pan horizontal por gestos del touchpad (Button-6/7 en
+# X11, o Shift+rueda). $dir=+1 ver pasado, -1 ver futuro.
+# Sensibilidad en píxeles (estilo TV): el gesto desplaza lo mismo en pantalla
+# con 60 o 3000 velas; los px se convierten a barras según el zoom. Barras
+# enteras a offset/replay_view_end y residuo sub-vela a x_shift, mismo patrón
+# que el drag (normalización shift↔offset y anti-temblor al tocar clamps).
+sub _touchpad_hpan {
+    my ( $self, $dir ) = @_;
+    return unless defined $dir && $dir != 0;
+    my $total = $self->{market_data} ? ( $self->{market_data}->size() || 0 ) : 0;
+    return unless $total > 0;
+
+    my $visible = $self->{visible_bars} || 60;
+    $visible = 1 if $visible < 1;
+    my $scale = Market::Panels::Scales->new(
+        bars         => $visible,
+        right_margin => $self->_current_right_margin(),
+    );
+    $scale->{width} = $self->_canvas_width( $self->{price_canvas} );
+    my $bar_w = $scale->plot_width() / $visible;
+    $bar_w = 1 if $bar_w <= 0;
+
+    my $px    = $dir * TOUCHPAD_PAN_PX;
+    my $whole = int( $px / $bar_w );
+    my $rem   = $px - ( $whole * $bar_w );
+
+    my $rc = $self->{replay_controller};
+    if ( $rc && $rc->is_active() && defined $self->{replay_view_end} ) {
+        my $new_view_end = $self->{replay_view_end} - $whole;
+        my $new_shift = ( $self->{ctrl_zoom_x_shift} // 0 ) + $rem;
+        while ( $new_shift >= $bar_w )  { $new_shift -= $bar_w; $new_view_end -= 1; }
+        while ( $new_shift <= -$bar_w ) { $new_shift += $bar_w; $new_view_end += 1; }
+        $self->{replay_view_end} = $new_view_end;
+        my ( undef, $ve ) = $self->compute_window();
+        # Si el clamp corrigió el borde, no permitir residuo sub-vela.
+        $new_shift = 0 if defined $ve && $ve != $new_view_end;
+        $self->{ctrl_zoom_x_shift} = $new_shift;
+    }
+    else {
+        my $new_offset = ( $self->{offset} // 0 ) + $whole;
+        my $new_shift = ( $self->{ctrl_zoom_x_shift} // 0 ) + $rem;
+        while ( $new_shift >= $bar_w )  { $new_shift -= $bar_w; $new_offset += 1; }
+        while ( $new_shift <= -$bar_w ) { $new_shift += $bar_w; $new_offset -= 1; }
+        $self->{offset} = $self->_clamp_offset( $new_offset, undef );
+        # Clamp tocado: sin residuo sub-vela (anti-temblor, igual que el drag).
+        $new_shift = 0 if $self->{offset} != $new_offset;
+        $self->{ctrl_zoom_x_shift} = $new_shift;
+    }
     $self->request_render();
 }
 
