@@ -3642,30 +3642,34 @@ sub _ctrl_horizontal_zoom {
     my $new_end = $new_start + $new_visible - 1;
 
     $self->{visible_bars} = $new_visible;
-    if ($rc && $rc->is_active() && defined $self->{replay_view_end}) {
+    my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
+    my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
+    my $base_total = $base_end + 1;
+    # Pin de bordes estilo TV (misma regla en live y Replay): el zoom nunca
+    # agranda el hueco en blanco de un borde más allá del que ya existía por
+    # pan (0 en el caso normal); la última vela causal queda clavada a la
+    # derecha al hacer zoom-out.
+    my $prev_blank = $end > $base_end ? $end - $base_end : 0;
+    if ( $new_visible >= $base_total ) {
+        # En Replay se conserva el hueco previo incluso con zoom-out total:
+        # es el aire intencional tras el head (Select Bar / trail de Play).
+        $new_end = $base_end + ($in_replay_abs ? $prev_blank : 0);
+    }
+    else {
+        my $max_end = $base_end + $prev_blank;
+        $new_end = $max_end if $new_end > $max_end;
+        my $min_start = $start < 0 ? $start : 0;
+        $new_start = $new_end - $new_visible + 1;
+        if ( $new_start < $min_start ) {
+            $new_end = $min_start + $new_visible - 1;
+        }
+    }
+    if ($in_replay_abs) {
         # En Replay el viewport se gobierna por replay_view_end (borde derecho
-        # LOGICO). El zoom preserva el ancla ajustando ese borde; _replay_window
-        # aplica los clamps (min-visible, no-blanco-izquierda). No se toca offset.
+        # LOGICO). No se toca offset (ignorado en Replay).
         $self->{replay_view_end} = $new_end;
     }
     else {
-        my $base_end = ($rc && $rc->is_active()) ? $self->_causal_end() : ($total - 1);
-        my $base_total = $base_end + 1;
-        # Pin de bordes estilo TV: el zoom nunca agranda el hueco en blanco de
-        # un borde más allá del que ya existía por pan (0 en el caso normal);
-        # la última vela queda clavada al borde derecho al hacer zoom-out.
-        if ( $new_visible >= $base_total ) {
-            $new_end = $base_end;
-        }
-        else {
-            my $max_end = $base_end + ( $end > $base_end ? $end - $base_end : 0 );
-            $new_end = $max_end if $new_end > $max_end;
-            my $min_start = $start < 0 ? $start : 0;
-            $new_start = $new_end - $new_visible + 1;
-            if ( $new_start < $min_start ) {
-                $new_end = $min_start + $new_visible - 1;
-            }
-        }
         my $new_offset = $base_end - $new_end;
         $self->{offset} = $self->_clamp_offset($new_offset, $base_total);
     }
@@ -3790,16 +3794,20 @@ sub _horizontal_zoom {
     my $rc = $self->{replay_controller};
     my $in_replay_abs = ($rc && $rc->is_active() && defined $self->{replay_view_end}) ? 1 : 0;
 
-    if ( !$use_cursor_anchor && !$in_replay_abs ) {
+    if ( !$use_cursor_anchor ) {
         # Rueda sin Ctrl: el borde DERECHO de la ventana se conserva.
-        # - Al final del dataset (offset<=0): pegar offset=0.
-        # - En medio: conservar offset (misma `end`); el zoom solo añade/quita
-        #   velas a la izquierda. Evita ±1 vela por redondeo float + margen.
-        if ( ( $old_offset // 0 ) <= 0 ) {
-            $self->{offset} = 0;
-        }
-        else {
-            $self->{offset} = $old_offset;
+        # - Live: al final del dataset (offset<=0) pegar offset=0; en medio
+        #   conservar offset (misma `end`); el zoom solo añade/quita velas a la
+        #   izquierda. Evita ±1 vela por redondeo float + margen.
+        # - Replay: replay_view_end ES el borde; basta no tocarlo (los clamps
+        #   de _replay_window hacen el resto).
+        if ( !$in_replay_abs ) {
+            if ( ( $old_offset // 0 ) <= 0 ) {
+                $self->{offset} = 0;
+            }
+            else {
+                $self->{offset} = $old_offset;
+            }
         }
         $self->{ctrl_zoom_x_shift} = 0;
         $self->request_render();
@@ -5180,6 +5188,10 @@ sub reset_view {
     $self->{is_atr_auto_scale} = 1;
     $self->{atr_manual_min_y} = undef;
     $self->{atr_manual_max_y} = undef;
+    # reset_view vuelve a auto: la UI debe reflejarlo en ambos indicadores.
+    if (ref($self->{scale_mode_callback}) eq 'CODE') {
+        $self->{scale_mode_callback}->('auto');
+    }
     if (ref($self->{atr_scale_mode_callback}) eq 'CODE') {
         $self->{atr_scale_mode_callback}->('auto');
     }
