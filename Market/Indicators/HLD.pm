@@ -50,6 +50,7 @@ sub new {
         min_age_4h        => $opts{min_age_4h} // MIN_AGE_4H,
         min_age_d         => $opts{min_age_d}  // MIN_AGE_D,
         _result           => undef,
+        _ath_max          => {},
     };
     bless $self, $class;
     return $self;
@@ -57,7 +58,8 @@ sub new {
 
 sub reset {
     my ($self) = @_;
-    $self->{_result} = undef;
+    $self->{_result}  = undef;
+    $self->{_ath_max} = {};
     return $self;
 }
 
@@ -125,13 +127,22 @@ sub compute {
     my $pref_bars =
       $source_tf eq '4h' ? ( $days * BARS_4H_PER_DAY ) : $days;
 
-    my $max_high;
-    for my $i ( 0 .. $last_cand ) {
+    # ATH: max_high incremental por serie (Play avanza last_cand de a poco)
+    my $ath  = ( $self->{_ath_max} //= {} );
+    my $athc = $ath->{$source_tf};
+    if ( !$athc || $athc->{series} ne "$series" || $athc->{upto} > $last_cand )
+    {
+        $athc = { series => "$series", upto => -1, max => undef };
+    }
+    for my $i ( $athc->{upto} + 1 .. $last_cand ) {
         my $c = $series->[$i];
         next unless $c;
         my $h = $c->[2];
-        $max_high = $h if !defined $max_high || $h > $max_high;
+        $athc->{max} = $h if !defined $athc->{max} || $h > $athc->{max};
     }
+    $athc->{upto} = $last_cand;
+    $ath->{$source_tf} = $athc;
+    my $max_high = $athc->{max};
     if ( defined $max_high && $P >= $max_high - 1e-12 ) {
         return $self->_fail( 'ath_no_ref', price => $P, max_high => $max_high );
     }
@@ -219,14 +230,9 @@ sub map_chart_index_to_source {
         $chart_base = $chart_i;
     }
     if ( defined $chart_base ) {
-        my $best;
-        for my $i ( 0 .. $#$source_arr ) {
-            my $bi = $source_arr->[$i][6];
-            next unless defined $bi;
-            last if $bi > $chart_base;
-            $best = $i;
-        }
-        return $best if defined $best;
+        # Binaria en MarketData ([6] monótono); -1 = ninguna fuente cerró aún
+        my $mi = $md->index_for_base_index( $source_tf, $chart_base );
+        return $mi if $mi >= 0;
     }
 
     # Fallback: timestamp chart → última fuente con ts <= chart_ts
@@ -256,22 +262,22 @@ sub map_source_index_to_chart {
     my $ts = $sc->[0];
     return undef unless defined $ts;
 
-    # Primera vela chart con ts >= bucket fuente; si no, última con ts <= 
+    # Primera vela chart con ts >= bucket fuente (binaria; ts monótono)
+    my ( $lo, $hi ) = ( 0, $#$chart_arr );
     my $first_ge;
-    my $last_le;
-    for my $i ( 0 .. $#$chart_arr ) {
-        my $cts = $chart_arr->[$i][0];
-        next unless defined $cts;
-        if ( $cts le $ts ) {
-            $last_le = $i;
-        }
-        if ( !defined $first_ge && $cts ge $ts ) {
-            $first_ge = $i;
-            last;
-        }
+    while ( $lo <= $hi ) {
+        my $mid = ( $lo + $hi ) >> 1;
+        my $cts = $chart_arr->[$mid][0];
+        if ( defined $cts && $cts ge $ts ) { $first_ge = $mid; $hi = $mid - 1; }
+        else                               { $lo = $mid + 1; }
     }
     return $first_ge if defined $first_ge;
-    return $last_le;
+
+    # Ninguna alcanza el bucket: última vela con ts definido (caso raro)
+    for my $i ( reverse 0 .. $#$chart_arr ) {
+        return $i if defined $chart_arr->[$i][0];
+    }
+    return undef;
 }
 
 sub _fail {
